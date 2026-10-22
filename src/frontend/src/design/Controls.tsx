@@ -2,8 +2,12 @@ import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 
 /** Het woordmerk dient als logo zolang er geen ander is (bouwplan §8.6). */
-export function Wordmark({ size }: { size?: number }) {
-  return <span className="bw-wordmark" style={size ? { fontSize: size } : undefined}>BOWACO</span>;
+export function Wordmark({ size, sub }: { size?: number; sub?: string }) {
+  return (
+    <span className="bw-wordmark" style={size ? { fontSize: size } : undefined}>
+      BOWACO{sub && <span className="bw-wordmark__sub">{sub}</span>}
+    </span>
+  );
 }
 
 /** Verbindingsstatus in de kop: "Online · 09:12" of "Geen bereik · 3 wachten" (architectuur §8.4). */

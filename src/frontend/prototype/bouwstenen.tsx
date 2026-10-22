@@ -1,23 +1,23 @@
 // Het design system op één pagina: kleuren, letters, onderdelen en de toetsing aan de zeven regels.
 import { useState } from "react";
-import { Button, Card, Choice, PhotoGrid, StatusBadge, Steps, Stepper, Table, STATUSES, STATUS_WORD, useToast } from "../src/design";
+import { Button, Card, Choice, PhotoGrid, StatusBadge, Steps, Stepper, Table, Wordmark, STATUSES, STATUS_WORD, useToast } from "../src/design";
 import { SAMPLE_PHOTOS } from "./photos";
 
 const COLORS = [
-  { t: "--bw-navy", name: "Marineblauw", role: "merk, titels, kopbalk", light: "#1E1F41", dark: "#C9CBF2" },
-  { t: "--bw-bg", name: "Gebroken wit", role: "achtergrond", light: "#F5F4EF", dark: "#10112A" },
-  { t: "--bw-surface", name: "Vlak", role: "kaarten, panelen", light: "#FFFFFF", dark: "#1E1F41" },
-  { t: "--bw-ink", name: "Inkt", role: "tekst", light: "#16172E", dark: "#F1F0EA" },
-  { t: "--bw-accent", name: "Signaalgeel RAL 1003", role: "één actie per scherm", light: "#F9A800", dark: "#FFB81C" },
+  { t: "--bw-bg", name: "Ondergrond", role: "pagina", light: "#F2F3F5", dark: "#0C0E12" },
+  { t: "--bw-surface", name: "Vlak", role: "lijsten, panelen", light: "#FFFFFF", dark: "#15181E" },
+  { t: "--bw-line", name: "Lijn", role: "scheiding, randen", light: "#E1E4E9", dark: "#272C35" },
+  { t: "--bw-ink", name: "Inkt", role: "tekst en actieknop", light: "#0F1218", dark: "#ECEEF2" },
+  { t: "--bw-accent", name: "Kobalt", role: "selectie, focus, vandaag", light: "#2C4BE0", dark: "#8098FF" },
+  { t: "--bw-brand", name: "BOWACO-blauw", role: "enkel het woordmerk", light: "#1E1F41", dark: "#E8E9F5" },
 ];
-const STATUS_RAL: Record<string, string> = { planned: "venstergrijs", busy: "verkeersblauw RAL 5017", delayed: "signaaloranje RAL 2010", done: "signaalgroen RAL 6032", blocked: "verkeersrood RAL 3020" };
 
 const RULES = [
   ["Open = antwoord", "Werfleider opent op Mijn dag (de werven van vandaag), Alexis op Vraagt aandacht met vier tellers."],
   ["Drie tikken", "Foto: 1 tik op Foto + de sluiter. Taak klaar: werf → taak → klaar. Uren OA: verslag → ploeg → bewaren. Vertraging: Melden → Vertraging → Melden."],
   ["Voorstellen, niet vragen", "Ploegen en uren uit de planning, taken van vandaag, voertuig en bestuurder van de vorige keer, datum en werf staan al ingevuld."],
   ["Eén ding per scherm", "Het verslag is vier stappen met een balk; terug verliest niets; geen tabbladen op de gsm."],
-  ["Status in kleur en woord", "Vijf statussen, elk met vaste kleur, vast woord en een eigen vorm (cirkel, half, klok, vinkje, streep)."],
+  ["Status in kleur en woord", "Vijf statussen, elk met vaste kleur, vast woord en een eigen vorm (cirkel, half, klok, vinkje, streep). Een dubbele boeking is gestreept rood."],
   ["Niets gaat stil weg", "Elke actie toont meteen een melding, een vinkje na het bewaren, zonder bereik 'wacht op verbinding', bij een fout de knop Opnieuw."],
   ["Gewone woorden", "\"Wie was er?\", \"Wat is er gedaan?\", \"Melden\", \"Kan niet\". Enkel VH en OA als afkorting."],
 ];
@@ -35,7 +35,7 @@ export function Bouwstenen() {
     <div className="b-page">
       <section className="b-sec">
         <h2 className="bw-h1">Kleuren</h2>
-        <p className="bw-muted b-lead">Marineblauw en gebroken wit van bowaco.eu. Eén actiekleur, signaalgeel uit de werfsignalisatie: op een gsm in de zon springt die eruit, en marineblauwe tekst erop haalt 8:1 contrast.</p>
+        <p className="bw-muted b-lead">Wit, koel grijs en inkt als basis. Actieknoppen zijn zwart: in de zon het hoogste contrast. Eén kobaltblauw voor selectie, focus en vandaag. Kleur draagt verder alleen betekenis: de vijf statussen.</p>
         <div className="b-swatches">
           {COLORS.map((c) => (
             <div key={c.t} className="b-swatch">
@@ -49,24 +49,28 @@ export function Bouwstenen() {
         <h3 className="bw-h3">Vijf statussen</h3>
         <div className="b-statuses">
           {STATUSES.map((s) => (
-            <div key={s} className="b-status"><StatusBadge status={s} /><span className="bw-muted">{STATUS_RAL[s]}</span></div>
+            <StatusBadge key={s} status={s} />
           ))}
         </div>
-        <p className="bw-muted">Altijd kleur + woord ({STATUSES.map((s) => STATUS_WORD[s]).join(" · ")}) + vorm. Zonder kleur blijft de status leesbaar.</p>
+        <p className="bw-muted">Altijd kleur + woord ({STATUSES.map((s) => STATUS_WORD[s]).join(" · ")}) + vorm: lege cirkel, halve cirkel, klok, vinkje, doorstreept. Zonder kleur blijft de status leesbaar.</p>
+        <h3 className="bw-h3">Dubbele boeking</h3>
+        <div className="d-chip d-chip--clash" style={{ maxWidth: 360, cursor: "default" }}><span className="d-chip__werf">Onderbergen</span><span className="d-chip__task">GILS · do 22.10 · ook op Engelhoekstraat</span></div>
+        <p className="bw-muted">Rood met schuine strepen, zoals werflint: het enige patroon in de app, gereserveerd voor een conflict in de planning.</p>
       </section>
 
       <section className="b-sec">
         <h2 className="bw-h1">Letters</h2>
         <div className="b-type">
-          <div><span className="bw-label">Playfair Display · titels</span><p className="b-type__display">Engelhoekstraat 29</p></div>
-          <div><span className="bw-label">Montserrat · tekst, 17 px op de gsm</span><p className="b-type__text">Wie was er vandaag? GILS met 3 personen, 07:30 tot 16:30, regie 25u30.</p></div>
-          <div><span className="bw-label">Woordmerk</span><p className="b-type__mark">BOWACO</p></div>
+          <div><span className="bw-label">Archivo, breed · titels</span><p className="b-type__display">Engelhoekstraat 29</p></div>
+          <div><span className="bw-label">Archivo · tekst, 17 px op de gsm</span><p className="b-type__text">Wie was er vandaag? Riolering achterzijde open, twee putten geplaatst.</p></div>
+          <div><span className="bw-label">IBM Plex Mono · codes, uren, nummers</span><p className="b-type__mono">GILS ×3 · 07:30–16:30 · regie 25u30 · 1-VBW-482</p></div>
+          <div><span className="bw-label">Woordmerk</span><p><Wordmark size={30} sub="werven" /></p></div>
         </div>
       </section>
 
       <section className="b-sec">
         <h2 className="bw-h1">Knoppen</h2>
-        <p className="bw-muted b-lead">Minstens 48 px hoog; de hoofdknop op de werf 60 px, te raken met handschoenen. Eén gele knop per scherm.</p>
+        <p className="bw-muted b-lead">Minstens 48 px hoog; de hoofdknop op de werf 56 px, te raken met handschoenen. Eén zwarte knop per scherm: de handeling waarvoor je er bent.</p>
         <div className="b-row">
           <Button variant="primary" size="lg" icon="edit">Werfverslag</Button>
           <Button variant="primary" icon="check">Bewaren</Button>
@@ -124,7 +128,7 @@ export function Bouwstenen() {
         <h2 className="bw-h1">Getoetst aan de zeven regels</h2>
         <ol className="b-rules">
           {RULES.map(([t, b], i) => (
-            <li key={t}><span className="b-rules__n bw-num">{i + 1}</span><div><b>{t}</b><span className="bw-muted">{b}</span></div></li>
+            <li key={t}><span className="b-rules__n">{i + 1}</span><b>{t}</b><span className="bw-muted">{b}</span></li>
           ))}
         </ol>
       </section>

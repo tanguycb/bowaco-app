@@ -28,7 +28,7 @@ export const STATUS_FROM_MOTOKO = (v: Record<string, unknown>): Status =>
   (Object.keys(v)[0] as Status) ?? "planned";
 
 export const TAP = 48; // px, minimum aanraakvlak
-export const TAP_LG = 60; // px, hoofdknop op de werf
+export const TAP_LG = 56; // px, hoofdknop op de werf
 
 export type Theme = "system" | "light" | "dark";
 

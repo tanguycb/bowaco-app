@@ -37,7 +37,8 @@ function MijnDag({ go }: { go: (s: Screen) => void }) {
     <div className="m-screen">
       <div className="m-hello">
         <span className="bw-label">{TODAY.label} · week {TODAY.week}</span>
-        <h1 className="bw-h1">Goedemorgen, Jonas</h1>
+        <h1 className="bw-h1">Vandaag</h1>
+        <span className="bw-muted">Jonas · werfleider · 2 werven</span>
         {!online && <span className="bw-muted">Geen bereik. Je ziet de stand van {syncedAt}; wat je invult, wordt bewaard.</span>}
       </div>
 
@@ -48,9 +49,9 @@ function MijnDag({ go }: { go: (s: Screen) => void }) {
         aside={<StatusBadge status="busy" />}
       >
         <ul className="m-facts">
-          <li><Icon name="people" size={20} /><span><b>GILS</b> (3) vanaf 07:30 · jij</span></li>
+          <li><Icon name="people" size={20} /><span><b className="bw-mono">GILS</b> ×3 vanaf <span className="bw-mono">07:30</span> · jij</span></li>
           <li><Icon name="list" size={20} /><span>{todayOpen} taken voor vandaag</span></li>
-          <li className="m-facts--ok"><Icon name="permit" size={20} /><span>Vergunning container geldig t.e.m. 30-11</span></li>
+          <li className="m-facts--ok"><Icon name="permit" size={20} /><span>Vergunning container geldig t.e.m. <span className="bw-mono">30.11</span></span></li>
           <li className="m-facts--warn"><Icon name="alert" size={20} /><span><b>Let op:</b> GILS staat om 13:00 ook op Onderbergen 50 (balustrade). Alexis is verwittigd.</span></li>
           {reportDone !== "none" && (
             <li className={reportDone === "sent" ? "m-facts--ok" : "m-facts--warn"}>
@@ -68,13 +69,13 @@ function MijnDag({ go }: { go: (s: Screen) => void }) {
         aside={<StatusBadge status="delayed" extra="+5 wd" />}
       >
         <ul className="m-facts">
-          <li><Icon name="clock" size={20} /><span><b>GILS</b> om 13:00: balustrade ophangen</span></li>
+          <li><Icon name="clock" size={20} /><span><b className="bw-mono">GILS</b> om <span className="bw-mono">13:00</span>: balustrade ophangen</span></li>
           <li><Icon name="alert" size={20} /><span>Crepi buurman wacht op droog weer</span></li>
           <li><Icon name="permit" size={20} /><span>Geen vergunning nodig deze week</span></li>
         </ul>
       </Card>
 
-      <p className="bw-muted m-center">Laatste verslag: woensdag 21-10, 16:42 · verzonden</p>
+      <p className="bw-muted m-center">Laatste verslag <span className="bw-mono">wo 21.10 16:42</span> · verzonden</p>
 
       <div className="m-foot">
         <Button variant={reportDone === "none" ? "primary" : "secondary"} size="lg" block icon="edit" onClick={() => go("verslag")}>
@@ -170,7 +171,7 @@ function Werfverslag({ go }: { go: (s: Screen) => void }) {
                 <span className="bw-h3">{t.title}</span>
                 <StatusBadge small status={t.status} />
               </div>
-              <span className="bw-muted">{t.oa}</span>
+              <span className="bw-muted bw-mono">{t.oa}</span>
               <Choice
                 label={`Voortgang ${t.title}`}
                 fill
@@ -353,8 +354,8 @@ function Werfkaart({ go }: { go: (s: Screen) => void }) {
       <section className="m-section">
         <h2 className="bw-h2">Vandaag</h2>
         <ul className="m-facts">
-          <li><Icon name="people" size={20} /><span><b>GILS</b> (3) · 07:30–16:30 · riolering, wachtbuizen, terras</span></li>
-          <li><Icon name="people" size={20} /><span><b>BOWACO</b> · Jonas</span></li>
+          <li><Icon name="people" size={20} /><span><b className="bw-mono">GILS</b> ×3 · <span className="bw-mono">07:30–16:30</span> · riolering, wachtbuizen, terras</span></li>
+          <li><Icon name="people" size={20} /><span><b className="bw-mono">BOWACO</b> · Jonas</span></li>
         </ul>
       </section>
 

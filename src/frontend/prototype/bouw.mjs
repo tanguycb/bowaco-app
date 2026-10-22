@@ -15,7 +15,7 @@ const html = `<title>BOWACO prototype 0.5</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Design system en klikbaar prototype van de BOWACO werfbeheer-app, ter goedkeuring.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>${css}</style>
 <div id="root"></div>
 <script type="module">${js}</script>

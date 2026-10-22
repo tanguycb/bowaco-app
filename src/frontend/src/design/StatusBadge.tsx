@@ -5,9 +5,9 @@ import { STATUS_ICON, STATUS_WORD, type Status } from "./tokens";
 export function StatusBadge({ status, extra, small }: { status: Status; extra?: string; small?: boolean }) {
   return (
     <span className={`bw-status bw-status--${status}${small ? " bw-status--sm" : ""}`}>
-      <Icon name={STATUS_ICON[status]} size={small ? 14 : 18} />
+      <Icon name={STATUS_ICON[status]} size={small ? 13 : 16} />
       {STATUS_WORD[status]}
-      {extra && <span style={{ fontWeight: 500 }}>· {extra}</span>}
+      {extra && <span className="bw-status__extra">{extra}</span>}
     </span>
   );
 }

@@ -51,7 +51,7 @@ function Proto() {
   return (
     <div className="p-root bw-root">
       <header className="p-bar">
-        <div className="p-bar__brand"><Wordmark /><span>Prototype 0.5 · ter goedkeuring</span></div>
+        <div className="p-bar__brand"><Wordmark sub="prototype 0.5 · ter goedkeuring" /></div>
         <nav className="p-tabs" aria-label="Weergave">
           {([["gsm", "Werfleider · gsm"], ["desk", "Zaakvoerder · desktop"], ["ds", "Bouwstenen"]] as [View, string][]).map(([k, l]) => (
             <button key={k} type="button" className="p-tab" aria-pressed={view === k} onClick={() => setView(k)}>{l}</button>
@@ -75,7 +75,7 @@ function Proto() {
             </ToastProvider>
           </div>
           <aside className="p-guide">
-            <span className="bw-label">Wat je ziet</span>
+            <span className="bw-label">Toelichting</span>
             <h2 className="bw-h1">{GUIDE[ps].title}</h2>
             <ul>{GUIDE[ps].tries.map((t) => <li key={t}>{t}</li>)}</ul>
             <div className="p-guide__jump">

@@ -19,7 +19,7 @@ export function DesktopApp({ screen, go }: { screen: DeskScreen; go: (s: DeskScr
   return (
     <div className="d-app bw-desk">
       <aside className="d-side">
-        <div className="d-side__brand"><Wordmark size={22} /><span className="d-side__sub">werfbeheer</span></div>
+        <div className="d-side__brand"><Wordmark size={17} sub="werven" /></div>
         <nav className="d-nav">
           {nav.map((n) => (
             <button key={n.key} type="button" className="d-nav__item" aria-current={screen === n.key ? "page" : undefined} disabled={n.off} onClick={() => !n.off && go(n.key as DeskScreen)} title={n.off ? "Volgt na 0.5" : undefined}>
@@ -66,8 +66,8 @@ function Dashboard({ go }: { go: (s: DeskScreen) => void }) {
     <div className="d-page">
       <header className="d-head">
         <div>
-          <span className="bw-label">Donderdag 22 oktober 2026 · week 43</span>
-          <h1 className="bw-h1">Goedemorgen, Alexis</h1>
+          <span className="bw-label">do 22.10.2026 · week 43 · Alexis, zaakvoerder</span>
+          <h1 className="bw-h1">Overzicht</h1>
         </div>
       </header>
 
@@ -219,7 +219,7 @@ function Weekbord() {
                     <button
                       key={a.id}
                       type="button"
-                      className={`d-chip${bad ? " d-chip--clash" : ""}${a.conf === "no" ? " d-chip--no" : ""}${a.status === "delayed" ? " d-chip--delayed" : ""}`}
+                      className={`d-chip${bad ? " d-chip--clash" : a.conf === "ok" ? " d-chip--ok" : ""}${a.conf === "no" ? " d-chip--no" : ""}${a.status === "delayed" ? " d-chip--delayed" : ""}`}
                       style={{ gridColumn: `${a.from + 2} / ${a.to + 3}`, gridRow: li + 1 }}
                       onClick={() => setSel(a)}
                     >

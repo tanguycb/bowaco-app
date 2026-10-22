@@ -2,9 +2,9 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
-  /** primary = signaalgeel, één per scherm; secondary = omlijnd; quiet = tekst; danger = onomkeerbaar. */
+  /** primary = zwart (inkt), één per scherm; secondary = omlijnd; quiet = tekst; danger = onomkeerbaar. */
   variant?: "primary" | "secondary" | "quiet" | "danger";
-  /** lg = 60 px, de hoofdknop op de werf (handschoenen). */
+  /** lg = 56 px, de hoofdknop op de werf (handschoenen). */
   size?: "md" | "lg";
   block?: boolean;
   icon?: IconName;

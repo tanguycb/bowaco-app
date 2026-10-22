@@ -1,4 +1,4 @@
-// Lijniconen 24×24, lijn 2,25 px: dik genoeg om in de zon en op armlengte te lezen.
+// Lijniconen 24×24, lijn 2 px: leesbaar in de zon en op armlengte.
 // Eigen set (geen pakket): weinig iconen, geen externe adressen (CSP).
 
 const P: Record<string, string> = {
@@ -54,7 +54,7 @@ export function Icon({ name, size = 24, label }: { name: IconName; size?: number
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={2.25}
+      strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       role={label ? "img" : undefined}
