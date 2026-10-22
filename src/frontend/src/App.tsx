@@ -13,11 +13,13 @@ import { useBackend } from "./util";
 type Tab = "principal" | "toegang" | "bestanden" | "pdf" | "ticket" | "proef";
 
 export default function App() {
-  const { isAuthenticated, isInitializing, isLoggingIn, login, clear } = useInternetIdentity();
+  const { identity, isAuthenticated, isInitializing, isLoggingIn, isLoginError, loginError, login, clear } =
+    useInternetIdentity();
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const me = useQuery({
-    queryKey: ["me"],
+    // De principal in de sleutel: na inloggen nooit het antwoord van de anonieme sessie hergebruiken.
+    queryKey: ["me", identity?.getPrincipal().toText()],
     queryFn: () => actor!.me(),
     enabled: !!actor && !isFetching && isAuthenticated,
   });
@@ -39,6 +41,15 @@ export default function App() {
               Doorgaan met Google (via Internet Identity)
             </button>
           </div>
+          {isLoggingIn && <p>Inloggen bij Internet Identity…</p>}
+          {isLoginError && (
+            <div className="error">
+              <p>Inloggen mislukt: {loginError?.message ?? "onbekende fout"}</p>
+              <button type="button" className="secondary" onClick={() => window.location.reload()}>
+                Pagina opnieuw laden
+              </button>
+            </div>
+          )}
         </section>
         <PrincipalPanel />
       </Shell>
@@ -52,7 +63,7 @@ export default function App() {
 
   return (
     <Shell onLogout={clear} who={person?.name}>
-      {me.isLoading && <p>Even laden…</p>}
+      {(me.isLoading || !actor || isFetching) && !me.data && <p>Even laden…</p>}
       {me.error && <p className="error">{String(me.error)}</p>}
       {status === Status.unlinked && <CodeEntry onDone={refresh} blockedUntil={me.data?.blockedUntil} />}
       {status === Status.pending && (

@@ -171,6 +171,7 @@ export interface _SERVICE {
     _ImmutableObjectStorageRefillResult
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
+  '_initialize_access_control' : ActorMethod<[], undefined>,
   'addFile' : ActorMethod<[string, string, bigint, ExternalBlob], Result>,
   'addProbeNote' : ActorMethod<[string], Result>,
   'auditLog' : ActorMethod<[bigint], Array<AuditEntry>>,

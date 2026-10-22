@@ -258,6 +258,7 @@ export interface backendInterface {
     _immutableObjectStorageCreateCertificate(blobHash: string): Promise<_ImmutableObjectStorageCreateCertificateResult>;
     _immutableObjectStorageRefillCashier(refillInformation: _ImmutableObjectStorageRefillInformation | null): Promise<_ImmutableObjectStorageRefillResult>;
     _immutableObjectStorageUpdateGatewayPrincipals(): Promise<void>;
+    _initialize_access_control(): Promise<void>;
     addFile(name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result>;
     addProbeNote(text: string): Promise<Result>;
     auditLog(last: bigint): Promise<Array<AuditEntry>>;
@@ -365,6 +366,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor._immutableObjectStorageUpdateGatewayPrincipals();
+            return result;
+        }
+    }
+    async _initialize_access_control(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor._initialize_access_control();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor._initialize_access_control();
             return result;
         }
     }

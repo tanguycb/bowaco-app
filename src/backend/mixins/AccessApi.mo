@@ -15,6 +15,11 @@ import Config "../lib/Config";
 
 mixin (st : Types.State, ctr : Types.Counters) {
 
+  // Caffeine's loginpakket (@caffeineai/core-infrastructure) roept dit na elke II-login aan; het hoort
+  // bij Caffeine's eigen rechtenpakket, dat BOWACO niet gebruikt. Bewust leeg: zonder deze functie
+  // eindigt de login als fout en ziet de gebruiker pas na verversen dat hij ingelogd is (test T1).
+  public shared func _initialize_access_control() : async () {};
+
   public query ({ caller }) func me() : async Types.MeView {
     let robot = Access.isRobot(caller);
     if (caller.isAnonymous()) {

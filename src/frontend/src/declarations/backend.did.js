@@ -181,6 +181,7 @@ export const idlService = IDL.Service({
       [],
     ),
   '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+  '_initialize_access_control' : IDL.Func([], [], []),
   'addFile' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Nat, ExternalBlob],
       [Result],
@@ -379,6 +380,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
+    '_initialize_access_control' : IDL.Func([], [], []),
     'addFile' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Nat, ExternalBlob],
         [Result],

@@ -29,3 +29,21 @@ export function fmtBytes(n: number): string {
 export function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
+
+// Opent bytes (bv. een PDF) in een nieuw tabblad, in de eigen weergave van het toestel.
+// Het tabblad gaat open vóór het wachten, anders blokkeert de browser het als pop-up.
+export async function openInNewTab(getBytes: () => Promise<Uint8Array>, mime: string): Promise<void> {
+  const win = window.open("", "_blank");
+  try {
+    const bytes = await getBytes();
+    const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mime }));
+    if (win) win.location.href = url;
+    else window.location.href = url;
+  } catch (e) {
+    win?.close();
+    throw e;
+  }
+}
+
+// Op een gsm toont een ingebedde PDF vaak maar één pagina; daar liever het eigen PDF-scherm.
+export const isPhone = () => window.matchMedia("(max-width: 767px)").matches;

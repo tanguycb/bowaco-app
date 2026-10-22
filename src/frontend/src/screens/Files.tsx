@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ExternalBlob, type FileRec } from "../backend";
-import { errText, fmtBytes, fmtTime, unwrap, useBackend } from "../util";
+import { errText, fmtBytes, fmtTime, isPhone, openInNewTab, unwrap, useBackend } from "../util";
 
 // Foto's worden op het toestel verkleind (≤ 1600 px, JPEG) vóór de upload (§4).
 async function shrinkPhoto(file: File): Promise<Blob> {
@@ -21,6 +21,8 @@ export function FilesPanel() {
   const [progress, setProgress] = useState(0);
   const [last, setLast] = useState("");
   const files = useQuery({ queryKey: ["files"], queryFn: () => actor!.listFiles(), enabled: !!actor });
+  const [big, setBig] = useState<FileRec | null>(null);
+  const sorted = (files.data ?? []).slice().sort((a, b) => Number(b.at - a.at));
 
   const upload = useMutation({
     mutationFn: async (file: File) => {
@@ -61,52 +63,82 @@ export function FilesPanel() {
             origineel opladen (niet verkleinen)
           </label>
         </div>
-        {upload.isPending && <progress max={100} value={progress} />}
+        {upload.isPending && (
+          <div className="uploading">
+            <progress max={100} value={progress} />
+            <span>{progress} %</span>
+          </div>
+        )}
         {last && <p>{last}</p>}
         {upload.error && <p className="error">{errText(upload.error)}</p>}
       </section>
       <section className="card">
         <h2>Bestanden</h2>
-        {(files.data ?? []).length === 0 && <p>Nog niets.</p>}
+        {sorted.length === 0 && <p>Nog niets.</p>}
         <div className="grid">
-          {(files.data ?? []).map((f) => (
-            <FileCard key={String(f.id)} f={f} />
+          {sorted.map((f) => (
+            <FileCard key={String(f.id)} f={f} onOpen={() => setBig(f)} />
           ))}
         </div>
       </section>
+      {big && (
+        <div className="lightbox" onClick={() => setBig(null)}>
+          <img src={big.blob.getDirectURL()} alt={big.name} />
+          <div className="lightbox-bar">
+            <span>{big.name} · {fmtBytes(Number(big.size))}</span>
+            <button type="button" onClick={() => setBig(null)}>Sluiten</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
-function FileCard({ f }: { f: FileRec }) {
+function FileCard({ f, onOpen }: { f: FileRec; onOpen: () => void }) {
   const url = f.blob.getDirectURL();
-  const [view, setView] = useState<string>("");
+  const [view, setView] = useState("");
+  const [err, setErr] = useState("");
   const isPdf = f.mime === "application/pdf";
-  const show = async () => {
-    // Via de bytes, zodat de browser de PDF toont ook als de gateway hem als download aanbiedt.
-    const bytes = await f.blob.getBytes();
-    setView(URL.createObjectURL(new Blob([bytes], { type: f.mime })));
+  const openPdf = async () => {
+    setErr("");
+    try {
+      if (isPhone()) {
+        // Gsm: eigen PDF-weergave van het toestel (alle pagina's, zoomen).
+        await openInNewTab(() => f.blob.getBytes(), f.mime);
+      } else {
+        // Desktop: in de pagina. Via de bytes, want de opslag biedt het bestand als download aan.
+        const bytes = await f.blob.getBytes();
+        setView(URL.createObjectURL(new Blob([bytes], { type: f.mime })));
+      }
+    } catch (e) {
+      setErr(errText(e));
+    }
   };
   return (
     <div className="file">
-      {isPdf ? <div className="pdfbadge">PDF</div> : <img src={url} alt={f.name} loading="lazy" />}
+      {isPdf ? (
+        <button type="button" className="pdfbadge" onClick={openPdf}>PDF<br /><span className="small">openen</span></button>
+      ) : (
+        <button type="button" className="thumb" onClick={onOpen}>
+          <img src={url} alt={f.name} loading="lazy" />
+        </button>
+      )}
       <div className="small">
-        <b>{f.name}</b> · {fmtBytes(Number(f.size))} · {fmtTime(f.at)}
-      </div>
-      <div className="small">
-        <a href={url} target="_blank" rel="noreferrer">rechtstreekse URL</a>
-        {isPdf && (
-          <>
-            {" · "}
-            <button type="button" className="link" onClick={show}>tonen</button>
-          </>
-        )}
+        <b>{f.name}</b>
+        <br />
+        {fmtBytes(Number(f.size))} · {fmtTime(f.at)}
       </div>
       <details className="small">
-        <summary>URL</summary>
-        <span className="mono">{url}</span>
+        <summary>Rechtstreekse URL (voor test T5)</summary>
+        <a href={url} target="_blank" rel="noreferrer" className="mono">{url}</a>
       </details>
-      {view && <iframe title={f.name} src={view} className="pdfview" />}
+      {err && <p className="error small">{err}</p>}
+      {view && (
+        <>
+          <iframe title={f.name} src={view} className="pdfview" />
+          <button type="button" className="secondary" onClick={() => setView("")}>PDF sluiten</button>
+        </>
+      )}
     </div>
   );
 }

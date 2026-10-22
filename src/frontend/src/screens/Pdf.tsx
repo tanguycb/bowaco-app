@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { useState } from "react";
-import { errText, fmtBytes } from "../util";
+import { errText, fmtBytes, isPhone } from "../util";
 
 const NAVY = rgb(0x1e / 255, 0x1f / 255, 0x41 / 255);
 
@@ -72,20 +72,20 @@ export function PdfPanel() {
   return (
     <section className="card">
       <h2>PDF maken en tonen</h2>
-      <p>Maakt een proef-werfverslag in de browser en toont het hieronder. Op de gsm: kijk of de PDF zichtbaar is of enkel als download opent.</p>
+      <p>Maakt een proef-werfverslag in de browser. Op de computer verschijnt het hieronder; op de gsm opent "PDF openen" de eigen PDF-weergave van het toestel.</p>
       <div className="stack">
         <button type="button" onClick={make}>Werfverslag-PDF maken</button>
         {url && (
-          <span>
-            <a href={url} target="_blank" rel="noreferrer">In nieuw tabblad openen</a>
-            {" · "}
-            <a href={url} download="werfverslag-proef.pdf">Downloaden</a>
-          </span>
+          <>
+            <a className="button" href={url} target="_blank" rel="noreferrer">PDF openen</a>
+            <a className="button secondary" href={url} download="werfverslag-proef.pdf">Downloaden</a>
+          </>
         )}
       </div>
       {info && <p>{info}</p>}
       {err && <p className="error">{err}</p>}
-      {url && <iframe title="werfverslag" src={url} className="pdfview" />}
+      {/* Op de gsm toont een ingebedde PDF vaak maar één pagina: daar de knop "PDF openen". */}
+      {url && !isPhone() && <iframe title="werfverslag" src={url} className="pdfview" />}
     </section>
   );
 }

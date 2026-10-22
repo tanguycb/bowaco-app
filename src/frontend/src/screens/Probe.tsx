@@ -26,7 +26,10 @@ export function ProbePanel() {
     <>
       <section className="card">
         <h2>Timer en versie</h2>
-        <button type="button" className="secondary" onClick={() => qc.invalidateQueries({ queryKey: ["probe"] })}>Vernieuwen</button>
+        <button type="button" className="secondary" disabled={status.isFetching} onClick={() => qc.invalidateQueries({ queryKey: ["probe"] })}>
+          {status.isFetching ? "Bezig…" : "Vernieuwen"}
+        </button>
+        {status.isPending && <p>Meetwaarden ophalen (± 2 s)…</p>}
         {s && (
           <dl className="kv">
             <div><dt>Versie</dt><dd>{s.version}</dd></div>
@@ -43,9 +46,16 @@ export function ProbePanel() {
       <section className="card">
         <h2>vetKeys: publieke sleutel</h2>
         <p>Vraagt enkel de publieke sleutel op (geen afleiding, geen data).</p>
-        <button type="button" disabled={vetkd.isPending} onClick={() => vetkd.mutate()}>Meten</button>
-        {vetkd.data && <p className="mono small">{vetkd.data}</p>}
-        {s?.vetkdLastReport && !vetkd.data && <p className="mono small">Vorige: {s.vetkdLastReport}</p>}
+        <button type="button" disabled={vetkd.isPending} onClick={() => vetkd.mutate()}>
+          {vetkd.isPending ? "Bezig met meten (± 7 s)…" : "Meten"}
+        </button>
+        {vetkd.data && <VetkdReport text={vetkd.data} />}
+        {s?.vetkdLastReport && !vetkd.data && (
+          <>
+            <p className="small">Vorige meting ({fmtTime(s.vetkdLastAt)}):</p>
+            <VetkdReport text={s.vetkdLastReport} />
+          </>
+        )}
         {vetkd.error && <p className="error">{errText(vetkd.error)}</p>}
       </section>
       <section className="card">
@@ -62,5 +72,20 @@ export function ProbePanel() {
         </ul>
       </section>
     </>
+  );
+}
+
+// "VETKD_KEY_NAME=… | key_1: OK 96 B, 2536 ms, … | test_key_1: …" → één regel per sleutel.
+function VetkdReport({ text }: { text: string }) {
+  const parts = text.split(" | ");
+  return (
+    <ul className="plain small">
+      {parts.map((p) => (
+        <li key={p}>
+          {p.includes(": OK") ? "✅ " : p.includes("FOUT") ? "❌ " : ""}
+          <span className="mono">{p}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
