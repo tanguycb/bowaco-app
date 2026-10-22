@@ -1,0 +1,11 @@
+manifest_version = "0.1.0"
+
+[project]
+id = "01a16382-d781-7448-b27f-809a10d72d27"
+name = "BOWACO"
+
+[workspace]
+include = [ "src/**" ]
+
+[canisters.frontend]
+depends_on = [ "backend" ]

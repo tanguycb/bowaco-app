@@ -1,0 +1,22 @@
+[package]
+name = "bowaco"
+version = "0.1.0"
+
+[canisters.backend]
+main = "src/backend/main.mo"
+
+[canisters.backend.migrations]
+chain = "src/backend/migrations"
+check-limit = 1
+
+[canisters.backend.check-stable]
+path = "src/backend/.most/backend.most"
+
+[dependencies]
+core = "2.6.2"
+ic-vetkeys = "0.6.0"
+sha2 = "0.1.14"
+caffeineai-object-storage = "1.1.1"
+
+[toolchain]
+moc = "1.13.0"

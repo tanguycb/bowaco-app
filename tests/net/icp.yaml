@@ -1,0 +1,14 @@
+# Eigen lokaal testnetwerk voor BOWACO (poort 8041). Raakt het gedeelde netwerk op :8000 niet.
+# WASM kiest het programma (standaard de laatste bouw).
+networks:
+  - name: local
+    mode: managed
+    gateway:
+      port: 8041
+canisters:
+  - name: backend
+    build:
+      steps:
+        - type: script
+          commands:
+            - cp "${WASM:-../../src/backend/dist/backend.wasm}" "$ICP_WASM_OUTPUT_PATH"

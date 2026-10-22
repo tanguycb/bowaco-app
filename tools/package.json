@@ -1,0 +1,11 @@
+{
+  "name": "bowaco-tools",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Proefscripts stap 0.2 (robot, opslag, flowtest). Draaien met node, niet in de app.",
+  "dependencies": {
+    "@caffeineai/object-storage": "1.1.2",
+    "@icp-sdk/core": "5.4.0"
+  }
+}

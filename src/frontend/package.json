@@ -1,0 +1,30 @@
+{
+  "name": "bowaco-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && cp env.json dist/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@caffeineai/core-infrastructure": "2.0.1",
+    "@caffeineai/object-storage": "1.1.2",
+    "@icp-sdk/auth": "9.0.0",
+    "@icp-sdk/core": "5.4.0",
+    "@tanstack/react-query": "5.104.5",
+    "pdf-lib": "1.17.1",
+    "react": "~19.1.0",
+    "react-dom": "~19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "@types/react": "~19.1.0",
+    "@types/react-dom": "~19.1.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.4",
+    "vite": "^6.0.0",
+    "vite-plugin-environment": "1.1.4"
+  }
+}
