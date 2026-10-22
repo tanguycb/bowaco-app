@@ -1,0 +1,124 @@
+/* BOWACO design system (stap 0.5) — tokens.
+   Vertrekpunt: website bowaco.eu (marineblauw #1E1F41, gebroken wit, Playfair Display + Montserrat).
+   Toegevoegd: één accentkleur voor acties (signaalgeel, RAL 1003) en vijf statuskleuren uit de
+   werfsignalisatie. Elke kleur is een token; licht staat op :root, donker herdefinieert alleen tokens.
+   Thema: systeem (prefers-color-scheme) of expliciet via <html data-theme="light|dark">.
+   Lettertypes: in 0.6 zelf hosten (woff2 in public/fonts, CSP), niet via Google Fonts. */
+
+:root {
+  /* merk */
+  --bw-navy: #1e1f41;            /* bowaco.eu: kop, woordmerk, primaire tekst op wit */
+  --bw-navy-soft: #2c2e5c;
+  --bw-bar: #1e1f41;             /* kopbalk: altijd marineblauw */
+  --bw-on-bar: #f5f4ef;
+  /* vlakken */
+  --bw-bg: #f5f4ef;              /* gebroken wit, iets koeler dan crème */
+  --bw-surface: #ffffff;
+  --bw-surface-2: #ecebe4;       /* ingezonken vlak: invoer, lege cel */
+  --bw-line: #d6d5cc;
+  --bw-line-strong: #a9a89d;
+  /* tekst */
+  --bw-ink: #16172e;
+  --bw-ink-2: #4a4c66;           /* bijtekst; ≥ 7:1 op --bw-bg */
+  --bw-on-navy: #f5f4ef;
+  /* actie: signaalgeel RAL 1003, altijd met marineblauwe tekst (8:1) */
+  --bw-accent: #f9a800;
+  --bw-accent-press: #e09600;
+  --bw-accent-edge: #a86f00;     /* rand: houdt de knop zichtbaar in fel zonlicht */
+  --bw-on-accent: #1e1f41;
+  --bw-focus: #1f5fa8;
+  /* vijf statussen (§8.1 regel 5): kleur + woord + vorm, nooit kleur alleen */
+  --bw-st-planned: #5b5e80;      --bw-st-planned-bg: #e7e7ef;   /* gepland  — venstergrijs */
+  --bw-st-busy: #1f5fa8;         --bw-st-busy-bg: #dfe9f6;      /* bezig    — verkeersblauw RAL 5017 */
+  --bw-st-delayed: #b4490f;      --bw-st-delayed-bg: #fbe6d6;   /* vertraagd — signaaloranje RAL 2010 */
+  --bw-st-done: #1d7347;         --bw-st-done-bg: #dcefe3;      /* klaar    — signaalgroen RAL 6032 */
+  --bw-st-blocked: #b3121c;      --bw-st-blocked-bg: #f8dcdd;   /* geblokkeerd — verkeersrood RAL 3020 */
+  /* verbinding */
+  --bw-online: var(--bw-st-done);
+  --bw-offline: var(--bw-st-delayed);
+
+  /* type */
+  --bw-font-display: "Playfair Display", "Iowan Old Style", Georgia, serif;
+  --bw-font-text: Montserrat, "Segoe UI", system-ui, -apple-system, sans-serif;
+  --bw-fs-xs: 0.8125rem;   /* 13 — enkel labels in hoofdletters */
+  --bw-fs-sm: 0.9375rem;   /* 15 — bijtekst */
+  --bw-fs-md: 1.0625rem;   /* 17 — basistekst op de gsm (zonlicht, armlengte) */
+  --bw-fs-lg: 1.25rem;     /* 20 — kaarttitel */
+  --bw-fs-xl: 1.625rem;    /* 26 — schermtitel gsm */
+  --bw-fs-2xl: 2.25rem;    /* 36 — schermtitel desktop, tellers */
+
+  /* maat */
+  --bw-space-1: 4px;
+  --bw-space-2: 8px;
+  --bw-space-3: 12px;
+  --bw-space-4: 16px;
+  --bw-space-5: 24px;
+  --bw-space-6: 32px;
+  --bw-space-7: 48px;
+  --bw-tap: 48px;          /* minimum voor alles wat je aanraakt (§8.3) */
+  --bw-tap-lg: 60px;       /* hoofdknop op de werf: met handschoenen */
+  --bw-radius-sm: 6px;
+  --bw-radius: 10px;
+  --bw-radius-lg: 16px;
+  --bw-shadow: 0 1px 2px rgb(22 23 46 / 0.06), 0 4px 16px rgb(22 23 46 / 0.06);
+  --bw-shadow-lift: 0 12px 40px rgb(22 23 46 / 0.22);
+  --bw-dur: 160ms;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bw-navy: #c9cbf2;
+    --bw-navy-soft: #a3a6dc;
+    --bw-bar: #17183a;
+    --bw-on-bar: #f1f0ea;
+    --bw-bg: #10112a;
+    --bw-surface: #1e1f41;
+    --bw-surface-2: #282a52;
+    --bw-line: #393b6b;
+    --bw-line-strong: #5a5d92;
+    --bw-ink: #f1f0ea;
+    --bw-ink-2: #b9bad3;
+    --bw-on-navy: #10112a;
+    --bw-accent: #ffb81c;
+    --bw-accent-press: #f2a700;
+    --bw-accent-edge: #ffd36b;
+    --bw-on-accent: #1e1f41;
+    --bw-focus: #8fb8ff;
+    --bw-st-planned: #b4b6d6;  --bw-st-planned-bg: #2e3058;
+    --bw-st-busy: #8fb8ff;     --bw-st-busy-bg: #1d2f57;
+    --bw-st-delayed: #ffa66b;  --bw-st-delayed-bg: #4a2a1a;
+    --bw-st-done: #7fd6a2;     --bw-st-done-bg: #173d2c;
+    --bw-st-blocked: #ff8a8f;  --bw-st-blocked-bg: #4d1a22;
+    --bw-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+    --bw-shadow-lift: 0 12px 40px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bw-navy: #c9cbf2;
+  --bw-navy-soft: #a3a6dc;
+  --bw-bar: #17183a;
+  --bw-on-bar: #f1f0ea;
+  --bw-bg: #10112a;
+  --bw-surface: #1e1f41;
+  --bw-surface-2: #282a52;
+  --bw-line: #393b6b;
+  --bw-line-strong: #5a5d92;
+  --bw-ink: #f1f0ea;
+  --bw-ink-2: #b9bad3;
+  --bw-on-navy: #10112a;
+  --bw-accent: #ffb81c;
+  --bw-accent-press: #f2a700;
+  --bw-accent-edge: #ffd36b;
+  --bw-on-accent: #1e1f41;
+  --bw-focus: #8fb8ff;
+  --bw-st-planned: #b4b6d6;  --bw-st-planned-bg: #2e3058;
+  --bw-st-busy: #8fb8ff;     --bw-st-busy-bg: #1d2f57;
+  --bw-st-delayed: #ffa66b;  --bw-st-delayed-bg: #4a2a1a;
+  --bw-st-done: #7fd6a2;     --bw-st-done-bg: #173d2c;
+  --bw-st-blocked: #ff8a8f;  --bw-st-blocked-bg: #4d1a22;
+  --bw-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+  --bw-shadow-lift: 0 12px 40px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}

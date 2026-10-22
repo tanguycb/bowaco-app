@@ -3,3 +3,4 @@ dist
 .mops
 .DS_Store
 .claude/
+dist-prototype
