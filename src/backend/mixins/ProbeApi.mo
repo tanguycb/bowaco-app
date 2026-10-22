@@ -69,7 +69,7 @@ mixin (st : Types.State, ctr : Types.Counters, tmr : Types.TimerState, vk : Type
     if (text.size() == 0 or text.size() > 200) { return #err("1 tot 200 tekens") };
     if (st.probe.size() >= Config.maxProbeNotes) { return #err("Maximum bereikt") };
     ctr.nextProbe += 1;
-    st.probe.add(ctr.nextProbe, { id = ctr.nextProbe; text; by = caller; at = Time.now() });
+    st.probe.add(ctr.nextProbe, { id = ctr.nextProbe; text; by = caller; at = Time.now(); version = Config.schema });
     #ok(ctr.nextProbe);
   };
 

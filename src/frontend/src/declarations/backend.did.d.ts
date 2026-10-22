@@ -80,6 +80,7 @@ export interface Person {
   'name' : string,
   'createdAt' : bigint,
   'createdBy' : bigint,
+  'phone' : [] | [string],
   'roles' : Array<Role>,
 }
 export interface ProbeNote {
@@ -87,6 +88,7 @@ export interface ProbeNote {
   'by' : Principal,
   'id' : bigint,
   'text' : string,
+  'version' : bigint,
 }
 export interface ProbeStatus {
   'files' : bigint,

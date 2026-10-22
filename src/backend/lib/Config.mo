@@ -2,7 +2,8 @@
 import Principal "mo:core/Principal";
 
 module {
-  public let version = "0.2-draft1";
+  public let version = "0.2-draft2";
+  public let schema : Nat = 2;
 
   // SHA-256("bowaco-code-v1|" # code) van de TEST-opstartcode voor de haalbaarheidsdraft.
   // De code zelf staat niet in git; de echte opstartcode maakt de eigenaar bij stap 0.6.

@@ -21,6 +21,7 @@ module {
     roles : [Role];
     createdAt : Int;
     createdBy : Nat; // persoon-id van de uitnodiger; 0 = opstartcode
+    phone : ?Text; // draft 2: communicatiekanaal (§3.1), nooit een login
   };
 
   public type LinkStatus = { #active; #pending };
@@ -108,6 +109,7 @@ module {
     text : Text;
     by : Principal;
     at : Int;
+    version : Nat; // draft 2: in welke versie geschreven (oude notities krijgen 1)
   };
 
   // ── Toestand ───────────────────────────────────────────────────────────

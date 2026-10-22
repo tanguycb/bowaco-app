@@ -63,6 +63,7 @@ mixin (st : Types.State, ctr : Types.Counters) {
       roles = [#admin];
       createdAt = Time.now();
       createdBy = 0;
+      phone = null;
     };
     st.persons.add(person.id, person);
     let link : Types.Link = {
@@ -95,6 +96,7 @@ mixin (st : Types.State, ctr : Types.Counters) {
       roles;
       createdAt = Time.now();
       createdBy = again.id;
+      phone = null;
     };
     st.persons.add(person.id, person);
     let code = newCode(person.id, #invite, again.id, validDays, entropy);

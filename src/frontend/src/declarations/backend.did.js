@@ -51,6 +51,7 @@ export const Person = IDL.Record({
   'name' : IDL.Text,
   'createdAt' : IDL.Int,
   'createdBy' : IDL.Nat,
+  'phone' : IDL.Opt(IDL.Text),
   'roles' : IDL.Vec(Role),
 });
 export const Result_5 = IDL.Variant({ 'ok' : Person, 'err' : IDL.Text });
@@ -135,6 +136,7 @@ export const ProbeNote = IDL.Record({
   'by' : IDL.Principal,
   'id' : IDL.Nat,
   'text' : IDL.Text,
+  'version' : IDL.Nat,
 });
 export const ProbeStatus = IDL.Record({
   'files' : IDL.Nat,
@@ -253,6 +255,7 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'createdAt' : IDL.Int,
     'createdBy' : IDL.Nat,
+    'phone' : IDL.Opt(IDL.Text),
     'roles' : IDL.Vec(Role),
   });
   const Result_5 = IDL.Variant({ 'ok' : Person, 'err' : IDL.Text });
@@ -331,6 +334,7 @@ export const idlFactory = ({ IDL }) => {
     'by' : IDL.Principal,
     'id' : IDL.Nat,
     'text' : IDL.Text,
+    'version' : IDL.Nat,
   });
   const ProbeStatus = IDL.Record({
     'files' : IDL.Nat,
