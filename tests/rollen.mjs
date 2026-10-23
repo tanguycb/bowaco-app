@@ -415,6 +415,18 @@ if (local && !process.env.ZONDER_KLOK) {
   check("geblokkeerde principal is na 24 uur weer vrij", (await vreemde.me()).blockedUntil.length === 0);
 }
 
+// De test laat niets achter dat iemand later per vergissing kan bevestigen of gebruiken
+// (les draft 1: een achtergebleven wachtende koppeling werd blind bevestigd).
+await sec("── opruimen: eigen wachtende koppelingen en open codes");
+const nieuwMe = await nieuw.me();
+if (nieuwMe.person.length) check("testkoppeling 'Proef Nieuw' afgesloten (afgezet)", isOk(await admin.archivePerson(nieuwMe.person[0].id)));
+for (const c of [invAdm, invOa3]) {
+  const r = await admin.revokeInvite(c.ok.inviteId);
+  if ("err" in r && !r.err.includes("niet meer open")) check(`code #${c.ok.inviteId} intrekken`, false, r.err);
+}
+check("geen wachtende koppelingen meer", (await admin.listLinks()).every((l) => !("pending" in l.status)));
+check("geen open codes van de test meer", (await admin.listInvites(0n, 500n)).every((i) => !("open" in i.state) || i.expiresAt < BigInt(Date.now()) * 1_000_000n));
+
 const s = (Date.now() - t0) / 1000;
 console.log(`\n${pass} ✓  ${fail} ✗  (${s.toFixed(1)} s)`);
 if (fail) console.log("Rood:\n  " + failures.join("\n  "));

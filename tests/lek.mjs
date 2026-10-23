@@ -7,7 +7,7 @@
 // dat wie toegelaten is, daarna op een gewone invoerfout botst: de test verandert (bijna) niets.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { backend, freshBackend, identity, Principal } from "../tools/lib.mjs";
+import { backend, freshBackend, identity, ok, Principal } from "../tools/lib.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/lek.mjs <canister-id>");
@@ -15,10 +15,14 @@ const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.
 const methods = [...did.slice(did.indexOf("service")).matchAll(/^\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*:/gm)].map((m) => m[1]);
 
 const admin = await backend("proef-admin", cid);
+// Eigen wachtende testkoppeling (interne rol, niet bevestigd); op het einde weer afgesloten.
+const wacht = await freshBackend(cid);
+const wachtInv = ok(await admin.invitePerson({ name: "Proef Wacht (lektest)", roles: [{ calculator: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [], validDays: 1n, tag: "lektest" }));
+ok(await wacht.redeemCode(wachtInv.code));
 const roles = {
   anoniem: await backend(null, cid),
   ongekoppeld: await freshBackend(cid),
-  wacht: await backend("proef-nieuw", cid),
+  wacht,
   admin,
   werfleider: await backend("proef-werfleider", cid),
   calculator: await backend("proef-calculator", cid),
@@ -164,6 +168,13 @@ for (const m of methods) {
   rows.push({ m, expect, got });
 }
 for (const k of Object.keys(table)) if (!methods.includes(k)) console.log(`· tabelregel zonder functie: ${k}`);
+// Opruimen: de eigen wachtende koppeling afsluiten, zodat niemand ze later per vergissing bevestigt.
+ok(await admin.archivePerson(wachtInv.personId));
+const left = (await admin.listLinks()).filter((l) => "pending" in l.status);
+if (left.length) {
+  missing++;
+  console.log(`✗ na de lektest wachten nog ${left.length} koppelingen: ${left.map((l) => l.personName).join(", ")}`);
+}
 console.log(`\n${methods.length} functies × ${ALL.length} rollen = ${calls} oproepen`);
 console.log(`onverwachte toegang (lek): ${leaks} · te streng: ${tooStrict} · functies zonder regel: ${missing}`);
 writeFileSync(join(import.meta.dirname, ".laatste-lek.json"), JSON.stringify({ cid, at: new Date().toISOString(), functions: methods.length, calls, leaks, tooStrict, missing, rows }, null, 1));
