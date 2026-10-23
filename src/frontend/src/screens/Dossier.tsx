@@ -74,9 +74,35 @@ export function Dossier({ w }: { w: WorkView }) {
 
 function Latest({ doc }: { doc: DocumentView }) {
   const f = doc.files[doc.files.length - 1];
-  const url = f?.blob?.getDirectURL();
-  if (!url) return doc.confidential && f ? <span className="a-tag a-tag--warn">{t.werven.confidential}</span> : null;
+  if (!f) return null;
+  const url = f.blob?.getDirectURL();
+  if (!url) return <><span className="a-tag a-tag--warn">{t.werven.confidential}</span><OpenConfidential fileId={f.id} /></>;
   return <a className="bw-btn bw-btn--quiet" href={url} target="_blank" rel="noreferrer">{t.werven.open}</a>;
+}
+
+/** Vertrouwelijk bestand openen: de verwijzing komt enkel uit een update-call met auditregel (R12, R23).
+ *  Het venster gaat meteen open (anders blokkeert de browser het na het wachten) en krijgt dan het adres. */
+function OpenConfidential({ fileId }: { fileId: bigint }) {
+  const { actor } = useBackend();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const open = async () => {
+    const win = window.open("", "_blank");
+    setBusy(true);
+    try {
+      const f = unwrap(await actor!.readConfidentialFile(fileId));
+      const url = f.blob?.getDirectURL();
+      if (!url) throw new Error(t.common.error);
+      if (win) win.location.href = url;
+      else window.location.href = url;
+    } catch (e) {
+      win?.close();
+      toast.show({ kind: "error", text: errText(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <Button variant="quiet" busy={busy} onClick={() => void open()}>{t.werven.open}</Button>;
 }
 
 function Line({ l, w, canManage, canDeliver, onOpen }: { l: ChecklistLine; w: WorkView; canManage: boolean; canDeliver: boolean; onOpen: (d: DocumentView) => void }) {
@@ -102,7 +128,7 @@ function Line({ l, w, canManage, canDeliver, onOpen }: { l: ChecklistLine; w: Wo
 }
 
 /** Opladen naar de opslagdienst (poort: StorageGate) en het bestand aan het document hangen. */
-function UploadButton({ w, kind, docId, confidential, label }: { w: WorkView; kind: string; docId?: bigint; confidential: boolean; label: string }) {
+function UploadButton({ w, kind, docId, confidential, label, onDone }: { w: WorkView; kind: string; docId?: bigint; confidential: boolean; label: string; onDone?: () => void }) {
   const { actor } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -119,7 +145,7 @@ function UploadButton({ w, kind, docId, confidential, label }: { w: WorkView; ki
       const fileId = unwrap(await actor!.addFile(name, mime, BigInt(bytes.length), blob, w.id, confidential));
       return unwrap(await actor!.attachDocumentFile(w.id, kind, docId ?? null, fileId));
     },
-    onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["dossier", String(w.id)] }); void qc.invalidateQueries({ queryKey: ["work", String(w.id)] }); void qc.invalidateQueries({ queryKey: ["works"] }); },
+    onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["dossier", String(w.id)] }); void qc.invalidateQueries({ queryKey: ["work", String(w.id)] }); void qc.invalidateQueries({ queryKey: ["works"] }); onDone?.(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
     onSettled: () => setProgress(null),
   });
@@ -164,7 +190,8 @@ function AddDocument({ w, kinds, canManage, onClose }: { w: WorkView; kinds: Doc
           </>
         )}
         {k?.confidential && <p className="a-note">{t.docs.confidentialUpload}</p>}
-        {kind && canDeliverKind && <UploadButton w={w} kind={kind} confidential={!!k?.confidential} label={t.docs.upload} />}
+        {kind && canDeliverKind && <UploadButton w={w} kind={kind} confidential={!!k?.confidential} label={t.docs.upload} onDone={onClose} />}
+        {kind && canManage && <p className="bw-muted">{t.docs.addHelp}</p>}
         {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
       </div>
     </Sheet>
@@ -207,13 +234,13 @@ function DocSheet({ w, doc, canManage, onClose }: { w: WorkView; doc: DocumentVi
               return (
                 <li key={String(f.id)}>
                   <span className="a-list__main"><b>{f.name}</b><span className="bw-muted">v{doc.files.length - i}</span></span>
-                  {url ? <a className="bw-btn bw-btn--quiet" href={url} target="_blank" rel="noreferrer">{t.werven.open}</a> : <span className="a-tag a-tag--warn">{t.werven.confidential}</span>}
+                  {url ? <a className="bw-btn bw-btn--quiet" href={url} target="_blank" rel="noreferrer">{t.werven.open}</a> : <><span className="a-tag a-tag--warn">{t.werven.confidential}</span><OpenConfidential fileId={f.id} /></>}
                 </li>
               );
             })}
           </ul>
         )}
-        {doc.canDeliver && <UploadButton w={w} kind={doc.kind} docId={doc.id} confidential={doc.confidential} label={doc.files.length ? t.docs.newVersion : t.docs.upload} />}
+        {doc.canDeliver && <UploadButton w={w} kind={doc.kind} docId={doc.id} confidential={doc.confidential} label={doc.files.length ? t.docs.newVersion : t.docs.upload} onDone={onClose} />}
         {canManage && (
           <>
             <span className="bw-label">{t.docs.setStatus}</span>

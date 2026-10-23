@@ -112,7 +112,8 @@ export function AddMember({ workId, allowLeader, onClose }: { workId: bigint; al
       const grants: Grant[] = role === Role.onderaannemer ? [Grant.confirmPlanning, Grant.confirmHours] : role === Role.architect ? [Grant.readReports] : role === Role.veiligheidscoordinator ? [Grant.uploadDocs] : [];
       return unwrap(await actor!.addMembership(workId, kind === "p" ? idv : null, kind === "o" ? idv : null, role, grants));
     },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["members", String(workId)] }); onClose(); },
+    // Een lid verandert ook de checklist (veiligheidscoördinator) en de werffiche: alles verversen.
+    onSuccess: () => { void qc.invalidateQueries(); onClose(); },
   });
   return (
     <Sheet title={t.werven.addMember} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" disabled={!who} busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></>}>

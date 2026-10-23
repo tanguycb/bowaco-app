@@ -255,7 +255,8 @@ function EditContract({ w, view, onClose, onSaved }: { w: WorkView; view: Contra
       };
       return unwrap(await actor!.setContract(w.id, input, expected));
     },
-    onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["work", String(w.id)] }); void qc.invalidateQueries({ queryKey: ["works"] }); onSaved(); },
+    // De feiten bepalen ook de checklist (30bis, Checkinatwork) van deze werf en van haar deelwerven.
+    onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["work"] }); void qc.invalidateQueries({ queryKey: ["works"] }); void qc.invalidateQueries({ queryKey: ["dossier"] }); onSaved(); },
   });
   return (
     <Sheet title={`${t.contract.title} · ${w.code}`} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></>}>

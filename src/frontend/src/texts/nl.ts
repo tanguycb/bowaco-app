@@ -251,6 +251,7 @@ export const nl = {
     archiveConfirm: "Dit document uit de lijst halen? Het blijft bewaard (auditlog, export).",
     confidentialUpload: "Vertrouwelijk: het bestand is enkel zichtbaar voor beheerder en calculator.",
     setStatus: "Status zetten",
+    addHelp: "Opladen zet het document meteen op de lijst. Bewaren zonder bestand zet het op de lijst als \"ontbreekt\" (bv. om het op te vragen).",
   },
 
   team: {
