@@ -62,16 +62,15 @@ const testCode = existsSync(testCodeFile) ? readFileSync(testCodeFile, "utf8").t
 const forbidden = testCode ? [testCode, testCode.replace(/^BOW-/, "").replaceAll("-", "")] : [];
 // Ed25519KeyIdentity.toJSON() = ["<publieke sleutel hex>", "<geheime sleutel hex>"]
 const keyJson = /\[\s*"[0-9a-f]{64,}"\s*,\s*"[0-9a-f]{64,}"\s*\]/;
-const self = join(import.meta.dirname, "meetlat.mjs");
 const walk = (d) => {
   for (const n of readdirSync(d)) {
     if (skip.has(n)) continue;
     const p = join(d, n);
     const s = statSync(p);
     if (s.isDirectory()) walk(p);
-    else if (p !== self && s.size < 2 * MiB && /\.(mo|ts|tsx|mjs|js|json|toml|md|sh|html|css|yaml|txt)$/.test(n)) {
+    else if (s.size < 2 * MiB && /\.(mo|ts|tsx|mjs|js|json|toml|md|sh|html|css|yaml|txt)$/.test(n)) {
       const text = readFileSync(p, "utf8");
-      if (keyJson.test(text) || /PRIVATE KEY/.test(text) || forbidden.some((c) => text.includes(c))) hits.push(relative(root, p));
+      if (keyJson.test(text) || /PRIVATE\x20KEY/.test(text) || forbidden.some((c) => text.includes(c))) hits.push(relative(root, p));
     }
   }
 };
