@@ -80,29 +80,25 @@ function Latest({ doc }: { doc: DocumentView }) {
   return <a className="bw-btn bw-btn--quiet" href={url} target="_blank" rel="noreferrer">{t.werven.open}</a>;
 }
 
-/** Vertrouwelijk bestand openen: de verwijzing komt enkel uit een update-call met auditregel (R12, R23).
- *  Het venster gaat meteen open (anders blokkeert de browser het na het wachten) en krijgt dan het adres. */
+/** Vertrouwelijk bestand: de verwijzing komt enkel uit een update-call met auditregel (R12, R23) en blijft
+ *  alleen in het geheugen van dit onderdeel. Eerst ophalen, dan een gewone link die je zelf aanklikt
+ *  (een venster openen na het wachten blokkeert de browser). */
 function OpenConfidential({ fileId }: { fileId: bigint }) {
   const { actor } = useBackend();
   const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const open = async () => {
-    const win = window.open("", "_blank");
-    setBusy(true);
-    try {
+  const [url, setUrl] = useState<string | null>(null);
+  const get = useMutation({
+    mutationFn: async () => {
       const f = unwrap(await actor!.readConfidentialFile(fileId));
-      const url = f.blob?.getDirectURL();
-      if (!url) throw new Error(t.common.error);
-      if (win) win.location.href = url;
-      else window.location.href = url;
-    } catch (e) {
-      win?.close();
-      toast.show({ kind: "error", text: errText(e) });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return <Button variant="quiet" busy={busy} onClick={() => void open()}>{t.werven.open}</Button>;
+      const u = f.blob?.getDirectURL();
+      if (!u) throw new Error(t.common.error);
+      return u;
+    },
+    onSuccess: setUrl,
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  if (url) return <a className="bw-btn bw-btn--secondary" href={url} target="_blank" rel="noreferrer" onClick={() => setTimeout(() => setUrl(null), 1000)}>{t.docs.openFile}</a>;
+  return <Button variant="quiet" busy={get.isPending} onClick={() => get.mutate()}>{t.werven.open}</Button>;
 }
 
 function Line({ l, w, canManage, canDeliver, onOpen }: { l: ChecklistLine; w: WorkView; canManage: boolean; canDeliver: boolean; onOpen: (d: DocumentView) => void }) {
