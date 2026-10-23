@@ -1,2 +1,680 @@
-// Version: 1.0.0
-actor { };
+// Version: 4.0.0
+type AccessState__192760844 =
+  {
+    attempts : Map__230067015<Principal, Attempts__294006982>;
+    var bootstrapUsed : Bool;
+    codeIndex : Map__230067015<Blob, Nat>;
+    invites : Map__230067015<Nat, Invite__1071795559>;
+    linkHistory : Map__230067015<Nat, LinkHistory__731298488>;
+    links : Map__230067015<Principal, Link__798730331>;
+    personConfidential :
+      Map__230067015<PersonId__1007515609, PersonConfidential__175362094>;
+    persons : Map__230067015<PersonId__1007515609, Person__943967885>;
+    throttle : Throttle__757556494
+  };
+type Address__766490103 =
+  {city : Text; country : Text; number : Text; street : Text; zip : Text};
+type Address__963656299 =
+  {city : Text; country : Text; number : Text; street : Text; zip : Text};
+type Attempts__294006982 =
+  {var blockedUntil : Int; var count : Nat; var windowStart : Int};
+type Attempts__991165997 =
+  {var blockedUntil : Int; var count : Nat; var windowStart : Int};
+type AuditEntry__190608878 =
+  {
+    action : Text;
+    at : Int;
+    detail : Text;
+    personId : ?PersonId__967516914;
+    who : Principal;
+    workId : ?WorkId__929594816
+  };
+type AuditEntry__309633136 =
+  {
+    action : Text;
+    at : Int;
+    detail : Text;
+    personId : ?PersonId__1007515609;
+    who : Principal;
+    workId : ?WorkId__111716167
+  };
+type AuditState__967275995 =
+  {
+    log : List__836382695<AuditEntry__309633136>;
+    notifications : Map__230067015<Nat, Notification__821136752>
+  };
+type CodeKind__234575351 = {#invite; #recovery};
+type CodeKind__972856206 = {#invite; #recovery};
+type CodeState__173380963 =
+  {
+    #expired : {at : Int};
+    #open;
+    #revoked : {at : Int; by : PersonId__967516914};
+    #used : {at : Int; by : Principal}
+  };
+type CodeState__574295970 =
+  {
+    #expired : {at : Int};
+    #open;
+    #revoked : {at : Int; by : PersonId__1007515609};
+    #used : {at : Int; by : Principal}
+  };
+type Confidential__546665525<T> = {#plain : T; #sealed : Sealed__69262316};
+type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
+type Contact__278450601 =
+  {address : ?Address__963656299; email : ?Text; name : Text; phone : ?Text};
+type Contact__934541314 =
+  {address : ?Address__766490103; email : ?Text; name : Text; phone : ?Text};
+type Counters__137216085 = Map__230067015<Text, Nat>;
+type Data__44217153<K, V> = {var count : Nat__227979830; kvs : [var ?(K, V)]};
+type Decision__965673210 =
+  {accepted : Bool; at : Int; by : PersonId__1007515609; note : Text};
+type Decision__978490448 =
+  {accepted : Bool; at : Int; by : PersonId__967516914; note : Text};
+type Extra__482036894 = [(Text, Text)];
+type Extra__945213800 = [(Text, Text)];
+type FileRef__312567383 =
+  {
+    var archivedAt : ?Int;
+    at : Int;
+    blob : Blob;
+    confidential : Bool;
+    id : Nat;
+    mime : Text;
+    name : Text;
+    personId : PersonId__1007515609;
+    size : Nat;
+    workId : ?WorkId__111716167
+  };
+type FileRef__388390992 =
+  {
+    var archivedAt : ?Int;
+    at : Int;
+    blob : Blob;
+    confidential : Bool;
+    id : Nat;
+    mime : Text;
+    name : Text;
+    personId : PersonId__967516914;
+    size : Nat;
+    workId : ?WorkId__929594816
+  };
+type FileState__715278299 = {files : Map__230067015<Nat, FileRef__312567383>};
+type Grant__318217616 =
+  {
+    #confirmHours;
+    #confirmPlanning;
+    #readProgress;
+    #readReports;
+    #readSellPrices;
+    #uploadDocs
+  };
+type Grant__365704929 =
+  {
+    #confirmHours;
+    #confirmPlanning;
+    #readProgress;
+    #readReports;
+    #readSellPrices;
+    #uploadDocs
+  };
+type Internal__283199666<K, V> =
+  {children : [var ?Node__204828119<K, V>]; data : Data__44217153<K, V>};
+type Invite__1071795559 =
+  {
+    createdAt : Int;
+    createdBy : PersonId__1007515609;
+    expiresAt : Int;
+    hash : Blob;
+    hint : Text;
+    id : Nat;
+    kind : CodeKind__234575351;
+    personId : PersonId__1007515609;
+    var state : CodeState__574295970;
+    tag : Text;
+    workIds : [WorkId__111716167]
+  };
+type Invite__310415001 =
+  {
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    expiresAt : Int;
+    hash : Blob;
+    hint : Text;
+    id : Nat;
+    kind : CodeKind__972856206;
+    personId : PersonId__967516914;
+    var state : CodeState__173380963;
+    tag : Text;
+    workIds : [WorkId__929594816]
+  };
+type Leaf__598469445<K, V> = {data : Data__44217153<K, V>};
+type LinkHistory__721080331 =
+  {
+    codeHint : Text;
+    id : Nat;
+    linkedAt : Int;
+    movedAt : Int;
+    personId : PersonId__967516914;
+    principal : Principal;
+    revokedAt : ?Int;
+    revokedBy : ?PersonId__967516914;
+    tag : Text
+  };
+type LinkHistory__731298488 =
+  {
+    codeHint : Text;
+    id : Nat;
+    linkedAt : Int;
+    movedAt : Int;
+    personId : PersonId__1007515609;
+    principal : Principal;
+    revokedAt : ?Int;
+    revokedBy : ?PersonId__1007515609;
+    tag : Text
+  };
+type LinkStatus__647405839 = {#active; #pending; #revoked};
+type LinkStatus__935827670 = {#active; #pending; #revoked};
+type Link__446869394 =
+  {
+    codeHint : Text;
+    var confirmedAt : ?Int;
+    var confirmedBy : ?PersonId__967516914;
+    inviteId : Nat;
+    linkedAt : Int;
+    personId : PersonId__967516914;
+    var revokedAt : ?Int;
+    var revokedBy : ?PersonId__967516914;
+    var status : LinkStatus__647405839;
+    var tag : Text
+  };
+type Link__798730331 =
+  {
+    codeHint : Text;
+    var confirmedAt : ?Int;
+    var confirmedBy : ?PersonId__1007515609;
+    inviteId : Nat;
+    linkedAt : Int;
+    personId : PersonId__1007515609;
+    var revokedAt : ?Int;
+    var revokedBy : ?PersonId__1007515609;
+    var status : LinkStatus__935827670;
+    var tag : Text
+  };
+type List__355132335<T> =
+  {
+    var blockIndex : Nat__227979830;
+    var blocks : [var [var ?T]];
+    var elementIndex : Nat__227979830
+  };
+type List__836382695<T> = List__355132335<T>;
+type Lookup__27535220 =
+  {
+    var archivedAt : ?Int;
+    extra : Extra__945213800;
+    key : Text;
+    list : Text;
+    order : Nat;
+    tag : Text
+  };
+type Lookup__440791825 =
+  {
+    var archivedAt : ?Int;
+    extra : Extra__482036894;
+    key : Text;
+    list : Text;
+    order : Nat;
+    tag : Text
+  };
+type Map__230067015<K, V> = Map__405889023<K, V>;
+type Map__405889023<K, V> = Map__603270868<K, V>;
+type Map__603270868<K, V> =
+  {var root : Node__204828119<K, V>; var size : Nat__227979830};
+type Membership__271894441 =
+  {
+    var endedAt : ?Int;
+    var endedBy : ?PersonId__967516914;
+    grantedAt : Int;
+    grantedBy : PersonId__967516914;
+    grants : [Grant__365704929];
+    id : Nat;
+    orgId : ?OrgId__17031398;
+    personId : ?PersonId__967516914;
+    role : Role__679663545;
+    workId : WorkId__929594816
+  };
+type Membership__509533854 =
+  {
+    var endedAt : ?Int;
+    var endedBy : ?PersonId__1007515609;
+    grantedAt : Int;
+    grantedBy : PersonId__1007515609;
+    grants : [Grant__318217616];
+    id : Nat;
+    orgId : ?OrgId__875663865;
+    personId : ?PersonId__1007515609;
+    role : Role__1042359284;
+    workId : WorkId__111716167
+  };
+type Nat__227979830 = Nat__920180692;
+type Nat__920180692 = Nat;
+type NewActor__1057791986 =
+  {
+    access : AccessState__192760844;
+    audit : AuditState__967275995;
+    ctr : Counters__137216085;
+    files : FileState__715278299;
+    org : OrgState__985584704;
+    robot : RobotState__201362633;
+    settings : SettingsState__180579617;
+    works : WorksState__605582232
+  };
+type Node__204828119<K, V> =
+  {#internal : Internal__283199666<K, V>; #leaf : Leaf__598469445<K, V>};
+type Notification__1016009815 =
+  {
+    createdAt : Int;
+    id : Nat;
+    kind : Text;
+    personId : PersonId__967516914;
+    var readAt : ?Int;
+    ref : ?(Text, Nat);
+    text : Text;
+    workId : ?WorkId__929594816
+  };
+type Notification__821136752 =
+  {
+    createdAt : Int;
+    id : Nat;
+    kind : Text;
+    personId : PersonId__1007515609;
+    var readAt : ?Int;
+    ref : ?(Text, Nat);
+    text : Text;
+    workId : ?WorkId__111716167
+  };
+type OldActor__415128861 = {};
+type OrgConfidential__581272438 =
+  {
+    var contact : Confidential__546665525<Contact__934541314>;
+    var notes : Confidential__546665525<Text>;
+    orgId : OrgId__17031398;
+    var version : Nat
+  };
+type OrgConfidential__888519432 =
+  {
+    var contact : Confidential__580817374<Contact__278450601>;
+    var notes : Confidential__580817374<Text>;
+    orgId : OrgId__875663865;
+    var version : Nat
+  };
+type OrgId__17031398 = Nat;
+type OrgId__875663865 = Nat;
+type OrgKind__867804321 =
+  {
+    #architect;
+    #authority;
+    #bowaco;
+    #client;
+    #other;
+    #subcontractor;
+    #supplier
+  };
+type OrgKind__942604437 =
+  {
+    #architect;
+    #authority;
+    #bowaco;
+    #client;
+    #other;
+    #subcontractor;
+    #supplier
+  };
+type OrgState__985584704 =
+  {
+    orgConfidential :
+      Map__230067015<OrgId__875663865, OrgConfidential__888519432>;
+    orgs : Map__230067015<OrgId__875663865, Org__1044657596>;
+    vehicles : Map__230067015<Nat, Vehicle__501905308>
+  };
+type Org__1044657596 =
+  {
+    address : ?Address__963656299;
+    aliases : [Text];
+    var archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__1007515609;
+    extra : Extra__482036894;
+    id : OrgId__875663865;
+    kbo : ?Text;
+    kind : OrgKind__942604437;
+    name : Text;
+    notes : Text;
+    trades : [Text];
+    vat : ?Text
+  };
+type Org__502686149 =
+  {
+    address : ?Address__766490103;
+    aliases : [Text];
+    var archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    id : OrgId__17031398;
+    kbo : ?Text;
+    kind : OrgKind__867804321;
+    name : Text;
+    notes : Text;
+    trades : [Text];
+    vat : ?Text
+  };
+type PersonConfidential__175362094 =
+  {
+    var contact : Confidential__580817374<Contact__278450601>;
+    personId : PersonId__1007515609;
+    var version : Nat
+  };
+type PersonConfidential__403340742 =
+  {
+    var contact : Confidential__546665525<Contact__934541314>;
+    personId : PersonId__967516914;
+    var version : Nat
+  };
+type PersonId__1007515609 = Nat;
+type PersonId__967516914 = Nat;
+type Person__726696944 =
+  {
+    var archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    id : PersonId__967516914;
+    lang : ?Text;
+    name : Text;
+    orgId : ?OrgId__17031398;
+    phone : ?Text;
+    roles : [Role__679663545];
+    shortCode : ?Text
+  };
+type Person__943967885 =
+  {
+    var archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__1007515609;
+    extra : Extra__482036894;
+    id : PersonId__1007515609;
+    lang : ?Text;
+    name : Text;
+    orgId : ?OrgId__875663865;
+    phone : ?Text;
+    roles : [Role__1042359284];
+    shortCode : ?Text
+  };
+type Proposal__579039857 =
+  {
+    at : Int;
+    by : Principal;
+    content : Text;
+    var decision : ?Decision__978490448;
+    id : Nat;
+    jobId : ?Nat;
+    kind : Text;
+    personId : ?PersonId__967516914;
+    ticketId : ?Nat;
+    workId : ?WorkId__929594816
+  };
+type Proposal__703224334 =
+  {
+    at : Int;
+    by : Principal;
+    content : Text;
+    var decision : ?Decision__965673210;
+    id : Nat;
+    jobId : ?Nat;
+    kind : Text;
+    personId : ?PersonId__1007515609;
+    ticketId : ?Nat;
+    workId : ?WorkId__111716167
+  };
+type RobotState__201362633 =
+  {
+    proposalByTicket : Map__230067015<Nat, Nat>;
+    proposals : Map__230067015<Nat, Proposal__703224334>;
+    robots : Map__230067015<Principal, Robot__332609456>;
+    ticketIndex : Map__230067015<Blob, Nat>;
+    tickets : Map__230067015<Nat, Ticket__1032870784>
+  };
+type Robot__332609456 =
+  {
+    addedAt : Int;
+    addedBy : PersonId__1007515609;
+    kinds : [Text];
+    name : Text;
+    principal : Principal;
+    var revokedAt : ?Int;
+    var revokedBy : ?PersonId__1007515609
+  };
+type Robot__33868159 =
+  {
+    addedAt : Int;
+    addedBy : PersonId__967516914;
+    kinds : [Text];
+    name : Text;
+    principal : Principal;
+    var revokedAt : ?Int;
+    var revokedBy : ?PersonId__967516914
+  };
+type Role__1042359284 =
+  {
+    #admin;
+    #architect;
+    #calculator;
+    #klant;
+    #onderaannemer;
+    #veiligheidscoordinator;
+    #werfleider
+  };
+type Role__679663545 =
+  {
+    #admin;
+    #architect;
+    #calculator;
+    #klant;
+    #onderaannemer;
+    #veiligheidscoordinator;
+    #werfleider
+  };
+type Sealed__69262316 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__901946251 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type SettingsState__180579617 =
+  {
+    var inviteDays : Nat;
+    lookups : Map__230067015<Text, Lookup__440791825>;
+    sequences : Map__230067015<Text, Nat>;
+    values : Map__230067015<Text, Text>;
+    var werfleiderZietAlles : Bool
+  };
+type Throttle__532528626 =
+  {
+    var alertedWindow : Int;
+    var failures : Nat;
+    var lockedUntil : Int;
+    var windowStart : Int
+  };
+type Throttle__757556494 =
+  {
+    var alertedWindow : Int;
+    var failures : Nat;
+    var lockedUntil : Int;
+    var windowStart : Int
+  };
+type TicketState__1068477650 = {#expired; #open; #used : Int};
+type TicketState__485674937 = {#expired; #open; #used : Int};
+type Ticket__1032870784 =
+  {
+    budgetCents : Nat;
+    createdAt : Int;
+    expiresAt : Int;
+    hash : Blob;
+    id : Nat;
+    payloadRef : ?Text;
+    personId : PersonId__1007515609;
+    var state : TicketState__1068477650;
+    task : Text;
+    workId : ?WorkId__111716167
+  };
+type Ticket__69601262 =
+  {
+    budgetCents : Nat;
+    createdAt : Int;
+    expiresAt : Int;
+    hash : Blob;
+    id : Nat;
+    payloadRef : ?Text;
+    personId : PersonId__967516914;
+    var state : TicketState__485674937;
+    task : Text;
+    workId : ?WorkId__929594816
+  };
+type Vehicle__269030069 =
+  {
+    var archivedAt : ?Int;
+    createdAt : Int;
+    extra : Extra__945213800;
+    id : Nat;
+    name : Text;
+    plate : Text
+  };
+type Vehicle__501905308 =
+  {
+    var archivedAt : ?Int;
+    createdAt : Int;
+    extra : Extra__482036894;
+    id : Nat;
+    name : Text;
+    plate : Text
+  };
+type WorkId__111716167 = Nat;
+type WorkId__929594816 = Nat;
+type WorkStatus__1015151639 =
+  {
+    #aftercare;
+    #cancelled;
+    #delivered;
+    #planned;
+    #quoting;
+    #request;
+    #running
+  };
+type WorkStatus__605546832 =
+  {
+    #aftercare;
+    #cancelled;
+    #delivered;
+    #planned;
+    #quoting;
+    #request;
+    #running
+  };
+type Work__494245799 =
+  {
+    address : Address__963656299;
+    architectOrgId : ?OrgId__875663865;
+    var archivedAt : ?Int;
+    clientOrgId : ?OrgId__875663865;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__1007515609;
+    estimatedAmountCents : ?Int;
+    extra : Extra__482036894;
+    id : WorkId__111716167;
+    leaderPersonId : ?PersonId__1007515609;
+    name : Text;
+    parentId : ?WorkId__111716167;
+    plannedEnd : ?Nat;
+    plannedStart : ?Nat;
+    safetyCoordinatorOrgId : ?OrgId__875663865;
+    var status : WorkStatus__1015151639;
+    vatBp : Nat
+  };
+type Work__845152938 =
+  {
+    address : Address__766490103;
+    architectOrgId : ?OrgId__17031398;
+    var archivedAt : ?Int;
+    clientOrgId : ?OrgId__17031398;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    estimatedAmountCents : ?Int;
+    extra : Extra__945213800;
+    id : WorkId__929594816;
+    leaderPersonId : ?PersonId__967516914;
+    name : Text;
+    parentId : ?WorkId__929594816;
+    plannedEnd : ?Nat;
+    plannedStart : ?Nat;
+    safetyCoordinatorOrgId : ?OrgId__17031398;
+    var status : WorkStatus__605546832;
+    vatBp : Nat
+  };
+type WorksState__605582232 =
+  {
+    memberships : Map__230067015<Nat, Membership__509533854>;
+    works : Map__230067015<WorkId__111716167, Work__494245799>
+  };
+{
+  "20261022_220241" : OldActor__415128861 -> NewActor__1057791986
+}
+actor  {
+  stable access :
+    {
+      attempts : Map__230067015<Principal, Attempts__991165997>;
+      var bootstrapUsed : Bool;
+      codeIndex : Map__230067015<Blob, Nat>;
+      invites : Map__230067015<Nat, Invite__310415001>;
+      linkHistory : Map__230067015<Nat, LinkHistory__721080331>;
+      links : Map__230067015<Principal, Link__446869394>;
+      personConfidential :
+        Map__230067015<PersonId__967516914, PersonConfidential__403340742>;
+      persons : Map__230067015<PersonId__967516914, Person__726696944>;
+      throttle : Throttle__532528626
+    };
+  stable audit :
+    {
+      log : List__836382695<AuditEntry__190608878>;
+      notifications : Map__230067015<Nat, Notification__1016009815>
+    };
+  stable ctr :
+    {var root : Node__204828119<Text, Nat>; var size : Nat__227979830};
+  stable files : {files : Map__230067015<Nat, FileRef__388390992>};
+  stable org :
+    {
+      orgConfidential :
+        Map__230067015<OrgId__17031398, OrgConfidential__581272438>;
+      orgs : Map__230067015<OrgId__17031398, Org__502686149>;
+      vehicles : Map__230067015<Nat, Vehicle__269030069>
+    };
+  stable robot :
+    {
+      proposalByTicket : Map__230067015<Nat, Nat>;
+      proposals : Map__230067015<Nat, Proposal__579039857>;
+      robots : Map__230067015<Principal, Robot__33868159>;
+      ticketIndex : Map__230067015<Blob, Nat>;
+      tickets : Map__230067015<Nat, Ticket__69601262>
+    };
+  stable settings :
+    {
+      var inviteDays : Nat;
+      lookups : Map__230067015<Text, Lookup__27535220>;
+      sequences : Map__230067015<Text, Nat>;
+      values : Map__230067015<Text, Text>;
+      var werfleiderZietAlles : Bool
+    };
+  stable works :
+    {
+      memberships : Map__230067015<Nat, Membership__271894441>;
+      works : Map__230067015<WorkId__929594816, Work__845152938>
+    }
+};
