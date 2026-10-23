@@ -54,10 +54,11 @@ const as = async (name) => backend(name, cid);
 const fresh = () => freshBackend(cid);
 
 // Klok van het eigen PocketIC-net (alleen lokaal; nooit een gedeeld net).
-const descr = join(KEYDIR, "net/.icp/cache/networks/local/descriptor.json");
+const netDir = process.env.BOWACO_NET || join(KEYDIR, "net");
+const descr = join(netDir, ".icp/cache/networks/local/descriptor.json");
 async function advance(ns) {
   const d = JSON.parse(readFileSync(descr, "utf8"));
-  if (!d["project-dir"].endsWith("/.bowaco/net")) throw new Error("niet ons eigen net");
+  if (d["project-dir"] !== netDir) throw new Error("niet ons eigen net");
   const base = `http://127.0.0.1:${d["pocketic-config-port"]}/instances/${d["pocketic-instance-id"]}`;
   const now = BigInt((await (await fetch(`${base}/read/get_time`)).json()).nanos_since_epoch);
   const r = await fetch(`${base}/update/set_time`, {
@@ -66,6 +67,7 @@ async function advance(ns) {
     body: JSON.stringify({ nanos_since_epoch: Number(now + ns) }),
   });
   if (!r.ok) throw new Error(`set_time: ${r.status} ${await r.text()}`);
+  await new Promise((res) => setTimeout(res, 1500)); // het net moet de nieuwe tijd eerst in een ronde verwerken
   await resync(...everyone);
 }
 const HOUR = 3_600_000_000_000n;
@@ -884,6 +886,108 @@ check("auditlog: afwezigheid (nieuw, gewijzigd, weg), weekbord-regel(s); nooit d
 const ex14 = await admin.exportIntern();
 check("interne export bevat afwezigheden, hun geschiedenis en de regels", ex14.absences.length >= 3 && ex14.absenceChanges.length >= 5 && ex14.capacity.length >= 2);
 
+{
+await sec("── 1.5 import van de bestaande planning: proefronde, idempotent, aliassen, vervolg/deelwerf, terugdraaien, rechten (R32)");
+const M15 = dayOf(2027, 3, 1); // een maandag, ver van de rest van de testdata
+const orgImpDak = await admin.createOrg(orgIn12("Import Test Dak BV", { aliases: ["IMPDAK", "I-DAK"] }));
+const orgImpEl = await admin.createOrg(orgIn12("Import Test Elektro BV", { aliases: ["IMPEL"] }));
+const nOrgs15 = (await admin.listOrgs(true)).length;
+const nWorks15 = (await admin.listWorks()).length;
+const run15 = (name, from, to, note = "") => ({ key: `r-${name}-${from}`, name, from: M15 + BigInt(from * 7), to: M15 + BigInt(to * 7 + 4), note });
+const task15 = (key, title, w0, w1, o = {}) => ({
+  key, title, note: o.note ?? "", responsible: opt(o.resp), status: { [o.status ?? "planned"]: null }, percent: o.status === "done" ? 100n : 0n,
+  start: M15 + BigInt(w0 * 7), workdays: BigInt((w1 - w0 + 1) * 5), order: 1n, runs: o.runs ?? [], appointments: o.appts ?? [], extra: [["planning-rij", "1"]],
+});
+const appt15 = (key, week, dayInWeek, time, text, name) => ({ key, day: M15 + BigInt(week * 7 + dayInWeek), time: opt(time), text, name: opt(name), weekFallback: false });
+const blk15 = (key, name, tasks, decision = { fresh: null }, vat = 600n) => ({ key, name, street: "Importstraat", number: "1", zip: "9000", city: "Gent", vatBp: vat, decision, tasks });
+const b1 = blk15("t15-blok1", "Importwerf Een", [
+  task15("t15-1-a", "Afbraakwerken", 0, 0, { status: "done" }),
+  task15("t15-1-b", "Dakwerken", 1, 3, { resp: "impdak", runs: [run15("IMPDAK", 1, 2, "wk 2: later"), run15("I-DAK", 3, 3), run15("ONBEKEND1", 1, 1)], appts: [appt15("t15-1-b-p0", 2, 1, "7:30", "IMPDAK 7u30 dinsdag", "IMPDAK")] }),
+  task15("t15-1-c", "Elektriciteit", 2, 2, { resp: "ONBEKEND2", runs: [run15("IMPEL", 2, 2)] }),
+]);
+const b2 = blk15("t15-blok2", "Importwerf Een (vervolg)", [task15("t15-2-a", "Opkuis", 5, 5, { resp: "IMPEL", runs: [run15("IMPEL", 5, 5)] })], { followUp: "t15-blok1" });
+const b3 = blk15("t15-blok3", "Importwerf Twee (gevel)", [task15("t15-3-a", "Gevelwerken", 0, 1)], { sub: "t15-blok1" });
+const imp = (who, dry, batch, blk, known = []) => who.importPlanning(dry, batch, "Proefimport 1.5", known, blk);
+// Rechten: enkel admin
+check("import: geweigerd voor werfleider, calculator, OA, architect, klant, veiligheid en anoniem", (await Promise.all([wl, calc, oa2, arch, klant, vc, anon, vreemde].map((x) => denied(imp(x, true, "x", b1))))).every(Boolean));
+check("terugdraaien en batchlijst: enkel admin", (await Promise.all([wl, calc, oa2, arch, klant, vc, anon].map((x) => Promise.all([denied(x.rollbackImport("x", true)), rejects(x.listImportBatches())])))).every((r) => r[0] && r[1]));
+check("caps: importPlan enkel voor admin", (await admin.me()).caps[0].importPlan && !(await wl.me()).caps[0].importPlan && !(await calc.me()).caps[0].importPlan);
+// Invoercontrole
+check("blok zonder taken geweigerd", "err" in (await imp(admin, true, "t15", { ...b1, tasks: [] })));
+check("btw 7 % geweigerd", "err" in (await imp(admin, true, "t15", { ...b1, vatBp: 700n })));
+check("start op een zaterdag geweigerd", "err" in (await imp(admin, true, "t15", { ...b1, tasks: [{ ...b1.tasks[0], start: M15 + 5n }] })));
+check("duur 0 of > 400 werkdagen geweigerd", "err" in (await imp(admin, true, "t15", { ...b1, tasks: [{ ...b1.tasks[0], workdays: 401n }] })) && "err" in (await imp(admin, true, "t15", { ...b1, tasks: [{ ...b1.tasks[0], workdays: 0n }] })));
+check("vervolg van een onbekend blok geweigerd", errOf(await imp(admin, true, "t15", { ...b2, decision: { followUp: "bestaat-niet" } })).includes("geen werf of eerder blok"));
+check("te veel uitvoerders voor één taak geweigerd", "err" in (await imp(admin, true, "t15", { ...b1, tasks: [{ ...b1.tasks[1], runs: Array.from({ length: 9 }, (_, i) => run15("IMPDAK", i, i)) }] })));
+// Proefronde bewaart niets
+const d1 = await imp(admin, true, "t15", b1);
+const d2 = await imp(admin, true, "t15", b2, ["t15-blok1"]);
+check("proefronde blok 1: 1 werf, 3 taken, 4 uitvoerreeksen (1 zonder firma), 1 afspraak", isOk(d1) && d1.ok.workCreated === 1n && d1.ok.tasksCreated === 3n && d1.ok.assignmentsCreated === 3n && d1.ok.appointmentsCreated === 1n, JSON.stringify(d1, big));
+check("proefronde: namen zonder firma in het rapport (ONBEKEND1, ONBEKEND2), geen nieuwe firma", isOk(d1) && d1.ok.unmatched.map((x) => x[0]).sort().join() === "ONBEKEND1,ONBEKEND2");
+check("proefronde blok 2 (vervolg) verwijst naar blok 1 van dezelfde ronde", isOk(d2) && d2.ok.workCreated === 0n && d2.ok.tasksCreated === 1n);
+check("proefronde bewaarde niets (werven, firma's, batches)", (await admin.listWorks()).length === nWorks15 && (await admin.listOrgs(true)).length === nOrgs15 && (await admin.listImportBatches()).length === 0);
+// Echt
+const r1 = await imp(admin, false, "t15", b1);
+check("echt blok 1: 1 werf, 3 taken, 3 uitvoerreeksen, 1 afspraak", isOk(r1) && r1.ok.workCreated === 1n && r1.ok.tasksCreated === 3n && r1.ok.assignmentsCreated === 3n && r1.ok.appointmentsCreated === 1n && r1.ok.workId.length === 1, JSON.stringify(r1, big));
+const W15 = r1.ok.workId[0];
+const r2 = await imp(admin, false, "t15", b2, ["t15-blok1"]);
+check("echt blok 2 (vervolg): taak komt in dezelfde werf", isOk(r2) && r2.ok.workId[0] === W15 && r2.ok.workCreated === 0n && r2.ok.tasksCreated === 1n, JSON.stringify(r2, big));
+const r3 = await imp(admin, false, "t15", b3, ["t15-blok1", "t15-blok2"]);
+const W15b = isOk(r3) ? r3.ok.workId[0] : 0n;
+check("echt blok 3 (deelwerf): eigen werf met parentId", isOk(r3) && r3.ok.workCreated === 1n && (await admin.getWork(W15b)).parentId[0] === W15, JSON.stringify(r3, big));
+const w15 = await admin.getWork(W15);
+check("werf kreeg een eigen code PL-nn, het adres en de btw", /^PL-\d\d$/.test(w15.code) && w15.name === "Importwerf Een" && w15.address.city === "Gent" && w15.vatBp === 600n, w15.code);
+const p15 = await plan(admin, W15);
+const t15 = (title) => p15.tasks.find((t) => t.title === title);
+check("4 taken in de werf (3 + 1 vervolg), op volgorde", p15.tasks.length === 4 && t15("Opkuis") && t15("Afbraakwerken").status.done !== undefined);
+const dak = t15("Dakwerken");
+check("Dakwerken: start maandag week 1, einde vrijdag week 3, 15 werkdagen", dak && dak.start === M15 + 7n && dak.workdays === 15n && dak.end === M15 + 25n, `${dak?.start} ${dak?.end}`);
+check("Dakwerken: verantwoordelijke gekoppeld via alias (hoofdletters), eerste reeks is de primaire", dak.responsibleOrgId[0] === orgImpDak.ok.id && dak.assignments.some((a) => a.primary && a.orgId === orgImpDak.ok.id));
+check("Dakwerken: reeksen I-DAK en IMPDAK samen bij één firma, ONBEKEND1 niet gekoppeld", dak.assignments.filter((a) => a.orgId === orgImpDak.ok.id).length === 2 && dak.assignments.length === 2 && dak.note.includes("ONBEKEND1"), dak.note);
+check("Elektriciteit: verantwoordelijke ONBEKEND2 geen firma; IMPEL werkt wel", t15("Elektriciteit").responsibleOrgId.length === 0 && t15("Elektriciteit").assignments.some((a) => a.orgId === orgImpEl.ok.id));
+check("taak zonder firma: Afbraakwerken heeft geen uitvoerder, wel zijn tijd", t15("Afbraakwerken").assignments.length === 0 && t15("Afbraakwerken").workdays === 5n);
+check("geen nieuwe firma ontstaan", (await admin.listOrgs(true)).length === nOrgs15);
+const ap15 = await admin.listAppointments(W15);
+check("afspraak: dag, uur, tekst en firma", ap15.length === 1 && ap15[0].time[0] === "7:30" && ap15[0].text === "IMPDAK 7u30 dinsdag" && ap15[0].orgId[0] === orgImpDak.ok.id && ap15[0].day === M15 + 15n);
+check("afspraken lezen: werfleider (ziet de werf) ja; OA, klant, architect, veiligheid en anoniem niet", (await rejects(oa2.listAppointments(W15))) && (await rejects(klant.listAppointments(W15))) && (await rejects(arch.listAppointments(W15))) && (await rejects(vc.listAppointments(W15))) && (await rejects(anon.listAppointments(W15))));
+const hist = await admin.taskHistory(W15, [], 0n, 50n);
+check("historiek: elke taak heeft zijn 'taak'-regel met reden «import t15»", hist.filter((h) => h.field === "taak" && h.reason === "import t15").length === 4);
+// Weekbord: de firma staat op de werf
+const wb15 = await admin.weekBoard(bq({ from: M15, weeks: 6n }));
+const rowDak15 = wb15.rows.find((r) => r.orgId === orgImpDak.ok.id);
+check("weekbord: Import Test Dak staat op de geïmporteerde werf", rowDak15 && rowDak15.cells.some((c) => c.items.some((i) => i.workId[0] === W15)));
+// Idempotent
+const again = [await imp(admin, false, "t15", b1), await imp(admin, false, "t15", b2, ["t15-blok1"]), await imp(admin, false, "t15", b3, ["t15-blok1", "t15-blok2"])];
+check("tweede keer: niets nieuw, alles 'bestond al' (geen dubbels)", again.every((x) => isOk(x) && x.ok.workCreated === 0n && x.ok.tasksCreated === 0n && x.ok.assignmentsCreated === 0n && x.ok.appointmentsCreated === 0n) && again[0].ok.tasksExisting === 3n && again[0].ok.assignmentsExisting === 3n && again[0].ok.appointmentsExisting === 1n, JSON.stringify(again, big));
+check("nog steeds 2 werven erbij, 4 taken, 1 afspraak", (await admin.listWorks()).length === nWorks15 + 2 && (await plan(admin, W15)).tasks.length === 4 && (await admin.listAppointments(W15)).length === 1);
+check("batch: 3 blokken, 2 werven, 5 taken, 4 uitvoerreeksen, 1 afspraak (tweede ronde telt niet mee)", await admin.listImportBatches().then((b) => b.length === 1 && b[0].works === 2n && b[0].tasks === 5n && b[0].assignments === 4n && b[0].appointments === 1n && b[0].blocks === 6n), "");
+// Auditlog: aantallen, geen firma- of werfnamen
+const log15 = await admin.auditLog(0n, 400n);
+check("auditlog: import-planning (proef en echt), zonder namen", ["import-planning-proef", "import-planning"].every((a) => log15.some((e) => e.action === a)) && !log15.filter((e) => e.action.startsWith("import-planning")).some((e) => /Importwerf|IMPDAK|ONBEKEND/.test(e.detail)));
+// Vervolg met een werfcode
+const r4 = await imp(admin, false, "t15", blk15("t15-blok4", "Nog een blok", [task15("t15-4-a", "Extra taak", 7, 7)], { followUp: w15.code }));
+check("vervolg van een bestaande werf via zijn code", isOk(r4) && r4.ok.workId[0] === W15 && r4.ok.workCreated === 0n && (await plan(admin, W15)).tasks.length === 5);
+// Terugdraaien: eerst een vreemde taak in de werf zetten → die werf blijft staan
+const pf = await plan(admin, W15b);
+check("admin zet een eigen taak in de deelwerf", isOk(await admin.saveTask(W15b, tIn({ title: "Eigen taak na de import", start: M15 + 70n, workdays: 2n }), pf.version)));
+const tb0 = await admin.rollbackImport("t15", true);
+check("proefronde terugdraaien: 1 werf (de deelwerf heeft een eigen taak en blijft), 6 taken, 4 uitvoerders, 1 afspraak", isOk(tb0) && tb0.ok.dryRun && tb0.ok.works === 1n && tb0.ok.tasks === 6n && tb0.ok.assignments === 4n && tb0.ok.appointments === 1n && tb0.ok.keptWorks.length === 1, JSON.stringify(tb0, big));
+check("de proefronde veranderde niets", (await plan(admin, W15)).tasks.length === 5);
+const tb = await admin.rollbackImport("t15", false);
+const exTb = await admin.exportIntern();
+check("terugdraaien: werf, taken, uitvoerders en afspraken gearchiveerd (niet gewist)", isOk(tb) && exTb.works.find((x) => x.id === W15).archivedAt.length === 1 && exTb.tasks.filter((x) => x.workId === W15).length === 5 && exTb.tasks.filter((x) => x.workId === W15).every((x) => x.archivedAt.length === 1) && exTb.assignments.filter((x) => x.workId === W15).every((x) => x.archivedAt.length === 1) && exTb.appointments.filter((x) => x.workId === W15).every((x) => x.archivedAt.length === 1));
+check("een gearchiveerde werf geeft geen planning meer", await rejects(plan(admin, W15)));
+check("de deelwerf met een eigen taak blijft: enkel de taken van de batch zijn weg", (await admin.getWork(W15b)).archivedAt.length === 0 && (await plan(admin, W15b)).tasks.length === 1 && (await plan(admin, W15b)).tasks[0].title === "Eigen taak na de import");
+check("batch staat als teruggedraaid; nog eens terugdraaien geweigerd; de naam is niet meer te gebruiken", await admin.listImportBatches().then((b) => b[0].rolledBackAt.length === 1) && "err" in (await admin.rollbackImport("t15", false)) && errOf(await imp(admin, true, "t15", b1)).includes("teruggedraaid"));
+check("het weekbord toont de gearchiveerde werf niet meer", await admin.weekBoard(bq({ from: M15, weeks: 6n })).then((b) => !b.rows.some((r) => r.cells.some((c) => c.items.some((i) => i.workId[0] === W15)))));
+// Opnieuw na terugdraaien (sleutels vrij) onder een nieuwe batchnaam
+const rr = await imp(admin, false, "t15-bis", b1);
+check("na het terugdraaien kan dezelfde Excel opnieuw (nieuwe batch): nieuwe werf, geen dubbel met de oude", isOk(rr) && rr.ok.workCreated === 1n && rr.ok.tasksCreated === 3n && rr.ok.workId[0] !== W15, JSON.stringify(rr, big));
+check("terugdraaien van de nieuwe batch: werf weg, geen vreemde inhoud", await admin.rollbackImport("t15-bis", false).then((x) => isOk(x) && x.ok.works === 1n && x.ok.keptWorks.length === 0));
+const ex15 = await admin.exportIntern();
+check("interne export bevat batches, sleutels en afspraken", ex15.importBatches.length === 2 && ex15.appointments.length >= 2 && Array.isArray(ex15.importKeys));
+}
+
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));
 check("werfleider kan geen robot toevoegen", await rejects(wl.addRobot(P("robot-test"), "Proefrobot", [])));
@@ -942,7 +1046,7 @@ check("auditlog: 'bekeek' bij vertrouwelijk lezen", log.some((e) => e.action ===
 check("werfleider ziet enkel zijn eigen auditregels", (await wl.auditLog(0n, 500n)).every((e) => e.personId[0] === wlId));
 check("werfleider kan geen export", await rejects(wl.exportIntern()));
 const ex = await admin.exportIntern();
-check("admin: interne export met personen, codes zonder hash, werven", ex.persons.length >= 10 && ex.invites.length >= 10 && !("hash" in ex.invites[0]) && ex.works.length === 3);
+check("admin: interne export met personen, codes zonder hash, werven", ex.persons.length >= 10 && ex.invites.length >= 10 && !("hash" in ex.invites[0]) && ex.works.filter((w) => !w.code.startsWith("PL-")).length === 3);
 check("export staat in de auditlog", (await admin.auditLog(0n, 5n)).some((e) => e.action === "export-intern"));
 
 if (local && !process.env.ZONDER_KLOK) {

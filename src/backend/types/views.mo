@@ -43,6 +43,7 @@ module {
     manageAbsences : Bool; // afwezigheden van OA's ingeven (1.4: admin, werfleider)
     reportOwnAbsence : Bool; // eigen afwezigheid melden (1.4: OA, als de admin dat toelaat)
     manageBoardRules : Bool; // regels voor een dubbele boeking (1.4: admin)
+    importPlan : Bool; // import van de bestaande planning en terugdraaien van een batch (1.5: enkel admin)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -759,6 +760,9 @@ module {
     absences : [Types.Absence]; // 1.4
     absenceChanges : [Types.AbsenceChange];
     capacity : [Types.CapacityRule];
+    importBatches : [Types.ImportBatch]; // 1.5
+    importKeys : [Types.ImportKey];
+    appointments : [Types.Appointment];
     robots : [RobotView];
     proposals : [ProposalView];
     settings : SettingsView;
@@ -773,4 +777,52 @@ module {
     workConfidential : [Types.WorkConfidential]; // 1.1
     workConfidentialHistory : [Types.WorkConfidentialVersion];
   };
+
+  // ── Import van de bestaande planning (1.5) ──────────────────────────────
+  // Het script (tools/plan-import.mjs) leest de Excel en stuurt per blok een ImportBlock; de backend
+  // koppelt de namen aan de OA-database (aliassen uit 1.2), controleert alles en schrijft in één oproep.
+  public type ImportRun = { key : Text; name : Text; from : Day; to : Day; note : Text }; // één firma, aaneengesloten weken
+  public type ImportAppt = { key : Text; day : Day; time : ?Text; text : Text; name : ?Text; weekFallback : Bool };
+  public type ImportTask = {
+    key : Text;
+    title : Text;
+    note : Text;
+    responsible : ?Text; // kolom C zoals in de planning
+    status : Types.TaskStatus;
+    percent : Nat;
+    start : Day;
+    workdays : Nat;
+    order : Nat;
+    runs : [ImportRun];
+    appointments : [ImportAppt];
+    extra : [(Text, Text)];
+  };
+  public type ImportDecision = { #fresh; #followUp : Text; #sub : Text }; // nieuwe werf · vervolg van · deelwerf van (blokcode of werfcode)
+  public type ImportBlock = {
+    key : Text;
+    name : Text;
+    street : Text;
+    number : Text;
+    zip : Text;
+    city : Text;
+    vatBp : Nat;
+    decision : ImportDecision;
+    tasks : [ImportTask];
+  };
+  public type PlanImportReport = {
+    dryRun : Bool;
+    workId : ?Nat;
+    workCode : Text;
+    workCreated : Nat;
+    workExisting : Nat;
+    tasksCreated : Nat;
+    tasksExisting : Nat;
+    assignmentsCreated : Nat;
+    assignmentsExisting : Nat;
+    appointmentsCreated : Nat;
+    appointmentsExisting : Nat;
+    unmatched : [(Text, Nat)]; // namen zonder firma in de OA-database: nooit een nieuwe firma
+    problems : [Text];
+  };
+  public type RollbackReport = { dryRun : Bool; works : Nat; tasks : Nat; assignments : Nat; appointments : Nat; keptWorks : [Text] };
 };

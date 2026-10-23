@@ -10,7 +10,7 @@ import {
 } from "../backend";
 import { Button, Choice, Confirm, Icon, Sheet, StatusBadge, useToast, type Status } from "../design";
 import { t } from "../texts/nl";
-import { dayToInput, errText, fmtTime, inputToDay, unwrap, useBackend } from "../util";
+import { dayToInput, errText, fmtDayNum, fmtTime, inputToDay, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
 import { Field } from "./Werven";
 import { addWorkdays, dayLetter, fmtDm, fmtShort, isoWeek, isStale, isWorkday, makeCal, nextWorkday, today, weekday, workdaysIn, type Cal } from "./planUtil";
@@ -589,6 +589,7 @@ function TaskSheet({ workId, w, plan, cal, task, caps, onClose, onOpen }: {
       )}
       {task && <Deps workId={workId} plan={plan} task={task} onOpen={onOpen} />}
       {task && (plan.scope !== "summary") && <Assignments workId={workId} w={w} plan={plan} task={task} caps={caps} />}
+      {task && plan.caps.history && <TaskAppointments workId={workId} taskId={task.id} />}
       {task && plan.caps.history && <TaskHistory workId={workId} taskId={task.id} />}
       {task && <p className="bw-muted">{task.updatedByName ? `${task.updatedByName} · ` : ""}{fmtTime(task.updatedAt)}</p>}
       <Confirm open={archive} title={t.plan.archiveTask} text={t.plan.archiveTaskText} confirmLabel={t.plan.archiveTask} busy={del.isPending} onConfirm={() => del.mutate(undefined)} onClose={() => setArchive(false)} />
@@ -738,6 +739,30 @@ function Assignments({ workId, w, plan, task, caps }: { workId: bigint; w: WorkV
       </>}>
         <Field label={t.plan.declineReason}><textarea className="bw-input" rows={3} maxLength={1000} value={why} onChange={(e) => setWhy(e.target.value)} autoFocus /></Field>
       </Sheet>
+    </section>
+  );
+}
+
+/** Afspraken uit de geïmporteerde planning (1.5): dag, uur en de tekst van de cel. Enkel interne rollen. */
+function TaskAppointments({ workId, taskId }: { workId: bigint; taskId: bigint }) {
+  const { actor, isFetching } = useBackend();
+  const q = useQuery({ queryKey: ["appointments", String(workId)], queryFn: () => actor!.listAppointments(workId), enabled: !!actor && !isFetching, retry: false });
+  const mine = (q.data ?? []).filter((a) => a.taskId === taskId).sort((a, b) => Number(a.day - b.day));
+  if (mine.length === 0) return null;
+  return (
+    <section className="a-section">
+      <h3 className="bw-label">{t.plan.appts}</h3>
+      <ul className="a-list">
+        {mine.map((a) => (
+          <li key={String(a.id)}>
+            <span className="a-list__main">
+              <b className="bw-num">{fmtDayNum(a.day)}{a.time !== undefined ? t.plan.apptTime(a.time) : ""}</b>
+              <span>{a.text}</span>
+              {a.weekFallback && <span className="bw-muted">{t.imp.weekFallback}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

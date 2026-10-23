@@ -17,9 +17,11 @@ mv "$cfg.echt" "$cfg"
 ./node_modules/.bin/caffeine-bindgen --did-file ./src/backend/dist/backend.did --out-dir ./src/frontend/src --actor-interface-file --force >/dev/null
 # Het net draait in ~/.bowaco/net (buiten iCloud: de Desktop wordt gesynchroniseerd en iCloud maakt
 # kopieën als "descriptor 2.json", waarna icp-cli zijn eigen net niet meer terugvindt).
-net=$HOME/.bowaco/net
+# BOWACO_PORT en BOWACO_NET: een eigen net naast dat van een andere sessie (standaard poort 8041 in ~/.bowaco/net).
+port=${BOWACO_PORT:-8041}
+net=${BOWACO_NET:-$HOME/.bowaco/net}
 mkdir -p "$net"
-cp tests/net/icp.yaml "$net/icp.yaml"
+sed "s/port: 8041/port: $port/" tests/net/icp.yaml > "$net/icp.yaml"
 export WASM="$repo/src/backend/dist/backend.wasm"
 cd "$net"
 # De rollentest verzet de klok van dit net; daarom elke ronde een vers net. Alleen het EIGEN net
@@ -30,6 +32,6 @@ icp deploy backend >/dev/null
 cid=$(python3 -c "import json;print(json.load(open('.icp/cache/mappings/local.ids.json'))['backend'])")
 cd "$repo"
 echo "canister $cid"
-export ICP_HOST=http://localhost:8041
+export ICP_HOST=http://localhost:$port
 node tests/rollen.mjs "$cid"
 node tests/lek.mjs "$cid"

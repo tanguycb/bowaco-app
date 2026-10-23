@@ -3,8 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Principal } from "@icp-sdk/core/principal";
-import type { DocKindView, TradeView } from "../backend";
-import { Button, Choice, Sheet, useToast } from "../design";
+import type { DocKindView, ImportBatch, RollbackReport, TradeView } from "../backend";
+import { Button, Choice, Confirm, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtEuro, fmtTime, parseEuro, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
@@ -72,6 +72,7 @@ export function Instellingen() {
       <Templates />
       <DocKinds />
       <Trades />
+      <ImportBatches />
       <section className="a-section" style={{ maxWidth: 720 }}>
         <h2 className="bw-h2">{t.settings.robots}</h2>
         <p className="bw-muted">{t.settings.robotsLead}</p>
@@ -216,5 +217,60 @@ function EditTrade({ x, isNew, onClose }: { x: TradeView; isNew: boolean; onClos
         {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
       </div>
     </Sheet>
+  );
+}
+
+/** Importbatches van de planning (1.5): alleen de admin ziet dit; terugdraaien = alles van de batch archiveren. */
+function ImportBatches() {
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const list = useQuery({ queryKey: ["importBatches"], queryFn: () => actor!.listImportBatches(), enabled: !!actor && !isFetching, retry: false });
+  const [target, setTarget] = useState<ImportBatch | null>(null);
+  const [preview, setPreview] = useState<RollbackReport | null>(null);
+  const open = useMutation({
+    mutationFn: async (b: ImportBatch) => unwrap(await actor!.rollbackImport(b.id, true)),
+    onSuccess: (r, b) => { setPreview(r); setTarget(b); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  const run = useMutation({
+    mutationFn: async () => unwrap(await actor!.rollbackImport(target!.id, false)),
+    onSuccess: () => { toast.show({ kind: "ok", text: t.imp.done }); setTarget(null); setPreview(null); void qc.invalidateQueries(); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  if (list.isError || !list.data) return null;
+  return (
+    <section className="a-section" style={{ maxWidth: 860 }}>
+      <h2 className="bw-h2">{t.imp.title}</h2>
+      <p className="bw-muted">{t.imp.lead}</p>
+      {list.data.length === 0 && <p className="a-empty">{t.imp.none}</p>}
+      {list.data.length > 0 && (
+        <ul className="a-list">
+          {list.data.map((b) => (
+            <li key={b.id}>
+              <span className="a-list__main">
+                <b>{b.title}</b>
+                <span className="a-row">
+                  <span className="a-tag bw-mono">{b.id}</span>
+                  <span className="a-tag">{t.imp.counts(Number(b.works), Number(b.tasks), Number(b.assignments), Number(b.appointments))}</span>
+                  {b.rolledBackAt !== undefined && <span className="a-tag a-tag--bad">{t.imp.rolledBack}</span>}
+                </span>
+                <span className="bw-muted">{fmtTime(b.at)}</span>
+              </span>
+              {b.rolledBackAt === undefined && <Button variant="quiet" busy={open.isPending} onClick={() => open.mutate(b)}>{t.imp.rollback}</Button>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <Confirm
+        open={!!target && !!preview}
+        title={t.imp.rollbackTitle}
+        text={preview ? t.imp.rollbackText(preview.works === 0n ? 0 : Number(preview.works), Number(preview.tasks), Number(preview.assignments), Number(preview.appointments), preview.keptWorks) : ""}
+        confirmLabel={t.imp.rollback}
+        busy={run.isPending}
+        onConfirm={() => run.mutate()}
+        onClose={() => { setTarget(null); setPreview(null); }}
+      />
+    </section>
   );
 }

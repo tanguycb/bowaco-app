@@ -12,3 +12,9 @@ tests/.laatste-*.json
 BOWACO_validatie_*
 analyse.json
 oa-echt*
+# Stap 1.5: importbestanden van de planning (echte werfnamen, adressen en firma's), het rapport en de
+# geanonimiseerde mapping horen nooit in git (ze staan in ~/.bowaco/plan en bowaco-docs).
+plan*.json
+mapping*.json
+BOWACO_mapping_*
+BOWACO_validatie_*

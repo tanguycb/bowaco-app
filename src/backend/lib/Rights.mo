@@ -34,6 +34,8 @@ module {
     #readPlanning; #manageCompanyCalendar; #manageTemplates; #readTemplates; #readOrgPlanning;
     // 1.4: weekbord per OA, afwezigheden, regels voor een dubbele boeking
     #manageAbsences; #reportOwnAbsence; #manageBoardRules;
+    // 1.5: import van de bestaande planning (admin) en afspraken lezen
+    #importPlan; #readAppointments;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -165,6 +167,10 @@ module {
       case (#manageAbsences) admin or wl;
       case (#reportOwnAbsence) has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("board.oaMeldt") != ?"nee" and activeOa(ctx, p);
       case (#manageBoardRules) admin;
+      // 1.5: de import schrijft werven, taken en toewijzingen in bulk: alleen admin (R32, zoals de OA-import).
+      // Afspraken uit de planning lezen: interne rollen, voor werven die ze zien.
+      case (#importPlan) admin;
+      case (#readAppointments) on(func w = internal(p) and seesWork(ctx, p, w));
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -367,6 +373,7 @@ module {
       manageAbsences = may(ctx, p, #manageAbsences, null);
       reportOwnAbsence = may(ctx, p, #reportOwnAbsence, null);
       manageBoardRules = may(ctx, p, #manageBoardRules, null);
+      importPlan = may(ctx, p, #importPlan, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

@@ -92,6 +92,21 @@ export interface Address {
 export type Applies = { 'no' : null } |
   { 'yes' : null } |
   { 'unknown' : null };
+export interface Appointment {
+  'id' : bigint,
+  'day' : Day,
+  'orgId' : [] | [OrgId],
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'text' : string,
+  'time' : [] | [string],
+  'weekFallback' : boolean,
+  'extra' : Extra,
+  'taskId' : bigint,
+  'batchId' : [] | [string],
+  'workId' : WorkId,
+  'archivedAt' : [] | [bigint],
+}
 export interface Assignment {
   'id' : bigint,
   'toDay' : [] | [Day],
@@ -278,6 +293,7 @@ export interface Caps {
   'importOa' : boolean,
   'manageOa' : boolean,
   'home' : string,
+  'importPlan' : boolean,
   'readOrgPlanning' : boolean,
   'manageBoardRules' : boolean,
   'createWork' : boolean,
@@ -514,6 +530,7 @@ export interface ExportIntern {
   'schema' : bigint,
   'trades' : Array<TradeView>,
   'orgs' : Array<OrgView>,
+  'importKeys' : Array<ImportKey>,
   'calendarBlocks' : Array<CalendarBlock>,
   'orgContacts' : Array<OrgContact>,
   'links' : Array<LinkView>,
@@ -521,9 +538,11 @@ export interface ExportIntern {
   'persons' : Array<PersonView>,
   'taskChanges' : Array<TaskChange>,
   'settings' : SettingsView,
+  'appointments' : Array<Appointment>,
   'dependencies' : Array<Dependency>,
   'robots' : Array<RobotView>,
   'capacity' : Array<CapacityRule>,
+  'importBatches' : Array<ImportBatch>,
   'proposals' : Array<ProposalView>,
   'works' : Array<WorkView>,
   'personContacts' : Array<PersonContact>,
@@ -554,6 +573,53 @@ export type Grant = { 'readReports' : null } |
 export type GuaranteeKind = { 'none' : null } |
   { 'retention' : null } |
   { 'bankGuarantee' : null };
+export interface ImportAppt {
+  'day' : Day,
+  'key' : string,
+  'name' : [] | [string],
+  'text' : string,
+  'time' : [] | [string],
+  'weekFallback' : boolean,
+}
+export interface ImportBatch {
+  'at' : bigint,
+  'by' : PersonId,
+  'id' : string,
+  'tasks' : bigint,
+  'title' : string,
+  'assignments' : bigint,
+  'extra' : Extra,
+  'rolledBackAt' : [] | [bigint],
+  'rolledBackBy' : [] | [PersonId],
+  'appointments' : bigint,
+  'blocks' : bigint,
+  'works' : bigint,
+}
+export interface ImportBlock {
+  'key' : string,
+  'zip' : string,
+  'tasks' : Array<ImportTask>,
+  'street' : string,
+  'decision' : ImportDecision,
+  'vatBp' : bigint,
+  'city' : string,
+  'name' : string,
+  'number' : string,
+}
+export type ImportDecision = { 'sub' : string } |
+  { 'fresh' : null } |
+  { 'followUp' : string };
+export interface ImportKey {
+  'key' : string,
+  'kind' : ImportKind,
+  'entityId' : bigint,
+  'batchId' : string,
+}
+export type ImportKind = { 'appointment' : null } |
+  { 'assignment' : null } |
+  { 'link' : null } |
+  { 'task' : null } |
+  { 'work' : null };
 export type ImportOutcome = { 'created' : null } |
   { 'conflict' : string } |
   { 'invalid' : string } |
@@ -594,6 +660,27 @@ export interface ImportRow {
   'notes' : string,
   'aliases' : Array<string>,
   'phone' : [] | [string],
+}
+export interface ImportRun {
+  'to' : Day,
+  'key' : string,
+  'from' : Day,
+  'name' : string,
+  'note' : string,
+}
+export interface ImportTask {
+  'key' : string,
+  'status' : TaskStatus,
+  'title' : string,
+  'workdays' : bigint,
+  'order' : bigint,
+  'note' : string,
+  'runs' : Array<ImportRun>,
+  'extra' : Array<[string, string]>,
+  'percent' : bigint,
+  'start' : Day,
+  'responsible' : [] | [string],
+  'appointments' : Array<ImportAppt>,
 }
 export interface InviteRequest {
   'tag' : string,
@@ -840,6 +927,21 @@ export type PlanChange = {
     }
   } |
   { 'reflow' : null };
+export interface PlanImportReport {
+  'appointmentsExisting' : bigint,
+  'assignmentsCreated' : bigint,
+  'unmatched' : Array<[string, bigint]>,
+  'appointmentsCreated' : bigint,
+  'assignmentsExisting' : bigint,
+  'problems' : Array<string>,
+  'workExisting' : bigint,
+  'tasksCreated' : bigint,
+  'workId' : [] | [bigint],
+  'dryRun' : boolean,
+  'tasksExisting' : bigint,
+  'workCode' : string,
+  'workCreated' : bigint,
+}
 export interface PlanPreview {
   'reopened' : bigint,
   'version' : bigint,
@@ -879,25 +981,29 @@ export type Result = { 'ok' : WorkView } |
   { 'err' : string };
 export type Result_1 = { 'ok' : PersonView } |
   { 'err' : string };
-export type Result_10 = { 'ok' : Array<ContractVersionView> } |
+export type Result_10 = { 'ok' : ContactConfidentialView } |
   { 'err' : string };
-export type Result_11 = { 'ok' : ContractView } |
+export type Result_11 = { 'ok' : Array<ContractVersionView> } |
   { 'err' : string };
-export type Result_12 = { 'ok' : FileView } |
+export type Result_12 = { 'ok' : ContractView } |
   { 'err' : string };
-export type Result_13 = { 'ok' : PlanPreview } |
+export type Result_13 = { 'ok' : FileView } |
   { 'err' : string };
-export type Result_14 = { 'ok' : NewCode } |
+export type Result_14 = { 'ok' : PlanPreview } |
   { 'err' : string };
-export type Result_15 = { 'ok' : ImportReport } |
+export type Result_15 = { 'ok' : NewCode } |
   { 'err' : string };
-export type Result_16 = { 'ok' : OaView } |
+export type Result_16 = { 'ok' : PlanImportReport } |
   { 'err' : string };
-export type Result_17 = { 'ok' : NewTicket } |
+export type Result_17 = { 'ok' : ImportReport } |
   { 'err' : string };
-export type Result_18 = { 'ok' : TicketInfo } |
+export type Result_18 = { 'ok' : OaView } |
+  { 'err' : string };
+export type Result_19 = { 'ok' : NewTicket } |
   { 'err' : string };
 export type Result_2 = { 'ok' : OrgView } |
+  { 'err' : string };
+export type Result_20 = { 'ok' : TicketInfo } |
   { 'err' : string };
 export type Result_3 = { 'ok' : bigint } |
   { 'err' : string };
@@ -909,9 +1015,9 @@ export type Result_6 = { 'ok' : OrgContactView } |
   { 'err' : string };
 export type Result_7 = { 'ok' : OaPersonView } |
   { 'err' : string };
-export type Result_8 = { 'ok' : MeView } |
+export type Result_8 = { 'ok' : RollbackReport } |
   { 'err' : string };
-export type Result_9 = { 'ok' : ContactConfidentialView } |
+export type Result_9 = { 'ok' : MeView } |
   { 'err' : string };
 export interface RobotView {
   'principal' : Principal,
@@ -928,6 +1034,14 @@ export type Role = { 'admin' : null } |
   { 'veiligheidscoordinator' : null } |
   { 'architect' : null } |
   { 'klant' : null };
+export interface RollbackReport {
+  'tasks' : bigint,
+  'assignments' : bigint,
+  'appointments' : bigint,
+  'keptWorks' : Array<string>,
+  'works' : bigint,
+  'dryRun' : boolean,
+}
 export interface Sealed {
   'ct' : Uint8Array,
   'iv' : Uint8Array,
@@ -1268,32 +1382,38 @@ export interface _SERVICE {
   'auditLog' : ActorMethod<[bigint, bigint], Array<AuditEntry>>,
   'boardConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
   'boardRules' : ActorMethod<[], BoardRulesView>,
-  'checkTicket' : ActorMethod<[string], Result_18>,
+  'checkTicket' : ActorMethod<[string], Result_20>,
   'claimBootstrap' : ActorMethod<[string, string], Result_1>,
   'confirmAssignment' : ActorMethod<[bigint, boolean, string], Result_4>,
   'confirmLink' : ActorMethod<[Principal], Result_4>,
   'createOrg' : ActorMethod<[OrgInput], Result_2>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_14>,
-  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_17>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_15>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_19>,
   'createWork' : ActorMethod<[WorkInput], Result>,
   'decideProposal' : ActorMethod<[bigint, boolean, string], Result_4>,
   'endMembership' : ActorMethod<[bigint], Result_4>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
-  'getOa' : ActorMethod<[bigint], Result_16>,
+  'getOa' : ActorMethod<[bigint], Result_18>,
   'getPlan' : ActorMethod<[bigint], PlanView>,
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
-  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_15>,
-  'invitePerson' : ActorMethod<[InviteRequest], Result_14>,
+  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_17>,
+  'importPlanning' : ActorMethod<
+    [boolean, string, string, Array<string>, ImportBlock],
+    Result_16
+  >,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_15>,
   'listAbsences' : ActorMethod<
     [[] | [bigint], bigint, bigint],
     Array<AbsenceView>
   >,
+  'listAppointments' : ActorMethod<[bigint], Array<Appointment>>,
   'listCalendarBlocks' : ActorMethod<[[] | [bigint]], Array<BlockView>>,
   'listDocKinds' : ActorMethod<[boolean], Array<DocKindView>>,
   'listFiles' : ActorMethod<[[] | [bigint]], Array<FileView>>,
+  'listImportBatches' : ActorMethod<[], Array<ImportBatch>>,
   'listInvites' : ActorMethod<[bigint, bigint], Array<InviteView>>,
   'listLinks' : ActorMethod<[], Array<LinkView>>,
   'listMembers' : ActorMethod<[bigint], Array<MembershipView>>,
@@ -1313,18 +1433,19 @@ export interface _SERVICE {
     [[] | [bigint], bigint, bigint],
     Array<OrgAssignmentView>
   >,
-  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_13>,
-  'previewPlan' : ActorMethod<[bigint, PlanChange], Result_13>,
-  'readConfidentialFile' : ActorMethod<[bigint], Result_12>,
-  'readContract' : ActorMethod<[bigint], Result_11>,
-  'readContractHistory' : ActorMethod<[bigint], Result_10>,
-  'readOrgConfidential' : ActorMethod<[bigint], Result_9>,
-  'redeemCode' : ActorMethod<[string], Result_8>,
+  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_14>,
+  'previewPlan' : ActorMethod<[bigint, PlanChange], Result_14>,
+  'readConfidentialFile' : ActorMethod<[bigint], Result_13>,
+  'readContract' : ActorMethod<[bigint], Result_12>,
+  'readContractHistory' : ActorMethod<[bigint], Result_11>,
+  'readOrgConfidential' : ActorMethod<[bigint], Result_10>,
+  'redeemCode' : ActorMethod<[string], Result_9>,
   'removeDependency' : ActorMethod<[bigint, bigint, bigint], Result_3>,
   'restorePerson' : ActorMethod<[bigint], Result_4>,
   'revokeInvite' : ActorMethod<[bigint], Result_4>,
   'revokeLink' : ActorMethod<[Principal], Result_4>,
   'revokeRobot' : ActorMethod<[Principal], Result_4>,
+  'rollbackImport' : ActorMethod<[string, boolean], Result_8>,
   'saveAbsence' : ActorMethod<[AbsenceInput], Result_3>,
   'saveAssignment' : ActorMethod<[bigint, AssignmentInput, bigint], Result_3>,
   'saveCalendarBlock' : ActorMethod<[BlockInput], Result_3>,

@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1.4-draft12";
-  public let schema : Nat = 5; // 5 = met weekbord en afwezigheden (1.4)
+  public let version = "1.5-draft13";
+  public let schema : Nat = 6; // 6 = met import van de planning (1.5); 5 = weekbord en afwezigheden (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -174,6 +174,7 @@ module {
   public let maxEmail : Nat = 120;
   public let maxWebsite : Nat = 120;
   public let maxJobTitle : Nat = 60;
+  public let maxImportKey : Nat = 200; // lengte van een importsleutel (1.5)
   public let maxImportRows : Nat = 40; // per oproep; het script knipt in stukken
   public let maxPersonsPerOrg : Nat = 40;
   public let maxTrades : Nat = 80;

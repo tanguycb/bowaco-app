@@ -12,11 +12,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { backend, KEYDIR } from "./lib.mjs";
 
-const net = join(KEYDIR, "net");
+const net = process.env.BOWACO_NET || join(KEYDIR, "net"); // BOWACO_NET/BOWACO_PORT: een eigen net naast dat van een andere sessie
 const repo = join(import.meta.dirname, "..");
 const nieuw = join(repo, "src/backend/dist/backend.wasm");
 const oud = process.env.OUD;
-process.env.ICP_HOST = "http://localhost:8041";
+process.env.ICP_HOST = `http://localhost:${process.env.BOWACO_PORT || 8041}`;
 const icp = (...a) => execFileSync("icp", a, { cwd: net, env: process.env, encoding: "utf8" });
 const cid = () => JSON.parse(readFileSync(join(net, ".icp/cache/mappings/local.ids.json"), "utf8")).backend;
 const oudRepo = process.env.OUD_REPO;

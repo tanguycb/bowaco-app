@@ -77,6 +77,7 @@ const blockIn = { id: [], scope: { company: null }, kind: { feestdag: null }, fr
 const tplIn = { key: "", name: "", steps: [], provisional: true, archived: false };
 const boardIn = { from: 20_000n, weeks: 1n, offset: 0n, limit: 1n, text: "", trade: [], workId: [], onlyConflicts: false, withIdle: false };
 const absenceIn = { id: [], orgId: X, personId: [], kind: { verlof: null }, from: 20_000n, to: 20_000n, note: "" };
+const impBlock = { key: "lek", name: "Lek", street: "", number: "", zip: "", city: "", vatBp: 600n, decision: { fresh: null }, tasks: [] };
 const personUpd = { name: "", roles: [], orgId: [], shortCode: [], lang: [], phone: [] };
 
 // Wie mag wat (R1–R34 zoals gebouwd in 0.6 en 1.1). Groepen:
@@ -176,6 +177,11 @@ const table = {
   boardRules: [INTERNAL, () => []],
   setBoardRules: [ADMIN, () => [{ unit: "x", defaultMax: 1n, oaReportsAbsence: true }]],
   setCapacity: [ADMIN, () => ["x", [1n], ""]],
+  // 1.5 import van de bestaande planning: enkel admin (R32); afspraken lezen: interne rollen die de werf zien
+  importPlanning: [ADMIN, () => [true, "lek", "Lektest", [], impBlock]],
+  rollbackImport: [ADMIN, () => ["bestaat-niet", true]],
+  listImportBatches: [ADMIN, () => []],
+  listAppointments: [INTERNAL, () => [B]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

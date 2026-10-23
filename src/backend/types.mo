@@ -547,6 +547,53 @@ module {
     capacity : Map.Map<Text, CapacityRule>;
   };
 
+  // ── Import van de bestaande planning (stap 1.5) ─────────────────────────
+  // Eigen domein `imp` (nieuw stabiel veld, deelvorm, OldActor = {}). De import bewaart per blok, taak,
+  // cel en afspraak een vaste importsleutel: dezelfde Excel nog eens importeren maakt geen dubbels, en een
+  // batch kan als geheel teruggedraaid (gearchiveerd) worden. Een afspraak (dag + uur + tekst) is nieuw.
+  public type ImportBatch = {
+    id : Text;
+    title : Text;
+    at : Int;
+    by : PersonId;
+    blocks : Nat;
+    works : Nat;
+    tasks : Nat;
+    assignments : Nat;
+    appointments : Nat;
+    rolledBackAt : ?Int;
+    rolledBackBy : ?PersonId;
+    extra : Extra;
+  };
+
+  // #link: een blok dat als vervolg in een bestaande werf is opgegaan (geen eigen werf).
+  public type ImportKind = { #work; #link; #task; #assignment; #appointment };
+
+  public type ImportKey = { key : Text; kind : ImportKind; entityId : Nat; batchId : Text };
+
+  // klasse: intern. De vrije tekst van een weekcel met een datum ("DORMA 7u30 28/01").
+  public type Appointment = {
+    id : Nat;
+    workId : WorkId;
+    taskId : Nat;
+    day : Day;
+    time : ?Text;
+    text : Text;
+    orgId : ?OrgId;
+    weekFallback : Bool; // geen datum in de tekst: de maandag van de week is een vangnet
+    batchId : ?Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  public type ImportState = {
+    batches : Map.Map<Text, ImportBatch>;
+    keys : Map.Map<Text, ImportKey>;
+    appointments : Map.Map<Nat, Appointment>;
+  };
+
   // ── Robot: tickets en voorstellen (§2.10, §6) ───────────────────────────
   public type TicketState = { #open; #used : Int; #expired };
 
