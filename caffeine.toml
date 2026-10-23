@@ -1,7 +1,7 @@
 manifest_version = "0.1.0"
 
 [project]
-id = "01a16382-d781-7448-b27f-809a10d72d27"
+id = "01a16859-b837-71db-8201-4c0adbe808f8"
 name = "BOWACO"
 
 [workspace]
