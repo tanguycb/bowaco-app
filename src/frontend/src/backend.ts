@@ -231,6 +231,7 @@ export interface MembershipView {
     role: Role;
     personId?: PersonId;
     workId: WorkId;
+    archived: boolean;
 }
 export interface NewCode {
     expiresAt: bigint;
@@ -2081,6 +2082,7 @@ function from_candid_record_n97(_uploadFile: (file: ExternalBlob) => Promise<Uin
     role: _Role;
     personId: [] | [_PersonId];
     workId: _WorkId;
+    archived: boolean;
 }): {
     id: bigint;
     grants: Array<Grant>;
@@ -2092,6 +2094,7 @@ function from_candid_record_n97(_uploadFile: (file: ExternalBlob) => Promise<Uin
     role: Role;
     personId?: PersonId;
     workId: WorkId;
+    archived: boolean;
 } {
     return {
         id: value.id,
@@ -2103,7 +2106,8 @@ function from_candid_record_n97(_uploadFile: (file: ExternalBlob) => Promise<Uin
         name: value.name,
         role: from_candid_Role_n36(_uploadFile, _downloadFile, value.role),
         personId: record_opt_to_undefined(from_candid_opt_n23(_uploadFile, _downloadFile, value.personId)),
-        workId: value.workId
+        workId: value.workId,
+        archived: value.archived
     };
 }
 function from_candid_tuple_n65(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [_OrgId, _ContactConfidentialView]): [OrgId, ContactConfidentialView] {

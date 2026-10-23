@@ -73,7 +73,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
   const qc = useQueryClient();
   const toast = useToast();
   const work = useQuery({ queryKey: ["work", String(id)], queryFn: () => actor!.getWork(id), enabled: on });
-  const members = useQuery({ queryKey: ["members", String(id)], queryFn: () => actor!.listMembers(id), enabled: on && !!work.data });
+  const members = useQuery({ queryKey: ["members", String(id)], queryFn: () => actor!.listMembers(id), enabled: on && !!work.data, refetchOnWindowFocus: true });
   const [adding, setAdding] = useState(false);
   const status = useMutation({
     mutationFn: async (s: WorkStatus) => unwrap(await actor!.setWorkStatus(id, s)),
@@ -102,7 +102,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
         <span className="a-tag">btw {Number(w.vatBp) / 100} %</span>
       </div>
       {caps.createWork && (
-        <Choice label={t.werven.status} value={w.status} onChange={(s) => status.mutate(s)} options={[WorkStatus.planned, WorkStatus.running, WorkStatus.delivered, WorkStatus.aftercare].map((s) => ({ value: s, label: t.workStatus[s] }))} />
+        <Choice label={t.werven.status} value={w.status} onChange={(s) => { if (s !== w.status && !status.isPending) status.mutate(s); }} options={[WorkStatus.planned, WorkStatus.running, WorkStatus.delivered, WorkStatus.aftercare].map((s) => ({ value: s, label: t.workStatus[s] }))} />
       )}
       <div className="a-cols">
         <section className="a-section">
@@ -118,7 +118,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
                 <li key={String(m.id)}>
                   <span className="a-list__main">
                     <b>{m.name}</b>
-                    <span className="a-row"><RoleTags roles={[m.role]} />{m.orgId !== undefined && m.personId === undefined && <span className="a-tag">{t.werven.org}</span>}{m.grants.map((g) => <span key={g} className="a-tag">{t.grants[g] ?? g}</span>)}</span>
+                    <span className="a-row"><RoleTags roles={[m.role]} />{m.archived && <span className="a-tag a-tag--bad">{t.werven.archivedMember}</span>}{m.orgId !== undefined && m.personId === undefined && <span className="a-tag">{t.werven.org}</span>}{m.grants.map((g) => <span key={g} className="a-tag">{t.grants[g] ?? g}</span>)}</span>
                   </span>
                   {caps.createWork && <Button variant="quiet" busy={end.isPending && end.variables === m.id} onClick={() => end.mutate(m.id)}>{t.werven.endMember}</Button>}
                 </li>
@@ -189,7 +189,8 @@ function Files({ workId, canUpload }: { workId: bigint; canUpload: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [progress, setProgress] = useState<number | null>(null);
-  const files = useQuery({ queryKey: ["files", String(workId)], queryFn: () => actor!.listFiles(workId), enabled: !!actor && !isFetching });
+  // Bestanden van anderen verschijnen zonder herladen: bij terugkeren naar het tabblad en elke 30 s.
+  const files = useQuery({ queryKey: ["files", String(workId)], queryFn: () => actor!.listFiles(workId), enabled: !!actor && !isFetching, refetchOnWindowFocus: true, refetchInterval: 30_000 });
   const upload = useMutation({
     mutationFn: async (file: File) => {
       const isImage = file.type.startsWith("image/");

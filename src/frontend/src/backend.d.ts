@@ -187,6 +187,7 @@ export interface MembershipView {
     role: Role;
     personId?: PersonId;
     workId: WorkId;
+    archived: boolean;
 }
 export interface NewCode {
     expiresAt: bigint;

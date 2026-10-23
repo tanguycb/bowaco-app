@@ -46,6 +46,7 @@ mixin (
       return #err("Je kunt je eigen adminrol niet afnemen");
     };
     switch (u.orgId) { case (?o) { if (not org.orgs.containsKey(o)) { return #err("Onbekende organisatie") } }; case null {} };
+    switch (orgRule(u.roles, u.orgId)) { case (?e) return #err(e); case null {} };
     let p : Types.Person = {
       id;
       name;
@@ -86,7 +87,18 @@ mixin (
     for (i in access.invites.values()) {
       if (i.personId == id and i.state == #open) { i.state := #revoked({ by = admin.id; at = now }) };
     };
-    Access.audit(audit, caller, ?admin.id, null, "persoon-afgezet", p.name # " #" # id.toText());
+    // Een afgezette persoon is van geen enkele werf nog lid (R31). Lidmaatschappen van zijn organisatie
+    // blijven: die horen bij de firma, niet bij hem.
+    var ended = 0;
+    for (m in works.memberships.values()) {
+      if (m.personId == ?id and m.endedAt == null) {
+        m.endedAt := ?now;
+        m.endedBy := ?admin.id;
+        ended += 1;
+        Access.audit(audit, caller, ?admin.id, ?m.workId, "lid-beeindigd", Rights.roleKey(m.role) # " #" # m.id.toText() # " (afgezet)");
+      };
+    };
+    Access.audit(audit, caller, ?admin.id, null, "persoon-afgezet", p.name # " #" # id.toText() # (if (ended > 0) "; " # ended.toText() # " lidmaatschap(pen) beëindigd" else ""));
     #ok;
   };
 
@@ -176,6 +188,11 @@ mixin (
   };
 
   // ── intern ──────────────────────────────────────────────────────────────
+
+  func orgRule(roles : [Types.Role], orgId : ?Nat) : ?Text {
+    let kind = switch orgId { case (?o) { switch (org.orgs.get(o)) { case (?x) ?x.kind; case null null } }; case null null };
+    Rights.orgRuleError(roles, kind);
+  };
 
   func orgFrom(id : Nat, i : Views.OrgInput, createdBy : Nat, createdAt : Int, extra : Types.Extra) : Result.Result<Types.Org, Text> {
     let name = Access.cleanText(i.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");

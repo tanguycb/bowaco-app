@@ -141,8 +141,10 @@ const A = workA.ok.id;
 const B = workB.ok.id;
 
 await sec("── uitnodigen (§3.3.2) en bevestigen (§3.3.4)");
+// Externe rollen horen bij een externe organisatie (standaard de OA-firma van de proef); interne bij BOWACO.
+const INTERN = ["admin", "werfleider", "calculator"];
 const invite = (who, name, rs, extra = {}) =>
-  who.invitePerson({ name, roles: rs, orgId: opt(extra.orgId), shortCode: opt(extra.shortCode), lang: [], phone: [], workIds: extra.workIds ?? [], validDays: extra.days ?? 0n, tag: extra.tag ?? "" });
+  who.invitePerson({ name, roles: rs, orgId: opt(extra.orgId ?? (rs.every((r) => !INTERN.includes(Object.keys(r)[0])) ? orgX.ok.id : undefined)), shortCode: opt(extra.shortCode), lang: [], phone: [], workIds: extra.workIds ?? [], validDays: extra.days ?? 0n, tag: extra.tag ?? "" });
 const invWl = await invite(admin, "Proef Werfleider", roles("werfleider"));
 check("admin nodigt werfleider uit", isOk(invWl), errOf(invWl));
 const wlCode = invWl.ok.code;
@@ -167,6 +169,8 @@ check("werfleider nodigt een OA uit voor werf A", isOk(invOa), errOf(invOa));
 codes.push(invOa.ok?.code);
 check("werfleider mag geen admin uitnodigen", await denied(invite(wl, "Te veel", roles("admin"))));
 check("werfleider mag geen calculator uitnodigen", await denied(invite(wl, "Te veel", roles("calculator"))));
+check("externe rol zonder organisatie geweigerd", errOf(await admin.invitePerson({ name: "Zonder org", roles: roles("onderaannemer"), orgId: [], shortCode: [], lang: [], phone: [], workIds: [], validDays: 0n, tag: "" })).includes("organisatie"));
+check("interne rol bij een externe organisatie geweigerd", errOf(await invite(admin, "Verkeerde org", roles("calculator"), { orgId: orgX.ok.id })).includes("BOWACO"));
 const r2 = await oa.redeemCode(invOa.ok.code.toLowerCase().replace(/^bow-/, "").replaceAll("-", ""));
 check("OA wisselt in (kleine letters, zonder streepjes) → meteen actief", isOk(r2) && status(r2.ok) === "active");
 check("OA: startscherm week", (await oa.me()).caps[0].home === "week");
@@ -215,6 +219,9 @@ check("onbestaande werf opvragen faalt (geen verschil met 'geen toegang')", awai
 check("OA kan geen werf maken", await rejects(oa.createWork({ code: "X", name: "x", address: addr("x"), parentId: [], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 600n })));
 check("calculator kan geen werfstatus wijzigen", await rejects(calc.setWorkStatus(A, { running: null })));
 check("werfleider wijzigt werfstatus", isOk(await wl.setWorkStatus(A, { running: null })));
+const nAudit = await admin.auditCount();
+check("dezelfde status nog eens: ok maar geen auditregel", isOk(await wl.setWorkStatus(A, { running: null })) && (await admin.auditCount()) === nAudit);
+check("auditregel werfstatus toont oud → nieuw", (await admin.auditLog(0n, 20n)).some((e) => e.action === "werf-status" && e.detail.includes("gepland → bezig")));
 check("werfleider mag geen instellingen wijzigen", await rejects(wl.setSettings({ werfleiderZietAlles: false, inviteDays: 7n })));
 check("admin zet 'werfleider ziet alles' uit", isOk(await admin.setSettings({ werfleiderZietAlles: false, inviteDays: 7n })));
 check("werfleider (alles-zien uit) ziet enkel A (zijn werf)", eq(await ids(wl), [Number(A)]));
@@ -347,6 +354,8 @@ check("admin zet de OA af", isOk(await admin.archivePerson(oaId)));
 check("afgezette OA: volgende call geweigerd", await rejects(oa.listWorks()));
 check("afgezette OA: me() = unlinked", status(await oa.me()) === "unlinked");
 check("afgezette OA: geen uploadcertificaat meer", await rejects(cert(oa)));
+check("afgezette OA: geen lid meer van werf A", (await admin.listMembers(A)).every((m) => m.personId[0] !== oaId));
+check("afzetten logt het einde van zijn lidmaatschap", (await admin.auditLog(0n, 30n)).some((e) => e.action === "lid-beeindigd" && e.detail.includes("afgezet")));
 const admin2Id = (await admin2.me()).person[0].id;
 check("admin zet admin 2 af", isOk(await admin.archivePerson(admin2Id)));
 check("admin 2 kan niets meer", await rejects(admin2.listPersons(false)));
@@ -365,6 +374,7 @@ const details = log.map((e) => e.detail + " " + e.action).join("\n");
 const bare = codes.filter(Boolean).flatMap((c) => [c, c.replace(/^BOW-/, "").replaceAll("-", "")]);
 check("auditlog bevat geen enkele volledige code", !bare.some((c) => details.includes(c)), `${codes.length} codes nagekeken`);
 check("auditlog bevat geen opslagverwijzing", !details.includes("!caf!"));
+check("uitnodiging met werf: lidmaatschap staat in de auditlog", log.some((e) => e.action === "lid-toegevoegd" && e.detail.includes("uitnodiging Proef OA Tegels")));
 check("auditlog: 'bekeek' bij vertrouwelijk lezen", log.some((e) => e.action === "bekeek:organisatie-vertrouwelijk") && log.some((e) => e.action === "bekeek:bestand-vertrouwelijk"));
 check("werfleider ziet enkel zijn eigen auditregels", (await wl.auditLog(0n, 500n)).every((e) => e.personId[0] === wlId));
 check("werfleider kan geen export", await rejects(wl.exportIntern()));

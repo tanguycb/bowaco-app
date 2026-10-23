@@ -280,6 +280,7 @@ export const MembershipView = IDL.Record({
   'role' : Role,
   'personId' : IDL.Opt(PersonId),
   'workId' : WorkId,
+  'archived' : IDL.Bool,
 });
 export const LinkHistory = IDL.Record({
   'id' : IDL.Nat,
@@ -746,6 +747,7 @@ export const idlFactory = ({ IDL }) => {
     'role' : Role,
     'personId' : IDL.Opt(PersonId),
     'workId' : WorkId,
+    'archived' : IDL.Bool,
   });
   const LinkHistory = IDL.Record({
     'id' : IDL.Nat,

@@ -165,6 +165,7 @@ module {
     personId : ?PersonId;
     orgId : ?OrgId;
     name : Text;
+    archived : Bool; // de persoon is afgezet
     role : Types.Role;
     grants : [Types.Grant];
     grantedAt : Int;

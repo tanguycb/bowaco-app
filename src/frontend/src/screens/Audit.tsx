@@ -1,5 +1,5 @@
 // Auditlog (nieuwste eerst) en export (back-up, §3): intern en vertrouwelijk als aparte bestanden.
-import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import type { Caps } from "../backend";
 import { Button, Table, useToast } from "../design";
 import { t } from "../texts/nl";
@@ -18,6 +18,8 @@ export function Audit({ caps }: { caps: Caps }) {
     getNextPageParam: (last, all) => (BigInt(last.length) < PAGE ? undefined : BigInt(all.length) * PAGE),
     enabled: !!actor && !isFetching,
   });
+  const persons = useQuery({ queryKey: ["persons", true], queryFn: () => actor!.listPersons(true), enabled: !!actor && !isFetching && caps.readTeam });
+  const nameOf = (id: bigint) => persons.data?.find((p) => p.id === id)?.name;
   const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
   const exIntern = useMutation({ mutationFn: () => actor!.exportIntern(), onSuccess: (d) => downloadJson(`bowaco-intern-${stamp()}.json`, d), onError: fail });
@@ -33,7 +35,7 @@ export function Audit({ caps }: { caps: Caps }) {
     onSuccess: (d) => downloadJson(`bowaco-auditlog-${stamp()}.json`, d),
     onError: fail,
   });
-  const rows = log.data?.pages.flat() ?? [];
+  const rows = (log.data?.pages.flat() ?? []).map((e, i) => ({ ...e, i }));
   return (
     <Page
       title={t.audit.title}
@@ -50,12 +52,21 @@ export function Audit({ caps }: { caps: Caps }) {
       {rows.length > 0 && (
         <Table
           rows={rows}
-          rowKey={(e) => `${e.at}-${e.action}-${e.who.toText()}`}
+          rowKey={(e) => String(e.i)}
           columns={[
             { key: "t", label: t.audit.when, render: (e) => <span className="bw-num">{fmtTime(e.at)}</span>, width: "150px" },
             { key: "a", label: t.audit.action, render: (e) => <span className="bw-mono">{e.action}</span> },
             { key: "d", label: t.audit.detail, render: (e) => e.detail || "—" },
-            { key: "w", label: t.audit.who, render: (e) => <span className="a-mono" title={e.who.toText()}>{e.personId !== undefined ? `#${e.personId}` : e.who.toText().slice(0, 11) + "…"}</span> },
+            {
+              key: "w",
+              label: t.audit.who,
+              render: (e) =>
+                e.personId !== undefined ? (
+                  <span title={e.who.toText()}>{nameOf(e.personId) ?? ""} <span className="bw-mono bw-muted">#{String(e.personId)}</span></span>
+                ) : (
+                  <span className="a-mono" title={e.who.toText()}>{t.audit.robot} · {e.who.toText().slice(0, 11)}…</span>
+                ),
+            },
           ]}
         />
       )}

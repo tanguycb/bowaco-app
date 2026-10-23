@@ -193,6 +193,17 @@ module {
     };
   };
 
+  // Een persoon met enkel externe rollen hoort bij een externe organisatie (OA-firma, bureau, klant);
+  // een interne rol hoort bij BOWACO zelf (geen organisatie of een organisatie van soort #bowaco).
+  public func orgRuleError(roles : [Role], orgKind : ?Types.OrgKind) : ?Text {
+    let externalOnly = roles.size() > 0 and roles.all(isExternalRole);
+    switch orgKind {
+      case null { if (externalOnly) ?"Kies de organisatie van deze persoon (onderaannemer, bureau of klant)" else null };
+      case (?#bowaco) { if (externalOnly) ?"Een externe rol hoort bij een externe organisatie, niet bij BOWACO" else null };
+      case (?_) { if (not externalOnly) ?"Een interne rol hoort bij BOWACO zelf, niet bij een externe organisatie" else null };
+    };
+  };
+
   public func adminRole(roles : [Role]) : Bool { roles.find(func r = r == #admin) != null };
 
   // Startscherm per rol (bouwplan §8.2).

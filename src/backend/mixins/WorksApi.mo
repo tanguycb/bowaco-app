@@ -83,8 +83,10 @@ mixin (
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #editWork, ?id);
     let w = works.works.get(id) ?? return #err("Onbekende werf");
+    if (w.status == status) { return #ok }; // niets veranderd: niets loggen
+    let before = w.status;
     w.status := status;
-    Access.audit(audit, caller, ?p.id, ?id, "werf-status", w.code);
+    Access.audit(audit, caller, ?p.id, ?id, "werf-status", w.code # ": " # statusKey(before) # " → " # statusKey(status));
     #ok;
   };
 
@@ -124,6 +126,18 @@ mixin (
     #ok;
   };
 
+  func statusKey(s : Types.WorkStatus) : Text {
+    switch s {
+      case (#request) "aanvraag";
+      case (#quoting) "offerte";
+      case (#planned) "gepland";
+      case (#running) "bezig";
+      case (#delivered) "opgeleverd";
+      case (#aftercare) "nazorg";
+      case (#cancelled) "geannuleerd";
+    };
+  };
+
   func addMember(workId : Nat, personId : ?Nat, orgId : ?Nat, role : Types.Role, grants : [Types.Grant], by : Nat) : Nat {
     let id = Ids.next(ctr, "membership");
     let m : Types.Membership = { id; workId; personId; orgId; role; grants; grantedAt = Time.now(); grantedBy = by; var endedAt = null; var endedBy = null };
@@ -155,12 +169,14 @@ mixin (
       case (null, ?oid) { switch (org.orgs.get(oid)) { case (?o) o.name; case null "#" # oid.toText() } };
       case _ "";
     };
+    let archived = switch (m.personId) { case (?pid) { switch (access.persons.get(pid)) { case (?x) x.archivedAt != null; case null false } }; case null false };
     {
       id = m.id;
       workId = m.workId;
       personId = m.personId;
       orgId = m.orgId;
       name;
+      archived;
       role = m.role;
       grants = m.grants;
       grantedAt = m.grantedAt;

@@ -119,6 +119,8 @@ mixin (
       case (?o) { if (not orgExists(o)) { return #err("Onbekende organisatie") } };
       case null {};
     };
+    let orgKind = switch (req.orgId) { case (?o) { switch (org.orgs.get(o)) { case (?x) ?x.kind; case null null } }; case null null };
+    switch (Rights.orgRuleError(req.roles, orgKind)) { case (?e) return #err(e); case null {} };
     let entropy = await Random.blob();
     // R33: na de await opnieuw nakijken; de uitnodiger kan intussen afgezet zijn.
     let again = Access.activePerson(access, caller) ?? return #err("Geen toegang meer");
@@ -146,6 +148,7 @@ mixin (
           let mid = Ids.next(ctr, "membership");
           let m : Types.Membership = { id = mid; workId = w; personId = ?id; orgId = null; role = r; grants = Rights.defaultGrants(r); grantedAt = now; grantedBy = again.id; var endedAt = null; var endedBy = null };
           works.memberships.add(mid, m);
+          Access.audit(audit, caller, ?again.id, ?w, "lid-toegevoegd", Rights.roleKey(r) # " #" # mid.toText() # " (uitnodiging " # name # ")");
         };
       };
     };

@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "0.6-draft1";
+  public let version = "0.6-draft2";
   public let schema : Nat = 1;
 
   // SHA-256("bowaco-code-v1|" # code) van de opstartcode (16 tekens, 80 bit).

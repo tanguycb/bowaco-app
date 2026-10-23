@@ -2,8 +2,8 @@
 // afzetten. Een nieuwe code wordt één keer getoond; de backend bewaart enkel de hash.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { LinkStatus, Role, type Caps, type NewCode, type PersonView } from "../backend";
-import { Button, Choice, Sheet, Table, useToast } from "../design";
+import { LinkStatus, OrgKind, Role, type Caps, type NewCode, type PersonView } from "../backend";
+import { Button, Choice, Confirm, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtDay, fmtTime, optText, unwrap, useBackend } from "../util";
 import { Loading, Page, RoleTags } from "./common";
@@ -11,6 +11,8 @@ import { Field } from "./Werven";
 
 const ALL_ROLES: Role[] = [Role.admin, Role.werfleider, Role.calculator, Role.onderaannemer, Role.architect, Role.klant, Role.veiligheidscoordinator];
 const EXTERNAL: Role[] = [Role.onderaannemer, Role.architect, Role.klant, Role.veiligheidscoordinator];
+/** Welke soort organisatie bij een externe rol hoort (veiligheidscoördinator: elke externe). */
+const ORG_FOR: Partial<Record<Role, OrgKind>> = { [Role.onderaannemer]: OrgKind.subcontractor, [Role.architect]: OrgKind.architect, [Role.klant]: OrgKind.client };
 
 export function Team({ caps, me }: { caps: Caps; me: PersonView }) {
   const { actor, isFetching } = useBackend();
@@ -53,7 +55,10 @@ function Invite({ caps, onClose }: { caps: Caps; onClose: () => void }) {
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on });
   const works = useQuery({ queryKey: ["works"], queryFn: () => actor!.listWorks(), enabled: on });
   const roles = caps.manageAccess ? ALL_ROLES : EXTERNAL;
-  const [f, setF] = useState({ name: "", role: roles.includes(Role.onderaannemer) ? Role.onderaannemer : roles[0], org: "", code: "", phone: "", days: "", tag: "" });
+  // Standaard een interne rol (BOWACO zelf) voor de beheerder; een werfleider nodigt enkel externen uit.
+  const [f, setF] = useState({ name: "", role: caps.manageAccess ? Role.werfleider : Role.onderaannemer, org: "", code: "", phone: "", days: "", tag: "" });
+  const external = EXTERNAL.includes(f.role);
+  const orgChoices = (orgs.data ?? []).filter((o) => o.kind !== OrgKind.bowaco && (ORG_FOR[f.role] === undefined || o.kind === ORG_FOR[f.role]));
   const [workIds, setWorkIds] = useState<bigint[]>([]);
   const [code, setCode] = useState<NewCode | null>(null);
   const save = useMutation({
@@ -74,16 +79,21 @@ function Invite({ caps, onClose }: { caps: Caps; onClose: () => void }) {
   if (code) return <CodeShown title={`${t.team.codeTitle} ${f.name}`} code={code} onClose={onClose} />;
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   return (
-    <Sheet title={t.team.inviteTitle} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.team.invite}</Button></>}>
+    <Sheet title={t.team.inviteTitle} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} disabled={!f.name.trim() || (external && !f.org)} onClick={() => save.mutate()}>{t.team.invite}</Button></>}>
       <div className="a-form">
         <Field label={t.team.name}><input className="bw-input" value={f.name} onChange={set("name")} maxLength={80} /></Field>
-        <Field label={t.team.roles}><Choice label={t.team.roles} value={f.role} onChange={(r) => setF({ ...f, role: r })} options={roles.map((r) => ({ value: r, label: t.roles[r] }))} /></Field>
-        <Field label={t.team.org}>
-          <select className="bw-input" value={f.org} onChange={set("org")}>
-            <option value="">{t.team.noOrg}</option>
-            {(orgs.data ?? []).map((o) => <option key={String(o.id)} value={String(o.id)}>{o.name}</option>)}
-          </select>
-        </Field>
+        <Field label={t.team.roles}><Choice label={t.team.roles} value={f.role} onChange={(r) => setF({ ...f, role: r, org: "" })} options={roles.map((r) => ({ value: r, label: t.roles[r] }))} /></Field>
+        {external ? (
+          <Field label={t.team.org}>
+            <select className="bw-input" value={f.org} onChange={set("org")}>
+              <option value="">{t.team.pickOrg}</option>
+              {orgChoices.map((o) => <option key={String(o.id)} value={String(o.id)}>{o.name}</option>)}
+            </select>
+            {orgChoices.length === 0 && <span className="bw-muted">{t.team.noOrgYet}</span>}
+          </Field>
+        ) : (
+          <Field label={t.team.org}><span>{t.team.noOrg}</span></Field>
+        )}
         <div className="a-grid2">
           <Field label={t.team.shortCode}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} maxLength={20} /></Field>
           <Field label={t.team.phone}><input className="bw-input" value={f.phone} onChange={set("phone")} inputMode="tel" /></Field>
@@ -148,6 +158,7 @@ function PersonSheet({ person, me, onClose }: { person: PersonView; me: PersonVi
   const mine = (links.data ?? []).filter((l) => l.personId === person.id);
   const [f, setF] = useState({ name: person.name, roles: person.roles, org: person.orgId !== undefined ? String(person.orgId) : "", code: person.shortCode ?? "", phone: person.phone ?? "" });
   const [recTag, setRecTag] = useState("");
+  const [ask, setAsk] = useState(false);
   const [code, setCode] = useState<NewCode | null>(null);
   const done = (msg = t.common.saved) => { toast.show({ kind: "ok", text: msg }); void qc.invalidateQueries(); };
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
@@ -215,9 +226,8 @@ function PersonSheet({ person, me, onClose }: { person: PersonView; me: PersonVi
             <input className="bw-input" style={{ flex: 1, minWidth: 180 }} value={recTag} onChange={(e) => setRecTag(e.target.value)} placeholder={t.team.recoveryTag} maxLength={60} />
             <Button icon="key" busy={recovery.isPending} onClick={() => recovery.mutate()}>{t.team.recovery}</Button>
           </div>
-          {person.id !== me.id && (
-            <Button variant="danger" busy={archive.isPending} onClick={() => { if (window.confirm(t.team.archiveConfirm)) archive.mutate(); }}>{t.team.archive}</Button>
-          )}
+          {person.id !== me.id && <Button variant="danger" onClick={() => setAsk(true)}>{t.team.archive}</Button>}
+          <Confirm open={ask} title={`${t.team.archive}: ${person.name}`} text={t.team.archiveConfirm} confirmLabel={t.team.archive} busy={archive.isPending} onConfirm={() => archive.mutate()} onClose={() => setAsk(false)} />
         </div>
       )}
     </Sheet>
