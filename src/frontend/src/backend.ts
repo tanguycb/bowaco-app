@@ -1343,6 +1343,7 @@ export interface backendInterface {
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
+    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_13>;
     previewPlan(workId: bigint, change: PlanChange): Promise<Result_13>;
     readConfidentialFile(id: bigint): Promise<Result_12>;
     readContract(workId: bigint): Promise<Result_11>;
@@ -2231,6 +2232,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.orgAssignments(to_candid_opt_n19(this._uploadFile, this._downloadFile, arg0), arg1, arg2);
             return from_candid_vec_n242(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async previewDependency(arg0: bigint, arg1: DependencyInput): Promise<Result_13> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.previewDependency(arg0, to_candid_DependencyInput_n11(this._uploadFile, this._downloadFile, arg1));
+                return from_candid_Result_13_n245(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.previewDependency(arg0, to_candid_DependencyInput_n11(this._uploadFile, this._downloadFile, arg1));
+            return from_candid_Result_13_n245(this._uploadFile, this._downloadFile, result);
         }
     }
     async previewPlan(arg0: bigint, arg1: PlanChange): Promise<Result_13> {

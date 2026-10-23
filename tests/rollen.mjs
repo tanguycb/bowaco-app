@@ -618,6 +618,16 @@ const ab = byKey(pA, "afbraak");
 const longer = await wl.applyPlan(A, { move: { taskId: ab.id, start: ab.start, workdays: ab.workdays + 5n, mode: { asNeeded: null } } }, pA.version, "asbest gevonden");
 pA = await plan(wl);
 check("afbraak +5 werkdagen: ruwbouw en de rest schuiven, niemand te vroeg", isOk(longer) && byKey(pA, "ruwbouw").start > byKey(pA, "afbraak").end && pA.tasks.every((t) => t.warnings.length === 0), errOf(longer));
+// C1: verlengen met "mee verschuiven" → de hele keten schuift evenveel werkdagen als het einde
+pA = await plan(wl);
+const ab2 = byKey(pA, "afbraak");
+const rw2 = byKey(pA, "ruwbouw");
+const pvF = await wl.previewPlan(A, { move: { taskId: ab2.id, start: ab2.start, workdays: ab2.workdays + 3n, mode: { follow: null } } });
+const rwF = isOk(pvF) ? pvF.ok.changes.find((c) => c.taskId === rw2.id) : undefined;
+const wdays = (a, b) => { let n = 0; for (let d = Number(a) + 1; d <= Number(b); d++) if (wd(BigInt(d)) < 5) n++; return n; }; // geen blokken op dat moment
+check("verlengen met 'mee verschuiven': ruwbouw schuift 3 werkdagen, de hele keten erachter mee (C1)", isOk(pvF) && rwF && wdays(rw2.start, rwF.toStart) === 3 && pvF.ok.changes.length >= 20, errOf(pvF) || `${pvF.ok?.changes.length}, ${rwF && fmt(rwF.toStart)}`);
+const pvN = await wl.previewPlan(A, { move: { taskId: ab2.id, start: ab2.start, workdays: ab2.workdays + 3n, mode: { asNeeded: null } } });
+check("verlengen met 'enkel waar nodig': enkel wat te vroeg zou beginnen", isOk(pvN) && pvN.ok.changes.length <= pvF.ok.changes.length);
 // Kalender: bouwverlof (bedrijf) en STOP (werf)
 const bvl = { id: [], scope: { company: null }, kind: { bouwverlof: null }, from: dayOf(2026, 12, 21), to: dayOf(2027, 1, 1), reason: "Kerstverlof (proef)" };
 check("werfleider kan geen bedrijfskalender wijzigen", await denied(wl.saveCalendarBlock(bvl)));
@@ -647,7 +657,13 @@ const opl = byKey(pA, "oplevering");
 check("kring geweigerd (oplevering → voorbereiding)", errOf(await wl.addDependency(A, { fromTaskId: opl.id, toTaskId: byKey(pA, "voorbereiding").id, kind: { finishToStart: null }, lagDays: 0n }, pA.version)).includes("kring"));
 check("dubbele afhankelijkheid geweigerd", errOf(await wl.addDependency(A, { fromTaskId: byKey(pA, "afbraak").id, toTaskId: byKey(pA, "ruwbouw").id, kind: { finishToStart: null }, lagDays: 0n }, pA.version)).includes("bestaat al"));
 const dk = byKey(pA, "dak");
-const dep = await wl.addDependency(A, { fromTaskId: dk.id, toTaskId: byKey(pA, "trap").id, kind: { finishToStart: null }, lagDays: 2n }, pA.version);
+const depIn13 = { fromTaskId: dk.id, toTaskId: byKey(pA, "trap").id, kind: { finishToStart: null }, lagDays: 2n };
+const pvD = await wl.previewDependency(A, depIn13);
+check("voorvertoning van een nieuwe afhankelijkheid verandert niets (C2)", isOk(pvD) && (await plan(wl)).version === pA.version, errOf(pvD));
+check("calculator en OA vragen geen voorvertoning van een afhankelijkheid", (await denied(calc.previewDependency(A, depIn13))) && (await denied(oa.previewDependency(A, depIn13))));
+check("voorvertoning van een kring geweigerd", errOf(await wl.previewDependency(A, { ...depIn13, fromTaskId: byKey(pA, "oplevering").id, toTaskId: byKey(pA, "voorbereiding").id })).includes("kring"));
+const dep = await wl.addDependency(A, depIn13, pA.version);
+check("bewaren schuift precies wat de voorvertoning toonde", isOk(dep) && isOk(pvD) && dep.ok.changes.length === pvD.ok.changes.length, `${dep.ok?.changes.length} vs ${pvD.ok?.changes.length}`);
 check("nieuwe afhankelijkheid (trap wacht 2 werkdagen op dak): opvolgers schuiven waar nodig", isOk(dep) && (await plan(wl)).tasks.every((t) => t.warnings.length === 0), errOf(dep));
 pA = await plan(wl);
 const depId = pA.dependencies.find((d) => d.fromTaskId === dk.id && d.toTaskId === byKey(pA, "trap").id)?.id;

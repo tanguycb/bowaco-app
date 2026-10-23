@@ -1281,6 +1281,7 @@ export interface backendInterface {
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
+    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_13>;
     previewPlan(workId: bigint, change: PlanChange): Promise<Result_13>;
     readConfidentialFile(id: bigint): Promise<Result_12>;
     readContract(workId: bigint): Promise<Result_11>;

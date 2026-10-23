@@ -250,13 +250,9 @@ mixin (
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #editPlanning, ?workId);
     switch (plStale(workId, expectedVersion)) { case (?e) return #err(e); case null {} };
+    switch (plDepError(workId, i)) { case (?e) return #err(e); case null {} };
     let tasks = Plan.tasksOf(plan, workId);
-    if (not tasks.any(func t = t.id == i.fromTaskId) or not tasks.any(func t = t.id == i.toTaskId)) { return #err("Onbekende taak") };
-    if (Int.abs(i.lagDays) > Int.abs(Config.maxLag)) { return #err("Wachttijd: hoogstens " # Config.maxLag.toText() # " werkdagen") };
     let deps = Plan.depsOf(plan, workId);
-    if (deps.size() >= Config.maxDepsPerWork) { return #err("Te veel afhankelijkheden op deze werf") };
-    if (deps.any(func d = d.fromTaskId == i.fromTaskId and d.toTaskId == i.toTaskId)) { return #err("Deze afhankelijkheid bestaat al") };
-    if (Plan.wouldCycle(deps, i.fromTaskId, i.toTaskId)) { return #err("Dat maakt een kring: de taak wacht dan op zichzelf") };
     let id = Ids.next(ctr, "dependency");
     let d : Types.Dependency = { id; workId; fromTaskId = i.fromTaskId; toTaskId = i.toTaskId; kind = i.kind; lagDays = i.lagDays; createdAt = Time.now(); createdBy = p.id; archivedAt = null };
     plan.dependencies.add(id, d);
@@ -273,6 +269,21 @@ mixin (
     let v = plBump(workId);
     Access.audit(audit, caller, ?p.id, ?workId, "planning-afhankelijkheid", plWorkCode(workId) # ": " # plTitle(i.toTaskId) # " " # reason # (if (shifts.size() > 0) " (" # shifts.size().toText() # " taken geschoven)" else ""));
     #ok({ version = v; changes = shifts.map(func s = plShiftView(cal, s)); reopened; taskId = null });
+  };
+
+  // Wat er zou schuiven als deze afhankelijkheid erbij komt (de voorvertoning in de taakfiche, C2).
+  public query ({ caller }) func previewDependency(workId : Nat, i : Views.DependencyInput) : async Result.Result<Views.PlanPreview, Text> {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #editPlanning, ?workId);
+    switch (plDepError(workId, i)) { case (?e) return #err(e); case null {} };
+    let d : Types.Dependency = { id = 0; workId; fromTaskId = i.fromTaskId; toTaskId = i.toTaskId; kind = i.kind; lagDays = i.lagDays; createdAt = 0; createdBy = p.id; archivedAt = null };
+    let all = Array.concat(Plan.depsOf(plan, workId), [d]);
+    let chain = plChainFrom(all, i.toTaskId);
+    let cal = Plan.calFor(plan, works, workId);
+    switch (Plan.schedule(cal, Plan.tasksOf(plan, workId), all, #reflow, func t = chain.containsKey(t.id))) {
+      case (#ok shifts) #ok({ version = plVersion(workId); changes = shifts.map(func s = plShiftView(cal, s)); reopened = plReopenCount(shifts) });
+      case (#err e) #err(e);
+    };
   };
 
   public shared ({ caller }) func removeDependency(workId : Nat, depId : Nat, expectedVersion : Nat) : async Result.Result<Nat, Text> {
@@ -619,6 +630,17 @@ mixin (
 
   func plChange2(taskId : Nat, by : Nat, field : Text, from : Text, to : Text, reason : Text) {
     switch (plan.tasks.get(taskId)) { case (?t) plChange(t, by, field, from, to, reason); case null {} };
+  };
+
+  func plDepError(workId : Nat, i : Views.DependencyInput) : ?Text {
+    let tasks = Plan.tasksOf(plan, workId);
+    if (not tasks.any(func t = t.id == i.fromTaskId) or not tasks.any(func t = t.id == i.toTaskId)) { return ?"Onbekende taak" };
+    if (Int.abs(i.lagDays) > Int.abs(Config.maxLag)) { return ?("Wachttijd: hoogstens " # Config.maxLag.toText() # " werkdagen") };
+    let deps = Plan.depsOf(plan, workId);
+    if (deps.size() >= Config.maxDepsPerWork) { return ?"Te veel afhankelijkheden op deze werf" };
+    if (deps.any(func d = d.fromTaskId == i.fromTaskId and d.toTaskId == i.toTaskId)) { return ?"Deze afhankelijkheid bestaat al" };
+    if (Plan.wouldCycle(deps, i.fromTaskId, i.toTaskId)) { return ?"Dat maakt een kring: de taak wacht dan op zichzelf" };
+    null;
   };
 
   func plInputError(i : Views.TaskInput) : ?Text {

@@ -1203,6 +1203,11 @@ export const idlService = IDL.Service({
       [IDL.Vec(OrgAssignmentView)],
       ['query'],
     ),
+  'previewDependency' : IDL.Func(
+      [IDL.Nat, DependencyInput],
+      [Result_13],
+      ['query'],
+    ),
   'previewPlan' : IDL.Func([IDL.Nat, PlanChange], [Result_13], ['query']),
   'readConfidentialFile' : IDL.Func([IDL.Nat], [Result_12], []),
   'readContract' : IDL.Func([IDL.Nat], [Result_11], []),
@@ -2445,6 +2450,11 @@ export const idlFactory = ({ IDL }) => {
     'orgAssignments' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
         [IDL.Vec(OrgAssignmentView)],
+        ['query'],
+      ),
+    'previewDependency' : IDL.Func(
+        [IDL.Nat, DependencyInput],
+        [Result_13],
         ['query'],
       ),
     'previewPlan' : IDL.Func([IDL.Nat, PlanChange], [Result_13], ['query']),

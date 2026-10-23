@@ -1121,6 +1121,7 @@ export interface _SERVICE {
     [[] | [bigint], bigint, bigint],
     Array<OrgAssignmentView>
   >,
+  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_13>,
   'previewPlan' : ActorMethod<[bigint, PlanChange], Result_13>,
   'readConfidentialFile' : ActorMethod<[bigint], Result_12>,
   'readContract' : ActorMethod<[bigint], Result_11>,

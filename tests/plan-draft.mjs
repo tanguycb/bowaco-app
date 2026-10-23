@@ -58,6 +58,13 @@ const back = await wl.applyPlan(A, { move: { taskId: first.id, start: first.star
 check("en terug naar de oude datum", isOk(back), errOf(back));
 pA = await wl.getPlan(A);
 check("geen waarschuwingen", pA.tasks.every((t) => t.warnings.length === 0), pA.tasks.flatMap((t) => t.warnings).join(" | "));
+const vb4 = pA.version;
+const pvD = await wl.previewDependency(A, { fromTaskId: byKey(pA, "dak").id, toTaskId: byKey(pA, "trap").id, kind: { finishToStart: null }, lagDays: 2n });
+check("voorvertoning van een afhankelijkheid (C2) verandert niets", isOk(pvD) && (await wl.getPlan(A)).version === vb4, errOf(pvD));
+const ab = byKey(pA, "afbraak");
+const pvF = await wl.previewPlan(A, { move: { taskId: ab.id, start: ab.start, workdays: ab.workdays + 2n, mode: { follow: null } } });
+const pvN = await wl.previewPlan(A, { move: { taskId: ab.id, start: ab.start, workdays: ab.workdays + 2n, mode: { asNeeded: null } } });
+check("verlengen met 'mee verschuiven' schuift de keten (C1), 'enkel waar nodig' niet meer", isOk(pvF) && isOk(pvN) && pvF.ok.changes.length >= 20 && pvN.ok.changes.length <= pvF.ok.changes.length, `${pvF.ok?.changes.length} / ${pvN.ok?.changes.length}`);
 check("verouderde versie geweigerd", errOf(await wl.saveTask(A, tIn({ start: day() }), 0n)).includes("intussen gewijzigd"));
 // Werfblokkering (STOP) en bedrijfskalender
 const stopFrom = byKey(pA, "ruwbouw")?.start ?? day() + 30n;

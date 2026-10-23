@@ -121,6 +121,7 @@
 .bw-sheet__foot { padding: var(--bw-space-3) var(--bw-space-4) var(--bw-space-4); display: flex; gap: var(--bw-space-2); border-top: 1px solid var(--bw-line); }
 .bw-sheet__foot > * { flex: 1; }
 .bw-sheet--side { left: auto; top: 0; width: min(440px, 100%); max-height: none; border-radius: 0; border-left: 1px solid var(--bw-line); animation: bw-left 180ms ease; }
+.bw-sheet--side.bw-sheet--wide { width: min(880px, 100%); }
 @keyframes bw-fade { from { opacity: 0; } }
 @keyframes bw-up { from { transform: translateY(16px); opacity: 0; } }
 @keyframes bw-left { from { transform: translateX(16px); opacity: 0; } }

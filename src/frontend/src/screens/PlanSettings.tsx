@@ -19,7 +19,7 @@ export function CompanyCalendar() {
   const [to, setTo] = useState("");
   const [kind, setKind] = useState<BlockKind>(BlockKind.bouwverlof);
   const [reason, setReason] = useState("");
-  const year = new Date().getFullYear() + (new Date().getMonth() >= 9 ? 1 : 0);
+  const year = new Date().getFullYear(); // dit jaar én volgend jaar (C3: in oktober ontbraken Allerheiligen … Kerstmis)
   const done = (text: string) => { void qc.invalidateQueries(); toast.show({ kind: "ok", text }); };
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
   const add = useMutation({
@@ -147,7 +147,7 @@ function TemplateEditor({ tpl, onClose }: { tpl: TemplateView | null; onClose: (
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   return (
-    <Sheet side title={tpl ? `${t.plan.tplEdit} · ${tpl.name}` : t.plan.tplNew} open onClose={onClose} footer={<>
+    <Sheet side wide title={tpl ? `${t.plan.tplEdit} · ${tpl.name}` : t.plan.tplNew} open onClose={onClose} footer={<>
       {tpl?.stored && !tpl.archived && <Button variant="danger" busy={save.isPending && save.variables === true} onClick={() => save.mutate(true)}>{t.settings.archiveKind}</Button>}
       <Button onClick={onClose}>{t.common.cancel}</Button>
       <Button variant="primary" busy={save.isPending && save.variables === false} onClick={() => save.mutate(false)}>{t.common.save}</Button>
@@ -183,7 +183,7 @@ function TemplateEditor({ tpl, onClose }: { tpl: TemplateView | null; onClose: (
             <div className="a-row">
               <Button variant="quiet" disabled={i === 0} onClick={() => moveRow(i, -1)}>↑</Button>
               <Button variant="quiet" disabled={i === rows.length - 1} onClick={() => moveRow(i, 1)}>↓</Button>
-              <Button variant="quiet" icon="close" onClick={() => setRows(rows.filter((_, j) => j !== i))}>{t.settings.archiveKind}</Button>
+              <Button variant="quiet" icon="close" onClick={() => setRows(rows.filter((_, j) => j !== i))}>{t.plan.tplRemoveStep}</Button>
               {r.note && <span className="bw-muted">{r.note}</span>}
             </div>
           </li>

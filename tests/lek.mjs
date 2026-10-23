@@ -15,14 +15,18 @@ const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.
 const methods = [...did.slice(did.indexOf("service")).matchAll(/^ {2}"?([A-Za-z_][A-Za-z0-9_]*)"?\s*:/gm)].map((m) => m[1]);
 
 const admin = await backend("proef-admin", cid);
-// Eigen wachtende testkoppeling (interne rol, niet bevestigd); op het einde weer afgesloten.
-const wacht = await freshBackend(cid);
-const wachtInv = ok(await admin.invitePerson({ name: "Proef Wacht (lektest)", roles: [{ calculator: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [], validDays: 1n, tag: "lektest" }));
-ok(await wacht.redeemCode(wachtInv.code));
+// Eigen wachtende testkoppeling (interne rol, niet bevestigd); op het einde weer afgesloten. Enkel lokaal
+// (of met LEK_WACHT=1): op een draft stuurt elke wachtende koppeling een melding naar ALLE admins, ook de
+// eigenaar (C4, testlijst 1.3). De rollentest bewijst lokaal dat een wachtende koppeling niets kan.
+const host = process.env.ICP_HOST || "";
+const metWacht = host.includes("localhost") || host.includes("127.0.0.1") || process.env.LEK_WACHT === "1";
+const wacht = metWacht ? await freshBackend(cid) : null;
+const wachtInv = metWacht ? ok(await admin.invitePerson({ name: "Proef Wacht (lektest)", roles: [{ calculator: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [], validDays: 1n, tag: "lektest" })) : null;
+if (metWacht) ok(await wacht.redeemCode(wachtInv.code));
 const roles = {
   anoniem: await backend(null, cid),
   ongekoppeld: await freshBackend(cid),
-  wacht,
+  ...(metWacht ? { wacht } : {}),
   admin,
   werfleider: await backend("proef-werfleider", cid),
   calculator: await backend("proef-calculator", cid),
@@ -142,6 +146,7 @@ const table = {
   setTaskOrder: [["admin", "werfleider"], () => [B, [], 999n]],
   addDependency: [["admin", "werfleider"], () => [B, depIn, 999n]],
   removeDependency: [["admin", "werfleider"], () => [B, X, 999n]],
+  previewDependency: [["admin", "werfleider"], () => [B, depIn]],
   saveAssignment: [["admin", "werfleider"], () => [B, asgIn, 999n]],
   archiveAssignment: [["admin", "werfleider"], () => [B, X, 999n]],
   confirmAssignment: [["oa"], () => [asgB.id, false, ""]], // daarna "geef een reden": er verandert niets
@@ -229,7 +234,7 @@ for (const m of methods) {
 }
 for (const k of Object.keys(table)) if (!methods.includes(k)) console.log(`· tabelregel zonder functie: ${k}`);
 // Opruimen: de eigen wachtende koppeling afsluiten, zodat niemand ze later per vergissing bevestigt.
-ok(await admin.archivePerson(wachtInv.personId));
+if (metWacht) ok(await admin.archivePerson(wachtInv.personId));
 const left = (await admin.listLinks()).filter((l) => "pending" in l.status);
 if (left.length) {
   missing++;

@@ -224,7 +224,8 @@ module {
 
   // Het hart van de Gantt: wat verandert er als je een taak verplaatst of verlengt (#move), of als je
   // de hele planning opnieuw laat rekenen na een nieuwe kalenderblokkering (#reflow)?
-  //   #follow   = opvolgers (alle stappen verder in de keten) schuiven evenveel werkdagen mee, in beide richtingen
+  //   #follow   = opvolgers (alle stappen verder in de keten) schuiven evenveel werkdagen mee als het einde van
+  //               de taak, in beide richtingen (verplaatsen én verlengen)
   //   #asNeeded = opvolgers schuiven enkel als ze anders te vroeg zouden beginnen
   // Daarna geldt altijd: niemand begint vóór zijn voorgangers klaar zijn (+ wachttijd) of vóór de levering.
   // `movable` beperkt wie er mag schuiven (sjabloon toepassen: enkel de nieuwe taken).
@@ -257,7 +258,9 @@ module {
         reason.add(t.id, if (newStart != t.start) "verplaatst" else "duur gewijzigd");
         moved := ?t.id;
         if (m.mode == #follow) {
-          let delta = workdayDiff(cal, t.start, newStart);
+          // Opvolgers volgen het EINDE van de taak: bij verplaatsen = de verschuiving van de start,
+          // bij verlengen of inkorten = de verlenging (C1, testlijst 1.3).
+          let delta = workdayDiff(cal, freeFrom(cal, t.start, t.workdays), freeFrom(cal, newStart, m.workdays));
           if (delta != 0) {
             // Alle stappen verder in de keten (breedte eerst), elk één keer.
             let seen = Map.singleton<Nat, ()>(t.id, ());

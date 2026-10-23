@@ -598,7 +598,15 @@ function Deps({ workId, plan, task, onOpen }: { workId: bigint; plan: PlanView; 
   const [from, setFrom] = useState("");
   const [kind, setKind] = useState<DependencyKind>(DependencyKind.finishToStart);
   const [lag, setLag] = useState("0");
-  const add = usePlanMutation(workId, async () => unwrap(await actor!.addDependency(workId, { fromTaskId: BigInt(from), toTaskId: task.id, kind, lagDays: BigInt(Math.round(Number(lag) || 0)) }, plan.version)), (r) => { setFrom(""); setLag("0"); toast.show({ kind: "ok", text: resultText(r) }); });
+  const dep = () => ({ fromTaskId: BigInt(from), toTaskId: task.id, kind, lagDays: BigInt(Math.round(Number(lag) || 0)) });
+  // Eerst de voorvertoning (C2): schuift er iets, dan toont de fiche wat en bevestig je; anders meteen bewaren.
+  const [shifts, setShifts] = useState<PlanPreview | null>(null);
+  const add = usePlanMutation(workId, async () => unwrap(await actor!.addDependency(workId, dep(), plan.version)), (r) => { setFrom(""); setLag("0"); setShifts(null); toast.show({ kind: "ok", text: resultText(r) }); });
+  const check = usePlanMutation(workId, async () => unwrap(await actor!.previewDependency(workId, dep())), (r) => {
+    const pv = r as PlanPreview;
+    if (pv.changes.length === 0) add.mutate(undefined);
+    else setShifts(pv);
+  });
   const del = usePlanMutation(workId, async (id: bigint) => unwrap(await actor!.removeDependency(workId, id, plan.version)));
   if (plan.scope === "summary") return null;
   return (
@@ -630,9 +638,29 @@ function Deps({ workId, plan, task, onOpen }: { workId: bigint; plan: PlanView; 
             <Field label={t.plan.lag}><input className="bw-input bw-num" type="number" min={-120} max={120} value={lag} onChange={(e) => setLag(e.target.value)} /></Field>
           </div>
           <p className="bw-muted">{t.plan.lagHelp}</p>
-          <div><Button icon="plus" disabled={!from} busy={add.isPending} onClick={() => add.mutate(undefined)}>{t.plan.addDep}</Button></div>
+          <div><Button icon="plus" disabled={!from} busy={add.isPending || check.isPending} onClick={() => check.mutate(undefined)}>{t.plan.addDep}</Button></div>
         </div>
       )}
+      <Sheet title={`${t.plan.preview} · ${t.plan.addDep.toLowerCase()}`} open={shifts !== null} onClose={() => setShifts(null)} footer={<>
+        <Button onClick={() => setShifts(null)}>{t.common.cancel}</Button>
+        <Button variant="primary" busy={add.isPending} onClick={() => add.mutate(undefined)}>{t.plan.apply}</Button>
+      </>}>
+        <p className="bw-muted">{t.plan.depPreviewLead(name(BigInt(from || "0")), task.title)}</p>
+        {shifts && (
+          <ul className="a-list">
+            {shifts.changes.map((c) => (
+              <li key={String(c.taskId)}>
+                <span className="a-list__main">
+                  <b>{c.title}</b>
+                  <span className="bw-num">{fmtShort(c.fromStart)} – {fmtShort(c.fromEnd)} → <b>{fmtShort(c.toStart)} – {fmtShort(c.toEnd)}</b></span>
+                  <span className="bw-muted">{c.reason}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {shifts && shifts.reopened > 0n && <p className="a-note">{t.plan.reopened(N(shifts.reopened))}</p>}
+      </Sheet>
       {out.length > 0 && <p className="bw-muted">{t.plan.succs}: {out.map((d) => name(d.toTaskId)).join(", ")}</p>}
     </section>
   );
