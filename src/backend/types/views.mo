@@ -39,7 +39,10 @@ module {
     importOa : Bool; // import van onderaannemers (enkel admin, R32)
     manageCompanyCalendar : Bool; // bouwverlof en feestdagen voor alle werven (1.3)
     manageTemplates : Bool; // planningsjablonen (1.3)
-    readOrgPlanning : Bool; // toewijzingen per firma over alle werven (1.3/1.4)
+    readOrgPlanning : Bool; // toewijzingen per firma over alle werven: weekbord en conflicten (1.3/1.4)
+    manageAbsences : Bool; // afwezigheden van OA's ingeven (1.4: admin, werfleider)
+    reportOwnAbsence : Bool; // eigen afwezigheid melden (1.4: OA, als de admin dat toelaat)
+    manageBoardRules : Bool; // regels voor een dubbele boeking (1.4: admin)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -595,6 +598,141 @@ module {
     canConfirm : Bool;
   };
 
+
+  // ── Weekbord per OA (1.4) ───────────────────────────────────────────────
+  // Rijen = firma's, kolommen = weken (maandag), cel = de werven met de taken van die week. Alles berekend
+  // uit plan.assignments met de kalender van elke werf; begrensd per weekvenster en per pagina firma's.
+  public type BoardQuery = {
+    from : Day; // eerste week (wordt de maandag van die week)
+    weeks : Nat; // 1 tot Config.boardMaxWeeks
+    offset : Nat; // paginering over de firma's
+    limit : Nat; // hoogstens Config.boardMaxRows
+    text : Text; // zoeken op naam of planningcode ("" = alles)
+    trade : ?Text; // enkel firma's met dit vakgebied
+    workId : ?WorkId; // enkel firma's die in het venster op deze werf staan
+    onlyConflicts : Bool;
+    withIdle : Bool; // ook onderaannemers zonder werk of afwezigheid in het venster
+  };
+
+  public type BoardTask = {
+    taskId : Nat;
+    assignmentId : Nat;
+    title : Text; // leeg als de werf verborgen is
+    kind : Types.TaskKind;
+    status : Types.TaskStatus;
+    days : [Day]; // werkdagen van deze toewijzing in deze week (volgens de kalender van de werf)
+    start : Day; // de hele toewijzing (kan buiten de week lopen)
+    end : Day;
+    personName : ?Text;
+    note : Text;
+    confirmation : Types.Confirmation;
+  };
+
+  // Eén werf in één cel. hidden = de kijker ziet deze werf niet (werfleider zonder "ziet alles"): enkel
+  // "andere werf" en de dagen, zodat hij wel weet dat de firma bezet is.
+  public type BoardItem = {
+    workId : ?WorkId; // null als verborgen
+    workCode : Text;
+    workName : Text;
+    hidden : Bool;
+    tasks : [BoardTask];
+    clash : Bool; // deze werf zit in een dubbele boeking van die week
+  };
+
+  public type BoardCell = { week : Nat; items : [BoardItem] }; // week = index in het venster (0 = eerste)
+
+  public type AbsenceView = {
+    id : Nat;
+    orgId : OrgId;
+    orgName : Text;
+    personId : ?PersonId;
+    personName : ?Text;
+    kind : Types.AbsenceKind;
+    from : Day;
+    to : Day;
+    note : Text;
+    source : Types.AbsenceSource;
+    createdAt : Int;
+    createdByName : Text;
+    updatedAt : Int;
+    updatedByName : Text;
+    mine : Bool; // gemeld door de eigen firma (de OA mag ze wijzigen)
+  };
+
+  public type ConflictView = {
+    kind : Text; // "dubbel" · "afwezig" · "blokkering"
+    orgId : OrgId;
+    orgName : Text;
+    orgCode : ?Text;
+    week : Day; // maandag van de week
+    days : [Day];
+    works : [(?WorkId, Text)]; // (werf, code); null = een werf die de kijker niet ziet ("andere werf")
+    taskIds : [Nat];
+    text : Text; // in gewone woorden, voor "Vraagt aandacht"
+  };
+
+  public type BoardRow = {
+    orgId : OrgId;
+    name : Text;
+    code : ?Text;
+    kind : Types.OrgKind;
+    trades : [Text];
+    maxWorks : Nat; // 0 = onbeperkt
+    maxFrom : Text; // "firma" · "vakgebied" · "algemeen"
+    cells : [BoardCell]; // enkel weken met werk
+    absences : [AbsenceView];
+    conflicts : [ConflictView];
+  };
+
+  public type BoardWeek = { monday : Day; blocks : [BlockView] }; // blokken van het bedrijf in die week
+
+  public type BoardCaps = { manageAbsences : Bool; manageRules : Bool };
+
+  public type BoardView = {
+    from : Day;
+    weeks : [BoardWeek];
+    rows : [BoardRow];
+    total : Nat; // aantal firma's dat aan de filter voldoet (voor de paginering)
+    offset : Nat;
+    conflictTotal : Nat; // over alle firma's van de filter, niet enkel deze pagina
+    unit : Text; // "dag" · "week": wanneer twee werven "dubbel" zijn
+    caps : BoardCaps;
+    instructions : Nat; // meetwaarde (stresstest, Q-09): rekenwerk van deze oproep
+  };
+
+  // "Mijn week" van een OA: enkel de eigen firma, enkel werven waar hij lid is.
+  public type MyBoardView = {
+    from : Day;
+    weeks : [BoardWeek];
+    row : ?BoardRow;
+    canReport : Bool;
+  };
+
+  public type ConflictList = { total : Nat; items : [ConflictView] };
+
+  public type AbsenceInput = {
+    id : ?Nat;
+    orgId : OrgId;
+    personId : ?PersonId;
+    kind : Types.AbsenceKind;
+    from : Day;
+    to : Day;
+    note : Text;
+  };
+
+  public type AbsenceChangeView = { id : Nat; absenceId : Nat; at : Int; byName : Text; what : Text; detail : Text };
+
+  public type CapacityView = { key : Text; title : Text; maxWorks : Nat; note : Text; updatedAt : Int; updatedByName : Text };
+
+  public type BoardRulesView = {
+    unit : Text; // "dag" (standaard) · "week"
+    defaultMax : Nat; // algemene regel: werven tegelijk per firma (0 = onbeperkt)
+    oaReportsAbsence : Bool; // mag een OA zijn eigen afwezigheid melden?
+    rules : [CapacityView]; // eigen regels per vakgebied en per firma
+  };
+
+  public type BoardRulesInput = { unit : Text; defaultMax : Nat; oaReportsAbsence : Bool };
+
   public type ExportIntern = {
     version : Text;
     schema : Nat;
@@ -618,6 +756,9 @@ module {
     calendarBlocks : [Types.CalendarBlock];
     taskChanges : [Types.TaskChange];
     templates : [Types.Template]; // enkel de bewaarde (de standaard staat in de code)
+    absences : [Types.Absence]; // 1.4
+    absenceChanges : [Types.AbsenceChange];
+    capacity : [Types.CapacityRule];
     robots : [RobotView];
     proposals : [ProposalView];
     settings : SettingsView;

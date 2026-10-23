@@ -632,7 +632,7 @@ check("verlengen met 'enkel waar nodig': enkel wat te vroeg zou beginnen", isOk(
 const bvl = { id: [], scope: { company: null }, kind: { bouwverlof: null }, from: dayOf(2026, 12, 21), to: dayOf(2027, 1, 1), reason: "Kerstverlof (proef)" };
 check("werfleider kan geen bedrijfskalender wijzigen", await denied(wl.saveCalendarBlock(bvl)));
 check("OA kan geen werfblokkering zetten", await denied(oa.saveCalendarBlock({ ...bvl, scope: { work: A }, kind: { stop: null } })));
-check("verlof per firma komt in 1.4 (geweigerd)", await denied(admin.saveCalendarBlock({ ...bvl, scope: { org: orgX.ok.id }, kind: { verlof: null } })));
+check("verlof per firma als kalenderblok geweigerd (dat is een afwezigheid, 1.4)", await denied(admin.saveCalendarBlock({ ...bvl, scope: { org: orgX.ok.id }, kind: { verlof: null } })));
 const blk = await admin.saveCalendarBlock(bvl);
 check("admin zet bouwverlof 21.12.2026 – 01.01.2027 voor het hele bedrijf", isOk(blk), errOf(blk));
 pA = await plan(wl);
@@ -757,6 +757,132 @@ check("auditlog: sjabloon, verschuiven, kalender, uitvoerder, bevestigd en gewei
 check("auditlog: geen interne notitie van de taak", !log13.some((e) => e.detail.includes("buren")));
 const ex13 = await admin.exportIntern();
 check("interne export bevat taken, uitvoerders, afhankelijkheden, kalender, wijzigingen en sjablonen", ex13.tasks.length >= 31 && ex13.assignments.length >= 3 && ex13.dependencies.length >= 30 && ex13.calendarBlocks.length === 3 && ex13.taskChanges.length > 50 && ex13.templates.length === 2);
+
+await sec("── 1.4 weekbord per OA: conflicten (dubbel, afwezig, blokkering), afwezigheden, regels, Mijn week, rechten");
+const bq = (o = {}) => ({ from: o.from ?? START, weeks: o.weeks ?? 12n, offset: o.offset ?? 0n, limit: o.limit ?? 50n, text: o.text ?? "", trade: opt(o.trade), workId: opt(o.workId), onlyConflicts: o.only ?? false, withIdle: o.idle ?? false });
+const rowOf = (b, orgId) => b.rows.find((r) => r.orgId === orgId);
+const absIn = (o) => ({ id: opt(o.id), orgId: o.org ?? orgY.ok.id, personId: opt(o.person), kind: { [o.kind ?? "verlof"]: null }, from: o.from, to: o.to, note: o.note ?? "" });
+const rulesIn = (o = {}) => ({ unit: o.unit ?? "dag", defaultMax: o.max ?? 1n, oaReportsAbsence: o.oa ?? true });
+// Rechten: het weekbord is intern (#readOrgPlanning)
+check("anoniem, ongekoppeld, OA, architect, klant en veiligheid zien het weekbord niet", (await Promise.all([anon, vreemde, oa, oa2, arch, klant, vc].map((x14) => rejects(x14.weekBoard(bq()))))).every(Boolean));
+const wbCalc = await calc.weekBoard(bq());
+check("calculator leest het weekbord, maar geeft geen afwezigheden in en wijzigt geen regels", !wbCalc.caps.manageAbsences && !wbCalc.caps.manageRules);
+const wbWl = await wl.weekBoard(bq());
+check("werfleider: afwezigheden ingeven ja, regels nee", wbWl.caps.manageAbsences && !wbWl.caps.manageRules);
+check("admin: afwezigheden en regels", (await admin.weekBoard(bq())).caps.manageRules);
+check("caps: OA Dak mag zijn eigen afwezigheid melden, de calculator niet", (await oa2.me()).caps[0].reportOwnAbsence && !(await calc.me()).caps[0].reportOwnAbsence && (await wl.me()).caps[0].manageAbsences);
+// Dubbel: OA Dak op A («Dakwerken») en op B («Proef dubbel B») op dezelfde dagen
+check("OA Dak krijgt het vakgebied dak (voor de regel per vakgebied)", isOk(await admin.updateOrg(orgY.ok.id, orgIn12("Proef Dak NV", { trades: ["dak"] }))));
+pA = await plan(wl);
+const dakA = byKey(pA, "dak");
+const W14 = dakA.start - BigInt(wd(dakA.start)); // maandag van die week
+let pB14 = await plan(admin, B);
+check("admin plant «Proef dubbel B» voor OA Dak op de startdag van «Dakwerken» van A", isOk(await admin.saveTask(B, tIn({ title: "Proef dubbel B", trade: "dak", org: orgY.ok.id, start: dakA.start, workdays: 2n }), pB14.version)));
+let wb = await admin.weekBoard(bq({ from: W14, weeks: 2n }));
+let rY = rowOf(wb, orgY.ok.id);
+check("conflict 'dubbel': OA Dak op A én B op dezelfde dag (regel: hoogstens 1, per dag)", wb.unit === "dag" && rY && rY.conflicts.some((c) => c.kind === "dubbel" && c.works.length === 2 && c.days.includes(dakA.start)), JSON.stringify(rY?.conflicts, big));
+check("cel van die week: beide werven met het werflint", rY && rY.cells.find((c) => c.week === 0n)?.items.filter((i) => i.clash).length === 2);
+check("de taken tonen enkel werkdagen (ma–vr) van die week", rY && rY.cells.every((c) => c.items.every((i) => i.tasks.every((x14) => x14.days.every((d) => wd(d) < 5)))));
+check("regel van OA Dak: de algemene (1)", rY && rY.maxWorks === 1n && rY.maxFrom === "algemeen");
+check("conflicttotaal ≥ 1 en de rijen gesorteerd op code", wb.conflictTotal >= 1n);
+// Regels (admin)
+check("werfleider en calculator wijzigen geen regels", (await denied(wl.setCapacity("trade:dak", [2n], ""))) && (await denied(calc.setBoardRules(rulesIn()))));
+check("regel voor het vakgebied dak: 2 werven tegelijk → geen dubbel meer", isOk(await admin.setCapacity("trade:dak", [2n], "twee ploegen")) && await admin.weekBoard(bq({ from: W14, weeks: 2n })).then((b14) => { const r = rowOf(b14, orgY.ok.id); return r.maxFrom === "vakgebied" && r.maxWorks === 2n && !r.conflicts.some((c) => c.kind === "dubbel"); }));
+check("eigen regel voor de firma (1) gaat voor die van het vakgebied: weer dubbel", isOk(await admin.setCapacity(`org:${orgY.ok.id}`, [1n], "")) && await admin.weekBoard(bq({ from: W14, weeks: 2n })).then((b14) => { const r = rowOf(b14, orgY.ok.id); return r.maxFrom === "firma" && r.conflicts.some((c) => c.kind === "dubbel"); }));
+check("regel van de firma weg → volgt weer het vakgebied", isOk(await admin.setCapacity(`org:${orgY.ok.id}`, [], "")) && rowOf(await admin.weekBoard(bq({ from: W14, weeks: 2n })), orgY.ok.id).maxFrom === "vakgebied");
+check("onbekende sleutel, onbekend vakgebied en te groot getal geweigerd", errOf(await admin.setCapacity("x", [1n], "")).includes("Sleutel") && errOf(await admin.setCapacity("trade:bestaat-niet", [1n], "")).includes("vakgebied") && errOf(await admin.setCapacity("trade:dak", [99n], "")).includes("Hoogstens"));
+const rl = await calc.boardRules();
+check("regels lezen (intern): eenheid dag, algemeen 1, OA meldt ja, eigen regel 'Dak'", rl.unit === "dag" && rl.defaultMax === 1n && rl.oaReportsAbsence && rl.rules.length === 1 && rl.rules[0].maxWorks === 2n, JSON.stringify(rl, big));
+check("OA leest de regels niet", await rejects(oa2.boardRules()));
+check("regel van het vakgebied weer weg", isOk(await admin.setCapacity("trade:dak", [], "")));
+// Per dag of per week: Elektro op maandag (A) en woensdag (B) van dezelfde week
+const MON = dayOf(2027, 6, 7);
+pA = await plan(wl);
+check("Elektro op ma 07.06.2027 op A", isOk(await wl.saveTask(A, tIn({ title: "Proef ma A", org: orgElek.ok.id, start: MON, workdays: 1n }), pA.version)));
+pB14 = await plan(admin, B);
+check("Elektro op wo 09.06.2027 op B", isOk(await admin.saveTask(B, tIn({ title: "Proef wo B", org: orgElek.ok.id, start: MON + 2n, workdays: 1n }), pB14.version)));
+const elek = async () => rowOf(await admin.weekBoard(bq({ from: MON, weeks: 1n })), orgElek.ok.id);
+check("per dag: ma A en wo B is geen dubbel", (await elek()).conflicts.length === 0);
+check("eenheid 'week' (zoals de Excel): wel dubbel", isOk(await admin.setBoardRules(rulesIn({ unit: "week" }))) && (await elek()).conflicts.some((c) => c.kind === "dubbel" && c.text.includes("week")));
+check("onbekende eenheid geweigerd, eenheid terug op dag", errOf(await admin.setBoardRules(rulesIn({ unit: "maand" }))).includes("Eenheid") && isOk(await admin.setBoardRules(rulesIn())));
+check("algemene regel 0 = onbeperkt: nergens dubbel", isOk(await admin.setBoardRules(rulesIn({ max: 0n }))) && !(await admin.weekBoard(bq({ from: W14, weeks: 2n }))).rows.some((r) => r.conflicts.some((c) => c.kind === "dubbel")) && isOk(await admin.setBoardRules(rulesIn())));
+// Vraagt aandacht en de werfpagina
+const bc = await admin.boardConflicts(W14, 2n, 50n);
+check("Vraagt aandacht: boardConflicts toont het dubbel van OA Dak", bc.total >= 1n && bc.items.some((c) => c.orgId === orgY.ok.id && c.kind === "dubbel"));
+check("werfpagina B: workConflicts(B) bevat het conflict", (await wl.workConflicts(B, W14, 2n)).items.some((c) => c.kind === "dubbel" && c.works.some(([w]) => w[0] === B)));
+check("OA en architect lezen geen conflicten", (await rejects(oa2.workConflicts(B, W14, 2n))) && (await rejects(arch.boardConflicts(W14, 2n, 5n))));
+// Een werfleider die niet alles ziet: B is "andere werf" (bezet, zonder code, naam of taak)
+await admin.setSettings({ werfleiderZietAlles: false, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n });
+const wbH = await wl.weekBoard(bq({ from: W14, weeks: 2n }));
+const rH = rowOf(wbH, orgY.ok.id);
+const hiddenIt = rH?.cells.flatMap((c) => c.items).find((i) => i.hidden);
+check("werfleider (alles-zien uit): werf B als 'andere werf' zonder code, naam of taak", !!hiddenIt && hiddenIt.workId.length === 0 && hiddenIt.workCode === "" && hiddenIt.tasks.every((x14) => x14.title === "" && x14.taskId === 0n), JSON.stringify(hiddenIt, big));
+check("…maar het dubbel blijft zichtbaar (met 'andere werf')", rH.conflicts.some((c) => c.kind === "dubbel" && c.works.some(([w, code]) => w.length === 0 && code === "andere werf")));
+check("werfleider (alles-zien uit) leest de conflicten van werf B niet", await rejects(wl.workConflicts(B, W14, 2n)));
+await admin.setSettings({ werfleiderZietAlles: true, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n });
+// Afwezigheden
+const tegelsId = (await oa.me()).person[0].id;
+check("calculator geeft geen afwezigheid in", await denied(calc.saveAbsence(absIn({ from: W14, to: W14 + 4n }))));
+check("OA Tegels meldt geen afwezigheid voor een andere firma", await denied(oa.saveAbsence(absIn({ from: W14, to: W14 + 4n }))));
+const nAdm = (await admin.myNotifications(true)).length;
+const abs1 = await wl.saveAbsence(absIn({ from: dakA.start, to: dakA.start + 2n, note: "proef (intern)" }));
+check("werfleider zet OA Dak op verlof in de week van «Dakwerken»", isOk(abs1), errOf(abs1));
+rY = rowOf(await admin.weekBoard(bq({ from: W14, weeks: 2n })), orgY.ok.id);
+check("conflict 'afwezig': OA Dak staat ingepland tijdens zijn verlof", rY.conflicts.some((c) => c.kind === "afwezig" && c.days.includes(dakA.start)), JSON.stringify(rY.conflicts.map((c) => c.text)));
+check("de afwezigheid staat op de rij (ingegeven door kantoor)", rY.absences.some((a) => a.id === abs1.ok && "intern" in a.source && !a.mine));
+check("melding aan wie het moet weten (B heeft geen werfleider → de admins)", (await admin.myNotifications(true)).length > nAdm && (await admin.myNotifications(true)).some((n) => n.kind === "afwezigheid" && n.text.includes("Proef Dak NV")));
+check("einde vóór begin, te lang en onbekende firma geweigerd", errOf(await wl.saveAbsence(absIn({ from: W14 + 4n, to: W14 }))).includes("vóór") && errOf(await wl.saveAbsence(absIn({ from: W14, to: W14 + 400n }))).includes("hoogstens") && errOf(await wl.saveAbsence(absIn({ org: 999_999n, from: W14, to: W14 }))).includes("Onbekende firma"));
+check("een persoon van een andere firma geweigerd", errOf(await wl.saveAbsence(absIn({ person: tegelsId, from: W14, to: W14 }))).includes("hoort niet"));
+check("een persoon van de firma: OA Tegels zelf (enkel zijn eigen toewijzingen botsen)", isOk(await wl.saveAbsence(absIn({ org: orgX.ok.id, person: tegelsId, kind: "andere", from: MON, to: MON }))));
+// De OA zelf
+check("OA Dak ziet de afwezigheden van zijn firma", (await oa2.listAbsences([orgY.ok.id], W14 - 30n, W14 + 200n)).some((a) => a.id === abs1.ok));
+check("OA Dak ziet niet die van een andere firma, en niet de lijst van alle firma's", (await rejects(oa2.listAbsences([orgX.ok.id], W14, W14 + 10n))) && (await rejects(oa2.listAbsences([], W14, W14 + 10n))));
+const abs2 = await oa2.saveAbsence(absIn({ kind: "ziekte", from: W14 + 35n, to: W14 + 36n }));
+check("OA Dak meldt zelf een afwezigheid (ziekte, zonder reden)", isOk(abs2), errOf(abs2));
+check("die staat als 'gemeld door de OA' en is van hem", (await oa2.listAbsences([orgY.ok.id], W14, W14 + 60n)).some((a) => a.id === abs2.ok && "oa" in a.source && a.mine));
+check("OA Dak wijzigt of haalt de afwezigheid van kantoor niet weg", (await rejects(oa2.saveAbsence(absIn({ id: abs1.ok, from: dakA.start, to: dakA.start })))) && (await rejects(oa2.archiveAbsence(abs1.ok))));
+check("OA Dak verlengt zijn eigen melding", isOk(await oa2.saveAbsence(absIn({ id: abs2.ok, kind: "ziekte", from: W14 + 35n, to: W14 + 37n }))));
+check("een eigen melding zonder taken erin: de admins weten het", (await admin.myNotifications(true)).some((n) => n.kind === "afwezigheid" && n.text.includes("gemeld door")));
+check("de firma van een afwezigheid wijzigen kan niet", await rejects(wl.saveAbsence(absIn({ id: abs2.ok, org: orgX.ok.id, from: W14, to: W14 }))));
+check("admin zet 'OA meldt zelf' uit: OA Dak kan niet meer melden", isOk(await admin.setBoardRules(rulesIn({ oa: false }))) && (await denied(oa2.saveAbsence(absIn({ from: W14 + 50n, to: W14 + 50n })))) && !(await oa2.me()).caps[0].reportOwnAbsence);
+check("…en weer aan", isOk(await admin.setBoardRules(rulesIn())));
+const hist14 = await oa2.absenceHistory(orgY.ok.id, 0n, 20n);
+check("geschiedenis: nieuw (kantoor), nieuw (OA) en gewijzigd, met wie", ["nieuw", "gewijzigd"].every((w14) => hist14.some((h) => h.what === w14)) && hist14.some((h) => h.byName === "Proef Werfleider") && hist14.some((h) => h.detail.includes("gemeld door de OA")), JSON.stringify(hist14.map((h) => `${h.what}:${h.detail}`)));
+check("OA Tegels leest de geschiedenis van OA Dak niet", await rejects(oa.absenceHistory(orgY.ok.id, 0n, 5n)));
+check("OA Dak haalt zijn eigen melding weg", isOk(await oa2.archiveAbsence(abs2.ok)) && !(await oa2.listAbsences([orgY.ok.id], W14, W14 + 60n)).some((a) => a.id === abs2.ok));
+// Mijn week
+const my14 = await oa2.myBoard(W14, 2n);
+check("Mijn week van OA Dak: enkel zijn firma, enkel werven waar hij lid is, niets verborgen", my14.row.length === 1 && my14.row[0].orgId === orgY.ok.id && my14.canReport && my14.row[0].cells.every((c) => c.items.every((i) => !i.hidden)), JSON.stringify(my14.row[0]?.cells, big));
+check("Mijn week: zijn conflicten (dubbel en afwezig) en zijn afwezigheid", my14.row[0].conflicts.some((c) => c.kind === "dubbel") && my14.row[0].conflicts.some((c) => c.kind === "afwezig") && my14.row[0].absences.length >= 1);
+const myT = await oa.myBoard(W14, 2n);
+check("OA Tegels ziet in Mijn week enkel zijn eigen firma", myT.row.length === 0 || myT.row[0].orgId === orgX.ok.id);
+check("architect, klant, veiligheid: een lege Mijn week", (await Promise.all([arch, klant, vc].map((x14) => x14.myBoard(W14, 2n)))).every((m) => m.row.length === 0 && !m.canReport));
+check("ongekoppeld en anoniem: geen Mijn week", (await rejects(vreemde.myBoard(W14, 2n))) && (await rejects(anon.myBoard(W14, 2n))));
+// Blokkering: een STOP op B op de startdag van «Proef dubbel B», zonder herschikken
+const stop14 = await wl.saveCalendarBlock({ id: [], scope: { work: B }, kind: { stop: null }, from: dakA.start, to: dakA.start, reason: "STOP (proef 1.4)" });
+check("werfleider zet een STOP op B op de startdag van «Proef dubbel B»", isOk(stop14), errOf(stop14));
+rY = rowOf(await admin.weekBoard(bq({ from: W14, weeks: 2n })), orgY.ok.id);
+check("conflict 'blokkering': «Proef dubbel B» begint in een STOP", rY.conflicts.some((c) => c.kind === "blokkering" && c.text.includes("Proef dubbel B") && c.text.includes("STOP")), JSON.stringify(rY.conflicts.map((c) => c.text)));
+check("STOP weer weg: geen blokkering meer", isOk(await wl.archiveCalendarBlock(stop14.ok)) && !rowOf(await admin.weekBoard(bq({ from: W14, weeks: 2n })), orgY.ok.id).conflicts.some((c) => c.kind === "blokkering"));
+// Paginering en filters
+const pg1 = await admin.weekBoard(bq({ from: W14, weeks: 2n, limit: 1n, idle: true }));
+const pg2 = await admin.weekBoard(bq({ from: W14, weeks: 2n, limit: 1n, offset: 1n, idle: true }));
+check("paginering: 1 firma per pagina, totaal ≥ 3, pagina 2 is een andere firma", pg1.rows.length === 1 && pg1.total >= 3n && pg2.rows.length === 1 && pg2.rows[0].orgId !== pg1.rows[0].orgId, `${pg1.total}`);
+check("'ook zonder werk' toont ook de firma's zonder taak in het venster", pg1.total > (await admin.weekBoard(bq({ from: W14, weeks: 2n }))).total);
+check("enkel conflicten: elke rij heeft een conflict", (await admin.weekBoard(bq({ from: W14, weeks: 2n, only: true }))).rows.every((r) => r.conflicts.length > 0));
+check("zoeken op de planningcode 'gils' → enkel de tegelfirma", (await admin.weekBoard(bq({ text: "GILS", idle: true }))).rows.every((r) => r.orgId === orgX.ok.id));
+check("filter op werf B → enkel firma's met werk op B", (await admin.weekBoard(bq({ from: W14, weeks: 2n, workId: B }))).rows.every((r) => r.cells.some((c) => c.items.some((i) => i.workId[0] === B))));
+check("filter op vakgebied 'dak' → enkel firma's met dat vakgebied", (await admin.weekBoard(bq({ idle: true, trade: "dak" }))).rows.every((r) => r.trades.includes("dak")));
+check("venster van 13 weken, 0 weken en een onmogelijke datum geweigerd", (await rejects(admin.weekBoard(bq({ weeks: 13n })))) && (await rejects(admin.weekBoard(bq({ weeks: 0n })))) && (await rejects(admin.weekBoard(bq({ from: 10n })))));
+check("het weekbord geeft zijn rekenwerk mee (meetwaarde)", (await admin.weekBoard(bq())).instructions > 0n);
+// Kantoor haalt zijn afwezigheid weg (de lektest gebruikt ze als gearchiveerde afwezigheid van kantoor)
+check("werfleider haalt het verlof van OA Dak weg", isOk(await wl.archiveAbsence(abs1.ok)));
+check("weg is weg: nog eens weghalen geeft een fout (geen trap)", errOf(await wl.archiveAbsence(abs1.ok)).includes("bestaat niet meer"));
+// Auditlog en export
+const log14 = await admin.auditLog(0n, 300n);
+check("auditlog: afwezigheid (nieuw, gewijzigd, weg), weekbord-regel(s); nooit de notitie", ["afwezigheid", "weekbord-regel", "weekbord-regels"].every((a) => log14.some((e) => e.action === a)) && log14.some((e) => e.action === "afwezigheid" && e.detail.includes("weg")) && !log14.some((e) => e.detail.includes("proef (intern)")));
+const ex14 = await admin.exportIntern();
+check("interne export bevat afwezigheden, hun geschiedenis en de regels", ex14.absences.length >= 3 && ex14.absenceChanges.length >= 5 && ex14.capacity.length >= 2);
 
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));

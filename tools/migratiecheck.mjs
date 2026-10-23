@@ -23,11 +23,11 @@ const oudRepo = process.env.OUD_REPO;
 // Telling met de code van de vorige draft (oude .did): `node <OUD_REPO>/tools/telling.mjs <cid>`.
 const tellingOud = () => {
   const e = JSON.parse(execFileSync("node", [join(oudRepo, "tools/telling.mjs"), cid()], { env: process.env, encoding: "utf8" }));
-  return { personen: e.personen, koppelingen: e.koppelingen, codes: e.codes, organisaties: e.organisaties, werven: e.werven, leden: e.leden, bestanden: e.bestanden, audit: e.audit };
+  return { personen: e.personen, koppelingen: e.koppelingen, codes: e.codes, organisaties: e.organisaties, werven: e.werven, leden: e.leden, bestanden: e.bestanden, taken: e.taken, toewijzingen: e.toewijzingen, afhankelijkheden: e.afhankelijkheden, blokken: e.blokken, wijzigingen: e.wijzigingen, audit: e.audit };
 };
 const telling = async () => {
   const e = await (await backend("proef-admin", cid())).exportIntern();
-  return { personen: e.persons.length, koppelingen: e.links.length, codes: e.invites.length, organisaties: e.orgs.length, werven: e.works.length, leden: e.memberships.length, bestanden: e.files.length, audit: Number(e.auditCount) };
+  return { personen: e.persons.length, koppelingen: e.links.length, codes: e.invites.length, organisaties: e.orgs.length, werven: e.works.length, leden: e.memberships.length, bestanden: e.files.length, taken: e.tasks.length, toewijzingen: e.assignments.length, afhankelijkheden: e.dependencies.length, blokken: e.calendarBlocks.length, wijzigingen: e.taskChanges.length, audit: Number(e.auditCount) };
 };
 
 if (!oud) {

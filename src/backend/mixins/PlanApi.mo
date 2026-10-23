@@ -865,7 +865,7 @@ mixin (
     switch scope {
       case (#company) Rights.require(ctx, p, #manageCompanyCalendar, null);
       case (#work w) Rights.require(ctx, p, #editPlanning, ?w);
-      case (#org _) Runtime.trap("Geen toegang: verlof per firma komt in stap 1.4");
+      case (#org _) Runtime.trap("Geen toegang: verlof van een firma is een afwezigheid (weekbord, 1.4)");
     };
   };
 

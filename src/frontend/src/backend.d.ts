@@ -9,6 +9,65 @@ export interface None {
 export type Option<T> = Some<T> | None;
 import type { ExternalBlob } from "@caffeineai/object-storage";
 export type { ExternalBlob } from "@caffeineai/object-storage";
+export interface Absence {
+    id: bigint;
+    to: Day;
+    source: AbsenceSource;
+    orgId: OrgId;
+    from: Day;
+    kind: AbsenceKind;
+    note: string;
+    createdAt: bigint;
+    createdBy: PersonId;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    personId?: PersonId;
+    archivedAt?: bigint;
+}
+export interface AbsenceChange {
+    at: bigint;
+    by: PersonId;
+    id: bigint;
+    orgId: OrgId;
+    what: string;
+    detail: string;
+    absenceId: bigint;
+}
+export interface AbsenceChangeView {
+    at: bigint;
+    id: bigint;
+    byName: string;
+    what: string;
+    detail: string;
+    absenceId: bigint;
+}
+export interface AbsenceInput {
+    id?: bigint;
+    to: Day;
+    orgId: OrgId;
+    from: Day;
+    kind: AbsenceKind;
+    note: string;
+    personId?: PersonId;
+}
+export interface AbsenceView {
+    id: bigint;
+    to: Day;
+    orgName: string;
+    source: AbsenceSource;
+    orgId: OrgId;
+    from: Day;
+    kind: AbsenceKind;
+    mine: boolean;
+    note: string;
+    createdAt: bigint;
+    personName?: string;
+    updatedByName: string;
+    updatedAt: bigint;
+    personId?: PersonId;
+    createdByName: string;
+}
 export interface AccessStats {
     pendingLinks: bigint;
     failuresThisHour: bigint;
@@ -104,6 +163,84 @@ export interface BlockView {
     createdByName: string;
     reason: string;
 }
+export interface BoardCaps {
+    manageRules: boolean;
+    manageAbsences: boolean;
+}
+export interface BoardCell {
+    week: bigint;
+    items: Array<BoardItem>;
+}
+export interface BoardItem {
+    workName: string;
+    tasks: Array<BoardTask>;
+    clash: boolean;
+    hidden: boolean;
+    workId?: WorkId;
+    workCode: string;
+}
+export interface BoardQuery {
+    trade?: string;
+    withIdle: boolean;
+    from: Day;
+    text: string;
+    offset: bigint;
+    limit: bigint;
+    weeks: bigint;
+    workId?: WorkId;
+    onlyConflicts: boolean;
+}
+export interface BoardRow {
+    absences: Array<AbsenceView>;
+    orgId: OrgId;
+    code?: string;
+    cells: Array<BoardCell>;
+    trades: Array<string>;
+    kind: OrgKind;
+    name: string;
+    maxWorks: bigint;
+    conflicts: Array<ConflictView>;
+    maxFrom: string;
+}
+export interface BoardRulesInput {
+    defaultMax: bigint;
+    unit: string;
+    oaReportsAbsence: boolean;
+}
+export interface BoardRulesView {
+    defaultMax: bigint;
+    unit: string;
+    oaReportsAbsence: boolean;
+    rules: Array<CapacityView>;
+}
+export interface BoardTask {
+    end: Day;
+    status: TaskStatus;
+    title: string;
+    days: Array<Day>;
+    kind: TaskKind;
+    note: string;
+    personName?: string;
+    start: Day;
+    taskId: bigint;
+    assignmentId: bigint;
+    confirmation: Confirmation;
+}
+export interface BoardView {
+    conflictTotal: bigint;
+    total: bigint;
+    caps: BoardCaps;
+    from: Day;
+    rows: Array<BoardRow>;
+    unit: string;
+    offset: bigint;
+    instructions: bigint;
+    weeks: Array<BoardWeek>;
+}
+export interface BoardWeek {
+    blocks: Array<BlockView>;
+    monday: Day;
+}
 export interface CalendarBlock {
     id: bigint;
     to: Day;
@@ -116,6 +253,23 @@ export interface CalendarBlock {
     reason: string;
     archivedAt?: bigint;
 }
+export interface CapacityRule {
+    key: string;
+    note: string;
+    extra: Extra;
+    maxWorks: bigint;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    archivedAt?: bigint;
+}
+export interface CapacityView {
+    key: string;
+    title: string;
+    note: string;
+    maxWorks: bigint;
+    updatedByName: string;
+    updatedAt: bigint;
+}
 export interface Caps {
     manageAccess: boolean;
     inviteExternal: boolean;
@@ -124,6 +278,7 @@ export interface Caps {
     manageOa: boolean;
     home: string;
     readOrgPlanning: boolean;
+    manageBoardRules: boolean;
     createWork: boolean;
     manageSettings: boolean;
     readTeam: boolean;
@@ -132,7 +287,9 @@ export interface Caps {
     manageOrgs: boolean;
     manageCompanyCalendar: boolean;
     manageRobots: boolean;
+    reportOwnAbsence: boolean;
     export: boolean;
+    manageAbsences: boolean;
     readConfidentialContact: boolean;
     readAudit: boolean;
     readOa: boolean;
@@ -204,6 +361,21 @@ export type Confirmation = {
         reason: string;
     };
 };
+export interface ConflictList {
+    total: bigint;
+    items: Array<ConflictView>;
+}
+export interface ConflictView {
+    orgCode?: string;
+    taskIds: Array<bigint>;
+    orgName: string;
+    orgId: OrgId;
+    days: Array<Day>;
+    kind: string;
+    text: string;
+    week: Day;
+    works: Array<[WorkId | null, string]>;
+}
 export interface Contact {
     name: string;
     email?: string;
@@ -365,10 +537,12 @@ export interface ExportConfidential {
 export interface ExportIntern {
     at: bigint;
     files: Array<FileView>;
+    absences: Array<Absence>;
     tasks: Array<Task>;
     templates: Array<Template>;
     documents: Array<Document>;
     assignments: Array<Assignment>;
+    absenceChanges: Array<AbsenceChange>;
     invites: Array<InviteView>;
     schema: bigint;
     trades: Array<TradeView>;
@@ -382,6 +556,7 @@ export interface ExportIntern {
     settings: SettingsView;
     dependencies: Array<Dependency>;
     robots: Array<RobotView>;
+    capacity: Array<CapacityRule>;
     proposals: Array<ProposalView>;
     works: Array<WorkView>;
     personContacts: Array<PersonContact>;
@@ -536,6 +711,12 @@ export interface MembershipView {
     personId?: PersonId;
     workId: WorkId;
     archived: boolean;
+}
+export interface MyBoardView {
+    row?: BoardRow;
+    from: Day;
+    canReport: boolean;
+    weeks: Array<BoardWeek>;
 }
 export interface NewCode {
     expiresAt: bigint;
@@ -1131,6 +1312,15 @@ export interface WorkView {
     facts?: WorkFacts;
     archivedAt?: bigint;
 }
+export enum AbsenceKind {
+    andere = "andere",
+    ziekte = "ziekte",
+    verlof = "verlof"
+}
+export enum AbsenceSource {
+    oa = "oa",
+    intern = "intern"
+}
 export enum Applies {
     no = "no",
     yes = "yes",
@@ -1227,6 +1417,7 @@ export enum WorkStatus {
     running = "running"
 }
 export interface backendInterface {
+    absenceHistory(orgId: bigint, from: bigint, limit: bigint): Promise<Array<AbsenceChangeView>>;
     accessStats(): Promise<AccessStats>;
     addDependency(workId: bigint, i: DependencyInput, expectedVersion: bigint): Promise<Result_5>;
     addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_3>;
@@ -1234,6 +1425,7 @@ export interface backendInterface {
     addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_4>;
     applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_5>;
     applyTemplate(workId: bigint, key: string, startDay: bigint, append: boolean, expectedVersion: bigint): Promise<Result_5>;
+    archiveAbsence(id: bigint): Promise<Result_4>;
     archiveAssignment(workId: bigint, assignmentId: bigint, expectedVersion: bigint): Promise<Result_3>;
     archiveCalendarBlock(id: bigint): Promise<Result_4>;
     archiveDocument(docId: bigint): Promise<Result_4>;
@@ -1244,6 +1436,8 @@ export interface backendInterface {
     attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_3>;
     auditCount(): Promise<bigint>;
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
+    boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
+    boardRules(): Promise<BoardRulesView>;
     checkTicket(ticket: string): Promise<Result_18>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
     confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_4>;
@@ -1263,6 +1457,7 @@ export interface backendInterface {
     getWork(id: bigint): Promise<WorkView>;
     importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_15>;
     invitePerson(req: InviteRequest): Promise<Result_14>;
+    listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listCalendarBlocks(workId: bigint | null): Promise<Array<BlockView>>;
     listDocKinds(withArchived: boolean): Promise<Array<DocKindView>>;
     listFiles(workId: bigint | null): Promise<Array<FileView>>;
@@ -1278,6 +1473,7 @@ export interface backendInterface {
     listWorks(): Promise<Array<WorkView>>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     me(): Promise<MeView>;
+    myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
@@ -1293,6 +1489,7 @@ export interface backendInterface {
     revokeInvite(inviteId: bigint): Promise<Result_4>;
     revokeLink(p: Principal): Promise<Result_4>;
     revokeRobot(principal: Principal): Promise<Result_4>;
+    saveAbsence(i: AbsenceInput): Promise<Result_3>;
     saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_3>;
     saveCalendarBlock(i: BlockInput): Promise<Result_3>;
     saveDocument(workId: bigint, i: DocumentInput): Promise<Result_3>;
@@ -1300,6 +1497,8 @@ export interface backendInterface {
     saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_6>;
     saveTask(workId: bigint, i: TaskInput, expectedVersion: bigint): Promise<Result_5>;
     saveTemplate(i: TemplateInput): Promise<Result_4>;
+    setBoardRules(i: BoardRulesInput): Promise<Result_4>;
+    setCapacity(key: string, maxWorks: bigint | null, note: string): Promise<Result_4>;
     setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_3>;
     setDocKind(k: DocKindInput): Promise<Result_4>;
     setDocumentStatus(docId: bigint, status: DocStatus, note: string): Promise<Result_4>;
@@ -1314,4 +1513,6 @@ export interface backendInterface {
     updateOrg(id: bigint, input: OrgInput): Promise<Result_2>;
     updatePerson(id: bigint, u: PersonUpdate): Promise<Result_1>;
     updateWork(id: bigint, u: WorkUpdate): Promise<Result>;
+    weekBoard(q: BoardQuery): Promise<BoardView>;
+    workConflicts(workId: bigint, fromDay: bigint, weeks: bigint): Promise<ConflictList>;
 }

@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1.3-draft10";
-  public let schema : Nat = 4; // 4 = met planning per werf (1.3)
+  public let version = "1.4-draft11";
+  public let schema : Nat = 5; // 5 = met weekbord en afwezigheden (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -115,6 +115,21 @@ module {
   public let defaultTemplateKey = "standaardrenovatie";
   public let minDay : Nat = 18_000; // 14.04.2019: vroeger is een tikfout
   public let maxDay : Nat = 40_000; // 06.07.2079
+
+  // ── Weekbord per OA (1.4) ───────────────────────────────────────────────
+  // Het weekbord rekent altijd binnen één venster en per pagina firma's (D10, T17): zo blijft het werken bij
+  // honderden werven en tientallen OA's (gemeten in de stresstest van 1.4).
+  public let boardMaxWeeks : Nat = 12;
+  public let boardMaxRows : Nat = 50;
+  public let boardMaxConflicts : Nat = 200; // "Vraagt aandacht" en de werfpagina
+  // Algemene regel voor "dubbel": hoeveel werven tegelijk per firma (0 = onbeperkt). De admin past ze aan
+  // (algemeen, per vakgebied, per firma). Per dag (standaard) of per week (zoals de Excel).
+  public let boardDefaultMax : Nat = 1;
+  public let maxCapacity : Nat = 50; // hoogste getal in een regel
+  public let maxCapacityRules : Nat = 300;
+  public let maxAbsenceDays : Nat = 366; // één afwezigheid
+  public let maxAbsencesPerOrg : Nat = 200; // niet-gearchiveerde afwezigheden per firma
+  public let maxAbsenceNote : Nat = 200;
 
   // Sjabloon "standaardrenovatie" (VOORLOPIG tot 0.3 en de bevestiging van Alexis; de admin past het aan in
   // Instellingen → Sjablonen, dan geldt die versie). Volgorde uit architectuur §1.1 punt 2 (mediane positie

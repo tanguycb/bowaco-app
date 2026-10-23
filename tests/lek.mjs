@@ -51,7 +51,9 @@ const docGone = ex.documents.find((d) => d.archivedAt.length === 1);
 const taskB = ex.tasks.find((t) => t.workId === B && t.archivedAt.length === 0);
 const asgB = ex.assignments.find((a) => a.workId === B && a.archivedAt.length === 0);
 const blkGone = ex.calendarBlocks.find((b) => "company" in b.scope && b.archivedAt.length === 1);
-if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
+const orgDak = ex.orgs.find((o) => o.name === "Proef Dak NV");
+const absGone = ex.absences.find((a) => a.archivedAt.length === 1 && "intern" in a.source && a.orgId === orgDak?.id);
+if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
 const someone = identity("proef-lek-onbekend").getPrincipal();
 const hash = "sha256:" + "c".repeat(64);
@@ -73,6 +75,8 @@ const depIn = { fromTaskId: X, toTaskId: X, kind: { finishToStart: null }, lagDa
 const asgIn = { id: [], taskId: X, orgId: X, personId: [], fromDay: [], toDay: [], note: "" };
 const blockIn = { id: [], scope: { company: null }, kind: { feestdag: null }, from: 20_000n, to: 20_000n, reason: "" };
 const tplIn = { key: "", name: "", steps: [], provisional: true, archived: false };
+const boardIn = { from: 20_000n, weeks: 1n, offset: 0n, limit: 1n, text: "", trade: [], workId: [], onlyConflicts: false, withIdle: false };
+const absenceIn = { id: [], orgId: X, personId: [], kind: { verlof: null }, from: 20_000n, to: 20_000n, note: "" };
 const personUpd = { name: "", roles: [], orgId: [], shortCode: [], lang: [], phone: [] };
 
 // Wie mag wat (R1–R34 zoals gebouwd in 0.6 en 1.1). Groepen:
@@ -158,6 +162,20 @@ const table = {
   saveTemplate: [ADMIN, () => [tplIn]],
   applyTemplate: [["admin", "werfleider"], () => [B, "bestaat-niet", 20_000n, false, 999n]],
   taskHistory: [INTERNAL, () => [B, [], 0n, 1n]],
+  // 1.4 weekbord: intern (#readOrgPlanning); afwezigheden ingeven admin en werfleider (een OA enkel voor zijn
+  // eigen firma: hier een onbekende firma → geweigerd); "Mijn week" voor elke actieve persoon (leeg als hij
+  // geen OA is); de geschiedenis van een firma: intern + de OA van die firma; regels enkel admin.
+  weekBoard: [INTERNAL, () => [boardIn]],
+  boardConflicts: [INTERNAL, () => [20_000n, 1n, 1n]],
+  workConflicts: [INTERNAL, () => [B, 20_000n, 1n]],
+  myBoard: [ACTIVE, () => [20_000n, 1n]],
+  listAbsences: [INTERNAL, () => [[], 20_000n, 20_010n]],
+  saveAbsence: [["admin", "werfleider"], () => [absenceIn]],
+  archiveAbsence: [["admin", "werfleider"], () => [absGone.id]], // gearchiveerd, van kantoor: daarna "bestaat niet meer"
+  absenceHistory: [[...INTERNAL, "oa"], () => [orgDak.id, 0n, 1n]],
+  boardRules: [INTERNAL, () => []],
+  setBoardRules: [ADMIN, () => [{ unit: "x", defaultMax: 1n, oaReportsAbsence: true }]],
+  setCapacity: [ADMIN, () => ["x", [1n], ""]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

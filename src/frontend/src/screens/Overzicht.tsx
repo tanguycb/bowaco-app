@@ -6,6 +6,7 @@ import { Button, Icon, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 import { Loading, Page, useWorks, WorkList } from "./common";
+import { BoardAttention } from "./Weekbord";
 
 export function Overzicht({ go }: { go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
@@ -44,6 +45,7 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
       <div className="a-cols">
         <section className="a-section">
           <h2 className="bw-h2">{t.overzicht.attention}</h2>
+          <BoardAttention go={go} />
           <Loading q={links} />
           {s?.codesLockedUntil !== undefined && (
             <div className="a-alert" role="alert"><Icon name="alert" size={20} /><span><b>{t.overzicht.locked}</b> · {fmtTime(s.codesLockedUntil)}</span></div>
@@ -64,7 +66,7 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
               ))}
             </ul>
           ) : (
-            links.data && s?.codesLockedUntil === undefined && <p className="a-empty">{t.overzicht.nothing}</p>
+            links.data && s?.codesLockedUntil === undefined && <p className="a-empty">{t.overzicht.noPending}</p>
           )}
           <h2 className="bw-h2">{t.overzicht.works}</h2>
           <Loading q={works} />

@@ -10,6 +10,70 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface Absence {
+  'id' : bigint,
+  'to' : Day,
+  'source' : AbsenceSource,
+  'orgId' : OrgId,
+  'from' : Day,
+  'kind' : AbsenceKind,
+  'note' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'extra' : Extra,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'personId' : [] | [PersonId],
+  'archivedAt' : [] | [bigint],
+}
+export interface AbsenceChange {
+  'at' : bigint,
+  'by' : PersonId,
+  'id' : bigint,
+  'orgId' : OrgId,
+  'what' : string,
+  'detail' : string,
+  'absenceId' : bigint,
+}
+export interface AbsenceChangeView {
+  'at' : bigint,
+  'id' : bigint,
+  'byName' : string,
+  'what' : string,
+  'detail' : string,
+  'absenceId' : bigint,
+}
+export interface AbsenceInput {
+  'id' : [] | [bigint],
+  'to' : Day,
+  'orgId' : OrgId,
+  'from' : Day,
+  'kind' : AbsenceKind,
+  'note' : string,
+  'personId' : [] | [PersonId],
+}
+export type AbsenceKind = { 'andere' : null } |
+  { 'ziekte' : null } |
+  { 'verlof' : null };
+export type AbsenceSource = { 'oa' : null } |
+  { 'intern' : null };
+export interface AbsenceView {
+  'id' : bigint,
+  'to' : Day,
+  'orgName' : string,
+  'source' : AbsenceSource,
+  'orgId' : OrgId,
+  'from' : Day,
+  'kind' : AbsenceKind,
+  'mine' : boolean,
+  'note' : string,
+  'createdAt' : bigint,
+  'personName' : [] | [string],
+  'updatedByName' : string,
+  'updatedAt' : bigint,
+  'personId' : [] | [PersonId],
+  'createdByName' : string,
+}
 export interface AccessStats {
   'pendingLinks' : bigint,
   'failuresThisHour' : bigint,
@@ -106,6 +170,78 @@ export interface BlockView {
   'createdByName' : string,
   'reason' : string,
 }
+export interface BoardCaps {
+  'manageRules' : boolean,
+  'manageAbsences' : boolean,
+}
+export interface BoardCell { 'week' : bigint, 'items' : Array<BoardItem> }
+export interface BoardItem {
+  'workName' : string,
+  'tasks' : Array<BoardTask>,
+  'clash' : boolean,
+  'hidden' : boolean,
+  'workId' : [] | [WorkId],
+  'workCode' : string,
+}
+export interface BoardQuery {
+  'trade' : [] | [string],
+  'withIdle' : boolean,
+  'from' : Day,
+  'text' : string,
+  'offset' : bigint,
+  'limit' : bigint,
+  'weeks' : bigint,
+  'workId' : [] | [WorkId],
+  'onlyConflicts' : boolean,
+}
+export interface BoardRow {
+  'absences' : Array<AbsenceView>,
+  'orgId' : OrgId,
+  'code' : [] | [string],
+  'cells' : Array<BoardCell>,
+  'trades' : Array<string>,
+  'kind' : OrgKind,
+  'name' : string,
+  'maxWorks' : bigint,
+  'conflicts' : Array<ConflictView>,
+  'maxFrom' : string,
+}
+export interface BoardRulesInput {
+  'defaultMax' : bigint,
+  'unit' : string,
+  'oaReportsAbsence' : boolean,
+}
+export interface BoardRulesView {
+  'defaultMax' : bigint,
+  'unit' : string,
+  'oaReportsAbsence' : boolean,
+  'rules' : Array<CapacityView>,
+}
+export interface BoardTask {
+  'end' : Day,
+  'status' : TaskStatus,
+  'title' : string,
+  'days' : Array<Day>,
+  'kind' : TaskKind,
+  'note' : string,
+  'personName' : [] | [string],
+  'start' : Day,
+  'taskId' : bigint,
+  'assignmentId' : bigint,
+  'confirmation' : Confirmation,
+}
+export interface BoardView {
+  'conflictTotal' : bigint,
+  'total' : bigint,
+  'caps' : BoardCaps,
+  'from' : Day,
+  'rows' : Array<BoardRow>,
+  'unit' : string,
+  'offset' : bigint,
+  'instructions' : bigint,
+  'weeks' : Array<BoardWeek>,
+}
+export interface BoardWeek { 'blocks' : Array<BlockView>, 'monday' : Day }
 export interface CalendarBlock {
   'id' : bigint,
   'to' : Day,
@@ -118,6 +254,23 @@ export interface CalendarBlock {
   'reason' : string,
   'archivedAt' : [] | [bigint],
 }
+export interface CapacityRule {
+  'key' : string,
+  'note' : string,
+  'extra' : Extra,
+  'maxWorks' : bigint,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'archivedAt' : [] | [bigint],
+}
+export interface CapacityView {
+  'key' : string,
+  'title' : string,
+  'note' : string,
+  'maxWorks' : bigint,
+  'updatedByName' : string,
+  'updatedAt' : bigint,
+}
 export interface Caps {
   'manageAccess' : boolean,
   'inviteExternal' : boolean,
@@ -126,6 +279,7 @@ export interface Caps {
   'manageOa' : boolean,
   'home' : string,
   'readOrgPlanning' : boolean,
+  'manageBoardRules' : boolean,
   'createWork' : boolean,
   'manageSettings' : boolean,
   'readTeam' : boolean,
@@ -134,7 +288,9 @@ export interface Caps {
   'manageOrgs' : boolean,
   'manageCompanyCalendar' : boolean,
   'manageRobots' : boolean,
+  'reportOwnAbsence' : boolean,
   'export' : boolean,
+  'manageAbsences' : boolean,
   'readConfidentialContact' : boolean,
   'readAudit' : boolean,
   'readOa' : boolean,
@@ -164,6 +320,21 @@ export type Confidential_2 = { 'sealed' : Sealed } |
 export type Confirmation = { 'open' : null } |
   { 'confirmed' : { 'at' : bigint, 'by' : PersonId } } |
   { 'declined' : { 'at' : bigint, 'by' : PersonId, 'reason' : string } };
+export interface ConflictList {
+  'total' : bigint,
+  'items' : Array<ConflictView>,
+}
+export interface ConflictView {
+  'orgCode' : [] | [string],
+  'taskIds' : Array<bigint>,
+  'orgName' : string,
+  'orgId' : OrgId,
+  'days' : Array<Day>,
+  'kind' : string,
+  'text' : string,
+  'week' : Day,
+  'works' : Array<[[] | [WorkId], string]>,
+}
 export interface Contact {
   'name' : string,
   'email' : [] | [string],
@@ -333,10 +504,12 @@ export interface ExportConfidential {
 export interface ExportIntern {
   'at' : bigint,
   'files' : Array<FileView>,
+  'absences' : Array<Absence>,
   'tasks' : Array<Task>,
   'templates' : Array<Template>,
   'documents' : Array<Document>,
   'assignments' : Array<Assignment>,
+  'absenceChanges' : Array<AbsenceChange>,
   'invites' : Array<InviteView>,
   'schema' : bigint,
   'trades' : Array<TradeView>,
@@ -350,6 +523,7 @@ export interface ExportIntern {
   'settings' : SettingsView,
   'dependencies' : Array<Dependency>,
   'robots' : Array<RobotView>,
+  'capacity' : Array<CapacityRule>,
   'proposals' : Array<ProposalView>,
   'works' : Array<WorkView>,
   'personContacts' : Array<PersonContact>,
@@ -500,6 +674,12 @@ export interface MembershipView {
   'personId' : [] | [PersonId],
   'workId' : WorkId,
   'archived' : boolean,
+}
+export interface MyBoardView {
+  'row' : [] | [BoardRow],
+  'from' : Day,
+  'canReport' : boolean,
+  'weeks' : Array<BoardWeek>,
 }
 export interface NewCode {
   'expiresAt' : bigint,
@@ -1052,6 +1232,10 @@ export interface _SERVICE {
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initialize_access_control' : ActorMethod<[], undefined>,
+  'absenceHistory' : ActorMethod<
+    [bigint, bigint, bigint],
+    Array<AbsenceChangeView>
+  >,
   'accessStats' : ActorMethod<[], AccessStats>,
   'addDependency' : ActorMethod<[bigint, DependencyInput, bigint], Result_5>,
   'addFile' : ActorMethod<
@@ -1068,6 +1252,7 @@ export interface _SERVICE {
     [bigint, string, bigint, boolean, bigint],
     Result_5
   >,
+  'archiveAbsence' : ActorMethod<[bigint], Result_4>,
   'archiveAssignment' : ActorMethod<[bigint, bigint, bigint], Result_3>,
   'archiveCalendarBlock' : ActorMethod<[bigint], Result_4>,
   'archiveDocument' : ActorMethod<[bigint], Result_4>,
@@ -1081,6 +1266,8 @@ export interface _SERVICE {
   >,
   'auditCount' : ActorMethod<[], bigint>,
   'auditLog' : ActorMethod<[bigint, bigint], Array<AuditEntry>>,
+  'boardConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
+  'boardRules' : ActorMethod<[], BoardRulesView>,
   'checkTicket' : ActorMethod<[string], Result_18>,
   'claimBootstrap' : ActorMethod<[string, string], Result_1>,
   'confirmAssignment' : ActorMethod<[bigint, boolean, string], Result_4>,
@@ -1100,6 +1287,10 @@ export interface _SERVICE {
   'getWork' : ActorMethod<[bigint], WorkView>,
   'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_15>,
   'invitePerson' : ActorMethod<[InviteRequest], Result_14>,
+  'listAbsences' : ActorMethod<
+    [[] | [bigint], bigint, bigint],
+    Array<AbsenceView>
+  >,
   'listCalendarBlocks' : ActorMethod<[[] | [bigint]], Array<BlockView>>,
   'listDocKinds' : ActorMethod<[boolean], Array<DocKindView>>,
   'listFiles' : ActorMethod<[[] | [bigint]], Array<FileView>>,
@@ -1115,6 +1306,7 @@ export interface _SERVICE {
   'listWorks' : ActorMethod<[], Array<WorkView>>,
   'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'me' : ActorMethod<[], MeView>,
+  'myBoard' : ActorMethod<[bigint, bigint], MyBoardView>,
   'myNotifications' : ActorMethod<[boolean], Array<NotificationView>>,
   'myProposals' : ActorMethod<[], Array<ProposalView>>,
   'orgAssignments' : ActorMethod<
@@ -1133,6 +1325,7 @@ export interface _SERVICE {
   'revokeInvite' : ActorMethod<[bigint], Result_4>,
   'revokeLink' : ActorMethod<[Principal], Result_4>,
   'revokeRobot' : ActorMethod<[Principal], Result_4>,
+  'saveAbsence' : ActorMethod<[AbsenceInput], Result_3>,
   'saveAssignment' : ActorMethod<[bigint, AssignmentInput, bigint], Result_3>,
   'saveCalendarBlock' : ActorMethod<[BlockInput], Result_3>,
   'saveDocument' : ActorMethod<[bigint, DocumentInput], Result_3>,
@@ -1140,6 +1333,8 @@ export interface _SERVICE {
   'saveOrgContact' : ActorMethod<[bigint, OrgContactInput], Result_6>,
   'saveTask' : ActorMethod<[bigint, TaskInput, bigint], Result_5>,
   'saveTemplate' : ActorMethod<[TemplateInput], Result_4>,
+  'setBoardRules' : ActorMethod<[BoardRulesInput], Result_4>,
+  'setCapacity' : ActorMethod<[string, [] | [bigint], string], Result_4>,
   'setContract' : ActorMethod<[bigint, ContractInput, bigint], Result_3>,
   'setDocKind' : ActorMethod<[DocKindInput], Result_4>,
   'setDocumentStatus' : ActorMethod<[bigint, DocStatus, string], Result_4>,
@@ -1160,6 +1355,8 @@ export interface _SERVICE {
   'updateOrg' : ActorMethod<[bigint, OrgInput], Result_2>,
   'updatePerson' : ActorMethod<[bigint, PersonUpdate], Result_1>,
   'updateWork' : ActorMethod<[bigint, WorkUpdate], Result>,
+  'weekBoard' : ActorMethod<[BoardQuery], BoardView>,
+  'workConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

@@ -19,6 +19,14 @@ export const _ImmutableObjectStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
+export const AbsenceChangeView = IDL.Record({
+  'at' : IDL.Int,
+  'id' : IDL.Nat,
+  'byName' : IDL.Text,
+  'what' : IDL.Text,
+  'detail' : IDL.Text,
+  'absenceId' : IDL.Nat,
+});
 export const AccessStats = IDL.Record({
   'pendingLinks' : IDL.Nat,
   'failuresThisHour' : IDL.Nat,
@@ -98,6 +106,36 @@ export const AuditEntry = IDL.Record({
   'personId' : IDL.Opt(PersonId),
   'workId' : IDL.Opt(WorkId),
 });
+export const OrgId = IDL.Nat;
+export const ConflictView = IDL.Record({
+  'orgCode' : IDL.Opt(IDL.Text),
+  'taskIds' : IDL.Vec(IDL.Nat),
+  'orgName' : IDL.Text,
+  'orgId' : OrgId,
+  'days' : IDL.Vec(Day),
+  'kind' : IDL.Text,
+  'text' : IDL.Text,
+  'week' : Day,
+  'works' : IDL.Vec(IDL.Tuple(IDL.Opt(WorkId), IDL.Text)),
+});
+export const ConflictList = IDL.Record({
+  'total' : IDL.Nat,
+  'items' : IDL.Vec(ConflictView),
+});
+export const CapacityView = IDL.Record({
+  'key' : IDL.Text,
+  'title' : IDL.Text,
+  'note' : IDL.Text,
+  'maxWorks' : IDL.Nat,
+  'updatedByName' : IDL.Text,
+  'updatedAt' : IDL.Int,
+});
+export const BoardRulesView = IDL.Record({
+  'defaultMax' : IDL.Nat,
+  'unit' : IDL.Text,
+  'oaReportsAbsence' : IDL.Bool,
+  'rules' : IDL.Vec(CapacityView),
+});
 export const TicketInfo = IDL.Record({
   'expiresAt' : IDL.Int,
   'budgetCents' : IDL.Nat,
@@ -108,7 +146,6 @@ export const TicketInfo = IDL.Record({
   'workId' : IDL.Opt(WorkId),
 });
 export const Result_18 = IDL.Variant({ 'ok' : TicketInfo, 'err' : IDL.Text });
-export const OrgId = IDL.Nat;
 export const PersonView = IDL.Record({
   'id' : PersonId,
   'orgId' : IDL.Opt(OrgId),
@@ -328,6 +365,31 @@ export const ExportConfidential = IDL.Record({
   'persons' : IDL.Vec(IDL.Tuple(PersonId, ContactConfidentialView)),
   'workConfidential' : IDL.Vec(WorkConfidential),
 });
+export const AbsenceSource = IDL.Variant({
+  'oa' : IDL.Null,
+  'intern' : IDL.Null,
+});
+export const AbsenceKind = IDL.Variant({
+  'andere' : IDL.Null,
+  'ziekte' : IDL.Null,
+  'verlof' : IDL.Null,
+});
+export const Absence = IDL.Record({
+  'id' : IDL.Nat,
+  'to' : Day,
+  'source' : AbsenceSource,
+  'orgId' : OrgId,
+  'from' : Day,
+  'kind' : AbsenceKind,
+  'note' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'createdBy' : PersonId,
+  'extra' : Extra,
+  'updatedAt' : IDL.Int,
+  'updatedBy' : PersonId,
+  'personId' : IDL.Opt(PersonId),
+  'archivedAt' : IDL.Opt(IDL.Int),
+});
 export const TaskStatus = IDL.Variant({
   'delayed' : IDL.Null,
   'busy' : IDL.Null,
@@ -439,6 +501,15 @@ export const Assignment = IDL.Record({
   'confirmation' : Confirmation,
   'workId' : WorkId,
   'archivedAt' : IDL.Opt(IDL.Int),
+});
+export const AbsenceChange = IDL.Record({
+  'at' : IDL.Int,
+  'by' : PersonId,
+  'id' : IDL.Nat,
+  'orgId' : OrgId,
+  'what' : IDL.Text,
+  'detail' : IDL.Text,
+  'absenceId' : IDL.Nat,
 });
 export const CodeKind = IDL.Variant({
   'invite' : IDL.Null,
@@ -557,6 +628,15 @@ export const RobotView = IDL.Record({
   'kinds' : IDL.Vec(IDL.Text),
   'revokedAt' : IDL.Opt(IDL.Int),
 });
+export const CapacityRule = IDL.Record({
+  'key' : IDL.Text,
+  'note' : IDL.Text,
+  'extra' : Extra,
+  'maxWorks' : IDL.Nat,
+  'updatedAt' : IDL.Int,
+  'updatedBy' : PersonId,
+  'archivedAt' : IDL.Opt(IDL.Int),
+});
 export const Decision = IDL.Record({
   'at' : IDL.Int,
   'by' : PersonId,
@@ -618,10 +698,12 @@ export const WorkInfo = IDL.Record({
 export const ExportIntern = IDL.Record({
   'at' : IDL.Int,
   'files' : IDL.Vec(FileView),
+  'absences' : IDL.Vec(Absence),
   'tasks' : IDL.Vec(Task),
   'templates' : IDL.Vec(Template),
   'documents' : IDL.Vec(Document),
   'assignments' : IDL.Vec(Assignment),
+  'absenceChanges' : IDL.Vec(AbsenceChange),
   'invites' : IDL.Vec(InviteView),
   'schema' : IDL.Nat,
   'trades' : IDL.Vec(TradeView),
@@ -635,6 +717,7 @@ export const ExportIntern = IDL.Record({
   'settings' : SettingsView,
   'dependencies' : IDL.Vec(Dependency),
   'robots' : IDL.Vec(RobotView),
+  'capacity' : IDL.Vec(CapacityRule),
   'proposals' : IDL.Vec(ProposalView),
   'works' : IDL.Vec(WorkView),
   'personContacts' : IDL.Vec(PersonContact),
@@ -845,6 +928,23 @@ export const InviteRequest = IDL.Record({
   'phone' : IDL.Opt(IDL.Text),
   'roles' : IDL.Vec(Role),
 });
+export const AbsenceView = IDL.Record({
+  'id' : IDL.Nat,
+  'to' : Day,
+  'orgName' : IDL.Text,
+  'source' : AbsenceSource,
+  'orgId' : OrgId,
+  'from' : Day,
+  'kind' : AbsenceKind,
+  'mine' : IDL.Bool,
+  'note' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'personName' : IDL.Opt(IDL.Text),
+  'updatedByName' : IDL.Text,
+  'updatedAt' : IDL.Int,
+  'personId' : IDL.Opt(PersonId),
+  'createdByName' : IDL.Text,
+});
 export const OaFilter = IDL.Record({
   'trade' : IDL.Opt(IDL.Text),
   'kind' : IDL.Opt(OrgKind),
@@ -868,6 +968,7 @@ export const Caps = IDL.Record({
   'manageOa' : IDL.Bool,
   'home' : IDL.Text,
   'readOrgPlanning' : IDL.Bool,
+  'manageBoardRules' : IDL.Bool,
   'createWork' : IDL.Bool,
   'manageSettings' : IDL.Bool,
   'readTeam' : IDL.Bool,
@@ -876,7 +977,9 @@ export const Caps = IDL.Record({
   'manageOrgs' : IDL.Bool,
   'manageCompanyCalendar' : IDL.Bool,
   'manageRobots' : IDL.Bool,
+  'reportOwnAbsence' : IDL.Bool,
   'export' : IDL.Bool,
+  'manageAbsences' : IDL.Bool,
   'readConfidentialContact' : IDL.Bool,
   'readAudit' : IDL.Bool,
   'readOa' : IDL.Bool,
@@ -894,6 +997,53 @@ export const MeView = IDL.Record({
   'caps' : IDL.Opt(Caps),
   'version' : IDL.Text,
   'isRobot' : IDL.Bool,
+});
+export const BoardTask = IDL.Record({
+  'end' : Day,
+  'status' : TaskStatus,
+  'title' : IDL.Text,
+  'days' : IDL.Vec(Day),
+  'kind' : TaskKind,
+  'note' : IDL.Text,
+  'personName' : IDL.Opt(IDL.Text),
+  'start' : Day,
+  'taskId' : IDL.Nat,
+  'assignmentId' : IDL.Nat,
+  'confirmation' : Confirmation,
+});
+export const BoardItem = IDL.Record({
+  'workName' : IDL.Text,
+  'tasks' : IDL.Vec(BoardTask),
+  'clash' : IDL.Bool,
+  'hidden' : IDL.Bool,
+  'workId' : IDL.Opt(WorkId),
+  'workCode' : IDL.Text,
+});
+export const BoardCell = IDL.Record({
+  'week' : IDL.Nat,
+  'items' : IDL.Vec(BoardItem),
+});
+export const BoardRow = IDL.Record({
+  'absences' : IDL.Vec(AbsenceView),
+  'orgId' : OrgId,
+  'code' : IDL.Opt(IDL.Text),
+  'cells' : IDL.Vec(BoardCell),
+  'trades' : IDL.Vec(IDL.Text),
+  'kind' : OrgKind,
+  'name' : IDL.Text,
+  'maxWorks' : IDL.Nat,
+  'conflicts' : IDL.Vec(ConflictView),
+  'maxFrom' : IDL.Text,
+});
+export const BoardWeek = IDL.Record({
+  'blocks' : IDL.Vec(BlockView),
+  'monday' : Day,
+});
+export const MyBoardView = IDL.Record({
+  'row' : IDL.Opt(BoardRow),
+  'from' : Day,
+  'canReport' : IDL.Bool,
+  'weeks' : IDL.Vec(BoardWeek),
 });
 export const NotificationView = IDL.Record({
   'id' : IDL.Nat,
@@ -949,6 +1099,15 @@ export const Result_9 = IDL.Variant({
   'err' : IDL.Text,
 });
 export const Result_8 = IDL.Variant({ 'ok' : MeView, 'err' : IDL.Text });
+export const AbsenceInput = IDL.Record({
+  'id' : IDL.Opt(IDL.Nat),
+  'to' : Day,
+  'orgId' : OrgId,
+  'from' : Day,
+  'kind' : AbsenceKind,
+  'note' : IDL.Text,
+  'personId' : IDL.Opt(PersonId),
+});
 export const AssignmentInput = IDL.Record({
   'id' : IDL.Opt(IDL.Nat),
   'toDay' : IDL.Opt(Day),
@@ -1017,6 +1176,11 @@ export const TemplateInput = IDL.Record({
   'provisional' : IDL.Bool,
   'archived' : IDL.Bool,
 });
+export const BoardRulesInput = IDL.Record({
+  'defaultMax' : IDL.Nat,
+  'unit' : IDL.Text,
+  'oaReportsAbsence' : IDL.Bool,
+});
 export const ContractInput = IDL.Record({
   'contract' : ContractParams,
   'notes' : IDL.Text,
@@ -1072,6 +1236,32 @@ export const WorkUpdate = IDL.Record({
   'architectOrgId' : IDL.Opt(OrgId),
   'vatNote' : IDL.Text,
 });
+export const BoardQuery = IDL.Record({
+  'trade' : IDL.Opt(IDL.Text),
+  'withIdle' : IDL.Bool,
+  'from' : Day,
+  'text' : IDL.Text,
+  'offset' : IDL.Nat,
+  'limit' : IDL.Nat,
+  'weeks' : IDL.Nat,
+  'workId' : IDL.Opt(WorkId),
+  'onlyConflicts' : IDL.Bool,
+});
+export const BoardCaps = IDL.Record({
+  'manageRules' : IDL.Bool,
+  'manageAbsences' : IDL.Bool,
+});
+export const BoardView = IDL.Record({
+  'conflictTotal' : IDL.Nat,
+  'total' : IDL.Nat,
+  'caps' : BoardCaps,
+  'from' : Day,
+  'rows' : IDL.Vec(BoardRow),
+  'unit' : IDL.Text,
+  'offset' : IDL.Nat,
+  'instructions' : IDL.Nat,
+  'weeks' : IDL.Vec(BoardWeek),
+});
 
 export const idlService = IDL.Service({
   '_immutableObjectStorageBlobsAreLive' : IDL.Func(
@@ -1101,6 +1291,11 @@ export const idlService = IDL.Service({
     ),
   '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initialize_access_control' : IDL.Func([], [], []),
+  'absenceHistory' : IDL.Func(
+      [IDL.Nat, IDL.Nat, IDL.Nat],
+      [IDL.Vec(AbsenceChangeView)],
+      ['query'],
+    ),
   'accessStats' : IDL.Func([], [AccessStats], ['query']),
   'addDependency' : IDL.Func(
       [IDL.Nat, DependencyInput, IDL.Nat],
@@ -1132,6 +1327,7 @@ export const idlService = IDL.Service({
       [Result_5],
       [],
     ),
+  'archiveAbsence' : IDL.Func([IDL.Nat], [Result_4], []),
   'archiveAssignment' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [Result_3], []),
   'archiveCalendarBlock' : IDL.Func([IDL.Nat], [Result_4], []),
   'archiveDocument' : IDL.Func([IDL.Nat], [Result_4], []),
@@ -1146,6 +1342,12 @@ export const idlService = IDL.Service({
     ),
   'auditCount' : IDL.Func([], [IDL.Nat], ['query']),
   'auditLog' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(AuditEntry)], ['query']),
+  'boardConflicts' : IDL.Func(
+      [IDL.Nat, IDL.Nat, IDL.Nat],
+      [ConflictList],
+      ['query'],
+    ),
+  'boardRules' : IDL.Func([], [BoardRulesView], ['query']),
   'checkTicket' : IDL.Func([IDL.Text], [Result_18], []),
   'claimBootstrap' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
   'confirmAssignment' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_4], []),
@@ -1169,6 +1371,11 @@ export const idlService = IDL.Service({
   'getWork' : IDL.Func([IDL.Nat], [WorkView], ['query']),
   'importOrgs' : IDL.Func([IDL.Bool, IDL.Vec(ImportRow)], [Result_15], []),
   'invitePerson' : IDL.Func([InviteRequest], [Result_14], []),
+  'listAbsences' : IDL.Func(
+      [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
+      [IDL.Vec(AbsenceView)],
+      ['query'],
+    ),
   'listCalendarBlocks' : IDL.Func(
       [IDL.Opt(IDL.Nat)],
       [IDL.Vec(BlockView)],
@@ -1192,6 +1399,7 @@ export const idlService = IDL.Service({
   'listWorks' : IDL.Func([], [IDL.Vec(WorkView)], ['query']),
   'markNotificationsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
   'me' : IDL.Func([], [MeView], ['query']),
+  'myBoard' : IDL.Func([IDL.Nat, IDL.Nat], [MyBoardView], ['query']),
   'myNotifications' : IDL.Func(
       [IDL.Bool],
       [IDL.Vec(NotificationView)],
@@ -1219,6 +1427,7 @@ export const idlService = IDL.Service({
   'revokeInvite' : IDL.Func([IDL.Nat], [Result_4], []),
   'revokeLink' : IDL.Func([IDL.Principal], [Result_4], []),
   'revokeRobot' : IDL.Func([IDL.Principal], [Result_4], []),
+  'saveAbsence' : IDL.Func([AbsenceInput], [Result_3], []),
   'saveAssignment' : IDL.Func(
       [IDL.Nat, AssignmentInput, IDL.Nat],
       [Result_3],
@@ -1230,6 +1439,12 @@ export const idlService = IDL.Service({
   'saveOrgContact' : IDL.Func([IDL.Nat, OrgContactInput], [Result_6], []),
   'saveTask' : IDL.Func([IDL.Nat, TaskInput, IDL.Nat], [Result_5], []),
   'saveTemplate' : IDL.Func([TemplateInput], [Result_4], []),
+  'setBoardRules' : IDL.Func([BoardRulesInput], [Result_4], []),
+  'setCapacity' : IDL.Func(
+      [IDL.Text, IDL.Opt(IDL.Nat), IDL.Text],
+      [Result_4],
+      [],
+    ),
   'setContract' : IDL.Func([IDL.Nat, ContractInput, IDL.Nat], [Result_3], []),
   'setDocKind' : IDL.Func([DocKindInput], [Result_4], []),
   'setDocumentStatus' : IDL.Func(
@@ -1260,6 +1475,12 @@ export const idlService = IDL.Service({
   'updateOrg' : IDL.Func([IDL.Nat, OrgInput], [Result_2], []),
   'updatePerson' : IDL.Func([IDL.Nat, PersonUpdate], [Result_1], []),
   'updateWork' : IDL.Func([IDL.Nat, WorkUpdate], [Result], []),
+  'weekBoard' : IDL.Func([BoardQuery], [BoardView], ['query']),
+  'workConflicts' : IDL.Func(
+      [IDL.Nat, IDL.Nat, IDL.Nat],
+      [ConflictList],
+      ['query'],
+    ),
 });
 
 export const idlInitArgs = [];
@@ -1275,6 +1496,14 @@ export const idlFactory = ({ IDL }) => {
   const _ImmutableObjectStorageRefillResult = IDL.Record({
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const AbsenceChangeView = IDL.Record({
+    'at' : IDL.Int,
+    'id' : IDL.Nat,
+    'byName' : IDL.Text,
+    'what' : IDL.Text,
+    'detail' : IDL.Text,
+    'absenceId' : IDL.Nat,
   });
   const AccessStats = IDL.Record({
     'pendingLinks' : IDL.Nat,
@@ -1355,6 +1584,36 @@ export const idlFactory = ({ IDL }) => {
     'personId' : IDL.Opt(PersonId),
     'workId' : IDL.Opt(WorkId),
   });
+  const OrgId = IDL.Nat;
+  const ConflictView = IDL.Record({
+    'orgCode' : IDL.Opt(IDL.Text),
+    'taskIds' : IDL.Vec(IDL.Nat),
+    'orgName' : IDL.Text,
+    'orgId' : OrgId,
+    'days' : IDL.Vec(Day),
+    'kind' : IDL.Text,
+    'text' : IDL.Text,
+    'week' : Day,
+    'works' : IDL.Vec(IDL.Tuple(IDL.Opt(WorkId), IDL.Text)),
+  });
+  const ConflictList = IDL.Record({
+    'total' : IDL.Nat,
+    'items' : IDL.Vec(ConflictView),
+  });
+  const CapacityView = IDL.Record({
+    'key' : IDL.Text,
+    'title' : IDL.Text,
+    'note' : IDL.Text,
+    'maxWorks' : IDL.Nat,
+    'updatedByName' : IDL.Text,
+    'updatedAt' : IDL.Int,
+  });
+  const BoardRulesView = IDL.Record({
+    'defaultMax' : IDL.Nat,
+    'unit' : IDL.Text,
+    'oaReportsAbsence' : IDL.Bool,
+    'rules' : IDL.Vec(CapacityView),
+  });
   const TicketInfo = IDL.Record({
     'expiresAt' : IDL.Int,
     'budgetCents' : IDL.Nat,
@@ -1365,7 +1624,6 @@ export const idlFactory = ({ IDL }) => {
     'workId' : IDL.Opt(WorkId),
   });
   const Result_18 = IDL.Variant({ 'ok' : TicketInfo, 'err' : IDL.Text });
-  const OrgId = IDL.Nat;
   const PersonView = IDL.Record({
     'id' : PersonId,
     'orgId' : IDL.Opt(OrgId),
@@ -1579,6 +1837,28 @@ export const idlFactory = ({ IDL }) => {
     'persons' : IDL.Vec(IDL.Tuple(PersonId, ContactConfidentialView)),
     'workConfidential' : IDL.Vec(WorkConfidential),
   });
+  const AbsenceSource = IDL.Variant({ 'oa' : IDL.Null, 'intern' : IDL.Null });
+  const AbsenceKind = IDL.Variant({
+    'andere' : IDL.Null,
+    'ziekte' : IDL.Null,
+    'verlof' : IDL.Null,
+  });
+  const Absence = IDL.Record({
+    'id' : IDL.Nat,
+    'to' : Day,
+    'source' : AbsenceSource,
+    'orgId' : OrgId,
+    'from' : Day,
+    'kind' : AbsenceKind,
+    'note' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'createdBy' : PersonId,
+    'extra' : Extra,
+    'updatedAt' : IDL.Int,
+    'updatedBy' : PersonId,
+    'personId' : IDL.Opt(PersonId),
+    'archivedAt' : IDL.Opt(IDL.Int),
+  });
   const TaskStatus = IDL.Variant({
     'delayed' : IDL.Null,
     'busy' : IDL.Null,
@@ -1690,6 +1970,15 @@ export const idlFactory = ({ IDL }) => {
     'confirmation' : Confirmation,
     'workId' : WorkId,
     'archivedAt' : IDL.Opt(IDL.Int),
+  });
+  const AbsenceChange = IDL.Record({
+    'at' : IDL.Int,
+    'by' : PersonId,
+    'id' : IDL.Nat,
+    'orgId' : OrgId,
+    'what' : IDL.Text,
+    'detail' : IDL.Text,
+    'absenceId' : IDL.Nat,
   });
   const CodeKind = IDL.Variant({ 'invite' : IDL.Null, 'recovery' : IDL.Null });
   const CodeState = IDL.Variant({
@@ -1805,6 +2094,15 @@ export const idlFactory = ({ IDL }) => {
     'kinds' : IDL.Vec(IDL.Text),
     'revokedAt' : IDL.Opt(IDL.Int),
   });
+  const CapacityRule = IDL.Record({
+    'key' : IDL.Text,
+    'note' : IDL.Text,
+    'extra' : Extra,
+    'maxWorks' : IDL.Nat,
+    'updatedAt' : IDL.Int,
+    'updatedBy' : PersonId,
+    'archivedAt' : IDL.Opt(IDL.Int),
+  });
   const Decision = IDL.Record({
     'at' : IDL.Int,
     'by' : PersonId,
@@ -1866,10 +2164,12 @@ export const idlFactory = ({ IDL }) => {
   const ExportIntern = IDL.Record({
     'at' : IDL.Int,
     'files' : IDL.Vec(FileView),
+    'absences' : IDL.Vec(Absence),
     'tasks' : IDL.Vec(Task),
     'templates' : IDL.Vec(Template),
     'documents' : IDL.Vec(Document),
     'assignments' : IDL.Vec(Assignment),
+    'absenceChanges' : IDL.Vec(AbsenceChange),
     'invites' : IDL.Vec(InviteView),
     'schema' : IDL.Nat,
     'trades' : IDL.Vec(TradeView),
@@ -1883,6 +2183,7 @@ export const idlFactory = ({ IDL }) => {
     'settings' : SettingsView,
     'dependencies' : IDL.Vec(Dependency),
     'robots' : IDL.Vec(RobotView),
+    'capacity' : IDL.Vec(CapacityRule),
     'proposals' : IDL.Vec(ProposalView),
     'works' : IDL.Vec(WorkView),
     'personContacts' : IDL.Vec(PersonContact),
@@ -2093,6 +2394,23 @@ export const idlFactory = ({ IDL }) => {
     'phone' : IDL.Opt(IDL.Text),
     'roles' : IDL.Vec(Role),
   });
+  const AbsenceView = IDL.Record({
+    'id' : IDL.Nat,
+    'to' : Day,
+    'orgName' : IDL.Text,
+    'source' : AbsenceSource,
+    'orgId' : OrgId,
+    'from' : Day,
+    'kind' : AbsenceKind,
+    'mine' : IDL.Bool,
+    'note' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'personName' : IDL.Opt(IDL.Text),
+    'updatedByName' : IDL.Text,
+    'updatedAt' : IDL.Int,
+    'personId' : IDL.Opt(PersonId),
+    'createdByName' : IDL.Text,
+  });
   const OaFilter = IDL.Record({
     'trade' : IDL.Opt(IDL.Text),
     'kind' : IDL.Opt(OrgKind),
@@ -2116,6 +2434,7 @@ export const idlFactory = ({ IDL }) => {
     'manageOa' : IDL.Bool,
     'home' : IDL.Text,
     'readOrgPlanning' : IDL.Bool,
+    'manageBoardRules' : IDL.Bool,
     'createWork' : IDL.Bool,
     'manageSettings' : IDL.Bool,
     'readTeam' : IDL.Bool,
@@ -2124,7 +2443,9 @@ export const idlFactory = ({ IDL }) => {
     'manageOrgs' : IDL.Bool,
     'manageCompanyCalendar' : IDL.Bool,
     'manageRobots' : IDL.Bool,
+    'reportOwnAbsence' : IDL.Bool,
     'export' : IDL.Bool,
+    'manageAbsences' : IDL.Bool,
     'readConfidentialContact' : IDL.Bool,
     'readAudit' : IDL.Bool,
     'readOa' : IDL.Bool,
@@ -2142,6 +2463,53 @@ export const idlFactory = ({ IDL }) => {
     'caps' : IDL.Opt(Caps),
     'version' : IDL.Text,
     'isRobot' : IDL.Bool,
+  });
+  const BoardTask = IDL.Record({
+    'end' : Day,
+    'status' : TaskStatus,
+    'title' : IDL.Text,
+    'days' : IDL.Vec(Day),
+    'kind' : TaskKind,
+    'note' : IDL.Text,
+    'personName' : IDL.Opt(IDL.Text),
+    'start' : Day,
+    'taskId' : IDL.Nat,
+    'assignmentId' : IDL.Nat,
+    'confirmation' : Confirmation,
+  });
+  const BoardItem = IDL.Record({
+    'workName' : IDL.Text,
+    'tasks' : IDL.Vec(BoardTask),
+    'clash' : IDL.Bool,
+    'hidden' : IDL.Bool,
+    'workId' : IDL.Opt(WorkId),
+    'workCode' : IDL.Text,
+  });
+  const BoardCell = IDL.Record({
+    'week' : IDL.Nat,
+    'items' : IDL.Vec(BoardItem),
+  });
+  const BoardRow = IDL.Record({
+    'absences' : IDL.Vec(AbsenceView),
+    'orgId' : OrgId,
+    'code' : IDL.Opt(IDL.Text),
+    'cells' : IDL.Vec(BoardCell),
+    'trades' : IDL.Vec(IDL.Text),
+    'kind' : OrgKind,
+    'name' : IDL.Text,
+    'maxWorks' : IDL.Nat,
+    'conflicts' : IDL.Vec(ConflictView),
+    'maxFrom' : IDL.Text,
+  });
+  const BoardWeek = IDL.Record({
+    'blocks' : IDL.Vec(BlockView),
+    'monday' : Day,
+  });
+  const MyBoardView = IDL.Record({
+    'row' : IDL.Opt(BoardRow),
+    'from' : Day,
+    'canReport' : IDL.Bool,
+    'weeks' : IDL.Vec(BoardWeek),
   });
   const NotificationView = IDL.Record({
     'id' : IDL.Nat,
@@ -2197,6 +2565,15 @@ export const idlFactory = ({ IDL }) => {
     'err' : IDL.Text,
   });
   const Result_8 = IDL.Variant({ 'ok' : MeView, 'err' : IDL.Text });
+  const AbsenceInput = IDL.Record({
+    'id' : IDL.Opt(IDL.Nat),
+    'to' : Day,
+    'orgId' : OrgId,
+    'from' : Day,
+    'kind' : AbsenceKind,
+    'note' : IDL.Text,
+    'personId' : IDL.Opt(PersonId),
+  });
   const AssignmentInput = IDL.Record({
     'id' : IDL.Opt(IDL.Nat),
     'toDay' : IDL.Opt(Day),
@@ -2262,6 +2639,11 @@ export const idlFactory = ({ IDL }) => {
     'provisional' : IDL.Bool,
     'archived' : IDL.Bool,
   });
+  const BoardRulesInput = IDL.Record({
+    'defaultMax' : IDL.Nat,
+    'unit' : IDL.Text,
+    'oaReportsAbsence' : IDL.Bool,
+  });
   const ContractInput = IDL.Record({
     'contract' : ContractParams,
     'notes' : IDL.Text,
@@ -2317,6 +2699,32 @@ export const idlFactory = ({ IDL }) => {
     'architectOrgId' : IDL.Opt(OrgId),
     'vatNote' : IDL.Text,
   });
+  const BoardQuery = IDL.Record({
+    'trade' : IDL.Opt(IDL.Text),
+    'withIdle' : IDL.Bool,
+    'from' : Day,
+    'text' : IDL.Text,
+    'offset' : IDL.Nat,
+    'limit' : IDL.Nat,
+    'weeks' : IDL.Nat,
+    'workId' : IDL.Opt(WorkId),
+    'onlyConflicts' : IDL.Bool,
+  });
+  const BoardCaps = IDL.Record({
+    'manageRules' : IDL.Bool,
+    'manageAbsences' : IDL.Bool,
+  });
+  const BoardView = IDL.Record({
+    'conflictTotal' : IDL.Nat,
+    'total' : IDL.Nat,
+    'caps' : BoardCaps,
+    'from' : Day,
+    'rows' : IDL.Vec(BoardRow),
+    'unit' : IDL.Text,
+    'offset' : IDL.Nat,
+    'instructions' : IDL.Nat,
+    'weeks' : IDL.Vec(BoardWeek),
+  });
   
   return IDL.Service({
     '_immutableObjectStorageBlobsAreLive' : IDL.Func(
@@ -2346,6 +2754,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initialize_access_control' : IDL.Func([], [], []),
+    'absenceHistory' : IDL.Func(
+        [IDL.Nat, IDL.Nat, IDL.Nat],
+        [IDL.Vec(AbsenceChangeView)],
+        ['query'],
+      ),
     'accessStats' : IDL.Func([], [AccessStats], ['query']),
     'addDependency' : IDL.Func(
         [IDL.Nat, DependencyInput, IDL.Nat],
@@ -2377,6 +2790,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_5],
         [],
       ),
+    'archiveAbsence' : IDL.Func([IDL.Nat], [Result_4], []),
     'archiveAssignment' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [Result_3], []),
     'archiveCalendarBlock' : IDL.Func([IDL.Nat], [Result_4], []),
     'archiveDocument' : IDL.Func([IDL.Nat], [Result_4], []),
@@ -2391,6 +2805,12 @@ export const idlFactory = ({ IDL }) => {
       ),
     'auditCount' : IDL.Func([], [IDL.Nat], ['query']),
     'auditLog' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(AuditEntry)], ['query']),
+    'boardConflicts' : IDL.Func(
+        [IDL.Nat, IDL.Nat, IDL.Nat],
+        [ConflictList],
+        ['query'],
+      ),
+    'boardRules' : IDL.Func([], [BoardRulesView], ['query']),
     'checkTicket' : IDL.Func([IDL.Text], [Result_18], []),
     'claimBootstrap' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
     'confirmAssignment' : IDL.Func(
@@ -2418,6 +2838,11 @@ export const idlFactory = ({ IDL }) => {
     'getWork' : IDL.Func([IDL.Nat], [WorkView], ['query']),
     'importOrgs' : IDL.Func([IDL.Bool, IDL.Vec(ImportRow)], [Result_15], []),
     'invitePerson' : IDL.Func([InviteRequest], [Result_14], []),
+    'listAbsences' : IDL.Func(
+        [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
+        [IDL.Vec(AbsenceView)],
+        ['query'],
+      ),
     'listCalendarBlocks' : IDL.Func(
         [IDL.Opt(IDL.Nat)],
         [IDL.Vec(BlockView)],
@@ -2441,6 +2866,7 @@ export const idlFactory = ({ IDL }) => {
     'listWorks' : IDL.Func([], [IDL.Vec(WorkView)], ['query']),
     'markNotificationsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
     'me' : IDL.Func([], [MeView], ['query']),
+    'myBoard' : IDL.Func([IDL.Nat, IDL.Nat], [MyBoardView], ['query']),
     'myNotifications' : IDL.Func(
         [IDL.Bool],
         [IDL.Vec(NotificationView)],
@@ -2468,6 +2894,7 @@ export const idlFactory = ({ IDL }) => {
     'revokeInvite' : IDL.Func([IDL.Nat], [Result_4], []),
     'revokeLink' : IDL.Func([IDL.Principal], [Result_4], []),
     'revokeRobot' : IDL.Func([IDL.Principal], [Result_4], []),
+    'saveAbsence' : IDL.Func([AbsenceInput], [Result_3], []),
     'saveAssignment' : IDL.Func(
         [IDL.Nat, AssignmentInput, IDL.Nat],
         [Result_3],
@@ -2479,6 +2906,12 @@ export const idlFactory = ({ IDL }) => {
     'saveOrgContact' : IDL.Func([IDL.Nat, OrgContactInput], [Result_6], []),
     'saveTask' : IDL.Func([IDL.Nat, TaskInput, IDL.Nat], [Result_5], []),
     'saveTemplate' : IDL.Func([TemplateInput], [Result_4], []),
+    'setBoardRules' : IDL.Func([BoardRulesInput], [Result_4], []),
+    'setCapacity' : IDL.Func(
+        [IDL.Text, IDL.Opt(IDL.Nat), IDL.Text],
+        [Result_4],
+        [],
+      ),
     'setContract' : IDL.Func([IDL.Nat, ContractInput, IDL.Nat], [Result_3], []),
     'setDocKind' : IDL.Func([DocKindInput], [Result_4], []),
     'setDocumentStatus' : IDL.Func(
@@ -2509,6 +2942,12 @@ export const idlFactory = ({ IDL }) => {
     'updateOrg' : IDL.Func([IDL.Nat, OrgInput], [Result_2], []),
     'updatePerson' : IDL.Func([IDL.Nat, PersonUpdate], [Result_1], []),
     'updateWork' : IDL.Func([IDL.Nat, WorkUpdate], [Result], []),
+    'weekBoard' : IDL.Func([BoardQuery], [BoardView], ['query']),
+    'workConflicts' : IDL.Func(
+        [IDL.Nat, IDL.Nat, IDL.Nat],
+        [ConflictList],
+        ['query'],
+      ),
   });
 };
 

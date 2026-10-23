@@ -492,6 +492,61 @@ module {
     versions : Map.Map<WorkId, Nat>; // planversie per werf: wie verouderd bewaart, krijgt een fout
   };
 
+  // ── Weekbord per OA (stap 1.4, architectuur §2.5 en rij 1.4 van §11) ─────
+  // Eigen domein `board` (nieuw stabiel veld, deelvorm, OldActor = {}). Het weekbord zelf wordt altijd
+  // berekend uit plan.assignments; hier staan enkel de afwezigheden per firma en de regels voor "dubbel".
+  // Een afwezigheid schuift geen werf (zoals de #org-blokken van 1.3 bedoeld waren): ze geeft een conflict.
+  public type AbsenceKind = { #verlof; #ziekte; #andere };
+  public type AbsenceSource = { #intern; #oa }; // ingegeven door kantoor, of gemeld door de OA zelf
+
+  // klasse: intern. Ziekte = enkel het soort, nooit een reden of een medisch detail (GDPR art. 9: de
+  // notitie zegt dat erbij). personId = één persoon van de firma; null = de hele firma.
+  public type Absence = {
+    id : Nat;
+    orgId : OrgId;
+    personId : ?PersonId;
+    kind : AbsenceKind;
+    from : Day;
+    to : Day; // tot en met
+    note : Text;
+    source : AbsenceSource;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern, append-only (D2): de geschiedenis van een afwezigheid (wie, wanneer, wat).
+  public type AbsenceChange = {
+    id : Nat;
+    absenceId : Nat;
+    orgId : OrgId;
+    at : Int;
+    by : PersonId;
+    what : Text; // "nieuw" · "gewijzigd" · "weg"
+    detail : Text; // "verlof 02.11.2026 – 06.11.2026" of "tot 13.11.2026 → 20.11.2026"
+  };
+
+  // klasse: intern. Hoeveel werven een firma tegelijk mag hebben voor het weekbord "dubbel" meldt.
+  // Sleutel "org:<id>" (één firma) of "trade:<vakgebied>"; maxWorks 0 = onbeperkt.
+  public type CapacityRule = {
+    key : Text;
+    maxWorks : Nat;
+    note : Text;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int; // weg = de firma of het vakgebied volgt weer de algemene regel
+    extra : Extra;
+  };
+
+  public type BoardState = {
+    absences : Map.Map<Nat, Absence>;
+    absenceChanges : Map.Map<Nat, AbsenceChange>;
+    capacity : Map.Map<Text, CapacityRule>;
+  };
+
   // ── Robot: tickets en voorstellen (§2.10, §6) ───────────────────────────
   public type TicketState = { #open; #used : Int; #expired };
 

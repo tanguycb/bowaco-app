@@ -18,6 +18,7 @@ import { Organisaties } from "../screens/Organisaties";
 import { Audit } from "../screens/Audit";
 import { Instellingen } from "../screens/Instellingen";
 import { MijnLogin } from "../screens/MijnLogin";
+import { Weekbord } from "../screens/Weekbord";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -105,6 +106,7 @@ function navFor(caps: Caps): NavItem[] {
   const homeIcon: Record<string, IconName> = { overzicht: "grid", vandaag: "home", offertes: "doc", week: "calendar", werven: "building" };
   const items: NavItem[] = [{ key: caps.home, label: t.nav[caps.home as keyof typeof t.nav] ?? t.nav.werven, icon: homeIcon[caps.home] ?? "home" }];
   if (caps.home !== "werven") items.push({ key: "werven", label: t.nav.werven, icon: "building" });
+  if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
   if (caps.readTeam) items.push({ key: "team", label: t.nav.team, icon: "people" });
   if (caps.inviteExternal || caps.manageAccess) items.push({ key: "codes", label: t.nav.codes, icon: "key" });
   if (caps.readOa) items.push({ key: "onderaannemers", label: t.nav.onderaannemers, icon: "building" });
@@ -139,7 +141,8 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         if (route[0] === "werven" && route[1] && /^\d+$/.test(route[1])) {
           return route[2] === "planning" ? <PlanningPage id={BigInt(route[1])} caps={caps} go={go} /> : <WerfDetail id={BigInt(route[1])} caps={caps} go={go} />;
         }
-        return page === "werven" ? <Werven caps={caps} go={go} /> : <Home kind={page} go={go} />;
+        return page === "werven" ? <Werven caps={caps} go={go} /> : <Home kind={page} go={go} caps={caps} />;
+      case "weekbord": return <Weekbord key={window.location.hash} caps={caps} go={go} />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;
       case "onderaannemers": return <Onderaannemers caps={caps} />;

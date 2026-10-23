@@ -3,14 +3,17 @@
 import { t } from "../texts/nl";
 import { Loading, Page, useWorks, WorkList } from "./common";
 import { MijnTaken } from "./MijnTaken";
+import { BoardAttention } from "./Weekbord";
+import type { Caps } from "../backend";
 
 const TITLE: Record<string, string> = { vandaag: t.home.vandaag, week: t.home.week, offertes: t.home.offertes, werven: t.home.werven };
 
-export function Home({ kind, go }: { kind: string; go: (to: string) => void }) {
+export function Home({ kind, go, caps }: { kind: string; go: (to: string) => void; caps?: Caps }) {
   const works = useWorks();
   return (
     <Page title={TITLE[kind] ?? t.home.werven}>
       {kind === "week" && <MijnTaken go={go} />}
+      {kind === "vandaag" && caps?.readOrgPlanning && <section className="a-section"><h2 className="bw-h2">{t.overzicht.attention}</h2><BoardAttention go={go} /></section>}
       <p className="a-note">{kind === "offertes" ? t.home.laterOffertes : t.home.later}</p>
       <Loading q={works} />
       {works.data && <WorkList works={works.data.filter((w) => w.archivedAt === undefined)} go={go} empty={t.home.noWorks} />}

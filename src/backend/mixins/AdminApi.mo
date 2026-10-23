@@ -25,6 +25,7 @@ mixin (
   dossier : Types.DossierState,
   oa : Types.OaState,
   plan : Types.PlanState,
+  board : Types.BoardState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -175,6 +176,9 @@ mixin (
       calendarBlocks = plan.calendarBlocks.values().toArray();
       taskChanges = plan.taskChanges.values().toArray();
       templates = plan.templates.values().toArray();
+      absences = board.absences.values().toArray();
+      absenceChanges = board.absenceChanges.values().toArray();
+      capacity = board.capacity.values().toArray();
       robots = robot.robots.values().map(robotView).toArray();
       proposals = robot.proposals.values().map(func x = { id = x.id; ticketId = x.ticketId; personId = x.personId; workId = x.workId; kind = x.kind; content = x.content; by = x.by; at = x.at; decision = x.decision }).toArray();
       settings = settingsView();

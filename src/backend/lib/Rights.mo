@@ -6,6 +6,7 @@ import Iter "mo:core/Iter";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Runtime "mo:core/Runtime";
+import Text "mo:core/Text";
 import Types "../types";
 import Views "../types/views";
 
@@ -31,6 +32,8 @@ module {
     #readOa; #manageOa; #importOa;
     // 1.3: planning per werf
     #readPlanning; #manageCompanyCalendar; #manageTemplates; #readTemplates; #readOrgPlanning;
+    // 1.4: weekbord per OA, afwezigheden, regels voor een dubbele boeking
+    #manageAbsences; #reportOwnAbsence; #manageBoardRules;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -156,6 +159,12 @@ module {
       case (#readTemplates) internal(p);
       // 1.3/1.4: de toewijzingen van een firma over alle werven heen (weekbord): interne rollen.
       case (#readOrgPlanning) internal(p);
+      // 1.4: afwezigheden van een firma ingeven: admin en werfleider (bouwplan rij 1.4). Een OA meldt enkel
+      // zijn EIGEN afwezigheid, als hij actief OA is op minstens één werf en de admin dat toelaat
+      // (instelling "OA meldt zelf", standaard aan). De regels voor "dubbel" gelden voor iedereen: admin (R17).
+      case (#manageAbsences) admin or wl;
+      case (#reportOwnAbsence) has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("board.oaMeldt") != ?"nee" and activeOa(ctx, p);
+      case (#manageBoardRules) admin;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -174,6 +183,27 @@ module {
       // De werfleider van een werf aanduiden is een interne toewijzing (zoals een werfleider-lidmaatschap)
       case (#setLeader) on(func w = admin);
     };
+  };
+
+  // Een OA die op minstens één bestaande werf actief lid is als onderaannemer (persoonlijk of via zijn firma).
+  func activeOa(ctx : Ctx, p : Person) : Bool {
+    ctx.works.memberships.values().any(
+      func m = m.endedAt == null and m.role == #onderaannemer and workExists(ctx, m.workId) and (m.personId == ?p.id or (m.personId == null and m.orgId != null and m.orgId == p.orgId))
+    );
+  };
+
+  // ── Afwezigheden (1.4) ──────────────────────────────────────────────────
+  // Lezen: interne rollen alles (weekbord); een OA enkel die van zijn eigen firma, zolang hij actief OA is.
+  public func mayReadAbsences(ctx : Ctx, p : Person, orgId : Types.OrgId) : Bool {
+    if (may(ctx, p, #readOrgPlanning, null)) { return true };
+    p.archivedAt == null and has(p, #onderaannemer) and p.orgId == ?orgId and activeOa(ctx, p);
+  };
+
+  // Ingeven of wijzigen: admin en werfleider elke afwezigheid; een OA enkel voor zijn eigen firma, en een
+  // bestaande enkel als ze door zijn firma gemeld werd (wat kantoor ingaf, past hij niet aan).
+  public func mayEditAbsence(ctx : Ctx, p : Person, orgId : Types.OrgId, existing : ?Types.AbsenceSource) : Bool {
+    if (may(ctx, p, #manageAbsences, null)) { return true };
+    may(ctx, p, #reportOwnAbsence, null) and p.orgId == ?orgId and (existing == null or existing == ?#oa);
   };
 
   public func require(ctx : Ctx, p : Person, action : Action, work : ?WorkId) {
@@ -334,6 +364,9 @@ module {
       manageCompanyCalendar = may(ctx, p, #manageCompanyCalendar, null);
       manageTemplates = may(ctx, p, #manageTemplates, null);
       readOrgPlanning = may(ctx, p, #readOrgPlanning, null);
+      manageAbsences = may(ctx, p, #manageAbsences, null);
+      reportOwnAbsence = may(ctx, p, #reportOwnAbsence, null);
+      manageBoardRules = may(ctx, p, #manageBoardRules, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

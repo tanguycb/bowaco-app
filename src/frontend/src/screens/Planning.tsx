@@ -17,7 +17,7 @@ import { addWorkdays, dayLetter, fmtDm, fmtShort, isoWeek, isStale, isWorkday, m
 
 const N = Number;
 
-function useMedia(q: string): boolean {
+export function useMedia(q: string): boolean {
   const [m, setM] = useState(() => window.matchMedia(q).matches);
   useEffect(() => {
     const mq = window.matchMedia(q);
@@ -72,7 +72,11 @@ export function PlanningPage({ id, caps, go }: { id: bigint; caps: Caps; go: (to
   const plan = usePlan(id);
   const wide = useMedia("(min-width: 900px)");
   const toast = useToast();
-  const [open, setOpen] = useState<bigint | "new" | null>(null);
+  // Vanaf het weekbord (1.4): #/werven/3/planning?taak=12 opent meteen die taak.
+  const [open, setOpen] = useState<bigint | "new" | null>(() => {
+    const m = window.location.hash.match(/[?&]taak=(\d+)/);
+    return m ? BigInt(m[1]) : null;
+  });
   const [preview, setPreview] = useState<{ change: PlanChange; title: string } | null>(null);
   const [sheet, setSheet] = useState<"tpl" | "cal" | "hist" | null>(null);
   const [zoom, setZoom] = useState<"day" | "week">("day");
