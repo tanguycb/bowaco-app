@@ -716,8 +716,8 @@ const trap = byKey(pA, "trap");
 check("taak archiveren (trap): weg uit de planning, met haar afhankelijkheden", isOk(await wl.archiveTask(A, trap.id, pA.version)) && await plan(wl).then((p) => p.tasks.length === 27 && p.dependencies.every((d) => d.fromTaskId !== trap.id && d.toTaskId !== trap.id)));
 // Vrije taak, en twee planners tegelijk
 pA = await plan(wl);
-const free = await wl.saveTask(A, tIn({ title: "Nutsaansluiting Fluvius", workdays: 1n, start: dayOf(2026, 11, 14) }), pA.version);
-check("vrije taak op een zaterdag → naar maandag", isOk(free) && (await plan(wl)).tasks.some((t) => t.title === "Nutsaansluiting Fluvius" && t.start === dayOf(2026, 11, 16)));
+const free = await wl.saveTask(A, tIn({ title: "Nutsaansluiting (proef)", workdays: 1n, start: dayOf(2026, 11, 14) }), pA.version);
+check("vrije taak op een zaterdag → naar maandag", isOk(free) && (await plan(wl)).tasks.some((t) => t.title === "Nutsaansluiting (proef)" && t.start === dayOf(2026, 11, 16)));
 check("tweede planner met de oude versie: geweigerd", errOf(await admin.saveTask(A, tIn({ title: "Gelijktijdig" }), pA.version)).includes("intussen gewijzigd"));
 // Werf B: een taak voor OA Dak (gebruikt door de lektest)
 const pB = await plan(admin, B);
