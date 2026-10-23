@@ -1,14 +1,15 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "0.6-draft2";
+  public let version = "0.6-draft3";
   public let schema : Nat = 1;
 
-  // SHA-256("bowaco-code-v1|" # code) van de opstartcode (16 tekens, 80 bit).
-  // NU: de TEST-opstartcode (code alleen in ~/.bowaco, nooit in git), zodat de rollentest op de
-  // draft de eerste admin kan claimen. Vóór live (0.7) komt hier de hash van de echte code, die de
-  // eigenaar zelf maakt met tools/opstartcode.mjs (A16, T21). Een hash wisselen is geen migratie.
-  public let bootstrapHashHex = "6216ebc1c162d43959d117ee9241bcba1ed55286a5bd37042ddc9f9aa7d55c0f";
+  // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
+  // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
+  // Lokaal wisselt tests/lokaal.sh deze hash tijdelijk om naar die van de TEST-code (~/.bowaco), zodat de
+  // rollentest een lege canister kan claimen; tools/meetlat.mjs weigert een upload met de testhash.
+  // Een hash wisselen is geen migratie.
+  public let bootstrapHashHex = "2390ba6730471a9be0a94a2390881505d15e6bf7e216bb33f478655638f3d4c1";
 
   public let second : Int = 1_000_000_000;
   public let minute : Int = 60_000_000_000;

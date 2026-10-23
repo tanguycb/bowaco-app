@@ -75,6 +75,14 @@ const walk = (d) => {
   }
 };
 walk(root);
+// De upload mag nooit de hash van de TEST-opstartcode dragen (die code staat in ~/.bowaco en in testscripts).
+if (testCode) {
+  const { createHash } = await import("node:crypto");
+  const b = testCode.toUpperCase().replace(/[\s-]/g, "");
+  const testHash = createHash("sha256").update(`bowaco-code-v1|${b.length === 19 && b.startsWith("BOW") ? b.slice(3) : b}`).digest("hex");
+  const cfg = readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8");
+  ok(!cfg.includes(testHash), "Config.mo draagt NIET de hash van de test-opstartcode");
+}
 ok(hits.length === 0, `geen sleutels of opstartcode in de bestanden${hits.length ? `: ${hits.join(", ")}` : ""}`);
 
 console.log(bad ? `\n${bad} grens(en) overschreden` : "\nmeetlat groen");

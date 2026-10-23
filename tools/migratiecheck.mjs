@@ -1,6 +1,7 @@
 // Migratiecheck (M7, M11): bewijst dat het nieuwe programma kan upgraden vanaf het programma van de
 // vorige gelande draft, met data én leeg. Alleen op het EIGEN testnet (~/.bowaco/net, poort 8041).
 //   OUD=<pad naar backend.wasm van de vorige draft> node tools/migratiecheck.mjs
+//   ZONDER_DATA=1 …   enkel (1); nodig als de rollentest de interface van het oude programma niet meer kent
 // Stappen: (1) oud leeg → nieuw; (2) oud + rollentest-data → nieuw; tellingen uit exportIntern vóór/na gelijk.
 // Bij 0.6 bestaat er nog geen vorige draft op de nieuwe keten: dan enkel (0) verse installatie.
 import { execFileSync } from "node:child_process";
@@ -32,6 +33,7 @@ icp("deploy", "backend", "--mode", "reinstall", "-y");
 process.env.WASM = nieuw;
 icp("deploy", "backend", "--mode", "upgrade", "-y");
 console.log("(1) oud leeg → nieuw: OK");
+if (process.env.ZONDER_DATA) process.exit(0); // (2) dan op de draft zelf: tools/telling.mjs voor en na
 process.env.WASM = oud;
 icp("deploy", "backend", "--mode", "reinstall", "-y");
 execFileSync("node", [join(repo, "tests/rollen.mjs"), cid()], { env: { ...process.env, ZONDER_KLOK: "1" }, stdio: "ignore" });
