@@ -155,6 +155,7 @@ type DossierState__7485337 =
   };
 type Extra__482036894 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
+type Extra__594079308 = [(Text, Text)];
 type Extra__945213800 = [(Text, Text)];
 type FileRef__312567383 =
   {
@@ -359,6 +360,7 @@ type NewActor__1057791986 =
     settings : SettingsState__180579617;
     works : WorksState__605582232
   };
+type NewActor__914032600 = {oa : OaState__978871092};
 type Node__204828119<K, V> =
   {#internal : Internal__283199666<K, V>; #leaf : Leaf__598469445<K, V>};
 type Notification__1016009815 =
@@ -383,6 +385,13 @@ type Notification__821136752 =
     text : Text;
     workId : ?WorkId__111716167
   };
+type OaState__978871092 =
+  {
+    orgContacts : Map__230067015<OrgId__98679714, OrgContact__467829229>;
+    personContacts :
+      Map__230067015<PersonId__820620982, PersonContact__206564395>
+  };
+type OldActor__211850744 = {};
 type OldActor__415128861 = {};
 type OldActor__574962007 = {};
 type OrgConfidential__581272438 =
@@ -399,9 +408,32 @@ type OrgConfidential__888519432 =
     orgId : OrgId__875663865;
     var version : Nat
   };
+type OrgContact__467829229 =
+  {
+    contactNote : Text;
+    email : ?Text;
+    extra : Extra__594079308;
+    orgId : OrgId__98679714;
+    phone : ?Text;
+    updatedAt : Int;
+    updatedBy : PersonId__820620982;
+    website : ?Text
+  };
+type OrgContact__539818738 =
+  {
+    contactNote : Text;
+    email : ?Text;
+    extra : Extra__945213800;
+    orgId : OrgId__17031398;
+    phone : ?Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    website : ?Text
+  };
 type OrgId__17031398 = Nat;
 type OrgId__232449879 = Nat;
 type OrgId__875663865 = Nat;
+type OrgId__98679714 = Nat;
 type OrgKind__867804321 =
   {
     #architect;
@@ -473,8 +505,29 @@ type PersonConfidential__403340742 =
     personId : PersonId__967516914;
     var version : Nat
   };
+type PersonContact__206564395 =
+  {
+    email : ?Text;
+    extra : Extra__594079308;
+    jobTitle : Text;
+    note : Text;
+    personId : PersonId__820620982;
+    updatedAt : Int;
+    updatedBy : PersonId__820620982
+  };
+type PersonContact__279373132 =
+  {
+    email : ?Text;
+    extra : Extra__945213800;
+    jobTitle : Text;
+    note : Text;
+    personId : PersonId__967516914;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914
+  };
 type PersonId__1007515609 = Nat;
 type PersonId__253911295 = Nat;
+type PersonId__820620982 = Nat;
 type PersonId__967516914 = Nat;
 type Person__726696944 =
   {
@@ -785,7 +838,8 @@ type WorksState__605582232 =
   };
 {
   "20261022_220241" : OldActor__415128861 -> NewActor__1057791986;
-  "20261023_150000" : OldActor__574962007 -> NewActor__1036484427
+  "20261023_150000" : OldActor__574962007 -> NewActor__1036484427;
+  "20261023_180000" : OldActor__211850744 -> NewActor__914032600
 }
 actor  {
   stable access :
@@ -818,6 +872,12 @@ actor  {
       info : Map__230067015<WorkId__929594816, WorkInfo__383931944>
     };
   stable files : {files : Map__230067015<Nat, FileRef__388390992>};
+  stable oa :
+    {
+      orgContacts : Map__230067015<OrgId__17031398, OrgContact__539818738>;
+      personContacts :
+        Map__230067015<PersonId__967516914, PersonContact__279373132>
+    };
   stable org :
     {
       orgConfidential :
