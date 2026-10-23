@@ -555,6 +555,193 @@ check("auditlog kent ook de proefronde", (await admin.auditLog(0n, 80n)).some((x
 const exp12 = await admin.exportIntern();
 check("interne export bevat contacten, contactgegevens van personen en vakgebieden", exp12.orgContacts.length >= 2 && exp12.personContacts.length >= 2 && exp12.trades.length === 22);
 
+await sec("── 1.3 planning per werf: sjabloon, kalender, verschuiven, uitvoerders, bevestigen, zicht per rol (R3, R5, R6)");
+const dayOf = (y, m, d) => BigInt(Math.floor(Date.UTC(y, m - 1, d) / 86_400_000));
+const wd = (d) => (Number(d) + 3) % 7; // 0 = maandag
+const fmt = (d) => new Date(Number(d) * 86_400_000).toISOString().slice(0, 10);
+const tIn = (o) => ({ id: opt(o.id), title: o.title ?? "Proeftaak", note: o.note ?? "", kind: { [o.kind ?? "work"]: null }, trade: opt(o.trade), responsibleOrgId: opt(o.org), status: { [o.status ?? "planned"]: null }, percent: o.percent ?? 0n, start: o.start ?? dayOf(2026, 11, 2), workdays: o.workdays ?? 5n, leadDays: o.lead ?? 0n, orderDay: opt(o.orderDay), reason: o.reason ?? "" });
+const plan = (who, w = A) => who.getPlan(w);
+const byKey = (p, k) => p.tasks.find((t) => t.templateKey[0] === k);
+const START = dayOf(2026, 11, 2); // maandag
+// Sjablonen lezen (interne rollen) en de standaard (VOORLOPIG)
+const tpls = await calc.listTemplates();
+const std = tpls.find((t) => t.key === "standaardrenovatie");
+check("standaardsjabloon staat klaar (voorlopig, nog niet bewaard)", !!std && std.provisional && !std.stored && std.steps.length === 28, `${std?.steps.length}`);
+check("OA, architect, klant, veiligheid lezen de sjablonen niet", (await Promise.all([oa, arch, klant, vc, anon].map((x13) => rejects(x13.listTemplates())))).every(Boolean));
+// Lezen van een lege planning
+const p0 = await plan(calc);
+check("calculator leest de (lege) planning van A", p0.tasks.length === 0 && p0.caps.edit === false && p0.scope === "full");
+check("OA Tegels kan de planning van B niet lezen (geen lid)", await rejects(oa.getPlan(B)));
+check("anoniem en ongekoppeld lezen geen planning", (await rejects(anon.getPlan(A))) && (await rejects(vreemde.getPlan(A))));
+// Plannen: enkel admin en werfleider (R5)
+check("calculator, OA, architect, klant, veiligheid plannen niet", (await Promise.all([calc, oa, arch, klant, vc].map((x13) => denied(x13.saveTask(A, tIn({}), 0n))))).every(Boolean));
+check("calculator past geen sjabloon toe", await denied(calc.applyTemplate(A, "standaardrenovatie", START, false, 0n)));
+const ap = await wl.applyTemplate(A, "standaardrenovatie", START, false, 0n);
+check("werfleider zet het sjabloon op werf A vanaf ma 02.11.2026", isOk(ap), errOf(ap));
+let pA = await plan(wl);
+check("28 taken met afhankelijkheden, eerste op 02.11.2026", pA.tasks.length === 28 && pA.dependencies.length >= 30 && byKey(pA, "voorbereiding").start === START, `${pA.tasks.length} taken, ${pA.dependencies.length} afh.`);
+check("elke taak begint op een werkdag (ma–vr)", pA.tasks.every((t) => wd(t.start) < 5 && wd(t.end) < 5));
+check("geen waarschuwingen: niemand begint vóór zijn voorganger klaar is", pA.tasks.every((t) => t.warnings.length === 0), pA.tasks.flatMap((t) => t.warnings).join(" | "));
+const chape = byKey(pA, "chape");
+const tegelsT = byKey(pA, "tegels");
+const afbraak = byKey(pA, "afbraak");
+check("ruwbouw begint de werkdag na de afbraak", byKey(pA, "ruwbouw").start > afbraak.end && Number(byKey(pA, "ruwbouw").start - afbraak.end) <= 3);
+check("tegels wachten de droogtijd van de chape (15 werkdagen = ≥ 21 kalenderdagen)", Number(tegelsT.start - chape.end) >= 21, `${fmt(chape.end)} → ${fmt(tegelsT.start)}`);
+check("de wachttijd geldt enkel na de eerste voorganger (chape), niet na de pleister", pA.dependencies.filter((d) => d.toTaskId === tegelsT.id).map((d) => Number(d.lagDays)).sort().join() === "0,15");
+const levK = byKey(pA, "levering-keuken");
+check("levering keuken = mijlpaal met levertermijn 42 d en 'uiterlijk bestellen'", "delivery" in levK.kind && levK.workdays === 0n && levK.leadDays === 42n && levK.orderBy[0] === levK.start - 42n);
+check("oplevering is een mijlpaal aan het einde", "milestone" in byKey(pA, "oplevering").kind && byKey(pA, "oplevering").start === pA.end[0]);
+check("het sjabloon nog eens zonder 'toevoegen' geweigerd", errOf(await wl.applyTemplate(A, "standaardrenovatie", START, false, pA.version)).includes("al taken"));
+check("verouderde planversie geweigerd (geen stil verlies)", errOf(await wl.saveTask(A, tIn({ title: "Te laat" }), 0n)).includes("intussen gewijzigd"));
+// Grenzen
+check("mijlpaal met duur geweigerd", errOf(await wl.saveTask(A, tIn({ kind: "milestone", workdays: 3n }), pA.version)).includes("0 dagen"));
+check("onmogelijke startdatum geweigerd", errOf(await wl.saveTask(A, tIn({ start: 10n }), pA.version)).includes("Onmogelijke"));
+check("onbekend vakgebied geweigerd", errOf(await wl.saveTask(A, tIn({ trade: "bestaat-niet" }), pA.version)).includes("vakgebied"));
+// Voorvertoning verandert niets
+const vb = byKey(pA, "voorbereiding");
+const pv = await wl.previewPlan(A, { move: { taskId: vb.id, start: START + 7n, workdays: vb.workdays, mode: { follow: null } } });
+check("voorvertoning: voorbereiding +1 week → alle 28 taken schuiven mee", isOk(pv) && pv.ok.changes.length === 28, errOf(pv) || `${pv.ok?.changes.length}`);
+check("voorvertoning verandert niets", (await plan(wl)).version === pA.version && byKey(await plan(wl), "voorbereiding").start === START);
+check("calculator en OA kunnen geen voorvertoning vragen", (await denied(calc.previewPlan(A, { reflow: null }))) && (await denied(oa.previewPlan(A, { reflow: null }))));
+const mv = await wl.applyPlan(A, { move: { taskId: vb.id, start: START + 7n, workdays: vb.workdays, mode: { follow: null } } }, pA.version, "klant vraagt een week later");
+check("verplaatsen: 28 taken een week later, planversie +1", isOk(mv) && mv.ok.changes.length === 28 && mv.ok.version === pA.version + 1n, errOf(mv));
+pA = await plan(wl);
+check("oplevering schoof ook 5 werkdagen", byKey(pA, "oplevering").start === mv.ok.changes.find((c) => c.taskId === byKey(pA, "oplevering").id).toStart && mv.ok.changes.every((c) => c.toStart > c.fromStart));
+const hist13 = await wl.taskHistory(A, [byKey(pA, "oplevering").id], 0n, 20n);
+check("wijzigingen: wat schoof en waarom (volgt «Werfvoorbereiding…» · reden)", hist13.some((h) => h.field === "start" && h.reason.includes("volgt") && h.reason.includes("klant vraagt")), JSON.stringify(hist13.slice(0, 2), big));
+// Vroeger dan de voorganger kan niet
+const rw = byKey(pA, "ruwbouw");
+const early = await wl.previewPlan(A, { move: { taskId: rw.id, start: rw.start - 7n, workdays: rw.workdays, mode: { asNeeded: null } } });
+check("ruwbouw vóór het einde van de afbraak zetten: blijft staan (wacht op «Afbraakwerken»)", isOk(early) && early.ok.changes.every((c) => c.taskId !== rw.id || c.toStart === rw.start), JSON.stringify(early, big));
+// Verlengen schuift de opvolgers
+const ab = byKey(pA, "afbraak");
+const longer = await wl.applyPlan(A, { move: { taskId: ab.id, start: ab.start, workdays: ab.workdays + 5n, mode: { asNeeded: null } } }, pA.version, "asbest gevonden");
+pA = await plan(wl);
+check("afbraak +5 werkdagen: ruwbouw en de rest schuiven, niemand te vroeg", isOk(longer) && byKey(pA, "ruwbouw").start > byKey(pA, "afbraak").end && pA.tasks.every((t) => t.warnings.length === 0), errOf(longer));
+// Kalender: bouwverlof (bedrijf) en STOP (werf)
+const bvl = { id: [], scope: { company: null }, kind: { bouwverlof: null }, from: dayOf(2026, 12, 21), to: dayOf(2027, 1, 1), reason: "Kerstverlof (proef)" };
+check("werfleider kan geen bedrijfskalender wijzigen", await denied(wl.saveCalendarBlock(bvl)));
+check("OA kan geen werfblokkering zetten", await denied(oa.saveCalendarBlock({ ...bvl, scope: { work: A }, kind: { stop: null } })));
+check("verlof per firma komt in 1.4 (geweigerd)", await denied(admin.saveCalendarBlock({ ...bvl, scope: { org: orgX.ok.id }, kind: { verlof: null } })));
+const blk = await admin.saveCalendarBlock(bvl);
+check("admin zet bouwverlof 21.12.2026 – 01.01.2027 voor het hele bedrijf", isOk(blk), errOf(blk));
+pA = await plan(wl);
+check("taken over het bouwverlof duren langer; opvolgers krijgen een waarschuwing", pA.blocks.length === 1 && pA.tasks.some((t) => t.warnings.length > 0));
+check("een taak die nu in het bouwverlof begint, krijgt een waarschuwing", pA.tasks.filter((t) => t.start >= bvl.from && t.start <= bvl.to).every((t) => t.warnings.some((w) => w.includes("blokkering"))));
+const rf = await wl.previewPlan(A, { reflow: null });
+check("herschikken: voorvertoning toont wat schuift", isOk(rf) && rf.ok.changes.length > 0);
+check("herschikken toepassen: geen waarschuwingen meer", isOk(await wl.applyPlan(A, { reflow: null }, pA.version, "bouwverlof")) && (await plan(wl)).tasks.every((t) => t.warnings.length === 0));
+check("na herschikken begint of eindigt geen taak in het bouwverlof", (await plan(wl)).tasks.every((t) => (t.start < bvl.from || t.start > bvl.to) && (t.end < bvl.from || t.end > bvl.to)));
+const stop = await wl.saveCalendarBlock({ id: [], scope: { work: A }, kind: { stop: null }, from: dayOf(2027, 1, 4), to: dayOf(2027, 1, 8), reason: "STOP: stabiliteit (proef)" });
+check("werfleider zet STOP op zijn werf A", isOk(stop), errOf(stop));
+pA = await plan(wl);
+check("na de STOP opnieuw herschikken: geen waarschuwingen", isOk(await wl.applyPlan(A, { reflow: null }, pA.version, "STOP")) && (await plan(wl)).tasks.every((t) => t.warnings.length === 0));
+check("STOP op werf A geldt niet voor werf B", (await wl.listCalendarBlocks([B])).every((b) => !("work" in b.scope)) && (await wl.listCalendarBlocks([A])).length === 2);
+check("calculator leest de bedrijfskalender; OA niet", (await calc.listCalendarBlocks([])).length === 1 && (await rejects(oa.listCalendarBlocks([]))));
+const proefBlk = await admin.saveCalendarBlock({ ...bvl, from: dayOf(2027, 7, 19), to: dayOf(2027, 8, 6), reason: "Proefblok (gearchiveerd)" });
+check("admin archiveert een bedrijfsblok", isOk(await admin.archiveCalendarBlock(proefBlk.ok)) && (await calc.listCalendarBlocks([])).length === 1);
+check("werfleider kan een bedrijfsblok niet archiveren", await denied(wl.archiveCalendarBlock(blk.ok)));
+pA = await plan(wl);
+// Afhankelijkheden
+const opl = byKey(pA, "oplevering");
+check("kring geweigerd (oplevering → voorbereiding)", errOf(await wl.addDependency(A, { fromTaskId: opl.id, toTaskId: byKey(pA, "voorbereiding").id, kind: { finishToStart: null }, lagDays: 0n }, pA.version)).includes("kring"));
+check("dubbele afhankelijkheid geweigerd", errOf(await wl.addDependency(A, { fromTaskId: byKey(pA, "afbraak").id, toTaskId: byKey(pA, "ruwbouw").id, kind: { finishToStart: null }, lagDays: 0n }, pA.version)).includes("bestaat al"));
+const dk = byKey(pA, "dak");
+const dep = await wl.addDependency(A, { fromTaskId: dk.id, toTaskId: byKey(pA, "trap").id, kind: { finishToStart: null }, lagDays: 2n }, pA.version);
+check("nieuwe afhankelijkheid (trap wacht 2 werkdagen op dak): opvolgers schuiven waar nodig", isOk(dep) && (await plan(wl)).tasks.every((t) => t.warnings.length === 0), errOf(dep));
+pA = await plan(wl);
+const depId = pA.dependencies.find((d) => d.fromTaskId === dk.id && d.toTaskId === byKey(pA, "trap").id)?.id;
+check("afhankelijkheid weer weg", isOk(await wl.removeDependency(A, depId, pA.version)));
+pA = await plan(wl);
+// Uitvoerders: OA Tegels op «tegels», OA Dak op «dak»; levering met besteldatum
+const tg = byKey(pA, "tegels");
+const st13 = await wl.saveTask(A, tIn({ id: tg.id, title: tg.title, kind: "work", trade: "tegels", org: orgX.ok.id, start: tg.start, workdays: tg.workdays, note: "sleutel bij de buren (intern)" }), pA.version);
+check("werfleider wijst «tegels» toe aan de tegelfirma (verantwoordelijke = eerste uitvoerder)", isOk(st13), errOf(st13));
+pA = await plan(wl);
+const tgA = byKey(pA, "tegels").assignments[0];
+check("toewijzing open, firma is lid van de werf", tgA && "open" in tgA.confirmation && tgA.primary && tgA.inTeam && tgA.orgCode[0] === "GILS", JSON.stringify(tgA, big));
+const dkT = byKey(pA, "dak");
+check("«dak» naar OA Dak (lid via zijn firma, zonder bevestigingsrecht)", isOk(await wl.saveTask(A, tIn({ id: dkT.id, title: dkT.title, trade: "dak", org: orgY.ok.id, start: dkT.start, workdays: dkT.workdays }), pA.version)));
+pA = await plan(wl);
+const extra = await wl.saveAssignment(A, { id: [], taskId: byKey(pA, "tegels").id, orgId: orgElek.ok.id, personId: [], fromDay: [byKey(pA, "tegels").start], toDay: [byKey(pA, "tegels").start + 1n], note: "stopcontacten faïence" }, pA.version);
+check("tweede uitvoerder voor een deel van de taak (elektricien, 2 dagen)", isOk(extra), errOf(extra));
+pA = await plan(wl);
+check("tweede uitvoerder niet in het team → inTeam = nee (ziet de taak niet)", byKey(pA, "tegels").assignments.some((a) => a.orgId === orgElek.ok.id && !a.inTeam && a.end === a.start + 1n));
+check("de verantwoordelijke archiveren via de uitvoerders geweigerd", errOf(await wl.archiveAssignment(A, tgA.id, pA.version)).includes("bij de taak"));
+// Zicht per rol
+const pOa = await plan(oa);
+check("OA Tegels ziet enkel zijn eigen taak (tegels), zonder interne notitie en zonder andere firma's", pOa.scope === "ownOrg" && pOa.tasks.length === 1 && pOa.tasks[0].title.startsWith("Tegel") && pOa.tasks[0].note === "" && pOa.tasks[0].assignments.every((a) => a.orgId === orgX.ok.id), JSON.stringify(pOa.tasks.map((t) => t.title)));
+check("OA Tegels: geen afhankelijkheden van anderen, geen bewerken, wel bevestigen", pOa.dependencies.length === 0 && !pOa.caps.edit && pOa.caps.confirm);
+const pOa2 = await plan(oa2);
+check("OA Dak ziet op A enkel «dak»; bevestigen kan niet (geen grant #confirmPlanning)", pOa2.tasks.length === 1 && pOa2.tasks[0].title === "Dakwerken" && !pOa2.caps.confirm);
+const pKl = await plan(klant);
+check("klant ziet de samenvatting: alle taken en data, geen firma's, geen notities, geen uitvoerders", pKl.scope === "summary" && pKl.tasks.length === 28 && pKl.tasks.every((t) => t.responsibleName === "" && t.responsibleOrgId.length === 0 && t.note === "" && t.assignments.length === 0) && pKl.dependencies.length === 0);
+const pAr = await plan(arch);
+check("architect ziet alles behalve interne notities", pAr.scope === "external" && pAr.tasks.length === 28 && byKey(pAr, "tegels").responsibleName === "Proef Tegels BV" && byKey(pAr, "tegels").note === "" && !pAr.caps.edit);
+check("veiligheidscoördinator ziet zoals de architect", (await plan(vc)).scope === "external");
+check("werfleider ziet de interne notitie", byKey(pA, "tegels").note.includes("buren"));
+check("wijzigingen: interne rollen wel, architect en OA niet", (await calc.taskHistory(A, [], 0n, 5n)).length === 5 && (await rejects(arch.taskHistory(A, [], 0n, 5n))) && (await rejects(oa.taskHistory(A, [], 0n, 5n))));
+// Bevestigen (R6)
+check("OA Dak kan de toewijzing van de tegelfirma niet bevestigen", await rejects(oa2.confirmAssignment(tgA.id, true, "")));
+const dkA = byKey(pA, "dak").assignments[0];
+check("OA Dak kan zijn eigen toewijzing op A niet bevestigen zonder grant", await rejects(oa2.confirmAssignment(dkA.id, true, "")));
+check("werfleider kan niet bevestigen in naam van de OA", await rejects(wl.confirmAssignment(tgA.id, true, "")));
+check("OA Tegels bevestigt zijn toewijzing", isOk(await oa.confirmAssignment(tgA.id, true, "")));
+check("bevestiging zichtbaar voor de werfleider, met naam", await plan(wl).then((p) => { const a = byKey(p, "tegels").assignments.find((x13) => x13.id === tgA.id); return "confirmed" in a.confirmation && a.confirmedByName[0] === "Proef OA Tegels"; }));
+const mine = await oa.orgAssignments([], dayOf(2026, 10, 1), dayOf(2027, 6, 30));
+check("«Mijn taken» van de OA: de tegels op werf P-A, bevestigd, mag bevestigen", mine.length === 1 && mine[0].workCode === "P-A" && mine[0].canConfirm && "confirmed" in mine[0].assignment.confirmation, JSON.stringify(mine, big));
+check("toewijzingen per firma (weekbord 1.4): werfleider en calculator wel, een andere OA niet", (await wl.orgAssignments([orgX.ok.id], dayOf(2026, 10, 1), dayOf(2027, 6, 30))).length === 1 && (await calc.orgAssignments([orgX.ok.id], dayOf(2026, 10, 1), dayOf(2027, 6, 30))).length === 1 && (await rejects(oa2.orgAssignments([orgX.ok.id], dayOf(2026, 10, 1), dayOf(2027, 6, 30)))));
+// Verschuiven zet de bevestiging terug open
+pA = await plan(wl);
+const tg2 = byKey(pA, "tegels");
+const mv2 = await wl.applyPlan(A, { move: { taskId: tg2.id, start: tg2.start + 7n, workdays: tg2.workdays, mode: { follow: null } } }, pA.version, "");
+check("tegels een week later: bevestiging terug open (reopened ≥ 1)", isOk(mv2) && mv2.ok.reopened >= 1n && (await plan(wl).then((p) => "open" in byKey(p, "tegels").assignments.find((x13) => x13.id === tgA.id).confirmation)), errOf(mv2));
+check("eigen bereik van de tweede uitvoerder schoof mee", await plan(wl).then((p) => { const t = byKey(p, "tegels"); const x13 = t.assignments.find((a) => a.orgId === orgElek.ok.id); return x13.start === t.start && x13.end === t.start + 1n; }));
+check("weigeren zonder reden geweigerd", errOf(await oa.confirmAssignment(tgA.id, false, " ")).includes("reden"));
+check("OA Tegels weigert met reden", isOk(await oa.confirmAssignment(tgA.id, false, "die week op een andere werf")));
+check("werfleider krijgt een melding van de weigering", (await wl.myNotifications(true)).some((n) => n.kind === "planning-geweigerd" && n.text.includes("andere werf")));
+// Levering met besteldatum
+pA = await plan(wl);
+const lr = byKey(pA, "levering-ramen");
+const late13 = lr.start - 10n; // besteld 10 dagen vóór de geplande levering, levertermijn 56 d → te laat
+const dl = await wl.saveTask(A, tIn({ id: lr.id, title: lr.title, kind: "delivery", trade: "buitenschrijnwerk", start: lr.start, workdays: 0n, lead: 56n, orderDay: late13 }), pA.version);
+pA = await plan(wl);
+check("levering te laat besteld: levering en opvolgers schuiven naar besteldatum + 56 d", isOk(dl) && byKey(pA, "levering-ramen").start >= late13 + 56n && byKey(pA, "ramen").start >= byKey(pA, "levering-ramen").start && pA.tasks.every((t) => t.warnings.length === 0), errOf(dl));
+// Volgorde en archiveren
+const order = pA.tasks.map((t) => t.id);
+check("volgorde met een ontbrekende taak geweigerd", "err" in (await wl.setTaskOrder(A, order.slice(1), pA.version)));
+check("volgorde omkeren", isOk(await wl.setTaskOrder(A, [...order].reverse(), pA.version)) && (await plan(wl)).tasks[0].id === order[order.length - 1]);
+pA = await plan(wl);
+const trap = byKey(pA, "trap");
+check("taak archiveren (trap): weg uit de planning, met haar afhankelijkheden", isOk(await wl.archiveTask(A, trap.id, pA.version)) && await plan(wl).then((p) => p.tasks.length === 27 && p.dependencies.every((d) => d.fromTaskId !== trap.id && d.toTaskId !== trap.id)));
+// Vrije taak, en twee planners tegelijk
+pA = await plan(wl);
+const free = await wl.saveTask(A, tIn({ title: "Nutsaansluiting Fluvius", workdays: 1n, start: dayOf(2026, 11, 14) }), pA.version);
+check("vrije taak op een zaterdag → naar maandag", isOk(free) && (await plan(wl)).tasks.some((t) => t.title === "Nutsaansluiting Fluvius" && t.start === dayOf(2026, 11, 16)));
+check("tweede planner met de oude versie: geweigerd", errOf(await admin.saveTask(A, tIn({ title: "Gelijktijdig" }), pA.version)).includes("intussen gewijzigd"));
+// Werf B: een taak voor OA Dak (gebruikt door de lektest)
+const pB = await plan(admin, B);
+check("admin plant op werf B een taak voor OA Dak", isOk(await admin.saveTask(B, tIn({ title: "Dakgoot B", trade: "dak", org: orgY.ok.id, start: dayOf(2026, 11, 9) }), pB.version)));
+check("OA Dak bevestigt op B (lid met standaardrechten)", await plan(oa2, B).then((p) => p.caps.confirm && p.tasks.length === 1));
+// Sjablonen beheren (admin)
+const stepsMod = std.steps.filter((s) => s.key !== "trap").map((s) => ({ ...s, after: s.after.filter((a) => a !== "trap") }));
+check("werfleider kan geen sjabloon wijzigen", await denied(wl.saveTemplate({ key: "standaardrenovatie", name: "x13", steps: stepsMod, provisional: true, archived: false })));
+check("sjabloon met een stap die wacht op een latere stap geweigerd", errOf(await admin.saveTemplate({ key: "fout", name: "Fout", steps: [{ ...std.steps[1], after: ["bestaat-later"] }], provisional: true, archived: false })).includes("niet vóór"));
+check("sjabloon met onbekend vakgebied geweigerd", errOf(await admin.saveTemplate({ key: "fout", name: "Fout", steps: [{ ...std.steps[0], trade: ["bestaat-niet"] }], provisional: true, archived: false })).includes("vakgebied"));
+check("admin past de standaard aan (zonder trap)", isOk(await admin.saveTemplate({ key: "standaardrenovatie", name: "Standaardrenovatie", steps: stepsMod, provisional: true, archived: false })));
+const tpl2 = (await calc.listTemplates()).find((t) => t.key === "standaardrenovatie");
+check("aangepaste standaard: 27 stappen, nu bewaard", tpl2.steps.length === 27 && tpl2.stored);
+check("eigen sjabloon 'badkamer' (2 stappen)", isOk(await admin.saveTemplate({ key: "badkamer", name: "Badkamer", steps: [{ key: "afbraak", title: "Afbraak badkamer", trade: ["afbraak"], kind: { work: null }, workdays: 2n, leadDays: 0n, after: [], lagDays: 0n, note: "" }, { key: "tegels", title: "Tegels badkamer", trade: ["tegels"], kind: { work: null }, workdays: 4n, leadDays: 0n, after: ["afbraak"], lagDays: 0n, note: "" }], provisional: false, archived: false })));
+pA = await plan(wl);
+const app2 = await wl.applyTemplate(A, "badkamer", dayOf(2027, 3, 1), true, pA.version);
+check("sjabloon 'badkamer' achteraan toevoegen", isOk(app2) && (await plan(wl)).tasks.length === 30, errOf(app2));
+// Auditlog en export
+const log13 = await admin.auditLog(0n, 200n);
+check("auditlog: sjabloon, verschuiven, kalender, uitvoerder, bevestigd en geweigerd", ["planning-sjabloon", "planning-geschoven", "kalender", "planning-uitvoerder", "planning-bevestigd", "planning-geweigerd", "planning-taak", "sjabloon"].every((a) => log13.some((e) => e.action === a)), [...new Set(log13.map((e) => e.action))].filter((a) => /plan|kalender|sjabloon/.test(a)).join(","));
+check("auditlog: geen interne notitie van de taak", !log13.some((e) => e.detail.includes("buren")));
+const ex13 = await admin.exportIntern();
+check("interne export bevat taken, uitvoerders, afhankelijkheden, kalender, wijzigingen en sjablonen", ex13.tasks.length >= 31 && ex13.assignments.length >= 3 && ex13.dependencies.length >= 30 && ex13.calendarBlocks.length === 3 && ex13.taskChanges.length > 50 && ex13.templates.length === 2);
+
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));
 check("werfleider kan geen robot toevoegen", await rejects(wl.addRobot(P("robot-test"), "Proefrobot", [])));

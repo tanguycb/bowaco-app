@@ -14,6 +14,7 @@ import FilesApi "mixins/FilesApi";
 import TicketsApi "mixins/TicketsApi";
 import DossierApi "mixins/DossierApi";
 import OaApi "mixins/OaApi";
+import PlanApi "mixins/PlanApi";
 
 persistent actor {
   let settings : Types.SettingsState;
@@ -23,6 +24,7 @@ persistent actor {
   let files : Types.FileState;
   let dossier : Types.DossierState; // 1.1: werffiche, contract (vertrouwelijk), documenten
   let oa : Types.OaState; // 1.2: contactgegevens van OA's en hun personen
+  let plan : Types.PlanState; // 1.3: planning per werf (taken, uitvoerders, afhankelijkheden, kalender, sjablonen)
   let robot : Types.RobotState;
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -31,10 +33,11 @@ persistent actor {
   include AccessApi(settings, access, works, robot, audit, ctr, org);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, audit, ctr);
-  include AdminApi(settings, access, org, works, files, dossier, oa, robot, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, oa, plan, robot, audit, ctr);
   include FilesApi(settings, access, works, files, dossier, audit, ctr);
   include DossierApi(settings, access, works, files, dossier, audit, ctr);
   include OaApi(settings, access, org, works, oa, audit, ctr);
+  include PlanApi(settings, access, org, works, plan, audit, ctr);
   include TicketsApi(settings, access, works, robot, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.

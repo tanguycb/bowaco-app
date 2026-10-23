@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1.2-draft7";
-  public let schema : Nat = 3; // 3 = met onderaannemers-database (1.2)
+  public let version = "1.3-draft8";
+  public let schema : Nat = 4; // 4 = met planning per werf (1.3)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -97,6 +97,63 @@ module {
   public let maxDocKinds : Nat = 60;
   public let maxDocsPerWork : Nat = 500;
   public let maxFilesPerDoc : Nat = 50;
+
+  // ── Planning per werf (1.3) ─────────────────────────────────────────────
+  public let maxTasksPerWork : Nat = 300;
+  public let maxDepsPerWork : Nat = 800;
+  public let maxAssignPerTask : Nat = 8;
+  public let maxBlocks : Nat = 400; // kalenderblokken in totaal (bedrijf + werven)
+  public let maxBlockDays : Nat = 120; // één blok
+  public let maxWorkdays : Nat = 400; // duur van één taak
+  public let maxLeadDays : Nat = 365;
+  public let maxLag : Int = 120; // wachttijd in werkdagen (± voor overlap)
+  public let maxTemplates : Nat = 20;
+  public let maxTemplateSteps : Nat = 80;
+  public let maxNote : Nat = 1_000;
+  // Rekengrens: geen planning verder dan ± 15 jaar na 1970+dag (lussen over de kalender blijven begrensd, T17).
+  public let maxScanDays : Nat = 1_500;
+  public let defaultTemplateKey = "standaardrenovatie";
+  public let minDay : Nat = 18_000; // 14.04.2019: vroeger is een tikfout
+  public let maxDay : Nat = 40_000; // 06.07.2079
+
+  // Sjabloon "standaardrenovatie" (VOORLOPIG tot 0.3 en de bevestiging van Alexis; de admin past het aan in
+  // Instellingen → Sjablonen, dan geldt die versie). Volgorde uit architectuur §1.1 punt 2 (mediane positie
+  // van de trefwoorden over de werven met ≥ 8 taken); de duur uit de mediaan van de weken met werk in de
+  // planning van 08-05-2026, omgezet naar werkdagen. Levertermijnen en wachttijden zijn een eerste gok.
+  // (sleutel, titel, vakgebied, soort "work"|"milestone"|"delivery", werkdagen, levertermijn in kalenderdagen,
+  //  wacht op (sleutels), wachttijd in werkdagen, notitie)
+  public func defaultTemplate() : [(Text, Text, ?Text, Text, Nat, Nat, [Text], Nat, Text)] {
+    [
+      ("voorbereiding", "Werfvoorbereiding en werfinrichting", ?"algemeen", "work", 3, 0, [], 0, ""),
+      ("container", "Container en inname openbaar domein geregeld", null, "milestone", 0, 0, ["voorbereiding"], 0, "vergunning openbaar domein"),
+      ("afplakken", "Afplakken en beschermen", ?"algemeen", "work", 2, 0, ["container"], 0, ""),
+      ("afbraak", "Afbraakwerken", ?"afbraak", "work", 5, 0, ["afplakken"], 0, ""),
+      ("ruwbouw", "Ruwbouw en metselwerk", ?"ruwbouw", "work", 5, 0, ["afbraak"], 0, ""),
+      ("injecteren", "Injecteren (vocht)", ?"injecteren", "work", 3, 0, ["ruwbouw"], 0, ""),
+      ("dak", "Dakwerken", ?"dak", "work", 5, 0, ["ruwbouw"], 0, ""),
+      ("ventilatie", "Ventilatie (slijpwerk en kanalen)", ?"ventilatie", "work", 10, 0, ["ruwbouw"], 0, ""),
+      ("elektriciteit", "Elektriciteit (slijpwerk en leidingen)", ?"elektriciteit", "work", 10, 0, ["ruwbouw"], 0, ""),
+      ("isolatie", "Isolatie", ?"vloerisolatie", "work", 3, 0, ["dak"], 0, ""),
+      ("trap", "Trap", ?"binnenschrijnwerk", "work", 5, 0, ["ruwbouw"], 0, ""),
+      ("pur", "PUR-isolatie vloer", ?"vloerisolatie", "work", 2, 0, ["elektriciteit", "ventilatie", "injecteren"], 0, ""),
+      ("gyproc", "Gyproc, voorzetwanden en plafonds", ?"pleister", "work", 10, 0, ["isolatie", "elektriciteit"], 0, ""),
+      ("sanitair", "Sanitair en verwarming", ?"sanitair-chauffage", "work", 5, 0, ["pur"], 0, ""),
+      ("pleister", "Pleisterwerken", ?"pleister", "work", 15, 0, ["gyproc"], 0, ""),
+      ("chape", "Chape", ?"chape", "work", 3, 0, ["sanitair"], 0, ""),
+      ("deuren", "Binnendeuren", ?"binnenschrijnwerk", "work", 5, 0, ["pleister"], 0, ""),
+      ("tegels", "Tegelwerken en faïence", ?"tegels", "work", 5, 0, ["chape", "pleister"], 15, "wachttijd = droogtijd chape (voorlopig 3 weken)"),
+      ("parket", "Parket", ?"parket", "work", 10, 0, ["chape"], 20, "wachttijd = droogtijd chape (voorlopig 4 weken)"),
+      ("levering-keuken", "Levering keuken", ?"binnenschrijnwerk", "delivery", 0, 42, ["tegels"], 0, "levertermijn voorlopig 6 weken"),
+      ("keuken", "Keuken plaatsen", ?"binnenschrijnwerk", "work", 5, 0, ["levering-keuken"], 0, ""),
+      ("plinten", "Plinten en dagkanten", ?"binnenschrijnwerk", "work", 3, 0, ["parket", "tegels"], 0, ""),
+      ("levering-ramen", "Levering ramen", ?"buitenschrijnwerk", "delivery", 0, 56, ["plinten"], 0, "levertermijn voorlopig 8 weken"),
+      ("ramen", "Ramen plaatsen", ?"buitenschrijnwerk", "work", 5, 0, ["levering-ramen"], 0, ""),
+      ("schilder", "Schilderwerken", ?"schilder", "work", 10, 0, ["ramen", "deuren", "keuken"], 0, ""),
+      ("opkuis", "Opkuis", ?"algemeen", "work", 3, 0, ["schilder"], 0, ""),
+      ("crepi-pid", "Crepi en PID", ?"pleister", "work", 10, 0, ["ramen"], 0, "PID = postinterventiedossier"),
+      ("oplevering", "Voorlopige oplevering", null, "milestone", 0, 0, ["opkuis", "crepi-pid"], 0, ""),
+    ];
+  };
 
   // ── Onderaannemers-database (1.2) ───────────────────────────────────────
   public let maxEmail : Nat = 120;

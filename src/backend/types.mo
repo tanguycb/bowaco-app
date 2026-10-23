@@ -346,6 +346,152 @@ module {
     documents : Map.Map<Nat, Document>;
   };
 
+  // ── Planning per werf (stap 1.3, architectuur §2.5) ──────────────────────
+  // Eigen domein `plan` (nieuw stabiel veld, deelvorm, OldActor = {}). De records zijn onveranderlijk:
+  // wijzigen = het record vervangen + een TaskChange per veld (D2); zo kunnen ze ook rechtstreeks naar
+  // buiten (export) zonder `var`. Tijd in kalenderdagen (Day, D4); duur in WERKDAGEN (ma–vr zonder
+  // kalenderblokken: bouwverlof, feestdagen, STOP). Het einde wordt altijd berekend, nooit bewaard.
+  public type TaskStatus = { #planned; #busy; #delayed; #done; #blocked }; // de vijf van §8.1
+  // #work = gewone taak · #milestone = mijlpaal (0 dagen) · #delivery = levering van materiaal met levertermijn
+  public type TaskKind = { #work; #milestone; #delivery };
+
+  // klasse: intern
+  public type Task = {
+    id : Nat;
+    workId : WorkId;
+    title : Text;
+    note : Text; // intern: externen zien de notitie niet
+    kind : TaskKind;
+    templateKey : ?Text; // stap uit een sjabloon ("afbraak"); vrije taak = null
+    trade : ?Text; // vakgebied (sleutel uit de vakgebieden van 1.2)
+    responsibleOrgId : ?OrgId; // de verantwoordelijke (kolom C van de planning)
+    status : TaskStatus;
+    percent : Nat; // 0–100
+    start : Day; // geplande start (een werkdag)
+    workdays : Nat; // duur in werkdagen; 0 bij een mijlpaal of levering
+    leadDays : Nat; // levertermijn in kalenderdagen (enkel #delivery): bestellen → leveren
+    orderDay : ?Day; // besteld op (enkel #delivery); null = nog niet besteld
+    actualStart : ?Day; // werkelijk begonnen (1.6)
+    actualEnd : ?Day;
+    order : Nat; // volgorde in de Gantt
+    quoteLineIds : [Nat]; // fase 2: offerteposten (leeg tot dan)
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  public type Confirmation = {
+    #open;
+    #confirmed : { by : PersonId; at : Int };
+    #declined : { by : PersonId; at : Int; reason : Text };
+  };
+
+  // klasse: intern. Wie voert uit (de weekcel van de planning). Zonder fromDay/toDay = de hele taak;
+  // met een bereik = een deel ervan (een tweede OA voor één week). Het weekbord van 1.4 = deze records
+  // per orgId, met de dagen van de taak erbij berekend.
+  public type Assignment = {
+    id : Nat;
+    taskId : Nat;
+    workId : WorkId;
+    orgId : OrgId;
+    personId : ?PersonId;
+    fromDay : ?Day;
+    toDay : ?Day;
+    note : Text; // vrije tekst van de cel ("FRANK 27/01 en 28/01")
+    primary : Bool; // de verantwoordelijke van de taak (volgt Task.responsibleOrgId)
+    confirmation : Confirmation; // terug op #open bij elke verschuiving
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  public type DependencyKind = { #finishToStart; #startToStart };
+
+  // klasse: intern. lagDays = wachttijd in werkdagen (droogtijd chape); negatief = overlap.
+  public type Dependency = {
+    id : Nat;
+    workId : WorkId;
+    fromTaskId : Nat;
+    toTaskId : Nat;
+    kind : DependencyKind;
+    lagDays : Int;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+  };
+
+  public type BlockScope = { #company; #work : WorkId; #org : OrgId };
+  public type BlockKind = { #bouwverlof; #feestdag; #stop; #verlof; #other };
+
+  // klasse: intern. Een blokkering van de kalender (bouwverlof, feestdag, STOP op een werf; verlof van
+  // een OA komt in 1.4). Werkdagen in een blok tellen niet mee.
+  public type CalendarBlock = {
+    id : Nat;
+    scope : BlockScope;
+    kind : BlockKind;
+    from : Day;
+    to : Day; // tot en met
+    reason : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern, append-only (D2). Elke wijziging aan een taak: wat schoof en waarom.
+  public type TaskChange = {
+    id : Nat;
+    taskId : Nat;
+    workId : WorkId;
+    at : Int;
+    by : PersonId;
+    field : Text;
+    from : Text;
+    to : Text;
+    reason : Text;
+  };
+
+  // klasse: intern. Een stap van een sjabloon; `after` = sleutels van de stappen waarop ze wacht
+  // (einde → begin); lagDays = wachttijd in werkdagen na de EERSTE van die stappen.
+  public type TemplateStep = {
+    key : Text;
+    title : Text;
+    trade : ?Text;
+    kind : TaskKind;
+    workdays : Nat;
+    leadDays : Nat;
+    after : [Text];
+    lagDays : Nat;
+    note : Text;
+  };
+
+  // klasse: intern. Sjablonen staan in het plan-domein (gestructureerd), niet in settings.lookups.
+  public type Template = {
+    key : Text;
+    name : Text;
+    steps : [TemplateStep];
+    provisional : Bool; // VOORLOPIG tot 0.3 / Alexis bevestigt
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  public type PlanState = {
+    tasks : Map.Map<Nat, Task>;
+    assignments : Map.Map<Nat, Assignment>;
+    dependencies : Map.Map<Nat, Dependency>;
+    calendarBlocks : Map.Map<Nat, CalendarBlock>;
+    taskChanges : Map.Map<Nat, TaskChange>;
+    templates : Map.Map<Text, Template>; // leeg = de standaard uit Config (VOORLOPIG)
+    versions : Map.Map<WorkId, Nat>; // planversie per werf: wie verouderd bewaart, krijgt een fout
+  };
+
   // ── Robot: tickets en voorstellen (§2.10, §6) ───────────────────────────
   public type TicketState = { #open; #used : Int; #expired };
 

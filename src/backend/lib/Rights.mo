@@ -29,6 +29,8 @@ module {
     #readContract; #editContract; #readWorkFacts; #setLeader;
     // 1.2: onderaannemers-database
     #readOa; #manageOa; #importOa;
+    // 1.3: planning per werf
+    #readPlanning; #manageCompanyCalendar; #manageTemplates; #readTemplates; #readOrgPlanning;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -100,8 +102,11 @@ module {
       case (#createWork) admin or wl;
       case (#manageMembers) on(func w = admin or leaderOn(ctx, p, w));
       case (#editPlanning) on(func w = admin or leaderOn(ctx, p, w));
-      // R6
-      case (#confirmOwnAssignment) on(func w = memberAs(ctx, p, w, #onderaannemer));
+      // R3: de planning lezen = de werf zien; wat iemand ervan ziet, beslist planScope hieronder.
+      case (#readPlanning) on(func w = seesWork(ctx, p, w));
+      // R6: een OA bevestigt of weigert enkel toewijzingen van zijn eigen firma, en enkel met de grant
+      // #confirmPlanning op die werf (standaard bij een OA-lidmaatschap, instelbaar in 1.7).
+      case (#confirmOwnAssignment) on(func w = memberAs(ctx, p, w, #onderaannemer) and p.orgId != null and grant(ctx, p, w, #confirmPlanning));
       // R7, R30
       case (#writeReport) on(func w = admin or leaderOn(ctx, p, w));
       case (#editMeasurement) on(func w = admin or leaderOn(ctx, p, w) or calc);
@@ -145,6 +150,12 @@ module {
       case (#readOa) internal(p);
       case (#manageOa) admin or wl;
       case (#importOa) admin;
+      // 1.3: de bedrijfskalender (bouwverlof, feestdagen) en de sjablonen gelden voor alle werven: admin (R17).
+      case (#manageCompanyCalendar) admin;
+      case (#manageTemplates) admin;
+      case (#readTemplates) internal(p);
+      // 1.3/1.4: de toewijzingen van een firma over alle werven heen (weekbord): interne rollen.
+      case (#readOrgPlanning) internal(p);
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -197,6 +208,21 @@ module {
       case (?#onderaannemer) memberAs(ctx, p, w, #onderaannemer);
       case _ false;
     };
+  };
+
+  // ── Planning (1.3): wat iemand van de planning van een werf ziet ─────────
+  // #full = alles (interne rollen) · #external = alles behalve interne notities (architect,
+  // veiligheidscoördinator) · #ownOrg = enkel de taken met een toewijzing aan de eigen firma (OA) ·
+  // #summary = taken, data en status zonder firma's en notities (klant) · #none = niets.
+  public type PlanScope = { #none; #full; #external; #ownOrg; #summary };
+
+  public func planScope(ctx : Ctx, p : Person, w : WorkId) : PlanScope {
+    if (not may(ctx, p, #readPlanning, ?w)) { return #none };
+    if (internal(p)) { return #full };
+    if (memberAs(ctx, p, w, #architect) or memberAs(ctx, p, w, #veiligheidscoordinator)) { return #external };
+    if (memberAs(ctx, p, w, #onderaannemer)) { return if (p.orgId != null) #ownOrg else #none };
+    if (memberAs(ctx, p, w, #klant)) { return #summary };
+    #none;
   };
 
   // Kan deze persoon werfleider zijn van een werf? (fiche: rol werfleider, niet afgezet)
@@ -305,6 +331,9 @@ module {
       readOa = may(ctx, p, #readOa, null);
       manageOa = may(ctx, p, #manageOa, null);
       importOa = may(ctx, p, #importOa, null);
+      manageCompanyCalendar = may(ctx, p, #manageCompanyCalendar, null);
+      manageTemplates = may(ctx, p, #manageTemplates, null);
+      readOrgPlanning = may(ctx, p, #readOrgPlanning, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

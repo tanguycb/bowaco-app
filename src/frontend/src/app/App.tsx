@@ -10,6 +10,7 @@ import { Home } from "../screens/Home";
 import { Overzicht } from "../screens/Overzicht";
 import { Werven } from "../screens/Werven";
 import { WerfDetail } from "../screens/Werf";
+import { PlanningPage } from "../screens/Planning";
 import { Team } from "../screens/Team";
 import { Codes } from "../screens/Codes";
 import { Onderaannemers } from "../screens/Onderaannemers";
@@ -135,7 +136,10 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "week":
       case "offertes":
       case "werven":
-        return route[0] === "werven" && route[1] ? <WerfDetail id={BigInt(route[1])} caps={caps} go={go} /> : page === "werven" ? <Werven caps={caps} go={go} /> : <Home kind={page} go={go} />;
+        if (route[0] === "werven" && route[1] && /^\d+$/.test(route[1])) {
+          return route[2] === "planning" ? <PlanningPage id={BigInt(route[1])} caps={caps} go={go} /> : <WerfDetail id={BigInt(route[1])} caps={caps} go={go} />;
+        }
+        return page === "werven" ? <Werven caps={caps} go={go} /> : <Home kind={page} go={go} />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;
       case "onderaannemers": return <Onderaannemers caps={caps} />;

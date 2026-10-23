@@ -38,7 +38,7 @@ while (pos < wasm.length) {
 
 // 2. publieke methodes ≤ 1.000 (uit de .did)
 const did = readFileSync(join(root, "src/backend/dist/backend.did"), "utf8");
-const methods = [...did.slice(did.indexOf("service")).matchAll(/^\s+"?[A-Za-z_][A-Za-z0-9_]*"?\s*:/gm)].length;
+const methods = [...did.slice(did.indexOf("service")).matchAll(/^ {2}"?[A-Za-z_][A-Za-z0-9_]*"?\s*:/gm)].length;
 ok(methods <= 1000, `${methods} publieke methodes (≤ 1.000)`);
 
 // 3. geen data-viewer (T19)

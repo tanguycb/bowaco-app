@@ -37,6 +37,9 @@ module {
     readOa : Bool; // onderaannemers-database lezen (1.2)
     manageOa : Bool; // OA-fiches, contactpersonen en vakgebieden aan een firma beheren
     importOa : Bool; // import van onderaannemers (enkel admin, R32)
+    manageCompanyCalendar : Bool; // bouwverlof en feestdagen voor alle werven (1.3)
+    manageTemplates : Bool; // planningsjablonen (1.3)
+    readOrgPlanning : Bool; // toewijzingen per firma over alle werven (1.3/1.4)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -434,6 +437,164 @@ module {
   };
 
   // Export (§3): intern en vertrouwelijk apart; de auditlog in stukken.
+  // ── Planning per werf (1.3) ─────────────────────────────────────────────
+  public type Day = Types.Day;
+  public type CascadeMode = { #follow; #asNeeded };
+  // #move = een taak verplaatsen en/of verlengen (Gantt); #reflow = de hele werf opnieuw laten rekenen
+  // (na een nieuwe kalenderblokkering): niemand begint nog vóór zijn voorgangers klaar zijn.
+  public type PlanChange = { #move : { taskId : Nat; start : Day; workdays : Nat; mode : CascadeMode }; #reflow };
+
+  public type AssignmentView = {
+    id : Nat;
+    taskId : Nat;
+    workId : WorkId;
+    orgId : OrgId;
+    orgName : Text;
+    orgCode : ?Text; // eerste planningcode van de firma ("KEVIN")
+    personId : ?PersonId;
+    personName : ?Text;
+    fromDay : ?Day;
+    toDay : ?Day;
+    start : Day; // berekend: het bereik binnen de taak, of de hele taak
+    end : Day;
+    note : Text;
+    primary : Bool;
+    confirmation : Types.Confirmation;
+    confirmedByName : ?Text;
+    inTeam : Bool; // de firma is lid van de werf (anders ziet de OA de taak niet)
+  };
+
+  public type TaskView = {
+    id : Nat;
+    workId : WorkId;
+    title : Text;
+    note : Text; // leeg voor externen
+    kind : Types.TaskKind;
+    templateKey : ?Text;
+    trade : ?Text;
+    responsibleOrgId : ?OrgId; // null voor de klant (samenvatting)
+    responsibleName : Text;
+    status : Types.TaskStatus;
+    percent : Nat;
+    start : Day;
+    end : Day; // berekend in werkdagen met de kalender van de werf
+    workdays : Nat;
+    leadDays : Nat;
+    orderDay : ?Day;
+    orderBy : ?Day; // levering zonder bestelling: uiterlijk bestellen op (start − levertermijn)
+    order : Nat;
+    assignments : [AssignmentView];
+    warnings : [Text];
+    updatedAt : Int;
+    updatedByName : Text;
+  };
+
+  public type DependencyView = { id : Nat; fromTaskId : Nat; toTaskId : Nat; kind : Types.DependencyKind; lagDays : Int };
+
+  public type BlockView = {
+    id : Nat;
+    scope : Types.BlockScope;
+    kind : Types.BlockKind;
+    from : Day;
+    to : Day;
+    reason : Text;
+    createdByName : Text;
+  };
+
+  public type PlanCaps = { edit : Bool; confirm : Bool; history : Bool };
+
+  public type PlanView = {
+    workId : WorkId;
+    version : Nat;
+    scope : Text; // "full" · "external" · "ownOrg" · "summary"
+    tasks : [TaskView];
+    dependencies : [DependencyView];
+    blocks : [BlockView];
+    start : ?Day;
+    end : ?Day;
+    caps : PlanCaps;
+  };
+
+  public type TaskInput = {
+    id : ?Nat; // null = nieuwe taak
+    title : Text;
+    note : Text;
+    kind : Types.TaskKind;
+    trade : ?Text;
+    responsibleOrgId : ?OrgId;
+    status : Types.TaskStatus;
+    percent : Nat;
+    start : Day;
+    workdays : Nat;
+    leadDays : Nat;
+    orderDay : ?Day;
+    reason : Text; // waarom (komt in de wijzigingen)
+  };
+
+  public type DependencyInput = { fromTaskId : Nat; toTaskId : Nat; kind : Types.DependencyKind; lagDays : Int };
+
+  public type AssignmentInput = {
+    id : ?Nat;
+    taskId : Nat;
+    orgId : OrgId;
+    personId : ?PersonId;
+    fromDay : ?Day;
+    toDay : ?Day;
+    note : Text;
+  };
+
+  public type ShiftView = {
+    taskId : Nat;
+    title : Text;
+    fromStart : Day;
+    fromEnd : Day;
+    toStart : Day;
+    toEnd : Day;
+    workdays : Nat;
+    reason : Text;
+  };
+
+  public type PlanPreview = { version : Nat; changes : [ShiftView]; reopened : Nat }; // reopened = bevestigingen die terug open gaan
+  public type PlanResult = { version : Nat; changes : [ShiftView]; reopened : Nat; taskId : ?Nat };
+
+  public type BlockInput = { id : ?Nat; scope : Types.BlockScope; kind : Types.BlockKind; from : Day; to : Day; reason : Text };
+
+  public type TemplateView = {
+    key : Text;
+    name : Text;
+    steps : [Types.TemplateStep];
+    provisional : Bool;
+    stored : Bool; // false = de standaard uit de code (nog nooit aangepast)
+    archived : Bool;
+    updatedAt : Int;
+  };
+
+  public type TemplateInput = { key : Text; name : Text; steps : [Types.TemplateStep]; provisional : Bool; archived : Bool };
+
+  public type TaskChangeView = {
+    id : Nat;
+    taskId : Nat;
+    taskTitle : Text;
+    at : Int;
+    by : PersonId;
+    byName : Text;
+    field : Text;
+    from : Text;
+    to : Text;
+    reason : Text;
+  };
+
+  // Een toewijzing met haar werf en taak: "Mijn taken" van een OA en (1.4) het weekbord per firma.
+  public type OrgAssignmentView = {
+    assignment : AssignmentView;
+    workCode : Text;
+    workName : Text;
+    taskTitle : Text;
+    taskKind : Types.TaskKind;
+    taskStatus : Types.TaskStatus;
+    canConfirm : Bool;
+  };
+
   public type ExportIntern = {
     version : Text;
     schema : Nat;
@@ -451,6 +612,12 @@ module {
     orgContacts : [Types.OrgContact]; // 1.2
     personContacts : [Types.PersonContact]; // 1.2
     trades : [TradeView]; // 1.2
+    tasks : [Types.Task]; // 1.3
+    assignments : [Types.Assignment];
+    dependencies : [Types.Dependency];
+    calendarBlocks : [Types.CalendarBlock];
+    taskChanges : [Types.TaskChange];
+    templates : [Types.Template]; // enkel de bewaarde (de standaard staat in de code)
     robots : [RobotView];
     proposals : [ProposalView];
     settings : SettingsView;

@@ -24,6 +24,51 @@ export interface Address {
     city: string;
     number: string;
 }
+export interface Assignment {
+    id: bigint;
+    toDay?: Day;
+    orgId: OrgId;
+    note: string;
+    createdAt: bigint;
+    createdBy: PersonId;
+    fromDay?: Day;
+    extra: Extra;
+    updatedAt: bigint;
+    primary: boolean;
+    personId?: PersonId;
+    taskId: bigint;
+    confirmation: Confirmation;
+    workId: WorkId;
+    archivedAt?: bigint;
+}
+export interface AssignmentInput {
+    id?: bigint;
+    toDay?: Day;
+    orgId: OrgId;
+    note: string;
+    fromDay?: Day;
+    personId?: PersonId;
+    taskId: bigint;
+}
+export interface AssignmentView {
+    id: bigint;
+    end: Day;
+    toDay?: Day;
+    orgCode?: string;
+    orgName: string;
+    orgId: OrgId;
+    note: string;
+    fromDay?: Day;
+    personName?: string;
+    primary: boolean;
+    personId?: PersonId;
+    start: Day;
+    taskId: bigint;
+    inTeam: boolean;
+    confirmedByName?: string;
+    confirmation: Confirmation;
+    workId: WorkId;
+}
 export interface AuditEntry {
     at: bigint;
     who: Principal;
@@ -32,6 +77,45 @@ export interface AuditEntry {
     personId?: PersonId;
     workId?: WorkId;
 }
+export interface BlockInput {
+    id?: bigint;
+    to: Day;
+    from: Day;
+    kind: BlockKind;
+    scope: BlockScope;
+    reason: string;
+}
+export type BlockScope = {
+    __kind__: "org";
+    org: OrgId;
+} | {
+    __kind__: "work";
+    work: WorkId;
+} | {
+    __kind__: "company";
+    company: null;
+};
+export interface BlockView {
+    id: bigint;
+    to: Day;
+    from: Day;
+    kind: BlockKind;
+    scope: BlockScope;
+    createdByName: string;
+    reason: string;
+}
+export interface CalendarBlock {
+    id: bigint;
+    to: Day;
+    from: Day;
+    kind: BlockKind;
+    createdAt: bigint;
+    createdBy: PersonId;
+    extra: Extra;
+    scope: BlockScope;
+    reason: string;
+    archivedAt?: bigint;
+}
 export interface Caps {
     manageAccess: boolean;
     inviteExternal: boolean;
@@ -39,11 +123,14 @@ export interface Caps {
     importOa: boolean;
     manageOa: boolean;
     home: string;
+    readOrgPlanning: boolean;
     createWork: boolean;
     manageSettings: boolean;
     readTeam: boolean;
+    manageTemplates: boolean;
     upload: boolean;
     manageOrgs: boolean;
+    manageCompanyCalendar: boolean;
     manageRobots: boolean;
     export: boolean;
     readConfidentialContact: boolean;
@@ -100,6 +187,23 @@ export type Confidential_2 = {
     __kind__: "plain";
     plain: string;
 };
+export type Confirmation = {
+    __kind__: "open";
+    open: null;
+} | {
+    __kind__: "confirmed";
+    confirmed: {
+        at: bigint;
+        by: PersonId;
+    };
+} | {
+    __kind__: "declined";
+    declined: {
+        at: bigint;
+        by: PersonId;
+        reason: string;
+    };
+};
 export interface Contact {
     name: string;
     email?: string;
@@ -153,6 +257,30 @@ export interface Decision {
     by: PersonId;
     note: string;
     accepted: boolean;
+}
+export interface Dependency {
+    id: bigint;
+    kind: DependencyKind;
+    createdAt: bigint;
+    createdBy: PersonId;
+    toTaskId: bigint;
+    workId: WorkId;
+    fromTaskId: bigint;
+    lagDays: bigint;
+    archivedAt?: bigint;
+}
+export interface DependencyInput {
+    kind: DependencyKind;
+    toTaskId: bigint;
+    fromTaskId: bigint;
+    lagDays: bigint;
+}
+export interface DependencyView {
+    id: bigint;
+    kind: DependencyKind;
+    toTaskId: bigint;
+    fromTaskId: bigint;
+    lagDays: bigint;
 }
 export interface DocKindInput {
     key: string;
@@ -237,16 +365,22 @@ export interface ExportConfidential {
 export interface ExportIntern {
     at: bigint;
     files: Array<FileView>;
+    tasks: Array<Task>;
+    templates: Array<Template>;
     documents: Array<Document>;
+    assignments: Array<Assignment>;
     invites: Array<InviteView>;
     schema: bigint;
     trades: Array<TradeView>;
     orgs: Array<OrgView>;
+    calendarBlocks: Array<CalendarBlock>;
     orgContacts: Array<OrgContact>;
     links: Array<LinkView>;
     version: string;
     persons: Array<PersonView>;
+    taskChanges: Array<TaskChange>;
     settings: SettingsView;
+    dependencies: Array<Dependency>;
     robots: Array<RobotView>;
     proposals: Array<ProposalView>;
     works: Array<WorkView>;
@@ -454,6 +588,15 @@ export interface OaView {
     contact?: OrgContactView;
     persons: Array<OaPersonView>;
 }
+export interface OrgAssignmentView {
+    workName: string;
+    assignment: AssignmentView;
+    taskTitle: string;
+    taskStatus: TaskStatus;
+    taskKind: TaskKind;
+    canConfirm: boolean;
+    workCode: string;
+}
 export interface OrgContact {
     contactNote: string;
     orgId: OrgId;
@@ -532,6 +675,45 @@ export interface PersonView {
     roles: Array<Role>;
     archivedAt?: bigint;
 }
+export interface PlanCaps {
+    confirm: boolean;
+    edit: boolean;
+    history: boolean;
+}
+export type PlanChange = {
+    __kind__: "move";
+    move: {
+        workdays: bigint;
+        mode: CascadeMode;
+        start: Day;
+        taskId: bigint;
+    };
+} | {
+    __kind__: "reflow";
+    reflow: null;
+};
+export interface PlanPreview {
+    reopened: bigint;
+    version: bigint;
+    changes: Array<ShiftView>;
+}
+export interface PlanResult {
+    reopened: bigint;
+    version: bigint;
+    taskId?: bigint;
+    changes: Array<ShiftView>;
+}
+export interface PlanView {
+    end?: Day;
+    tasks: Array<TaskView>;
+    caps: PlanCaps;
+    scope: string;
+    version: bigint;
+    start?: Day;
+    blocks: Array<BlockView>;
+    dependencies: Array<DependencyView>;
+    workId: WorkId;
+}
 export type PriceRevision = {
     __kind__: "none";
     none: null;
@@ -566,47 +748,61 @@ export type Result_1 = {
 };
 export type Result_10 = {
     __kind__: "ok";
-    ok: ContractView;
+    ok: Array<ContractVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_11 = {
     __kind__: "ok";
-    ok: FileView;
+    ok: ContractView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_12 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: FileView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_13 = {
     __kind__: "ok";
-    ok: ImportReport;
+    ok: PlanPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_14 = {
     __kind__: "ok";
-    ok: OaView;
+    ok: NewCode;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_15 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: ImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_16 = {
+    __kind__: "ok";
+    ok: OaView;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_17 = {
+    __kind__: "ok";
+    ok: NewTicket;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_18 = {
     __kind__: "ok";
     ok: TicketInfo;
 } | {
@@ -636,35 +832,35 @@ export type Result_4 = {
 };
 export type Result_5 = {
     __kind__: "ok";
-    ok: OrgContactView;
+    ok: PlanResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_6 = {
     __kind__: "ok";
-    ok: OaPersonView;
+    ok: OrgContactView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_7 = {
     __kind__: "ok";
-    ok: MeView;
+    ok: OaPersonView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_8 = {
     __kind__: "ok";
-    ok: ContactConfidentialView;
+    ok: MeView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_9 = {
     __kind__: "ok";
-    ok: Array<ContractVersionView>;
+    ok: ContactConfidentialView;
 } | {
     __kind__: "err";
     err: string;
@@ -688,6 +884,141 @@ export interface SettingsView {
     inviteDays: bigint;
     werfleiderZietAlles: boolean;
     thresholdCheckinatworkCents: bigint;
+}
+export interface ShiftView {
+    title: string;
+    workdays: bigint;
+    toEnd: Day;
+    fromStart: Day;
+    toStart: Day;
+    fromEnd: Day;
+    taskId: bigint;
+    reason: string;
+}
+export interface Task {
+    id: bigint;
+    status: TaskStatus;
+    title: string;
+    workdays: bigint;
+    leadDays: bigint;
+    trade?: string;
+    order: bigint;
+    kind: TaskKind;
+    note: string;
+    createdAt: bigint;
+    createdBy: PersonId;
+    quoteLineIds: Array<bigint>;
+    extra: Extra;
+    percent: bigint;
+    templateKey?: string;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    start: Day;
+    orderDay?: Day;
+    workId: WorkId;
+    actualEnd?: Day;
+    responsibleOrgId?: OrgId;
+    actualStart?: Day;
+    archivedAt?: bigint;
+}
+export interface TaskChange {
+    at: bigint;
+    by: PersonId;
+    id: bigint;
+    to: string;
+    field: string;
+    from: string;
+    taskId: bigint;
+    workId: WorkId;
+    reason: string;
+}
+export interface TaskChangeView {
+    at: bigint;
+    by: PersonId;
+    id: bigint;
+    to: string;
+    field: string;
+    byName: string;
+    from: string;
+    taskTitle: string;
+    taskId: bigint;
+    reason: string;
+}
+export interface TaskInput {
+    id?: bigint;
+    status: TaskStatus;
+    title: string;
+    workdays: bigint;
+    leadDays: bigint;
+    trade?: string;
+    kind: TaskKind;
+    note: string;
+    percent: bigint;
+    start: Day;
+    orderDay?: Day;
+    responsibleOrgId?: OrgId;
+    reason: string;
+}
+export interface TaskView {
+    id: bigint;
+    end: Day;
+    status: TaskStatus;
+    title: string;
+    workdays: bigint;
+    leadDays: bigint;
+    trade?: string;
+    assignments: Array<AssignmentView>;
+    order: bigint;
+    kind: TaskKind;
+    note: string;
+    responsibleName: string;
+    orderBy?: Day;
+    percent: bigint;
+    templateKey?: string;
+    updatedByName: string;
+    updatedAt: bigint;
+    start: Day;
+    warnings: Array<string>;
+    orderDay?: Day;
+    workId: WorkId;
+    responsibleOrgId?: OrgId;
+}
+export interface Template {
+    key: string;
+    name: string;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    steps: Array<TemplateStep>;
+    provisional: boolean;
+    archivedAt?: bigint;
+}
+export interface TemplateInput {
+    key: string;
+    name: string;
+    steps: Array<TemplateStep>;
+    provisional: boolean;
+    archived: boolean;
+}
+export interface TemplateStep {
+    key: string;
+    title: string;
+    workdays: bigint;
+    leadDays: bigint;
+    trade?: string;
+    after: Array<string>;
+    kind: TaskKind;
+    note: string;
+    lagDays: bigint;
+}
+export interface TemplateView {
+    key: string;
+    stored: boolean;
+    name: string;
+    updatedAt: bigint;
+    steps: Array<TemplateStep>;
+    provisional: boolean;
+    archived: boolean;
 }
 export interface TicketInfo {
     expiresAt: bigint;
@@ -805,9 +1136,24 @@ export enum Applies {
     yes = "yes",
     unknown = "unknown"
 }
+export enum BlockKind {
+    feestdag = "feestdag",
+    bouwverlof = "bouwverlof",
+    other = "other",
+    stop = "stop",
+    verlof = "verlof"
+}
+export enum CascadeMode {
+    asNeeded = "asNeeded",
+    follow = "follow"
+}
 export enum CodeKind {
     invite = "invite",
     recovery = "recovery"
+}
+export enum DependencyKind {
+    finishToStart = "finishToStart",
+    startToStart = "startToStart"
 }
 export enum DocStatus {
     requested = "requested",
@@ -853,6 +1199,18 @@ export enum Role {
     architect = "architect",
     klant = "klant"
 }
+export enum TaskKind {
+    work = "work",
+    delivery = "delivery",
+    milestone = "milestone"
+}
+export enum TaskStatus {
+    delayed = "delayed",
+    busy = "busy",
+    done = "done",
+    blocked = "blocked",
+    planned = "planned"
+}
 export enum Variant_active_pending_anonymous_unlinked {
     active = "active",
     pending = "pending",
@@ -870,33 +1228,42 @@ export enum WorkStatus {
 }
 export interface backendInterface {
     accessStats(): Promise<AccessStats>;
+    addDependency(workId: bigint, i: DependencyInput, expectedVersion: bigint): Promise<Result_5>;
     addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_3>;
     addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_3>;
     addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_4>;
+    applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_5>;
+    applyTemplate(workId: bigint, key: string, startDay: bigint, append: boolean, expectedVersion: bigint): Promise<Result_5>;
+    archiveAssignment(workId: bigint, assignmentId: bigint, expectedVersion: bigint): Promise<Result_3>;
+    archiveCalendarBlock(id: bigint): Promise<Result_4>;
     archiveDocument(docId: bigint): Promise<Result_4>;
     archiveFile(id: bigint): Promise<Result_4>;
     archiveOrg(id: bigint): Promise<Result_4>;
     archivePerson(id: bigint): Promise<Result_4>;
+    archiveTask(workId: bigint, taskId: bigint, expectedVersion: bigint): Promise<Result_3>;
     attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_3>;
     auditCount(): Promise<bigint>;
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
-    checkTicket(ticket: string): Promise<Result_16>;
+    checkTicket(ticket: string): Promise<Result_18>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
+    confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_4>;
     confirmLink(p: Principal): Promise<Result_4>;
     createOrg(input: OrgInput): Promise<Result_2>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_12>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_15>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_14>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_17>;
     createWork(i: WorkInput): Promise<Result>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
     endMembership(id: bigint): Promise<Result_4>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
     getDossier(workId: bigint): Promise<DossierView>;
-    getOa(id: bigint): Promise<Result_14>;
+    getOa(id: bigint): Promise<Result_16>;
+    getPlan(workId: bigint): Promise<PlanView>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
-    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_13>;
-    invitePerson(req: InviteRequest): Promise<Result_12>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_15>;
+    invitePerson(req: InviteRequest): Promise<Result_14>;
+    listCalendarBlocks(workId: bigint | null): Promise<Array<BlockView>>;
     listDocKinds(withArchived: boolean): Promise<Array<DocKindView>>;
     listFiles(workId: bigint | null): Promise<Array<FileView>>;
     listInvites(from: bigint, limit: bigint): Promise<Array<InviteView>>;
@@ -906,33 +1273,43 @@ export interface backendInterface {
     listOrgs(includeArchived: boolean): Promise<Array<OrgView>>;
     listPersons(includeArchived: boolean): Promise<Array<PersonView>>;
     listRobots(): Promise<Array<RobotView>>;
+    listTemplates(): Promise<Array<TemplateView>>;
     listTrades(withArchived: boolean): Promise<Array<TradeView>>;
     listWorks(): Promise<Array<WorkView>>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     me(): Promise<MeView>;
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
-    readConfidentialFile(id: bigint): Promise<Result_11>;
-    readContract(workId: bigint): Promise<Result_10>;
-    readContractHistory(workId: bigint): Promise<Result_9>;
-    readOrgConfidential(id: bigint): Promise<Result_8>;
-    redeemCode(code: string): Promise<Result_7>;
+    orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
+    previewPlan(workId: bigint, change: PlanChange): Promise<Result_13>;
+    readConfidentialFile(id: bigint): Promise<Result_12>;
+    readContract(workId: bigint): Promise<Result_11>;
+    readContractHistory(workId: bigint): Promise<Result_10>;
+    readOrgConfidential(id: bigint): Promise<Result_9>;
+    redeemCode(code: string): Promise<Result_8>;
+    removeDependency(workId: bigint, depId: bigint, expectedVersion: bigint): Promise<Result_3>;
     restorePerson(id: bigint): Promise<Result_4>;
     revokeInvite(inviteId: bigint): Promise<Result_4>;
     revokeLink(p: Principal): Promise<Result_4>;
     revokeRobot(principal: Principal): Promise<Result_4>;
+    saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_3>;
+    saveCalendarBlock(i: BlockInput): Promise<Result_3>;
     saveDocument(workId: bigint, i: DocumentInput): Promise<Result_3>;
-    saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_6>;
-    saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_5>;
+    saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_7>;
+    saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_6>;
+    saveTask(workId: bigint, i: TaskInput, expectedVersion: bigint): Promise<Result_5>;
+    saveTemplate(i: TemplateInput): Promise<Result_4>;
     setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_3>;
     setDocKind(k: DocKindInput): Promise<Result_4>;
     setDocumentStatus(docId: bigint, status: DocStatus, note: string): Promise<Result_4>;
     setLinkLabel(p: Principal, tag: string): Promise<Result_4>;
     setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_3>;
     setSettings(s: SettingsView): Promise<Result_4>;
+    setTaskOrder(workId: bigint, taskIds: Array<bigint>, expectedVersion: bigint): Promise<Result_3>;
     setTrade(t: TradeInput): Promise<Result_4>;
     setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_4>;
     submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_3>;
+    taskHistory(workId: bigint, taskId: bigint | null, from: bigint, limit: bigint): Promise<Array<TaskChangeView>>;
     updateOrg(id: bigint, input: OrgInput): Promise<Result_2>;
     updatePerson(id: bigint, u: PersonUpdate): Promise<Result_1>;
     updateWork(id: bigint, u: WorkUpdate): Promise<Result>;

@@ -12,7 +12,7 @@ import { backend, freshBackend, identity, ok, Principal } from "../tools/lib.mjs
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/lek.mjs <canister-id>");
 const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.did"), "utf8");
-const methods = [...did.slice(did.indexOf("service")).matchAll(/^\s+"?([A-Za-z_][A-Za-z0-9_]*)"?\s*:/gm)].map((m) => m[1]);
+const methods = [...did.slice(did.indexOf("service")).matchAll(/^ {2}"?([A-Za-z_][A-Za-z0-9_]*)"?\s*:/gm)].map((m) => m[1]);
 
 const admin = await backend("proef-admin", cid);
 // Eigen wachtende testkoppeling (interne rol, niet bevestigd); op het einde weer afgesloten.
@@ -44,7 +44,10 @@ const file = ex.files.find((f) => !f.confidential);
 const decided = ex.proposals.find((p) => p.decision.length === 1);
 const doc = ex.documents.find((d) => d.kind === "vgplan" && d.archivedAt.length === 0);
 const docGone = ex.documents.find((d) => d.archivedAt.length === 1);
-if (!ended || !file || !decided || !doc || !docGone) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
+const taskB = ex.tasks.find((t) => t.workId === B && t.archivedAt.length === 0);
+const asgB = ex.assignments.find((a) => a.workId === B && a.archivedAt.length === 0);
+const blkGone = ex.calendarBlocks.find((b) => "company" in b.scope && b.archivedAt.length === 1);
+if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
 const someone = identity("proef-lek-onbekend").getPrincipal();
 const hash = "sha256:" + "c".repeat(64);
@@ -61,6 +64,11 @@ const oaFilterIn = { text: [], trade: [], kind: [], includeArchived: false };
 const contactIn = { phone: [], email: [], website: [], contactNote: "" };
 const oaPersonIn = { id: [], name: "", shortCode: [], phone: [], email: [], jobTitle: "", note: "" };
 const tradeIn = { key: "", name: "", order: 0n, archived: false };
+const taskIn = { id: [], title: "", note: "", kind: { work: null }, trade: [], responsibleOrgId: [], status: { planned: null }, percent: 0n, start: 0n, workdays: 0n, leadDays: 0n, orderDay: [], reason: "" };
+const depIn = { fromTaskId: X, toTaskId: X, kind: { finishToStart: null }, lagDays: 0n };
+const asgIn = { id: [], taskId: X, orgId: X, personId: [], fromDay: [], toDay: [], note: "" };
+const blockIn = { id: [], scope: { company: null }, kind: { feestdag: null }, from: 20_000n, to: 20_000n, reason: "" };
+const tplIn = { key: "", name: "", steps: [], provisional: true, archived: false };
 const personUpd = { name: "", roles: [], orgId: [], shortCode: [], lang: [], phone: [] };
 
 // Wie mag wat (R1–R34 zoals gebouwd in 0.6 en 1.1). Groepen:
@@ -124,6 +132,27 @@ const table = {
   listTrades: [INTERNAL, () => [false]],
   setTrade: [ADMIN, () => [tradeIn]],
   importOrgs: [ADMIN, () => [true, []]],
+  // 1.3 planning per werf: lezen wie de werf ziet (OA: eigen taken), plannen admin en werfleider (R5),
+  // bevestigen enkel de OA met #confirmPlanning (R6), bedrijfskalender en sjablonen enkel admin (R17).
+  getPlan: [ON_B, () => [B]],
+  previewPlan: [["admin", "werfleider"], () => [B, { reflow: null }]],
+  applyPlan: [["admin", "werfleider"], () => [B, { reflow: null }, 999n, ""]],
+  saveTask: [["admin", "werfleider"], () => [B, taskIn, 999n]],
+  archiveTask: [["admin", "werfleider"], () => [B, X, 999n]],
+  setTaskOrder: [["admin", "werfleider"], () => [B, [], 999n]],
+  addDependency: [["admin", "werfleider"], () => [B, depIn, 999n]],
+  removeDependency: [["admin", "werfleider"], () => [B, X, 999n]],
+  saveAssignment: [["admin", "werfleider"], () => [B, asgIn, 999n]],
+  archiveAssignment: [["admin", "werfleider"], () => [B, X, 999n]],
+  confirmAssignment: [["oa"], () => [asgB.id, false, ""]], // daarna "geef een reden": er verandert niets
+  orgAssignments: [ACTIVE, () => [[], 20_000n, 20_010n]],
+  listCalendarBlocks: [INTERNAL, () => [[]]],
+  saveCalendarBlock: [ADMIN, () => [blockIn]],
+  archiveCalendarBlock: [ADMIN, () => [blkGone.id]],
+  listTemplates: [INTERNAL, () => []],
+  saveTemplate: [ADMIN, () => [tplIn]],
+  applyTemplate: [["admin", "werfleider"], () => [B, "bestaat-niet", 20_000n, false, 999n]],
+  taskHistory: [INTERNAL, () => [B, [], 0n, 1n]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

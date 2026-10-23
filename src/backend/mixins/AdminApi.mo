@@ -24,6 +24,7 @@ mixin (
   files : Types.FileState,
   dossier : Types.DossierState,
   oa : Types.OaState,
+  plan : Types.PlanState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -168,6 +169,12 @@ mixin (
       orgContacts = oa.orgContacts.values().toArray();
       personContacts = oa.personContacts.values().toArray();
       trades = Oa.trades(settings, true);
+      tasks = plan.tasks.values().toArray();
+      assignments = plan.assignments.values().toArray();
+      dependencies = plan.dependencies.values().toArray();
+      calendarBlocks = plan.calendarBlocks.values().toArray();
+      taskChanges = plan.taskChanges.values().toArray();
+      templates = plan.templates.values().toArray();
       robots = robot.robots.values().map(robotView).toArray();
       proposals = robot.proposals.values().map(func x = { id = x.id; ticketId = x.ticketId; personId = x.personId; workId = x.workId; kind = x.kind; content = x.content; by = x.by; at = x.at; decision = x.decision }).toArray();
       settings = settingsView();

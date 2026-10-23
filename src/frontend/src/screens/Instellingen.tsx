@@ -1,5 +1,5 @@
 // Instellingen (R17): werfleider ziet alles, geldigheid van codes, drempels en documentsoorten (1.1),
-// en de robots (R28).
+// bedrijfskalender en planningsjablonen (1.3) en de robots (R28).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Principal } from "@icp-sdk/core/principal";
@@ -9,6 +9,7 @@ import { t } from "../texts/nl";
 import { errText, fmtEuro, fmtTime, parseEuro, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
 import { Field } from "./Werven";
+import { CompanyCalendar, Templates } from "./PlanSettings";
 
 export function Instellingen() {
   const { actor, isFetching } = useBackend();
@@ -67,6 +68,8 @@ export function Instellingen() {
           <div><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></div>
         </section>
       )}
+      <CompanyCalendar />
+      <Templates />
       <DocKinds />
       <Trades />
       <section className="a-section" style={{ maxWidth: 720 }}>
