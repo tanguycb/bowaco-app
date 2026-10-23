@@ -1,4 +1,5 @@
 # Eigen lokaal testnetwerk voor BOWACO (poort 8041). Raakt het gedeelde netwerk op :8000 niet.
+# tests/lokaal.sh kopieert dit bestand naar ~/.bowaco/net en draait het net daar (buiten iCloud).
 # WASM kiest het programma (standaard de laatste bouw).
 networks:
   - name: local

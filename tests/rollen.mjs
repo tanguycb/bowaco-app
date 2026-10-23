@@ -54,10 +54,10 @@ const as = async (name) => backend(name, cid);
 const fresh = () => freshBackend(cid);
 
 // Klok van het eigen PocketIC-net (alleen lokaal; nooit een gedeeld net).
-const descr = join(import.meta.dirname, "net/.icp/cache/networks/local/descriptor.json");
+const descr = join(KEYDIR, "net/.icp/cache/networks/local/descriptor.json");
 async function advance(ns) {
   const d = JSON.parse(readFileSync(descr, "utf8"));
-  if (!d["project-dir"].endsWith("bowaco-app/tests/net")) throw new Error("niet ons eigen net");
+  if (!d["project-dir"].endsWith("/.bowaco/net")) throw new Error("niet ons eigen net");
   const base = `http://127.0.0.1:${d["pocketic-config-port"]}/instances/${d["pocketic-instance-id"]}`;
   const now = BigInt((await (await fetch(`${base}/read/get_time`)).json()).nanos_since_epoch);
   const r = await fetch(`${base}/update/set_time`, {
@@ -372,7 +372,7 @@ const ex = await admin.exportIntern();
 check("admin: interne export met personen, codes zonder hash, werven", ex.persons.length >= 10 && ex.invites.length >= 10 && !("hash" in ex.invites[0]) && ex.works.length === 2);
 check("export staat in de auditlog", (await admin.auditLog(0n, 5n)).some((e) => e.action === "export-intern"));
 
-if (local) {
+if (local && !process.env.ZONDER_KLOK) {
   await sec("── globale remming (open punt 4) — 1.000 foute pogingen van wegwerpidentiteiten");
   const N = 1000;
   const batch = 50;

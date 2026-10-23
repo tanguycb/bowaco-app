@@ -1,13 +1,44 @@
-// (f) Wat staat er na een upgrade nog? Lokaal met de proef-admin (na proef.mjs).
-//   ICP_HOST=http://localhost:8041 node tools/migratiecheck.mjs <canister-id>
-import { backend } from "./lib.mjs";
+// Migratiecheck (M7, M11): bewijst dat het nieuwe programma kan upgraden vanaf het programma van de
+// vorige gelande draft, met data én leeg. Alleen op het EIGEN testnet (~/.bowaco/net, poort 8041).
+//   OUD=<pad naar backend.wasm van de vorige draft> node tools/migratiecheck.mjs
+// Stappen: (1) oud leeg → nieuw; (2) oud + rollentest-data → nieuw; tellingen uit exportIntern vóór/na gelijk.
+// Bij 0.6 bestaat er nog geen vorige draft op de nieuwe keten: dan enkel (0) verse installatie.
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { backend, KEYDIR } from "./lib.mjs";
 
-const cid = process.argv[2];
-const admin = await backend("proef-admin", cid);
-const big = (_, v) => (typeof v === "bigint" ? v.toString() : v);
-const s = await admin.probeStatus();
-console.log(`versie ${s.version}; personen ${s.persons}; timer-tikken ${s.timerTicks}`);
-const persons = await admin.listPersons();
-console.log("personen:", JSON.stringify(persons.map((p) => ({ id: p.id, name: p.name, phone: p.phone })), big));
-console.log("codes:", (await admin.listInvites()).length, "· koppelingen:", (await admin.listLinks()).length, "· auditregels:", (await admin.auditLog(500n)).length);
-console.log("notities:", JSON.stringify(await admin.probeNotes(), big));
+const net = join(KEYDIR, "net");
+const repo = join(import.meta.dirname, "..");
+const nieuw = join(repo, "src/backend/dist/backend.wasm");
+const oud = process.env.OUD;
+process.env.ICP_HOST = "http://localhost:8041";
+const icp = (...a) => execFileSync("icp", a, { cwd: net, env: process.env, encoding: "utf8" });
+const cid = () => JSON.parse(readFileSync(join(net, ".icp/cache/mappings/local.ids.json"), "utf8")).backend;
+const telling = async () => {
+  const e = await (await backend("proef-admin", cid())).exportIntern();
+  return { personen: e.persons.length, koppelingen: e.links.length, codes: e.invites.length, organisaties: e.orgs.length, werven: e.works.length, leden: e.memberships.length, bestanden: e.files.length, audit: Number(e.auditCount) };
+};
+
+if (!oud) {
+  process.env.WASM = nieuw;
+  icp("deploy", "backend", "--mode", "reinstall", "-y");
+  console.log("(0) verse installatie van de nieuwe keten: OK (geen vorige draft om van te upgraden)");
+  process.exit(0);
+}
+if (!existsSync(oud)) throw new Error(`OUD bestaat niet: ${oud}`);
+process.env.WASM = oud;
+icp("deploy", "backend", "--mode", "reinstall", "-y");
+process.env.WASM = nieuw;
+icp("deploy", "backend", "--mode", "upgrade", "-y");
+console.log("(1) oud leeg → nieuw: OK");
+process.env.WASM = oud;
+icp("deploy", "backend", "--mode", "reinstall", "-y");
+execFileSync("node", [join(repo, "tests/rollen.mjs"), cid()], { env: { ...process.env, ZONDER_KLOK: "1" }, stdio: "ignore" });
+const voor = await telling();
+process.env.WASM = nieuw;
+icp("deploy", "backend", "--mode", "upgrade", "-y");
+const na = await telling();
+const gelijk = JSON.stringify(voor) === JSON.stringify({ ...na, audit: voor.audit });
+console.log(`(2) oud met data → nieuw: ${gelijk ? "GELIJK" : "VERSCHIL"}`, JSON.stringify(voor), "→", JSON.stringify(na));
+process.exit(gelijk ? 0 : 1);

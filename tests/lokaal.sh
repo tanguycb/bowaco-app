@@ -7,7 +7,13 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo"
 mops build --output src/backend/dist
 ./node_modules/.bin/caffeine-bindgen --did-file ./src/backend/dist/backend.did --out-dir ./src/frontend/src --actor-interface-file --force >/dev/null
-cd tests/net
+# Het net draait in ~/.bowaco/net (buiten iCloud: de Desktop wordt gesynchroniseerd en iCloud maakt
+# kopieën als "descriptor 2.json", waarna icp-cli zijn eigen net niet meer terugvindt).
+net=$HOME/.bowaco/net
+mkdir -p "$net"
+cp tests/net/icp.yaml "$net/icp.yaml"
+export WASM="$repo/src/backend/dist/backend.wasm"
+cd "$net"
 # De rollentest verzet de klok van dit net; daarom elke ronde een vers net. Alleen het EIGEN net
 # (dit project, poort 8041) wordt gestopt; nooit een ander proces.
 icp network stop >/dev/null 2>&1 || true

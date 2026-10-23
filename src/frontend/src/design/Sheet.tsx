@@ -4,14 +4,17 @@ import { Button } from "./Button";
 /** Paneel over het scherm: onderaan op de gsm, rechts op de desktop (side). Esc en tik naast sluiten. */
 export function Sheet({ title, open, onClose, children, footer, side }: { title: string; open: boolean; onClose: () => void; children: ReactNode; footer?: ReactNode; side?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
+  // onClose via een ref: een nieuwe functie bij elke render mag de focus niet terug naar het paneel trekken.
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     ref.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close.current(); };
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("keydown", onKey); prev?.focus?.(); };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return (
     <>

@@ -1,5 +1,5 @@
 // (d) Proefrobot = de gateway in het klein. Eigen Ed25519-principal (sleutel in ~/.bowaco/robot-test.json);
-// alleen de publieke principal staat in de app (src/backend/lib/Config.mo).
+// in de app registreert de admin enkel de publieke principal (Instellingen → Robots).
 //   node tools/robot.mjs principal
 //   node tools/robot.mjs <backend-canister> <ticket>
 // Standaard mainnet (de draft); ICP_HOST=http://localhost:8041 voor het eigen testnetwerk.
@@ -24,15 +24,15 @@ if ("err" in info) {
   process.exit(1);
 }
 const i = info.ok;
-console.log(`checkTicket OK in ${t1 - t0} ms: ${i.personName}, taak '${i.task}', werf '${i.werf}', budget € ${(Number(i.budgetCents) / 100).toFixed(2)}`);
+console.log(`checkTicket OK in ${t1 - t0} ms: ${i.personName}, taak '${i.task}', werf ${i.workId.length ? '#' + i.workId[0] : '–'}, budget € ${(Number(i.budgetCents) / 100).toFixed(2)}`);
 
 // Hier zou de gateway het echte werk doen (AI, mail, …). De proef schrijft een vast voorstel terug.
 const content = [
   `Proefvoorstel voor ${i.personName}`,
-  `Taak: ${i.task} · Werf: ${i.werf}`,
+  `Taak: ${i.task} · Werf: ${i.workId.length ? '#' + i.workId[0] : '–'}`,
   `Gemaakt door de proefrobot op ${new Date().toLocaleString("nl-BE")}.`,
 ].join("\n");
-const res = await app.submitProposal(i.ticketId, content);
+const res = await app.submitProposal(i.ticketId, "proef", content);
 const t2 = Date.now();
 if ("err" in res) {
   console.error(`submitProposal geweigerd: ${res.err}`);
