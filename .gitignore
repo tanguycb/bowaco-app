@@ -4,3 +4,4 @@ dist
 .DS_Store
 .claude/
 dist-prototype
+tests/.laatste-*.json

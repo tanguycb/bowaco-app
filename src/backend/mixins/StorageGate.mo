@@ -1,0 +1,64 @@
+// Eigen versie van de opslagmixin van Caffeine (caffeineai-object-storage 1.1.1, Mixin.mo), met één
+// verschil: _immutableObjectStorageCreateCertificate kijkt WIE er belt (T10, 0.2 open punt 1). In de
+// versie van Caffeine kan iedereen, ook anoniem, een uploadcertificaat vragen en dus op onze kosten
+// opladen. Hier alleen een actieve persoon met een uploadrecht (Rights #upload).
+// De rest is ongewijzigd overgenomen: kassier, gatewaylijst, levende/dode blobs en opruiming.
+// Het antwoordtype { method; blob_hash } moet exact zo blijven (de gateway controleert het).
+import Array "mo:core/Array";
+import Prim "mo:prim";
+import Runtime "mo:core/Runtime";
+import Storage "mo:caffeineai-object-storage/Storage";
+import Types "../types";
+import Access "../lib/Access";
+import Rights "../lib/Rights";
+
+mixin (
+  settings : Types.SettingsState,
+  access : Types.AccessState,
+  works : Types.WorksState,
+) {
+  transient let _immutableObjectStorageState : Storage.State = Storage.new();
+
+  type _ImmutableObjectStorageRefillInformation = { proposed_top_up_amount : ?Nat };
+  type _ImmutableObjectStorageRefillResult = { success : ?Bool; topped_up_amount : ?Nat };
+  type _ImmutableObjectStorageCreateCertificateResult = { method : Text; blob_hash : Text };
+
+  public shared ({ caller }) func _immutableObjectStorageRefillCashier(refillInformation : ?_ImmutableObjectStorageRefillInformation) : async _ImmutableObjectStorageRefillResult {
+    let cashier = await Storage.getCashierPrincipal();
+    if (cashier != caller) { Runtime.trap("Unauthorized access") };
+    await Storage.refillCashier(_immutableObjectStorageState, cashier, refillInformation);
+  };
+
+  public shared func _immutableObjectStorageUpdateGatewayPrincipals() : async () {
+    await Storage.updateGatewayPrincipals(_immutableObjectStorageState);
+  };
+
+  public query func _immutableObjectStorageBlobsAreLive(hashes : [Blob]) : async [Bool] {
+    hashes.map(func(hash : Blob) : Bool = Prim.isStorageBlobLive(hash));
+  };
+
+  public query ({ caller }) func _immutableObjectStorageBlobsToDelete() : async [Blob] {
+    if (not Storage.isAuthorized(_immutableObjectStorageState, caller)) { Runtime.trap("Unauthorized access") };
+    switch (Prim.getDeadBlobs()) {
+      case null [];
+      case (?dead) dead.sliceToArray(0, 10000);
+    };
+  };
+
+  public shared ({ caller }) func _immutableObjectStorageConfirmBlobDeletion(blobs : [Blob]) : async () {
+    if (not Storage.isAuthorized(_immutableObjectStorageState, caller)) { Runtime.trap("Unauthorized access") };
+    Prim.pruneConfirmedDeadBlobs(blobs);
+    type GC = actor { __motoko_gc_trigger : () -> async () };
+    let myGC = actor (debug_show (Prim.getSelfPrincipal<system>())) : GC;
+    await myGC.__motoko_gc_trigger();
+  };
+
+  // DE poort: geen certificaat zonder actieve persoon met uploadrecht. Een trap geeft de browser
+  // een duidelijke weigering ("backend canister rejected …") en kost ons geen opslag.
+  public shared ({ caller }) func _immutableObjectStorageCreateCertificate(blobHash : Text) : async _ImmutableObjectStorageCreateCertificateResult {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #upload, null);
+    if (blobHash.size() > 100) { Runtime.trap("Ongeldige hash") };
+    { method = "upload"; blob_hash = blobHash };
+  };
+};

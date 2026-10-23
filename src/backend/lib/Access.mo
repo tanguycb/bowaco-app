@@ -1,87 +1,86 @@
-// Wie is de beller? Elke API-functie gaat hierlangs (§4: anoniem altijd geweigerd).
+// Wie belt er? Elke API-functie begint hier (R1: anoniem altijd geweigerd), daarna Rights.require.
+// Plus: pogingenlimiet per principal, globale remming, auditlog, meldingen en de views.
 import Array "mo:core/Array";
+import Int "mo:core/Int";
+import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
+import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Types "../types";
+import Views "../types/views";
 import Config "Config";
+import Ids "Ids";
+import Rights "Rights";
 
 module {
-  type State = Types.State;
-
-  public func isRobot(caller : Principal) : Bool {
-    Config.robots().find(func r = r == caller) != null;
-  };
+  type AccessState = Types.AccessState;
+  type Person = Types.Person;
 
   public func requireAuthenticated(caller : Principal) {
     if (caller.isAnonymous()) { Runtime.trap("Niet ingelogd") };
   };
 
-  // Actieve persoon achter deze principal, of null.
-  public func activePerson(st : State, caller : Principal) : ?Types.Person {
+  // Actieve persoon achter deze principal: actieve koppeling en niet gearchiveerd. Anders null.
+  public func activePerson(access : AccessState, caller : Principal) : ?Person {
     if (caller.isAnonymous()) { return null };
-    let link = st.links.get(caller) ?? return null;
+    let link = access.links.get(caller) ?? return null;
     if (link.status != #active) { return null };
-    st.persons.get(link.personId);
+    let p = access.persons.get(link.personId) ?? return null;
+    if (p.archivedAt != null) { return null };
+    ?p;
   };
 
-  public func requireActive(st : State, caller : Principal) : Types.Person {
+  public func requireActive(access : AccessState, caller : Principal) : Person {
     requireAuthenticated(caller);
-    activePerson(st, caller) ?? Runtime.trap("Geen toegang: geen actieve koppeling");
+    activePerson(access, caller) ?? Runtime.trap("Geen toegang: geen actieve koppeling");
   };
 
-  public func hasRole(p : Types.Person, role : Types.Role) : Bool {
-    p.roles.find(func r = r == role) != null;
+  // ── Robot (R28): een principal in robot.robots, nooit een persoon ───────
+  public func isRobot(robot : Types.RobotState, caller : Principal) : Bool {
+    switch (robot.robots.get(caller)) { case (?r) r.revokedAt == null; case null false };
   };
 
-  public func requireAdmin(st : State, caller : Principal) : Types.Person {
-    let p = requireActive(st, caller);
-    if (not hasRole(p, #admin)) { Runtime.trap("Geen toegang: alleen admin") };
-    p;
+  public func requireRobot(robot : Types.RobotState, caller : Principal) {
+    if (not isRobot(robot, caller)) { Runtime.trap("Geen toegang: alleen een robot") };
   };
 
-  public func isInternal(role : Types.Role) : Bool {
-    role == #admin or role == #werfleider or role == #calculator;
+  // ── Personen ────────────────────────────────────────────────────────────
+  public func personName(access : AccessState, id : Nat) : Text {
+    switch (access.persons.get(id)) { case (?p) p.name; case null "#" # id.toText() };
   };
 
-  public func anyInternal(roles : [Types.Role]) : Bool {
-    roles.find(isInternal) != null;
+  public func hasActiveLink(access : AccessState, personId : Nat) : Bool {
+    access.links.values().any(func l = l.personId == personId and l.status == #active);
   };
 
-  // Admin mag alle rollen uitnodigen; een werfleider enkel externen (OA, architect, klant).
-  public func mayInvite(inviter : Types.Person, roles : [Types.Role]) : Bool {
-    if (hasRole(inviter, #admin)) { return true };
-    hasRole(inviter, #werfleider) and not anyInternal(roles);
+  // Admins die nu echt kunnen inloggen (R16).
+  public func activeAdminIds(access : AccessState) : [Nat] {
+    access.persons.values().filter(
+      func p = p.archivedAt == null and Rights.isAdmin(p) and hasActiveLink(access, p.id)
+    ).map(func p = p.id).toArray();
   };
 
-  public func audit(st : State, who : Principal, personId : ?Nat, action : Text, detail : Text) {
-    st.audit.add({ at = Time.now(); who; personId; action; detail });
-  };
-
-  public func personName(st : State, id : Nat) : Text {
-    switch (st.persons.get(id)) {
-      case (?p) { p.name };
-      case null { "#" # id.toText() };
-    };
-  };
-
-  // Pogingenlimiet per principal: 5 per uur, daarna 24 uur blokkering (§3.3.3).
-  // Geeft null als de beller nu mag proberen, anders het einde van de blokkering.
-  public func blockedUntil(st : State, caller : Principal) : ?Int {
-    let a = st.attempts.get(caller) ?? return null;
-    if (a.blockedUntil > Time.now()) { ?a.blockedUntil } else { null };
-  };
-
-  public func countFailure(st : State, caller : Principal) {
+  // ── Pogingenlimiet per principal (§3.3.3): 5 per uur, dan 24 uur dicht ──
+  public func blockedUntil(access : AccessState, caller : Principal) : ?Int {
     let now = Time.now();
-    let a = switch (st.attempts.get(caller)) {
-      case (?a) { a };
+    let a = access.attempts.get(caller);
+    let own = switch a { case (?a) if (a.blockedUntil > now) ?a.blockedUntil else null; case null null };
+    if (own != null) { return own };
+    if (access.throttle.lockedUntil > now) { ?access.throttle.lockedUntil } else { null };
+  };
+
+  // Telt een foute poging, per principal én globaal. Geeft true als de admins nu een melding krijgen.
+  public func countFailure(access : AccessState, caller : Principal) : Bool {
+    let now = Time.now();
+    let a = switch (access.attempts.get(caller)) {
+      case (?a) a;
       case null {
         let fresh : Types.Attempts = { var windowStart = now; var count = 0; var blockedUntil = 0 };
-        st.attempts.add(caller, fresh);
+        access.attempts.add(caller, fresh);
         fresh;
       };
     };
@@ -94,32 +93,104 @@ module {
       a.blockedUntil := now + Config.blockAfterAttempts;
       a.count := 0;
     };
+    // Globaal: een vast venster van een uur over alle principals (T4: principals zijn gratis).
+    let t = access.throttle;
+    if (now - t.windowStart > Config.hour) {
+      t.windowStart := now;
+      t.failures := 0;
+    };
+    t.failures += 1;
+    if (t.failures >= Config.globalLockPerHour) { t.lockedUntil := t.windowStart + Config.hour };
+    if (t.failures >= Config.globalAlertPerHour and t.alertedWindow != t.windowStart) {
+      t.alertedWindow := t.windowStart;
+      return true;
+    };
+    false;
   };
 
-  public func linkView(st : State, p : Principal, l : Types.Link) : Types.LinkView {
+  public func failuresThisHour(access : AccessState) : Nat {
+    if (Time.now() - access.throttle.windowStart > Config.hour) 0 else access.throttle.failures;
+  };
+
+  // ── Audit en meldingen ──────────────────────────────────────────────────
+  public func audit(log : Types.AuditState, who : Principal, personId : ?Nat, workId : ?Nat, action : Text, detail : Text) {
+    log.log.add({ at = Time.now(); who; personId; workId; action; detail });
+  };
+
+  public func notify(log : Types.AuditState, ctr : Types.Counters, personId : Nat, kind : Text, text : Text, workId : ?Nat) {
+    let id = Ids.next(ctr, "notification");
+    let n : Types.Notification = { id; personId; kind; text; workId; ref = null; createdAt = Time.now(); var readAt = null };
+    log.notifications.add(id, n);
+  };
+
+  public func notifyAdmins(access : AccessState, log : Types.AuditState, ctr : Types.Counters, kind : Text, text : Text) {
+    for (id in activeAdminIds(access).values()) { notify(log, ctr, id, kind, text, null) };
+  };
+
+  // ── Views ───────────────────────────────────────────────────────────────
+  public func personView(p : Person) : Views.PersonView {
     {
-      principal = p;
-      personId = l.personId;
-      personName = personName(st, l.personId);
-      status = l.status;
-      linkedAt = l.linkedAt;
-      codeHint = l.codeHint;
-      confirmedBy = l.confirmedBy;
+      id = p.id;
+      name = p.name;
+      roles = p.roles;
+      orgId = p.orgId;
+      shortCode = p.shortCode;
+      lang = p.lang;
+      phone = p.phone;
+      createdAt = p.createdAt;
+      createdBy = p.createdBy;
+      archivedAt = p.archivedAt;
     };
   };
 
-  public func inviteView(st : State, i : Types.Invite) : Types.InviteView {
+  public func linkView(access : AccessState, principal : Principal, l : Types.Link) : Views.LinkView {
+    {
+      principal;
+      personId = l.personId;
+      personName = personName(access, l.personId);
+      status = l.status;
+      linkedAt = l.linkedAt;
+      codeHint = l.codeHint;
+      tag = l.tag;
+      confirmedBy = l.confirmedBy;
+      confirmedAt = l.confirmedAt;
+      revokedBy = l.revokedBy;
+      revokedAt = l.revokedAt;
+    };
+  };
+
+  public func inviteView(access : AccessState, i : Types.Invite) : Views.InviteView {
     {
       id = i.id;
       personId = i.personId;
-      personName = personName(st, i.personId);
+      personName = personName(access, i.personId);
       kind = i.kind;
       createdBy = i.createdBy;
       createdAt = i.createdAt;
       expiresAt = i.expiresAt;
       hint = i.hint;
+      tag = i.tag;
+      workIds = i.workIds;
       state = i.state;
     };
+  };
+
+  // ── Hulp ────────────────────────────────────────────────────────────────
+  public func cleanText(t : Text, max : Nat) : ?Text {
+    let s = t.trim(#char ' ');
+    if (s.size() == 0 or s.size() > max) null else ?s;
+  };
+
+  public func optText(t : ?Text, max : Nat) : ?Text {
+    switch t { case null null; case (?x) cleanText(x, max) };
+  };
+
+  public func page<T>(items : [T], from : Nat, limit : Nat) : [T] {
+    let n = items.size();
+    if (from >= n) { return [] };
+    let lim = if (limit == 0 or limit > Config.maxListPage) Config.maxListPage else limit;
+    let to = if (from + lim > n) n else from + lim;
+    items.sliceToArray(from, to);
   };
 
   public func lastN<T>(l : List.List<T>, n : Nat) : [T] {

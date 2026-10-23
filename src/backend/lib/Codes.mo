@@ -13,6 +13,7 @@ module {
 
   // Uitnodigings- en herstelcodes: 12 tekens = 60 bit. Opstartcode: 16 tekens = 80 bit.
   public let inviteLength : Nat = 12;
+  public let bootstrapLength : Nat = 16;
 
   // `entropy` komt van raw_rand (32 bytes). 256 is deelbaar door 32, dus geen vertekening.
   public func fromEntropy(entropy : Blob, length : Nat) : Text {

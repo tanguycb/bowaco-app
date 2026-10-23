@@ -10,49 +10,158 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AccessStats {
+  'pendingLinks' : bigint,
+  'failuresThisHour' : bigint,
+  'codesLockedUntil' : [] | [bigint],
+  'persons' : bigint,
+  'activeLinks' : bigint,
+  'openInvites' : bigint,
+}
+export interface Address {
+  'zip' : string,
+  'street' : string,
+  'country' : string,
+  'city' : string,
+  'number' : string,
+}
 export interface AuditEntry {
   'at' : bigint,
   'who' : Principal,
   'action' : string,
   'detail' : string,
-  'personId' : [] | [bigint],
+  'personId' : [] | [PersonId],
+  'workId' : [] | [WorkId],
+}
+export interface Caps {
+  'manageAccess' : boolean,
+  'inviteExternal' : boolean,
+  'home' : string,
+  'createWork' : boolean,
+  'manageSettings' : boolean,
+  'readTeam' : boolean,
+  'upload' : boolean,
+  'manageOrgs' : boolean,
+  'manageRobots' : boolean,
+  'export' : boolean,
+  'readConfidentialContact' : boolean,
+  'readAudit' : boolean,
 }
 export type CodeKind = { 'invite' : null } |
   { 'recovery' : null };
-export type CodeState = { 'revoked' : { 'at' : bigint, 'by' : bigint } } |
+export type CodeState = { 'revoked' : { 'at' : bigint, 'by' : PersonId } } |
+  { 'expired' : { 'at' : bigint } } |
   { 'open' : null } |
   { 'used' : { 'at' : bigint, 'by' : Principal } };
+export interface Contact {
+  'name' : string,
+  'email' : [] | [string],
+  'address' : [] | [Address],
+  'phone' : [] | [string],
+}
+export interface ContactConfidentialView {
+  'contact' : [] | [Contact],
+  'sealed' : boolean,
+  'version' : bigint,
+  'notes' : [] | [string],
+}
+export interface Decision {
+  'at' : bigint,
+  'by' : PersonId,
+  'note' : string,
+  'accepted' : boolean,
+}
+export interface ExportConfidential {
+  'at' : bigint,
+  'files' : Array<FileView>,
+  'orgs' : Array<[OrgId, ContactConfidentialView]>,
+  'persons' : Array<[PersonId, ContactConfidentialView]>,
+}
+export interface ExportIntern {
+  'at' : bigint,
+  'files' : Array<FileView>,
+  'invites' : Array<InviteView>,
+  'schema' : bigint,
+  'orgs' : Array<OrgView>,
+  'links' : Array<LinkView>,
+  'version' : string,
+  'persons' : Array<PersonView>,
+  'settings' : SettingsView,
+  'robots' : Array<RobotView>,
+  'proposals' : Array<ProposalView>,
+  'works' : Array<WorkView>,
+  'auditCount' : bigint,
+  'memberships' : Array<MembershipView>,
+  'linkHistory' : Array<LinkHistory>,
+}
 export type ExternalBlob = Uint8Array;
-export interface FileRec {
+export interface FileView {
   'at' : bigint,
   'id' : bigint,
-  'blob' : ExternalBlob,
+  'blob' : [] | [ExternalBlob],
   'mime' : string,
   'name' : string,
   'size' : bigint,
-  'personId' : bigint,
+  'personId' : PersonId,
+  'confidential' : boolean,
+  'workId' : [] | [WorkId],
+}
+export type Grant = { 'readReports' : null } |
+  { 'confirmHours' : null } |
+  { 'confirmPlanning' : null } |
+  { 'readSellPrices' : null } |
+  { 'readProgress' : null } |
+  { 'uploadDocs' : null };
+export interface InviteRequest {
+  'tag' : string,
+  'validDays' : bigint,
+  'orgId' : [] | [OrgId],
+  'lang' : [] | [string],
+  'name' : string,
+  'shortCode' : [] | [string],
+  'workIds' : Array<WorkId>,
+  'phone' : [] | [string],
+  'roles' : Array<Role>,
 }
 export interface InviteView {
   'id' : bigint,
+  'tag' : string,
   'expiresAt' : bigint,
   'hint' : string,
   'kind' : CodeKind,
   'createdAt' : bigint,
-  'createdBy' : bigint,
+  'createdBy' : PersonId,
   'personName' : string,
-  'personId' : bigint,
+  'personId' : PersonId,
   'state' : CodeState,
+  'workIds' : Array<WorkId>,
+}
+export interface LinkHistory {
+  'id' : bigint,
+  'tag' : string,
+  'linkedAt' : bigint,
+  'principal' : Principal,
+  'movedAt' : bigint,
+  'codeHint' : string,
+  'personId' : PersonId,
+  'revokedAt' : [] | [bigint],
+  'revokedBy' : [] | [PersonId],
 }
 export type LinkStatus = { 'active' : null } |
+  { 'revoked' : null } |
   { 'pending' : null };
 export interface LinkView {
+  'tag' : string,
   'status' : LinkStatus,
   'linkedAt' : bigint,
   'principal' : Principal,
-  'confirmedBy' : [] | [bigint],
+  'confirmedAt' : [] | [bigint],
+  'confirmedBy' : [] | [PersonId],
   'personName' : string,
   'codeHint' : string,
-  'personId' : bigint,
+  'personId' : PersonId,
+  'revokedAt' : [] | [bigint],
+  'revokedBy' : [] | [PersonId],
 }
 export interface MeView {
   'blockedUntil' : [] | [bigint],
@@ -61,85 +170,188 @@ export interface MeView {
     { 'anonymous' : null } |
     { 'unlinked' : null },
   'principal' : Principal,
-  'person' : [] | [Person],
+  'person' : [] | [PersonView],
+  'caps' : [] | [Caps],
+  'version' : string,
   'isRobot' : boolean,
+}
+export interface MembershipView {
+  'id' : bigint,
+  'grants' : Array<Grant>,
+  'grantedAt' : bigint,
+  'grantedBy' : PersonId,
+  'orgId' : [] | [OrgId],
+  'endedAt' : [] | [bigint],
+  'name' : string,
+  'role' : Role,
+  'personId' : [] | [PersonId],
+  'workId' : WorkId,
 }
 export interface NewCode {
   'expiresAt' : bigint,
   'code' : string,
   'inviteId' : bigint,
-  'personId' : bigint,
+  'personId' : PersonId,
 }
 export interface NewTicket {
   'ticket' : string,
   'expiresAt' : bigint,
   'ticketId' : bigint,
 }
-export interface Person {
+export interface NotificationView {
   'id' : bigint,
+  'kind' : string,
+  'createdAt' : bigint,
+  'text' : string,
+  'workId' : [] | [WorkId],
+  'readAt' : [] | [bigint],
+}
+export type OrgId = bigint;
+export interface OrgInput {
+  'kbo' : [] | [string],
+  'vat' : [] | [string],
+  'trades' : Array<string>,
+  'kind' : OrgKind,
+  'name' : string,
+  'address' : [] | [Address],
+  'notes' : string,
+  'aliases' : Array<string>,
+}
+export type OrgKind = { 'client' : null } |
+  { 'other' : null } |
+  { 'supplier' : null } |
+  { 'bowaco' : null } |
+  { 'subcontractor' : null } |
+  { 'authority' : null } |
+  { 'architect' : null };
+export interface OrgView {
+  'id' : OrgId,
+  'kbo' : [] | [string],
+  'vat' : [] | [string],
+  'trades' : Array<string>,
+  'kind' : OrgKind,
   'name' : string,
   'createdAt' : bigint,
-  'createdBy' : bigint,
+  'createdBy' : PersonId,
+  'address' : [] | [Address],
+  'notes' : string,
+  'aliases' : Array<string>,
+  'archivedAt' : [] | [bigint],
+}
+export type PersonId = bigint;
+export interface PersonUpdate {
+  'orgId' : [] | [OrgId],
+  'lang' : [] | [string],
+  'name' : string,
+  'shortCode' : [] | [string],
   'phone' : [] | [string],
   'roles' : Array<Role>,
 }
-export interface ProbeNote {
+export interface PersonView {
+  'id' : PersonId,
+  'orgId' : [] | [OrgId],
+  'lang' : [] | [string],
+  'name' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'shortCode' : [] | [string],
+  'phone' : [] | [string],
+  'roles' : Array<Role>,
+  'archivedAt' : [] | [bigint],
+}
+export interface ProposalView {
   'at' : bigint,
   'by' : Principal,
   'id' : bigint,
-  'text' : string,
-  'version' : bigint,
-}
-export interface ProbeStatus {
-  'files' : bigint,
-  'canisterTime' : bigint,
-  'expiredTickets' : bigint,
-  'timerRecent' : Array<bigint>,
-  'probeNotes' : bigint,
-  'version' : string,
-  'persons' : bigint,
-  'vetkdLastAt' : bigint,
-  'timerTicks' : bigint,
-  'vetkdLastReport' : string,
-  'envNames' : Array<string>,
-  'timerLastTick' : bigint,
-}
-export interface Proposal {
-  'at' : bigint,
-  'by' : Principal,
-  'id' : bigint,
+  'decision' : [] | [Decision],
   'content' : string,
-  'ticketId' : bigint,
-  'personId' : bigint,
+  'kind' : string,
+  'ticketId' : [] | [bigint],
+  'personId' : [] | [PersonId],
+  'workId' : [] | [WorkId],
 }
-export type Result = { 'ok' : bigint } |
+export type Result = { 'ok' : PersonView } |
   { 'err' : string };
-export type Result_1 = { 'ok' : null } |
+export type Result_1 = { 'ok' : OrgView } |
   { 'err' : string };
-export type Result_2 = { 'ok' : MeView } |
+export type Result_10 = { 'ok' : TicketInfo } |
   { 'err' : string };
-export type Result_3 = { 'ok' : NewCode } |
+export type Result_2 = { 'ok' : bigint } |
   { 'err' : string };
-export type Result_4 = { 'ok' : NewTicket } |
+export type Result_3 = { 'ok' : null } |
   { 'err' : string };
-export type Result_5 = { 'ok' : Person } |
+export type Result_4 = { 'ok' : MeView } |
   { 'err' : string };
-export type Result_6 = { 'ok' : TicketInfo } |
+export type Result_5 = { 'ok' : ContactConfidentialView } |
   { 'err' : string };
+export type Result_6 = { 'ok' : FileView } |
+  { 'err' : string };
+export type Result_7 = { 'ok' : NewCode } |
+  { 'err' : string };
+export type Result_8 = { 'ok' : WorkView } |
+  { 'err' : string };
+export type Result_9 = { 'ok' : NewTicket } |
+  { 'err' : string };
+export interface RobotView {
+  'principal' : Principal,
+  'name' : string,
+  'addedAt' : bigint,
+  'addedBy' : PersonId,
+  'kinds' : Array<string>,
+  'revokedAt' : [] | [bigint],
+}
 export type Role = { 'admin' : null } |
   { 'werfleider' : null } |
   { 'onderaannemer' : null } |
   { 'calculator' : null } |
+  { 'veiligheidscoordinator' : null } |
   { 'architect' : null } |
   { 'klant' : null };
+export interface SettingsView {
+  'inviteDays' : bigint,
+  'werfleiderZietAlles' : boolean,
+}
 export interface TicketInfo {
   'expiresAt' : bigint,
   'budgetCents' : bigint,
   'task' : string,
-  'werf' : string,
   'personName' : string,
   'ticketId' : bigint,
-  'personId' : bigint,
+  'personId' : PersonId,
+  'workId' : [] | [WorkId],
+}
+export type WorkId = bigint;
+export interface WorkInput {
+  'leaderPersonId' : [] | [PersonId],
+  'clientOrgId' : [] | [OrgId],
+  'vatBp' : bigint,
+  'code' : string,
+  'name' : string,
+  'address' : Address,
+  'parentId' : [] | [WorkId],
+  'architectOrgId' : [] | [OrgId],
+}
+export type WorkStatus = { 'cancelled' : null } |
+  { 'request' : null } |
+  { 'quoting' : null } |
+  { 'planned' : null } |
+  { 'delivered' : null } |
+  { 'aftercare' : null } |
+  { 'running' : null };
+export interface WorkView {
+  'id' : WorkId,
+  'status' : WorkStatus,
+  'leaderPersonId' : [] | [PersonId],
+  'clientOrgId' : [] | [OrgId],
+  'vatBp' : bigint,
+  'code' : string,
+  'name' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'address' : Address,
+  'parentId' : [] | [WorkId],
+  'architectOrgId' : [] | [OrgId],
+  'archivedAt' : [] | [bigint],
 }
 export interface _ImmutableObjectStorageCreateCertificateResult {
   'method' : string,
@@ -172,28 +384,64 @@ export interface _SERVICE {
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initialize_access_control' : ActorMethod<[], undefined>,
-  'addFile' : ActorMethod<[string, string, bigint, ExternalBlob], Result>,
-  'addProbeNote' : ActorMethod<[string], Result>,
-  'auditLog' : ActorMethod<[bigint], Array<AuditEntry>>,
-  'checkTicket' : ActorMethod<[string], Result_6>,
-  'claimBootstrap' : ActorMethod<[string, string], Result_5>,
-  'confirmLink' : ActorMethod<[Principal], Result_1>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint], Result_3>,
-  'createTicket' : ActorMethod<[string, string], Result_4>,
-  'invitePerson' : ActorMethod<[string, Array<Role>, bigint], Result_3>,
-  'listFiles' : ActorMethod<[], Array<FileRec>>,
-  'listInvites' : ActorMethod<[], Array<InviteView>>,
+  'accessStats' : ActorMethod<[], AccessStats>,
+  'addFile' : ActorMethod<
+    [string, string, bigint, ExternalBlob, [] | [bigint], boolean],
+    Result_2
+  >,
+  'addMembership' : ActorMethod<
+    [bigint, [] | [bigint], [] | [bigint], Role, Array<Grant>],
+    Result_2
+  >,
+  'addRobot' : ActorMethod<[Principal, string, Array<string>], Result_3>,
+  'archiveFile' : ActorMethod<[bigint], Result_3>,
+  'archiveOrg' : ActorMethod<[bigint], Result_3>,
+  'archivePerson' : ActorMethod<[bigint], Result_3>,
+  'auditCount' : ActorMethod<[], bigint>,
+  'auditLog' : ActorMethod<[bigint, bigint], Array<AuditEntry>>,
+  'checkTicket' : ActorMethod<[string], Result_10>,
+  'claimBootstrap' : ActorMethod<[string, string], Result>,
+  'confirmLink' : ActorMethod<[Principal], Result_3>,
+  'createOrg' : ActorMethod<[OrgInput], Result_1>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_7>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_9>,
+  'createWork' : ActorMethod<[WorkInput], Result_8>,
+  'decideProposal' : ActorMethod<[bigint, boolean, string], Result_3>,
+  'endMembership' : ActorMethod<[bigint], Result_3>,
+  'exportConfidential' : ActorMethod<[], ExportConfidential>,
+  'exportIntern' : ActorMethod<[], ExportIntern>,
+  'getSettings' : ActorMethod<[], SettingsView>,
+  'getWork' : ActorMethod<[bigint], WorkView>,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_7>,
+  'listFiles' : ActorMethod<[[] | [bigint]], Array<FileView>>,
+  'listInvites' : ActorMethod<[bigint, bigint], Array<InviteView>>,
   'listLinks' : ActorMethod<[], Array<LinkView>>,
-  'listPersons' : ActorMethod<[], Array<Person>>,
+  'listMembers' : ActorMethod<[bigint], Array<MembershipView>>,
+  'listOrgs' : ActorMethod<[boolean], Array<OrgView>>,
+  'listPersons' : ActorMethod<[boolean], Array<PersonView>>,
+  'listRobots' : ActorMethod<[], Array<RobotView>>,
+  'listWorks' : ActorMethod<[], Array<WorkView>>,
+  'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'me' : ActorMethod<[], MeView>,
-  'myProposals' : ActorMethod<[], Array<Proposal>>,
-  'probeNotes' : ActorMethod<[], Array<ProbeNote>>,
-  'probeStatus' : ActorMethod<[], ProbeStatus>,
-  'probeVetkd' : ActorMethod<[], string>,
-  'redeemCode' : ActorMethod<[string], Result_2>,
-  'revokeInvite' : ActorMethod<[bigint], Result_1>,
-  'revokeLink' : ActorMethod<[Principal], Result_1>,
-  'submitProposal' : ActorMethod<[bigint, string], Result>,
+  'myNotifications' : ActorMethod<[boolean], Array<NotificationView>>,
+  'myProposals' : ActorMethod<[], Array<ProposalView>>,
+  'readConfidentialFile' : ActorMethod<[bigint], Result_6>,
+  'readOrgConfidential' : ActorMethod<[bigint], Result_5>,
+  'redeemCode' : ActorMethod<[string], Result_4>,
+  'restorePerson' : ActorMethod<[bigint], Result_3>,
+  'revokeInvite' : ActorMethod<[bigint], Result_3>,
+  'revokeLink' : ActorMethod<[Principal], Result_3>,
+  'revokeRobot' : ActorMethod<[Principal], Result_3>,
+  'setLinkLabel' : ActorMethod<[Principal, string], Result_3>,
+  'setOrgConfidential' : ActorMethod<
+    [bigint, [] | [Contact], string],
+    Result_2
+  >,
+  'setSettings' : ActorMethod<[SettingsView], Result_3>,
+  'setWorkStatus' : ActorMethod<[bigint, WorkStatus], Result_3>,
+  'submitProposal' : ActorMethod<[bigint, string, string], Result_2>,
+  'updateOrg' : ActorMethod<[bigint, OrgInput], Result_1>,
+  'updatePerson' : ActorMethod<[bigint, PersonUpdate], Result>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

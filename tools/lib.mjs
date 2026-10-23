@@ -28,6 +28,7 @@ export async function backend(identityName, canisterId) {
     host,
     identity: identityName ? identity(identityName) : undefined,
     shouldFetchRootKey: local, // alleen lokaal; op mainnet zit de sleutel in de agent
+    shouldSyncTime: local, // lokaal kan de rollentest de klok van het net verzetten
   });
   return Actor.createActor(idlFactory, { agent, canisterId });
 }
@@ -36,3 +37,17 @@ export function ok(r) {
   if (r && typeof r === "object" && "err" in r) throw new Error(r.err);
   return r && typeof r === "object" && "ok" in r ? r.ok : r;
 }
+
+// Wegwerpidentiteit (niet bewaard): voor de remmingstest en de lektestrobot.
+export async function freshBackend(canisterId) {
+  const host = process.env.ICP_HOST || "https://icp-api.io";
+  const local = host.includes("localhost") || host.includes("127.0.0.1");
+  const agent = await HttpAgent.create({ host, identity: Ed25519KeyIdentity.generate(), shouldFetchRootKey: local, shouldSyncTime: local });
+  return Actor.createActor(idlFactory, { agent, canisterId });
+}
+
+// Na het verzetten van de klok (alleen lokaal): elke agent opnieuw gelijkzetten.
+export async function resync(...actors) {
+  for (const a of actors) await Actor.agentOf(a).syncTime();
+}
+export { Principal } from "@icp-sdk/core/principal";
