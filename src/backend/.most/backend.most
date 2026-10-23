@@ -12,6 +12,8 @@ type AccessState__192760844 =
     persons : Map__230067015<PersonId__1007515609, Person__943967885>;
     throttle : Throttle__757556494
   };
+type Address__294896158 =
+  {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__766490103 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__963656299 =
@@ -61,17 +63,98 @@ type CodeState__574295970 =
   };
 type Confidential__546665525<T> = {#plain : T; #sealed : Sealed__69262316};
 type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
+type Confidential__675319516<T> = {#plain : T; #sealed : Sealed__1041298352};
 type Contact__278450601 =
   {address : ?Address__963656299; email : ?Text; name : Text; phone : ?Text};
+type Contact__86024909 =
+  {address : ?Address__294896158; email : ?Text; name : Text; phone : ?Text};
 type Contact__934541314 =
   {address : ?Address__766490103; email : ?Text; name : Text; phone : ?Text};
+type ContractParams__65105207 =
+  {
+    estimatedAmountCents : ?Int;
+    guarantee : GuaranteeKind__391074589;
+    guaranteeBp : Nat;
+    invoicingRhythm : InvoicingRhythm__722034047;
+    note : Text;
+    paymentTermDays : Nat;
+    priceRevision : PriceRevision__412682838;
+    signedQuoteVersionId : ?Nat
+  };
+type ContractParams__951290881 =
+  {
+    estimatedAmountCents : ?Int;
+    guarantee : GuaranteeKind__187207818;
+    guaranteeBp : Nat;
+    invoicingRhythm : InvoicingRhythm__288011655;
+    note : Text;
+    paymentTermDays : Nat;
+    priceRevision : PriceRevision__20189774;
+    signedQuoteVersionId : ?Nat
+  };
 type Counters__137216085 = Map__230067015<Text, Nat>;
 type Data__44217153<K, V> = {var count : Nat__227979830; kvs : [var ?(K, V)]};
+type Day__162369424 = Nat;
+type Day__923906744 = Nat;
 type Decision__965673210 =
   {accepted : Bool; at : Int; by : PersonId__1007515609; note : Text};
 type Decision__978490448 =
   {accepted : Bool; at : Int; by : PersonId__967516914; note : Text};
+type DocStatus__203023376 =
+  {#approved; #expired; #missing; #notApplicable; #received; #requested};
+type DocStatus__971696289 =
+  {#approved; #expired; #missing; #notApplicable; #received; #requested};
+type Document__483994843 =
+  {
+    archivedAt : ?Int;
+    confidential : Bool;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    dueDay : ?Day__162369424;
+    extra : Extra__945213800;
+    fileIds : [Nat];
+    id : Nat;
+    kind : Text;
+    note : Text;
+    ownerOrgId : ?OrgId__17031398;
+    status : DocStatus__203023376;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    validUntil : ?Day__162369424;
+    workId : WorkId__929594816
+  };
+type Document__661322582 =
+  {
+    archivedAt : ?Int;
+    confidential : Bool;
+    createdAt : Int;
+    createdBy : PersonId__253911295;
+    dueDay : ?Day__923906744;
+    extra : Extra__50648088;
+    fileIds : [Nat];
+    id : Nat;
+    kind : Text;
+    note : Text;
+    ownerOrgId : ?OrgId__232449879;
+    status : DocStatus__971696289;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__253911295;
+    validUntil : ?Day__923906744;
+    workId : WorkId__838834227
+  };
+type DossierState__7485337 =
+  {
+    confidential :
+      Map__230067015<WorkId__838834227, WorkConfidential__838957099>;
+    confidentialHistory :
+      Map__230067015<Nat, WorkConfidentialVersion__916547323>;
+    documents : Map__230067015<Nat, Document__661322582>;
+    info : Map__230067015<WorkId__838834227, WorkInfo__968164740>
+  };
 type Extra__482036894 = [(Text, Text)];
+type Extra__50648088 = [(Text, Text)];
 type Extra__945213800 = [(Text, Text)];
 type FileRef__312567383 =
   {
@@ -118,6 +201,8 @@ type Grant__365704929 =
     #readSellPrices;
     #uploadDocs
   };
+type GuaranteeKind__187207818 = {#bankGuarantee; #none; #retention};
+type GuaranteeKind__391074589 = {#bankGuarantee; #none; #retention};
 type Internal__283199666<K, V> =
   {children : [var ?Node__204828119<K, V>]; data : Data__44217153<K, V>};
 type Invite__1071795559 =
@@ -148,6 +233,10 @@ type Invite__310415001 =
     tag : Text;
     workIds : [WorkId__929594816]
   };
+type InvoicingRhythm__288011655 =
+  {#monthly; #other : Text; #perPhase; #perProgress};
+type InvoicingRhythm__722034047 =
+  {#monthly; #other : Text; #perPhase; #perProgress};
 type Leaf__598469445<K, V> = {data : Data__44217153<K, V>};
 type LinkHistory__721080331 =
   {
@@ -258,6 +347,7 @@ type Membership__509533854 =
   };
 type Nat__227979830 = Nat__920180692;
 type Nat__920180692 = Nat;
+type NewActor__1036484427 = {dossier : DossierState__7485337};
 type NewActor__1057791986 =
   {
     access : AccessState__192760844;
@@ -294,6 +384,7 @@ type Notification__821136752 =
     workId : ?WorkId__111716167
   };
 type OldActor__415128861 = {};
+type OldActor__574962007 = {};
 type OrgConfidential__581272438 =
   {
     var contact : Confidential__546665525<Contact__934541314>;
@@ -309,6 +400,7 @@ type OrgConfidential__888519432 =
     var version : Nat
   };
 type OrgId__17031398 = Nat;
+type OrgId__232449879 = Nat;
 type OrgId__875663865 = Nat;
 type OrgKind__867804321 =
   {
@@ -382,6 +474,7 @@ type PersonConfidential__403340742 =
     var version : Nat
   };
 type PersonId__1007515609 = Nat;
+type PersonId__253911295 = Nat;
 type PersonId__967516914 = Nat;
 type Person__726696944 =
   {
@@ -411,6 +504,8 @@ type Person__943967885 =
     roles : [Role__1042359284];
     shortCode : ?Text
   };
+type PriceRevision__20189774 = {#formula : Text; #none};
+type PriceRevision__412682838 = {#formula : Text; #none};
 type Proposal__579039857 =
   {
     at : Int;
@@ -485,6 +580,7 @@ type Role__679663545 =
     #veiligheidscoordinator;
     #werfleider
   };
+type Sealed__1041298352 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__69262316 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__901946251 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type SettingsState__180579617 =
@@ -555,8 +651,71 @@ type Vehicle__501905308 =
     name : Text;
     plate : Text
   };
+type WorkConfidentialVersion__408773235 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    clientContact : Confidential__546665525<Contact__934541314>;
+    contract : Confidential__546665525<ContractParams__951290881>;
+    id : Nat;
+    notes : Confidential__546665525<Text>;
+    version : Nat;
+    workId : WorkId__929594816
+  };
+type WorkConfidentialVersion__916547323 =
+  {
+    at : Int;
+    by : PersonId__253911295;
+    clientContact : Confidential__675319516<Contact__86024909>;
+    contract : Confidential__675319516<ContractParams__65105207>;
+    id : Nat;
+    notes : Confidential__675319516<Text>;
+    version : Nat;
+    workId : WorkId__838834227
+  };
+type WorkConfidential__629785012 =
+  {
+    clientContact : Confidential__546665525<Contact__934541314>;
+    contract : Confidential__546665525<ContractParams__951290881>;
+    extra : Extra__945213800;
+    notes : Confidential__546665525<Text>;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    version : Nat;
+    workId : WorkId__929594816
+  };
+type WorkConfidential__838957099 =
+  {
+    clientContact : Confidential__675319516<Contact__86024909>;
+    contract : Confidential__675319516<ContractParams__65105207>;
+    extra : Extra__50648088;
+    notes : Confidential__675319516<Text>;
+    updatedAt : Int;
+    updatedBy : PersonId__253911295;
+    version : Nat;
+    workId : WorkId__838834227
+  };
 type WorkId__111716167 = Nat;
+type WorkId__838834227 = Nat;
 type WorkId__929594816 = Nat;
+type WorkInfo__383931944 =
+  {
+    analyticCode : ?Text;
+    extra : Extra__945213800;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    vatNote : Text;
+    workId : WorkId__929594816
+  };
+type WorkInfo__968164740 =
+  {
+    analyticCode : ?Text;
+    extra : Extra__50648088;
+    updatedAt : Int;
+    updatedBy : PersonId__253911295;
+    vatNote : Text;
+    workId : WorkId__838834227
+  };
 type WorkStatus__1015151639 =
   {
     #aftercare;
@@ -625,7 +784,8 @@ type WorksState__605582232 =
     works : Map__230067015<WorkId__111716167, Work__494245799>
   };
 {
-  "20261022_220241" : OldActor__415128861 -> NewActor__1057791986
+  "20261022_220241" : OldActor__415128861 -> NewActor__1057791986;
+  "20261023_150000" : OldActor__574962007 -> NewActor__1036484427
 }
 actor  {
   stable access :
@@ -648,6 +808,15 @@ actor  {
     };
   stable ctr :
     {var root : Node__204828119<Text, Nat>; var size : Nat__227979830};
+  stable dossier :
+    {
+      confidential :
+        Map__230067015<WorkId__929594816, WorkConfidential__629785012>;
+      confidentialHistory :
+        Map__230067015<Nat, WorkConfidentialVersion__408773235>;
+      documents : Map__230067015<Nat, Document__483994843>;
+      info : Map__230067015<WorkId__929594816, WorkInfo__383931944>
+    };
   stable files : {files : Map__230067015<Nat, FileRef__388390992>};
   stable org :
     {
