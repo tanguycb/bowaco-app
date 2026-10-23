@@ -11,6 +11,7 @@ import { WorkConflicts } from "./Weekbord";
 import { Dossier } from "./Dossier";
 import { PlanSummary } from "./Planning";
 import { AddMember, Field, Files, NewWork } from "./Werven";
+import { ReportsSection } from "./Verslagen";
 
 export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
@@ -114,6 +115,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
 
       <PlanSummary workId={id} go={go} />
       {caps.readOrgPlanning && <WorkConflicts workId={id} go={go} />}
+      <ReportsSection workId={id} caps={caps} go={go} />
 
       <Dossier w={w} />
       <Files workId={id} canUpload={caps.upload && w.caps.upload} title={t.werven.loose} />

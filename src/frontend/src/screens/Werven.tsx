@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ExternalBlob, Grant, Role, type Caps, type FileView, type WorkView } from "../backend";
 import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
+import { OpenConfidential } from "./Dossier";
 import { errText, fmtBytes, fmtTime, unwrap, useBackend } from "../util";
 import { Loading, Page, RoleTags, useWorks, WorkList } from "./common";
 
@@ -204,6 +205,8 @@ function FileRow({ f }: { f: FileView }) {
       </span>
       {f.confidential && <span className="a-tag a-tag--warn">{t.werven.confidential}</span>}
       {url && <a className="bw-btn bw-btn--quiet" href={url} target="_blank" rel="noreferrer">{t.werven.open}</a>}
+      {/* P-15 (1.1): ook een los vertrouwelijk bestand opent, via de gelogde update-call (R12, R23). */}
+      {!url && f.confidential && <OpenConfidential fileId={f.id} />}
     </li>
   );
 }

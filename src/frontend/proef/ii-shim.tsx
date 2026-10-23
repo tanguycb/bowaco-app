@@ -6,7 +6,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 // @ts-expect-error: rechtstreeks uit de dist van het echte pakket (zelfde actor- en opslaglogica)
 import { createActorWithConfig, loadConfig } from "../node_modules/@caffeineai/core-infrastructure/dist/config.js";
 
-export { loadConfig };
+export { createActorWithConfig, loadConfig };
 
 type Ctx = {
   identity: Ed25519KeyIdentity | undefined;

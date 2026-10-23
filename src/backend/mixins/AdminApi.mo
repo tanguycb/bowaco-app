@@ -27,6 +27,7 @@ mixin (
   plan : Types.PlanState,
   board : Types.BoardState,
   imp : Types.ImportState,
+  reports : Types.ReportState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -183,6 +184,16 @@ mixin (
       importBatches = imp.batches.values().toArray();
       importKeys = imp.keys.values().toArray();
       appointments = imp.appointments.values().toArray();
+      vehicles = org.vehicles.values().map(func(v : Types.Vehicle) : Views.VehicleView = { id = v.id; plate = v.plate; name = v.name; archived = v.archivedAt != null }).toArray();
+      dayReports = reports.reports.values().toArray();
+      reportChanges = reports.changes.values().toArray();
+      attendances = reports.attendances.values().toArray();
+      hoursConfirmations = reports.confirmations.values().flatMap(func(cs : [Types.HoursConfirmation]) : Iter.Iter<Types.HoursConfirmation> = cs.values()).toArray();
+      workDone = reports.workDone.values().toArray();
+      materials = reports.materials.values().toArray();
+      photos = reports.photos.values().toArray();
+      issues = reports.issues.values().toArray();
+      trips = reports.trips.values().toArray();
       robots = robot.robots.values().map(robotView).toArray();
       proposals = robot.proposals.values().map(func x = { id = x.id; ticketId = x.ticketId; personId = x.personId; workId = x.workId; kind = x.kind; content = x.content; by = x.by; at = x.at; decision = x.decision }).toArray();
       settings = settingsView();

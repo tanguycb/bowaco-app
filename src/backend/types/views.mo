@@ -44,6 +44,9 @@ module {
     reportOwnAbsence : Bool; // eigen afwezigheid melden (1.4: OA, als de admin dat toelaat)
     manageBoardRules : Bool; // regels voor een dubbele boeking (1.4: admin)
     importPlan : Bool; // import van de bestaande planning en terugdraaien van een batch (1.5: enkel admin)
+    writeReports : Bool; // werfverslagen schrijven (1.6: admin, werfleider)
+    manageVehicles : Bool; // voertuigen beheren (1.6: admin)
+    readTrips : Bool; // ritten lezen (1.6, R14: admin alle, werfleider de zijne)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -480,6 +483,8 @@ module {
     responsibleName : Text;
     status : Types.TaskStatus;
     percent : Nat;
+    actualStart : ?Day; // werkelijk begonnen / klaar (1.6, uit het werfverslag)
+    actualEnd : ?Day;
     start : Day;
     end : Day; // berekend in werkdagen met de kalender van de werf
     workdays : Nat;
@@ -763,6 +768,16 @@ module {
     importBatches : [Types.ImportBatch]; // 1.5
     importKeys : [Types.ImportKey];
     appointments : [Types.Appointment];
+    vehicles : [VehicleView]; // 1.6
+    dayReports : [Types.DayReport];
+    reportChanges : [Types.ReportChange];
+    attendances : [Types.Attendance];
+    hoursConfirmations : [Types.HoursConfirmation];
+    workDone : [Types.WorkDone];
+    materials : [Types.MaterialNote];
+    photos : [Types.Photo];
+    issues : [Types.Issue];
+    trips : [Types.Trip];
     robots : [RobotView];
     proposals : [ProposalView];
     settings : SettingsView;
@@ -825,4 +840,156 @@ module {
     problems : [Text];
   };
   public type RollbackReport = { dryRun : Bool; works : Nat; tasks : Nat; assignments : Nat; appointments : Nat; keptWorks : [Text] };
+
+  // ── Werfverslag (1.6) ───────────────────────────────────────────────────
+  // De gsm stuurt kleine opdrachten met een opId (UUID) en de clientKey van het verslag (§8.2). Dezelfde
+  // opId nog eens geeft hetzelfde resultaat (repeated = true), nooit een dubbel blok.
+  public type FileIn = { blob : Storage.ExternalBlob; name : Text; mime : Text; size : Nat };
+  public type ReportOp = {
+    #ensure : { workId : WorkId; day : Day };
+    #text : { field : Text; value : Text }; // "summary" of "weather": laatste schrijver wint
+    #attendance : { orgId : ?OrgId; personId : ?PersonId; names : Text; headcount : Nat; slots : [Types.TimeSlot]; regie : Bool; taskId : ?Nat; note : Text; replaces : ?Text };
+    #workDone : { taskId : ?Nat; text : Text; percent : ?Nat };
+    #material : { kind : Types.MaterialKind; text : Text; quantity : Text; supplier : Text; file : ?FileIn };
+    #photo : { file : FileIn; thumb : ?FileIn; taskId : ?Nat; caption : Text; takenAt : ?Int };
+    #issue : { kind : Types.IssueKind; text : Text; taskIds : [Nat]; delayDays : ?Nat };
+    #trip : { vehicleId : ?Nat; plate : Text; driverOutPersonId : ?PersonId; driverBackPersonId : ?PersonId; driverOutText : Text; driverBackText : Text; note : Text };
+    #remove : { blockKey : Text }; // het blok dat met die opId gemaakt werd, archiveren (enkel in een open verslag)
+    #finalize;
+  };
+  public type ReportOpInput = { opId : Text; clientKey : Text; op : ReportOp };
+  // note: "nieuw" · "samengevoegd" (tweede toestel) · "correctie" (verslag was al afgesloten) · "al afgesloten"
+  public type OpOutcome = { #done : { reportId : Nat; entityId : ?Nat; note : Text }; #err : Text };
+  public type OpResult = { opId : Text; outcome : OpOutcome; repeated : Bool };
+
+  public type ConfirmationView = { id : Nat; byName : Text; at : Int; ok : Bool; remark : Text };
+  public type AttendanceView = {
+    id : Nat;
+    orgId : ?OrgId;
+    orgName : Text; // "BOWACO" als orgId null is
+    orgCode : Text;
+    personId : ?PersonId;
+    names : Text;
+    headcount : Nat;
+    slots : [Types.TimeSlot];
+    minutesTotal : Nat;
+    regie : Bool;
+    taskId : ?Nat;
+    note : Text;
+    blockKey : Text;
+    createdAt : Int;
+    createdByName : Text;
+    confirmations : [ConfirmationView];
+  };
+  public type WorkDoneView = { id : Nat; taskId : ?Nat; taskTitle : Text; text : Text; percent : ?Nat; blockKey : Text; createdAt : Int; createdByName : Text };
+  public type MaterialView = { id : Nat; kind : Types.MaterialKind; text : Text; quantity : Text; supplier : Text; file : ?FileView; hasFile : Bool; blockKey : Text; createdAt : Int; createdByName : Text };
+  public type PhotoView = { id : Nat; file : FileView; thumb : ?FileView; taskId : ?Nat; caption : Text; takenAt : ?Int; blockKey : Text; createdAt : Int; createdByName : Text };
+  public type IssueView = {
+    id : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    workCode : Text;
+    workName : Text;
+    day : Day;
+    kind : Types.IssueKind;
+    text : Text;
+    taskIds : [Nat];
+    taskTitles : [Text];
+    delayDays : ?Nat;
+    status : Types.IssueStatus;
+    handledByName : Text;
+    blockKey : Text;
+    createdAt : Int;
+    createdByName : Text;
+  };
+  public type TripView = {
+    id : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    workCode : Text;
+    day : Day;
+    vehicleId : ?Nat;
+    plate : Text;
+    vehicleName : Text;
+    driverOutPersonId : ?PersonId;
+    driverOutName : Text;
+    driverBackPersonId : ?PersonId;
+    driverBackName : Text;
+    note : Text;
+    blockKey : Text;
+    createdAt : Int;
+    createdByName : Text;
+  };
+  public type ReportChangeView = { at : Int; byName : Text; field : Text; from : Text; to : Text };
+  public type ReportView = {
+    id : Nat;
+    workId : WorkId;
+    workCode : Text;
+    workName : Text;
+    day : Day;
+    status : Types.ReportStatus;
+    corrects : ?Nat;
+    authorName : Text;
+    summary : Text;
+    weather : Text;
+    createdAt : Int;
+    updatedAt : Int;
+    scope : Text; // "full" · "reader" · "summary" · "ownHours"
+    attendances : [AttendanceView];
+    workDone : [WorkDoneView];
+    materials : [MaterialView];
+    photos : [PhotoView];
+    issues : [IssueView];
+    trips : [TripView];
+    changes : [ReportChangeView];
+    totalMinutes : Nat;
+    regieMinutes : Nat;
+    canWrite : Bool;
+    canFinalize : Bool;
+  };
+  public type ReportSummary = {
+    id : Nat;
+    workId : WorkId;
+    day : Day;
+    status : Types.ReportStatus;
+    corrects : ?Nat;
+    authorName : Text;
+    attendances : Nat;
+    headcount : Nat;
+    totalMinutes : Nat;
+    regieMinutes : Nat;
+    photos : Nat;
+    openIssues : Nat;
+    workDone : [Text]; // de eerste drie teksten
+  };
+
+  // "Vandaag" van de werfleider (bouwplan §8.2/§8.3): de werven van de dag met taken, wie er volgens de planning
+  // komt en de stand van het verslag. Ook offline te tonen (de gsm bewaart de laatste stand).
+  public type DayTask = { id : Nat; title : Text; status : Types.TaskStatus; percent : Nat; kind : Types.TaskKind; start : Day; end : Day; orgCodes : [Text] };
+  public type PlannedOrg = { orgId : OrgId; name : Text; code : Text; taskIds : [Nat] };
+  public type DayWork = {
+    id : WorkId;
+    code : Text;
+    name : Text;
+    address : Types.Address;
+    status : Types.WorkStatus;
+    leaderName : Text;
+    mine : Bool; // ik ben de werfleider (fiche of lidmaatschap)
+    tasks : [DayTask];
+    planned : [PlannedOrg];
+    reports : [ReportSummary];
+    openIssues : Nat;
+    appointments : [(Text, Text)]; // (uur, tekst) van de dag
+  };
+  public type VehicleView = { id : Nat; plate : Text; name : Text; archived : Bool };
+  public type PersonRef = { id : PersonId; name : Text };
+  public type MyDayView = {
+    day : Day;
+    works : [DayWork];
+    vehicles : [VehicleView];
+    drivers : [PersonRef]; // interne personen (chauffeurs)
+    orgs : [PlannedOrg]; // firma's om toe te voegen bij "Wie was er nog?" (OA's van de dag eerst)
+    writer : Bool;
+  };
+  public type VehicleInput = { id : ?Nat; plate : Text; name : Text; archived : Bool };
 };

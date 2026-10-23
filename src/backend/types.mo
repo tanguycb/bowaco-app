@@ -594,6 +594,194 @@ module {
     appointments : Map.Map<Nat, Appointment>;
   };
 
+  // ── Werfverslag (stap 1.6, architectuur §2.6 en §8) ─────────────────────
+  // Eigen domein `reports` (nieuw stabiel veld, deelvorm, OldActor = {}). Een dagverslag is een SET VAN
+  // BLOKKEN (aanwezigen, werken, materialen, foto's, problemen, ritten): blokken worden toegevoegd of
+  // gearchiveerd, nooit overschreven, zodat twee toestellen op hetzelfde verslag geen conflict geven (§8.4).
+  // Elk blok komt van één offline-opdracht met een opId (UUID van het toestel); dezelfde opId nog eens =
+  // hetzelfde resultaat, geen dubbel (§8.3). Records zijn onveranderlijk (vervangen, zoals in `plan`).
+  public type ReportStatus = {
+    #draft;
+    #final : { at : Int; by : PersonId };
+    #corrected : { byReportId : Nat; at : Int }; // afgesloten en later gecorrigeerd door verslag #n
+  };
+
+  // klasse: intern. Eén open verslag per werf per dag; een tweede toestel komt in hetzelfde verslag.
+  // Na het afsluiten (#final) verandert het niet meer (bewijs, D2): wat later komt, gaat naar een
+  // correctieverslag (corrects = het afgesloten verslag).
+  public type DayReport = {
+    id : Nat;
+    workId : WorkId;
+    day : Day;
+    authorPersonId : PersonId; // wie het verslag begon
+    clientKey : Text; // sleutel van het toestel dat het begon (andere toestellen: reports.keys)
+    status : ReportStatus;
+    corrects : ?Nat;
+    summary : Text; // laatste schrijver wint (ReportChange bewaart de vorige)
+    weather : Text;
+    createdAt : Int;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  public type TimeSlot = { fromMin : Nat; toMin : Nat }; // minuten sinds middernacht, Belgische tijd
+
+  // klasse: intern. "Wie was er?" = regie-uren = bewijs Checkinatwork. orgId null = BOWACO zelf.
+  public type Attendance = {
+    id : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    day : Day;
+    orgId : ?OrgId;
+    personId : ?PersonId; // één persoon met een fiche; anders de namen van de ploeg
+    names : Text;
+    headcount : Nat;
+    slots : [TimeSlot];
+    minutesTotal : Nat; // headcount × som van de tijdvakken
+    regie : Bool;
+    taskId : ?Nat;
+    note : Text;
+    blockKey : Text; // opId van de opdracht die dit blok maakte
+    replacedBy : ?Nat; // aangepast: het nieuwe blok
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId;
+    extra : Extra;
+  };
+
+  // klasse: intern, append-only. De OA bevestigt (of betwist) zijn uren (R9, stap 1.7).
+  public type HoursConfirmation = { id : Nat; attendanceId : Nat; orgId : OrgId; by : PersonId; at : Int; ok : Bool; remark : Text };
+
+  // klasse: intern. Uitgevoerd werk; met taskId en percent zet het ook de voortgang van de taak.
+  public type WorkDone = {
+    id : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    taskId : ?Nat;
+    text : Text;
+    percent : ?Nat;
+    blockKey : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // De zes soorten van het papieren werfverslag + een levering: bon (aankoop) · uit magazijn of camionette ·
+  // klein materiaal · materieel · afval naar magazijn · materiaal terug · geleverd op de werf.
+  public type MaterialKind = { #receipt; #fromWarehouse; #smallMaterial; #equipment; #wasteToWarehouse; #returned; #delivered };
+
+  // klasse: intern; de foto van een bon toont aankoopprijzen: die verwijzing krijgen enkel interne rollen.
+  public type MaterialNote = {
+    id : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    kind : MaterialKind;
+    text : Text;
+    quantity : Text; // vrije tekst ("4 zakken"): de offerte-eenheden komen in fase 2
+    supplier : Text;
+    fileId : ?Nat; // foto van de bon
+    blockKey : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern. Het bestand zelf is een FileRef (opslagdienst, verkleind op de gsm).
+  public type Photo = {
+    id : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    fileId : Nat;
+    thumbFileId : ?Nat;
+    taskId : ?Nat;
+    caption : Text;
+    takenAt : ?Int;
+    blockKey : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  public type IssueKind = { #problem; #delay; #extraWorkProposal; #safety; #other };
+  public type IssueStatus = { #open; #handled : { by : PersonId; at : Int; note : Text } };
+
+  // klasse: intern. Een vertraging zet de genoemde taken op "vertraagd"; verschuiven doet de werfleider in de
+  // Gantt (met voorvertoning), nooit stil vanop de gsm.
+  public type Issue = {
+    id : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    kind : IssueKind;
+    text : Text;
+    taskIds : [Nat];
+    delayDays : ?Nat; // werkdagen
+    status : IssueStatus;
+    blockKey : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern (R14: admin alle ritten, werfleider de zijne). Voertuig uit org.vehicles of een vrije plaat.
+  public type Trip = {
+    id : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    day : Day;
+    vehicleId : ?Nat;
+    plate : Text;
+    driverOutPersonId : ?PersonId;
+    driverBackPersonId : ?PersonId;
+    driverOutText : Text;
+    driverBackText : Text;
+    note : Text;
+    blockKey : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern, append-only: samenvatting of weer gewijzigd (laatste schrijver wint, §8.4).
+  public type ReportChange = { id : Nat; reportId : Nat; at : Int; by : PersonId; field : Text; from : Text; to : Text };
+
+  // Welke blokken bij een verslag horen (index; de blokken zelf staan in hun eigen Map).
+  public type ReportBlocks = {
+    attendances : [Nat];
+    workDone : [Nat];
+    materials : [Nat];
+    photos : [Nat];
+    issues : [Nat];
+    trips : [Nat];
+  };
+
+  // klasse: technisch (D2-uitzondering): een uitgevoerde offline-opdracht. Na 30 dagen opgeruimd.
+  public type OpRecord = { opId : Text; seq : Nat; at : Int; by : PersonId; kind : Text; reportId : Nat; entityId : ?Nat; note : Text };
+
+  public type ReportState = {
+    reports : Map.Map<Nat, DayReport>;
+    keys : Map.Map<Text, Nat>; // clientKey → verslag (ook de sleutel van een tweede toestel)
+    dayIndex : Map.Map<Text, [Nat]>; // "werf:dag" → verslagen van die dag (origineel + correcties)
+    blocks : Map.Map<Nat, ReportBlocks>;
+    changes : Map.Map<Nat, ReportChange>;
+    attendances : Map.Map<Nat, Attendance>;
+    confirmations : Map.Map<Nat, [HoursConfirmation]>; // per aanwezigheidsregel, in volgorde (append-only)
+    workDone : Map.Map<Nat, WorkDone>;
+    materials : Map.Map<Nat, MaterialNote>;
+    photos : Map.Map<Nat, Photo>;
+    issues : Map.Map<Nat, Issue>;
+    trips : Map.Map<Nat, Trip>;
+    fileOwners : Map.Map<Nat, Nat>; // bestand → verslag: foto's en bonnen tonen enkel via het verslag (R8, R12)
+    ops : Map.Map<Text, OpRecord>; // opId → resultaat (§8.3)
+    opOrder : Map.Map<Nat, Text>; // volgorde, voor de opruiming na 30 dagen
+  };
+
   // ── Robot: tickets en voorstellen (§2.10, §6) ───────────────────────────
   public type TicketState = { #open; #used : Int; #expired };
 

@@ -23,7 +23,7 @@ export default defineConfig({
           const url = req.url ?? "";
           if (url.startsWith("/env.json")) {
             res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ backend_host: "http://localhost:8041", backend_canister_id: cid, project_id: "undefined", ii_derivation_origin: "undefined", storage_gateway_url: "undefined" }));
+            res.end(JSON.stringify({ backend_host: `http://localhost:${process.env.BOWACO_PORT ?? "8041"}`, backend_canister_id: cid, project_id: "undefined", ii_derivation_origin: "undefined", storage_gateway_url: "undefined" }));
             return;
           }
           const m = url.match(/^\/__proef\/([a-z0-9-]+)$/);

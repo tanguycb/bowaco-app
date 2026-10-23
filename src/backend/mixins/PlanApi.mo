@@ -826,6 +826,8 @@ mixin (
       responsibleName = if showResp plOrgText(t.responsibleOrgId) else "";
       status = t.status;
       percent = t.percent;
+      actualStart = t.actualStart; // 1.6: uit het werfverslag
+      actualEnd = t.actualEnd;
       start = t.start;
       end;
       workdays = t.workdays;

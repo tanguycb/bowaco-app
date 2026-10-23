@@ -7,6 +7,7 @@ import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 import { Loading, Page, useWorks, WorkList } from "./common";
 import { BoardAttention } from "./Weekbord";
+import { IssueAttention } from "./Verslagen";
 
 export function Overzicht({ go }: { go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
@@ -45,6 +46,7 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
       <div className="a-cols">
         <section className="a-section">
           <h2 className="bw-h2">{t.overzicht.attention}</h2>
+          <IssueAttention go={go} />
           <BoardAttention go={go} />
           <Loading q={links} />
           {s?.codesLockedUntil !== undefined && (

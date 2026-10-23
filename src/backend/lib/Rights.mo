@@ -36,6 +36,9 @@ module {
     #manageAbsences; #reportOwnAbsence; #manageBoardRules;
     // 1.5: import van de bestaande planning (admin) en afspraken lezen
     #importPlan; #readAppointments;
+    // 1.6: werfverslag. #reportWriter = wie überhaupt verslagen schrijft (poort van de offline-opdrachten);
+    // per werf beslist #writeReport. Voertuigen: interne rollen lezen, admin beheert. Problemen afhandelen.
+    #reportWriter; #readVehicles; #manageVehicles; #handleIssues;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -171,6 +174,12 @@ module {
       // Afspraken uit de planning lezen: interne rollen, voor werven die ze zien.
       case (#importPlan) admin;
       case (#readAppointments) on(func w = internal(p) and seesWork(ctx, p, w));
+      // 1.6 (R7): verslagen schrijven doen admin en werfleider; per werf #writeReport hierboven.
+      case (#reportWriter) admin or wl;
+      case (#readVehicles) internal(p);
+      case (#manageVehicles) admin;
+      // Een gemeld probleem of een vertraging afhandelen: wie de planning van die werf beheert.
+      case (#handleIssues) on(func w = admin or leaderOn(ctx, p, w));
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -259,6 +268,32 @@ module {
     if (memberAs(ctx, p, w, #onderaannemer)) { return if (p.orgId != null) #ownOrg else #none };
     if (memberAs(ctx, p, w, #klant)) { return #summary };
     #none;
+  };
+
+  // ── Werfverslag (1.6, R8): wat iemand van de verslagen van een werf ziet ──
+  // #full = alles (admin, werfleider, calculator; ritten volgen R14 apart) · #reader = architect of
+  // veiligheidscoördinator met de grant #readReports: alles behalve ritten en de foto van een bon ·
+  // #summary = klant: dag, uitgevoerde werken en foto's, zonder namen, uren of problemen · #ownHours = OA:
+  // enkel de aanwezigheidsregels van zijn eigen firma · #none.
+  public type ReportScope = { #none; #full; #reader; #summary; #ownHours };
+
+  public func reportScope(ctx : Ctx, p : Person, w : WorkId) : ReportScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (may(ctx, p, #readReports, ?w)) { return if (internal(p)) #full else #reader };
+    if (memberAs(ctx, p, w, #onderaannemer)) { return if (p.orgId != null) #ownHours else #none };
+    if (memberAs(ctx, p, w, #klant)) { return #summary };
+    #none;
+  };
+
+  // R7: afsluiten mag de persoon die het verslag begon, de werfleider van de werf (fiche) of een admin.
+  public func mayFinalizeReport(ctx : Ctx, p : Person, w : WorkId, authorId : Nat, leaderId : ?Nat) : Bool {
+    may(ctx, p, #writeReport, ?w) and (has(p, #admin) or authorId == p.id or leaderId == ?p.id);
+  };
+
+  // R14: een rit lezen. Admin alle; een werfleider de ritten waarop hij chauffeur is of die hij ingaf.
+  public func mayReadTrip(ctx : Ctx, p : Person, createdBy : Nat, drivers : [?Nat]) : Bool {
+    if (not may(ctx, p, #readTrips, null)) { return false };
+    has(p, #admin) or createdBy == p.id or drivers.any(func d = d == ?p.id);
   };
 
   // Kan deze persoon werfleider zijn van een werf? (fiche: rol werfleider, niet afgezet)
@@ -374,6 +409,9 @@ module {
       reportOwnAbsence = may(ctx, p, #reportOwnAbsence, null);
       manageBoardRules = may(ctx, p, #manageBoardRules, null);
       importPlan = may(ctx, p, #importPlan, null);
+      writeReports = may(ctx, p, #reportWriter, null);
+      manageVehicles = may(ctx, p, #manageVehicles, null);
+      readTrips = may(ctx, p, #readTrips, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

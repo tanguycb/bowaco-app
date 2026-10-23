@@ -48,12 +48,25 @@ mixin (
     };
     switch (u.orgId) { case (?o) { if (not org.orgs.containsKey(o)) { return #err("Onbekende organisatie") } }; case null {} };
     switch (orgRule(u.roles, u.orgId)) { case (?e) return #err(e); case null {} };
+    // P-05 (1.2): een planningcode hoort bij één persoon, ook als ze via Team gewijzigd wordt (zoals in OaApi).
+    let shortCode : ?Text = switch (Access.optText(u.shortCode, Config.maxShort)) { case (?s) ?Text.toUpper(s); case null null };
+    switch shortCode {
+      case (?s) {
+        let f = Oa.fold(s);
+        for (q in access.persons.values()) {
+          if (q.id != id and q.archivedAt == null) {
+            switch (q.shortCode) { case (?c) { if (Oa.fold(c) == f) { return #err("Code " # s # " hoort al bij " # q.name) } }; case null {} };
+          };
+        };
+      };
+      case null {};
+    };
     let p : Types.Person = {
       id;
       name;
       roles = u.roles;
       orgId = u.orgId;
-      shortCode = Access.optText(u.shortCode, Config.maxShort);
+      shortCode;
       lang = Access.optText(u.lang, 5);
       phone = Access.optText(u.phone, 30);
       createdAt = old.createdAt;

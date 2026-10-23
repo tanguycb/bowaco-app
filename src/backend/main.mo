@@ -17,6 +17,7 @@ import OaApi "mixins/OaApi";
 import PlanApi "mixins/PlanApi";
 import BoardApi "mixins/BoardApi";
 import ImportApi "mixins/ImportApi";
+import ReportsApi "mixins/ReportsApi";
 
 persistent actor {
   let settings : Types.SettingsState;
@@ -29,6 +30,7 @@ persistent actor {
   let plan : Types.PlanState; // 1.3: planning per werf (taken, uitvoerders, afhankelijkheden, kalender, sjablonen)
   let board : Types.BoardState; // 1.4: afwezigheden per firma en de regels voor een dubbele boeking (weekbord)
   let imp : Types.ImportState; // 1.5: importbatches, importsleutels en afspraken uit de planning
+  let reports : Types.ReportState; // 1.6: werfverslagen (blokken), offline-opdrachten (opId)
   let robot : Types.RobotState;
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -37,19 +39,20 @@ persistent actor {
   include AccessApi(settings, access, works, robot, audit, ctr, org);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, audit, ctr);
-  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, robot, audit, ctr);
-  include FilesApi(settings, access, works, files, dossier, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, robot, audit, ctr);
+  include FilesApi(settings, access, works, files, dossier, reports, audit, ctr);
   include DossierApi(settings, access, works, files, dossier, audit, ctr);
   include OaApi(settings, access, org, works, oa, audit, ctr);
   include PlanApi(settings, access, org, works, plan, audit, ctr);
   include BoardApi(settings, access, org, works, plan, board, audit, ctr);
   include ImportApi(settings, access, org, works, plan, imp, audit, ctr);
+  include ReportsApi(settings, access, org, works, files, plan, imp, reports, audit, ctr);
   include TicketsApi(settings, access, works, robot, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
-  // Elke 10 min klein werk: verlopen tickets en codes afsluiten (begrensd, T17).
+  // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).
   transient let _tick = Timer.recurringTimer<system>(
     #seconds(Config.timerSeconds),
-    func() : async () { Housekeeping.tick(access, robot) },
+    func() : async () { Housekeeping.tick(access, robot, reports) },
   );
 };

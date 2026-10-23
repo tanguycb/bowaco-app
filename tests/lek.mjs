@@ -53,7 +53,9 @@ const asgB = ex.assignments.find((a) => a.workId === B && a.archivedAt.length ==
 const blkGone = ex.calendarBlocks.find((b) => "company" in b.scope && b.archivedAt.length === 1);
 const orgDak = ex.orgs.find((o) => o.name === "Proef Dak NV");
 const absGone = ex.absences.find((a) => a.archivedAt.length === 1 && "intern" in a.source && a.orgId === orgDak?.id);
-if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
+const repA = ex.dayReports?.find((r) => r.workId === A);
+const issDone = ex.issues?.find((i) => "handled" in i.status);
+if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone || !repA || !issDone) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
 const someone = identity("proef-lek-onbekend").getPrincipal();
 const hash = "sha256:" + "c".repeat(64);
@@ -182,6 +184,19 @@ const table = {
   rollbackImport: [ADMIN, () => ["bestaat-niet", true]],
   listImportBatches: [ADMIN, () => []],
   listAppointments: [INTERNAL, () => [B]],
+  // 1.6 werfverslag: schrijven admin en werfleider (R7, poort #reportWriter; per werf #writeReport); lezen per rol
+  // (R8): werf B = interne rollen + OA Dak (enkel zijn uren); verslag op A ook architect (grant) en klant
+  // (samenvatting), niet de veiligheidscoördinator zonder grant; de lijst niet voor een OA; ritten R14; voertuigen.
+  reportSync: [["admin", "werfleider"], () => [[{ opId: "lek-opdracht-1", clientKey: "lek-sleutel-1", op: { ensure: { workId: B, day: 1n } } }]]], // daarna "voorbije 60 dagen"
+  getReportDay: [ON_B, () => [B, 20_000n]],
+  getReport: [["admin", "werfleider", "calculator", "architect", "oa", "klant"], () => [repA.id]],
+  listReports: [["admin", "werfleider", "calculator", "architect", "klant"], () => [A, 0n, 1n]],
+  myDay: [["admin", "werfleider"], () => [20_000n, false]],
+  listIssues: [INTERNAL, () => [[B], true, 1n]],
+  handleIssue: [["admin", "werfleider"], () => [issDone.id, ""]], // al afgehandeld: er verandert niets
+  listTrips: [["admin", "werfleider"], () => [20_000n, 20_001n]],
+  listVehicles: [INTERNAL, () => [false]],
+  saveVehicle: [ADMIN, () => [{ id: [], plate: "", name: "", archived: false }]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

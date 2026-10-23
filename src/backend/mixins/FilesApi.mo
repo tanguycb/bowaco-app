@@ -22,6 +22,7 @@ mixin (
   works : Types.WorksState,
   files : Types.FileState,
   dossier : Types.DossierState,
+  reports : Types.ReportState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -58,7 +59,8 @@ mixin (
       case (?w) { Rights.require(ctx, p, #readDocs, ?w); Dossier.hiddenFileIds(ctx, dossier, p, w) };
       case null { Rights.require(ctx, p, #readTeam, null); [] };
     };
-    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null).map(Dossier.fileView).toArray();
+    // Foto's en bonnen van een werfverslag tonen enkel via het verslag (R8: lezen per rol, 1.6).
+    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id)).map(Dossier.fileView).toArray();
   };
 
   public shared ({ caller }) func readConfidentialFile(id : Nat) : async Result.Result<Views.FileView, Text> {
@@ -76,6 +78,7 @@ mixin (
     let allowed = Rights.may(ctx, p, #manageAccess, null) or (f.personId == p.id and (switch (f.workId) { case (?w) Rights.may(ctx, p, #uploadDocs, ?w); case null true }));
     if (not allowed) { return #err("Geen toegang") };
     if (f.archivedAt != null) { return #err("Al gearchiveerd") };
+    if (reports.fileOwners.containsKey(id)) { return #err("Dit bestand hoort bij een werfverslag: haal het daar weg") };
     f.archivedAt := ?Time.now();
     Access.audit(audit, caller, ?p.id, f.workId, "bestand-gearchiveerd", f.name # " #" # id.toText());
     #ok;

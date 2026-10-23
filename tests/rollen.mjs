@@ -988,6 +988,171 @@ const ex15 = await admin.exportIntern();
 check("interne export bevat batches, sleutels en afspraken", ex15.importBatches.length === 2 && ex15.appointments.length >= 2 && Array.isArray(ex15.importKeys));
 }
 
+await sec("── 1.6 werfverslag: blokken, opId, twee toestellen, correctie, rechten per rol (R7, R8, R14)");
+const nowDay = BigInt(Math.floor(Date.now() / 86_400_000));
+let D = nowDay;
+while (wd(D) >= 5) D -= 1n; // laatste werkdag (vandaag of vroeger)
+const uid = () => crypto.randomUUID();
+const ens = (key, w = A, day = D, opId = uid()) => ({ opId, clientKey: key, op: { ensure: { workId: w, day } } });
+const att = (key, o = {}, opId = uid()) => ({ opId, clientKey: key, op: { attendance: { orgId: opt(o.org), personId: [], names: o.names ?? "", headcount: o.n ?? 1n, slots: o.slots ?? [{ fromMin: 450n, toMin: 720n }, { fromMin: 750n, toMin: 960n }], regie: o.regie ?? false, taskId: opt(o.task), note: "", replaces: opt(o.replaces) } } });
+const sync1 = async (who, op) => (await who.reportSync([op]))[0];
+const done = (r) => r && "done" in r.outcome;
+const outErr = (r) => (r && "err" in r.outcome ? r.outcome.err : "");
+const fileIn = (mime = "image/jpeg", c = "d") => ({ blob: new TextEncoder().encode("!caf!sha256:" + c.repeat(64)), name: "verslagfoto.jpg", mime, size: 120_000n });
+const cWl = (await wl.me()).caps[0];
+check("caps: admin en werfleider schrijven verslagen, calculator/OA niet", (await admin.me()).caps[0].writeReports && cWl.writeReports && !(await calc.me()).caps[0].writeReports && !(await oa.me()).caps[0].writeReports && cWl.readTrips && !cWl.manageVehicles);
+// Een taak van vandaag op A voor OA Tegels (GILS), zodat "Vandaag" iets toont.
+let pA16 = await plan(wl);
+const st16 = await wl.saveTask(A, tIn({ title: "Proef vandaag", trade: "tegels", org: orgX.ok.id, start: D, workdays: 1n }), pA16.version);
+check("werfleider plant «Proef vandaag» op de werkdag " + fmt(D), isOk(st16), errOf(st16));
+const task16 = st16.ok.taskId[0];
+const dayW = await wl.myDay(D, false);
+const dA16 = dayW.works.find((w) => w.id === A);
+check("Vandaag (werfleider): werf A met de taak van vandaag en GILS uit de planning", !!dA16 && dA16.mine && dA16.tasks.some((x) => x.id === task16 && x.orgCodes.includes("GILS")) && dA16.planned.some((x) => x.code === "GILS"), JSON.stringify(dA16?.planned ?? [], big));
+check("Vandaag: chauffeurs zijn interne personen, firma's om toe te voegen", dayW.drivers.some((x) => x.id === wlId) && dayW.drivers.every((x) => x.id !== (oaDakId)) && dayW.orgs.some((o) => o.code === "GILS"));
+check("Vandaag: calculator, OA, architect, klant, veiligheid en anoniem geweigerd", (await Promise.all([calc, oa, arch, klant, vc, anon].map((x16) => rejects(x16.myDay(D, false))))).every(Boolean));
+check("verslag schrijven: calculator, OA, architect, klant, veiligheid en anoniem geweigerd (poort)", (await Promise.all([calc, oa, arch, klant, vc, anon].map((x16) => rejects(x16.reportSync([ens(uid())]))))).every(Boolean));
+// Openen (ensure) en dezelfde opId nog eens (antwoord gemist)
+const K1 = uid();
+const e1op = ens(K1);
+const e1 = await sync1(wl, e1op);
+check("werfleider opent het verslag van A (nieuw)", done(e1) && e1.outcome.done.note === "nieuw", JSON.stringify(e1, big));
+const rep1 = e1.outcome.done.reportId;
+const e1b = await sync1(wl, e1op);
+check("zelfde opId nog eens → hetzelfde resultaat, gemarkeerd als herhaling", done(e1b) && e1b.repeated && e1b.outcome.done.reportId === rep1);
+check("zelfde clientKey, nieuwe opId → 'bestaat'", (await sync1(wl, ens(K1))).outcome.done?.note === "bestaat");
+check("dezelfde sleutel voor een andere werf of dag geweigerd", outErr(await sync1(wl, ens(K1, B))).includes("ander verslag"));
+check("verslag van 61 dagen geleden geweigerd", outErr(await sync1(wl, ens(uid(), A, nowDay - 61n))).includes("60 dagen"));
+check("verslag voor over 5 dagen geweigerd", outErr(await sync1(wl, ens(uid(), A, nowDay + 5n))).includes("60 dagen"));
+check("ongeldige opId geweigerd", outErr(await sync1(wl, { ...ens(uid()), opId: "x" })).includes("opId"));
+check("een blok zonder geopend verslag: 'eerst openen'", outErr(await sync1(wl, att(uid(), { org: orgX.ok.id }))).includes("eerst openen"));
+await admin.setSettings({ werfleiderZietAlles: false, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n });
+check("werfleider (alles-zien uit) opent geen verslag op werf B", outErr(await sync1(wl, ens(uid(), B))).includes("Geen toegang"));
+await admin.setSettings({ werfleiderZietAlles: true, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n });
+// Wie was er? (tijdvakken, regie)
+const a1op = att(K1, { org: orgX.ok.id, n: 2n, regie: true, names: "Gils + Jan" });
+const a1 = await sync1(wl, a1op);
+check("aanwezigheid GILS ×2, 07:30–12:00 + 12:30–16:00, regie", done(a1), outErr(a1));
+const a1b = await sync1(wl, a1op);
+check("dezelfde aanwezigheid nog eens (zelfde opId) → geen dubbel", done(a1b) && a1b.repeated && a1b.outcome.done.entityId[0] === a1.outcome.done.entityId[0]);
+check("overlappende tijdvakken geweigerd", outErr(await sync1(wl, att(K1, { org: orgX.ok.id, slots: [{ fromMin: 450n, toMin: 720n }, { fromMin: 700n, toMin: 900n }] }))).includes("overlappen"));
+check("0 personen geweigerd", outErr(await sync1(wl, att(K1, { org: orgX.ok.id, n: 0n }))).includes("Aantal"));
+check("een klant staat niet bij de aanwezigen", outErr(await sync1(wl, att(K1, { org: orgKlant.ok.id }))).includes("klant"));
+// Tweede toestel (zelfde werfleider) en een tweede persoon (admin) op dezelfde werf en dag → hetzelfde verslag
+const K2 = uid();
+const e2 = await sync1(wl2, ens(K2));
+check("tweede toestel van de werfleider komt in HETZELFDE verslag (samengevoegd)", done(e2) && e2.outcome.done.reportId === rep1 && e2.outcome.done.note === "samengevoegd", JSON.stringify(e2, big));
+const K3 = uid();
+const e3 = await sync1(admin, ens(K3));
+check("admin op dezelfde werf en dag → hetzelfde verslag", done(e3) && e3.outcome.done.reportId === rep1);
+const a2 = await sync1(admin, att(K3, { names: "Eigen ploeg" }));
+check("admin voegt BOWACO (eigen ploeg) toe vanop zijn toestel", done(a2) && a2.outcome.done.reportId === rep1);
+const opsBatch = await wl2.reportSync([att(K2, { org: orgY.ok.id, slots: [{ fromMin: 480n, toMin: 600n }] }), { opId: uid(), clientKey: K2, op: { text: { field: "weather", value: "regen" } } }]);
+check("pakje van twee opdrachten vanop toestel 2: allebei uitgevoerd", opsBatch.every(done));
+// Wat is er gedaan? → voortgang van de taak (Q-05 van 1.3)
+const vBefore = (await plan(wl)).version;
+const w1 = await sync1(wl, { opId: uid(), clientKey: K1, op: { workDone: { taskId: [task16], text: "", percent: [50n] } } });
+const t16 = (await plan(wl)).tasks.find((x) => x.id === task16);
+check("voortgang 50 % zet de taak op 'bezig' met werkelijk begin", done(w1) && t16.percent === 50n && "busy" in t16.status && t16.actualStart[0] === D, JSON.stringify(t16?.status));
+check("de planversie gaat omhoog (een open Gantt ziet de wijziging)", (await plan(wl)).version > vBefore);
+check("de wijziging staat in de planning met reden 'werfverslag'", (await wl.taskHistory(A, [task16], 0n, 20n)).some((c) => c.field === "voortgang" && c.reason.includes("werfverslag")));
+check("een taak van werf B geweigerd", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { workDone: { taskId: [(await admin.getPlan(B)).tasks[0].id], text: "", percent: [] } } })).includes("niet bij deze werf"));
+check("lege regel geweigerd", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { workDone: { taskId: [], text: " ", percent: [] } } })).includes("Schrijf"));
+check("ander werk als tekst", done(await sync1(wl, { opId: uid(), clientKey: K1, op: { workDone: { taskId: [], text: "Opkuis kelder", percent: [] } } })));
+// Foto's en bonnen
+const ph = await sync1(wl, { opId: uid(), clientKey: K1, op: { photo: { file: fileIn(), thumb: [fileIn("image/jpeg", "e")], taskId: [task16], caption: "Voeg", takenAt: [] } } });
+check("foto + miniatuur bij de taak", done(ph), outErr(ph));
+check("een PDF als foto geweigerd", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { photo: { file: fileIn("application/pdf"), thumb: [], taskId: [], caption: "", takenAt: [] } } })).includes("foto"));
+check("een foto van 20 MB geweigerd (de gsm verkleint)", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { photo: { file: { ...fileIn(), size: 20_000_000n }, thumb: [], taskId: [], caption: "", takenAt: [] } } })).includes("te groot"));
+const repPhotoIds = (await admin.getReportDay(A, D)).flatMap((r) => r.photos.flatMap((p) => [p.file.id, ...p.thumb.map((x) => x.id)]));
+check("foto's van een verslag staan NIET in de losse bestanden van de werf (R8/R12)", repPhotoIds.length === 2 && (await admin.listFiles([A])).every((f) => !repPhotoIds.includes(f.id)));
+const mat = await sync1(wl, { opId: uid(), clientKey: K1, op: { material: { kind: { receipt: null }, text: "4 zakken mortel", quantity: "4", supplier: "Proef Bouwmarkt", file: [fileIn("image/jpeg", "f")] } } });
+check("bon met foto", done(mat), outErr(mat));
+check("materiaal zonder tekst of foto geweigerd", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { material: { kind: { smallMaterial: null }, text: "", quantity: "", supplier: "", file: [] } } })).includes("Schrijf"));
+const fileCount = (await admin.exportIntern()).files.length;
+// Problemen en vertraging
+const notesBefore = (await admin.myNotifications(true)).length;
+const iss = await sync1(wl, { opId: uid(), clientKey: K1, op: { issue: { kind: { delay: null }, text: "Regen: voeg kan niet drogen", taskIds: [task16], delayDays: [2n] } } });
+check("vertraging +2 wd gemeld", done(iss), outErr(iss));
+check("de taak staat op 'vertraagd'", "delayed" in (await plan(wl)).tasks.find((x) => x.id === task16).status);
+check("admin krijgt een melding van de vertraging", (await admin.myNotifications(true)).length > notesBefore && (await admin.myNotifications(true)).some((n) => n.kind === "verslag-vertraging"));
+check("vertraging van 0 werkdagen geweigerd", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { issue: { kind: { delay: null }, text: "x", taskIds: [], delayDays: [0n] } } })).includes("werkdagen"));
+// Ritten en voertuigen
+check("werfleider beheert geen voertuigen", await rejects(wl.saveVehicle({ id: [], plate: "1-ABC-123", name: "", archived: false })));
+const veh = await admin.saveVehicle({ id: [], plate: "1-abc-123", name: "Camionette proef", archived: false });
+check("admin voegt een voertuig toe (plaat in hoofdletters)", isOk(veh) && (await wl.listVehicles(false)).some((v) => v.plate === "1-ABC-123"));
+check("dezelfde nummerplaat nog eens geweigerd", errOf(await admin.saveVehicle({ id: [], plate: "1-ABC-123", name: "", archived: false })).includes("bestaat al"));
+check("OA leest geen voertuigen", await rejects(oa.listVehicles(false)));
+const trip = await sync1(wl, { opId: uid(), clientKey: K1, op: { trip: { vehicleId: [veh.ok], plate: "", driverOutPersonId: [wlId], driverBackPersonId: [wlId], driverOutText: "", driverBackText: "", note: "" } } });
+check("rit met voertuig en chauffeur heen/terug", done(trip), outErr(trip));
+check("een OA als chauffeur geweigerd", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { trip: { vehicleId: [], plate: "2-XYZ-999", driverOutPersonId: [oaDakId], driverBackPersonId: [], driverOutText: "", driverBackText: "", note: "" } } })).includes("BOWACO"));
+check("ritten: admin ziet ze, de werfleider de zijne, calculator niet (R14)", (await admin.listTrips(D, D)).length >= 1 && (await wl.listTrips(D, D)).length >= 1 && (await rejects(calc.listTrips(D, D))));
+check("rit van admin zonder werfleider als chauffeur: werfleider ziet ze niet", done(await sync1(admin, { opId: uid(), clientKey: K3, op: { trip: { vehicleId: [], plate: "9-ADM-001", driverOutPersonId: [adminId], driverBackPersonId: [], driverOutText: "", driverBackText: "", note: "" } } })) && (await wl.listTrips(D, D)).every((x) => x.plate !== "9-ADM-001") && (await admin.listTrips(D, D)).some((x) => x.plate === "9-ADM-001"));
+// Samenvatting: laatste schrijver wint, de vorige waarde blijft zichtbaar
+await sync1(wl, { opId: uid(), clientKey: K1, op: { text: { field: "summary", value: "Proef: voeg gezet" } } });
+await sync1(admin, { opId: uid(), clientKey: K3, op: { text: { field: "summary", value: "Proef: voeg gezet, regen vanaf 14u" } } });
+let v1 = (await admin.getReportDay(A, D))[0];
+check("samenvatting: laatste schrijver wint, twee wijzigingen bewaard", v1.summary.includes("regen vanaf 14u") && v1.changes.filter((c) => c.field === "summary").length === 2);
+check("weer staat erin ('regen', vanop toestel 2)", v1.weather === "regen");
+check("verslag toont 3 aanwezigheidsregels, totalen en regie", v1.attendances.length === 3 && v1.regieMinutes === 960n && v1.totalMinutes === 960n + 480n + 120n, `${v1.totalMinutes} / ${v1.regieMinutes}`);
+// Aanpassen (vervangen) en weghalen
+const a1r = await sync1(wl, att(K1, { org: orgX.ok.id, n: 2n, regie: true, names: "Gils + Jan", slots: [{ fromMin: 450n, toMin: 720n }], replaces: a1op.opId }));
+v1 = (await admin.getReportDay(A, D))[0];
+check("uren aanpassen = oude regel gearchiveerd, nieuwe erbij (append-only)", done(a1r) && v1.attendances.length === 3 && v1.attendances.some((x) => x.minutesTotal === 540n) && !v1.attendances.some((x) => x.minutesTotal === 960n));
+const rm = await sync1(admin, { opId: uid(), clientKey: K3, op: { remove: { blockKey: a2.opId } } });
+v1 = (await admin.getReportDay(A, D))[0];
+check("weghalen: het blok van de eigen ploeg is weg", done(rm) && v1.attendances.length === 2 && !v1.attendances.some((x) => x.orgId.length === 0));
+check("onbekend blok weghalen geweigerd", outErr(await sync1(admin, { opId: uid(), clientKey: K3, op: { remove: { blockKey: uid() } } })).includes("Onbekend"));
+// Zicht per rol (R8)
+const vA = (await arch.getReportDay(A, D))[0];
+check("architect (grant verslagen): alles behalve ritten en de foto van de bon", vA.scope === "reader" && vA.attendances.length === 2 && vA.trips.length === 0 && vA.materials.length === 1 && vA.materials[0].file.length === 0 && vA.materials[0].hasFile && vA.photos.length === 1);
+const vAd = (await admin.getReportDay(A, D))[0];
+check("admin: ritten en de foto van de bon", vAd.trips.length === 2 && vAd.materials[0].file.length === 1);
+const vW = (await wl.getReportDay(A, D))[0];
+check("werfleider ziet enkel zijn eigen rit (R14)", vW.trips.length === 1 && vW.trips[0].plate === "1-ABC-123");
+const vK = (await klant.getReportDay(A, D))[0];
+check("klant: samenvatting zonder namen, uren, problemen of materialen", vK.scope === "summary" && vK.attendances.length === 0 && vK.issues.length === 0 && vK.materials.length === 0 && vK.summary === "" && vK.authorName === "" && vK.photos.length === 1 && vK.workDone.length >= 1);
+const vO = (await oa.getReportDay(A, D))[0];
+check("OA Tegels: enkel de uren van zijn eigen firma", vO.scope === "ownHours" && vO.attendances.length === 1 && vO.attendances[0].orgId[0] === orgX.ok.id && vO.photos.length === 0 && vO.workDone.length === 0 && vO.summary === "");
+check("veiligheidscoördinator (zonder grant) leest geen verslagen", await rejects(vc.getReportDay(A, D)));
+check("OA leest de lijst van verslagen niet (enkel zijn uren)", await rejects(oa.listReports(A, 0n, 10n)));
+check("OA Tegels: verslagen van werf B geweigerd", await rejects(oa.getReportDay(B, D)));
+const lsA = await calc.listReports(A, 0n, 10n);
+check("calculator: tijdlijn met het verslag (open, 2 regels, 1 foto)", lsA.length === 1 && "draft" in lsA[0].status && lsA[0].attendances === 2n && lsA[0].photos === 1n);
+check("klant: tijdlijn zonder namen of uren", (await klant.listReports(A, 0n, 10n)).every((x) => x.authorName === "" && x.totalMinutes === 0n));
+// Afsluiten (R7) en correctie (§8.4)
+check("afsluiten: OA en calculator kunnen niet", (await rejects(calc.reportSync([{ opId: uid(), clientKey: K1, op: { finalize: null } }]))) && (await rejects(oa.reportSync([{ opId: uid(), clientKey: K1, op: { finalize: null } }]))));
+const fz = { opId: uid(), clientKey: K1, op: { finalize: null } };
+const f1 = await sync1(wl, fz);
+check("werfleider (auteur) sluit af", done(f1) && f1.outcome.done.note === "afgesloten", outErr(f1));
+check("afsluiten nog eens met dezelfde opId: herhaling", (await sync1(wl, fz)).repeated);
+check("afsluiten vanop een ander toestel: 'al afgesloten' (idempotent)", (await sync1(admin, { opId: uid(), clientKey: K3, op: { finalize: null } })).outcome.done?.note === "al afgesloten");
+check("een afgesloten verslag: weghalen kan niet meer", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { remove: { blockKey: trip.opId } } })).includes("afgesloten"));
+const late16 = await sync1(wl2, att(K2, { names: "Laat ingevuld (offline)" }));
+check("een blok na het afsluiten (toestel was offline) → in een CORRECTIE, niet in het afgesloten verslag", done(late16) && late16.outcome.done.note === "correctie" && late16.outcome.done.reportId !== rep1);
+const corrId = late16.outcome.done.reportId;
+const day2 = await admin.getReportDay(A, D);
+check("de dag heeft nu het afgesloten verslag en een open correctie", day2.length === 2 && "final" in day2[0].status && "draft" in day2[1].status && day2[1].corrects[0] === rep1);
+check("het afgesloten verslag bleef ongewijzigd (2 regels)", day2[0].attendances.length === 2);
+const f2 = await sync1(wl2, { opId: uid(), clientKey: K2, op: { finalize: null } });
+check("toestel 2 sluit 'zijn' verslag af = de open correctie met inhoud", done(f2) && f2.outcome.done.note === "correctie afgesloten" && f2.outcome.done.reportId === corrId);
+const day3 = await admin.getReportDay(A, D);
+check("origineel = 'gecorrigeerd door' de correctie, de correctie = afgesloten", "corrected" in day3[0].status && day3[0].status.corrected.byReportId === corrId && "final" in day3[1].status);
+const e9 = await sync1(admin, ens(uid()));
+check("een nieuw toestel op een afgesloten dag begint meteen een correctie", done(e9) && e9.outcome.done.note === "correctie");
+check("een leeg verslag afsluiten geweigerd", outErr(await sync1(admin, { opId: uid(), clientKey: (await (async () => { const k = uid(); await sync1(admin, ens(k, A, D - 1n)); return k; })()), op: { finalize: null } })).includes("leeg"));
+// Problemen afhandelen
+const openIss = await admin.listIssues([A], true, 10n);
+check("open problemen op A: de vertraging", openIss.length === 1 && "delay" in openIss[0].kind && openIss[0].taskTitles[0] === "Proef vandaag");
+check("calculator handelt niet af", await rejects(calc.handleIssue(openIss[0].id, "")));
+check("werfleider handelt af; nog eens geweigerd", isOk(await wl.handleIssue(openIss[0].id, "Gantt verschoven")) && errOf(await wl.handleIssue(openIss[0].id, "")).includes("al afgehandeld"));
+check("OA leest de problemen niet", await rejects(oa.listIssues([A], true, 10n)));
+// Audit en export
+const log16 = await admin.auditLog(0n, 300n);
+check("auditlog: verslag-nieuw en verslag-afgesloten, zonder opslagverwijzing", log16.some((e) => e.action === "verslag-nieuw") && log16.some((e) => e.action === "verslag-afgesloten") && log16.every((e) => !e.detail.includes("!caf!")));
+const ex16 = await admin.exportIntern();
+check("export bevat verslagen, regels, foto's, bonnen, problemen, ritten en voertuigen", ex16.dayReports.length >= 3 && ex16.attendances.length >= 5 && ex16.photos.length === 1 && ex16.materials.length === 1 && ex16.issues.length === 1 && ex16.trips.length === 2 && ex16.vehicles.length === 1 && ex16.files.length === fileCount);
+
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));
 check("werfleider kan geen robot toevoegen", await rejects(wl.addRobot(P("robot-test"), "Proefrobot", [])));

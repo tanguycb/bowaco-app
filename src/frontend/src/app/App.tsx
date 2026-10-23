@@ -1,8 +1,11 @@
 import { useInternetIdentity } from "@caffeineai/core-infrastructure";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { Principal } from "@icp-sdk/core/principal";
 import { Variant_active_pending_anonymous_unlinked as Status, type Caps, type MeView } from "../backend";
-import { Button, Icon, Sheet, Wordmark, type IconName } from "../design";
+import { Button, ConnectionStatus, Icon, Sheet, useToast, Wordmark, type IconName } from "../design";
+import { cacheGet, cachePut, openDb } from "../offline/db";
+import { OutboxProvider, useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
 import { useBackend } from "../util";
 import { CodeEntry, Login, Pending } from "../screens/Gate";
@@ -19,6 +22,9 @@ import { Audit } from "../screens/Audit";
 import { Instellingen } from "../screens/Instellingen";
 import { MijnLogin } from "../screens/MijnLogin";
 import { Weekbord } from "../screens/Weekbord";
+import { Vandaag } from "../screens/Vandaag";
+import { Werfverslag } from "../screens/Werfverslag";
+import { OutboxSheet } from "../screens/Verslagen";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -38,7 +44,31 @@ function codeFromLink(): string | null {
   return m ? m[1] : null;
 }
 
+/** De wachtrij van de gsm leeft rond de hele app (ook tijdens laden zonder bereik). */
 export default function App() {
+  const toast = useToast();
+  return (
+    <OutboxProvider onNotice={(n) => toast.show({ kind: "ok", text: n.text })}>
+      <AppInner />
+    </OutboxProvider>
+  );
+}
+
+/** me() met vangnet: zonder bereik de laatste bewaarde stand van deze principal (enkel naam, rollen en caps). */
+async function meWithCache(actor: { me: () => Promise<MeView> }, principal: string): Promise<MeView> {
+  await openDb(principal);
+  try {
+    const m = await actor.me();
+    if (m.person) void cachePut("me", { ...m, principal: principal });
+    return m;
+  } catch (e) {
+    const c = await cacheGet<MeView & { principal: string }>("me");
+    if (c && c.value.principal === principal) return { ...c.value, principal: Principal.fromText(principal) } as MeView;
+    throw e;
+  }
+}
+
+function AppInner() {
   const { identity, isAuthenticated, isInitializing, isLoggingIn, isLoginError, loginError, login, clear } = useInternetIdentity();
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
@@ -46,11 +76,14 @@ export default function App() {
   const me = useQuery({
     // De principal in de sleutel: na inloggen nooit het antwoord van de anonieme sessie hergebruiken.
     queryKey: ["me", identity?.getPrincipal().toText()],
-    queryFn: () => actor!.me(),
+    queryFn: () => meWithCache(actor!, identity!.getPrincipal().toText()),
     enabled: !!actor && !isFetching && isAuthenticated,
   });
 
-  const logout = () => {
+  const ob = useOutbox();
+  const logout = async () => {
+    // Uitloggen wist de lokale gegevens van deze principal (§8.5); de wachtrij is dan al verzonden of bewust weg.
+    await ob.wipe().catch(() => {});
     qc.clear();
     clear();
   };
@@ -74,19 +107,19 @@ export default function App() {
   const status = me.data.status;
   if (status === Status.unlinked || status === Status.anonymous) {
     return (
-      <Gate onLogout={logout}>
+      <Gate onLogout={() => void logout()}>
         <CodeEntry initial={linkCode} blockedUntil={me.data.blockedUntil} onDone={refresh} />
       </Gate>
     );
   }
   if (status === Status.pending) {
     return (
-      <Gate onLogout={logout}>
+      <Gate onLogout={() => void logout()}>
         <Pending name={me.data.person?.name ?? ""} onCheck={refresh} />
       </Gate>
     );
   }
-  return <Shell me={me.data} onLogout={logout} />;
+  return <Shell me={me.data} onLogout={() => void logout()} />;
 }
 
 function Gate({ children, onLogout }: { children: ReactNode; onLogout?: () => void }) {
@@ -105,6 +138,8 @@ type NavItem = { key: string; label: string; icon: IconName };
 function navFor(caps: Caps): NavItem[] {
   const homeIcon: Record<string, IconName> = { overzicht: "grid", vandaag: "home", offertes: "doc", week: "calendar", werven: "building" };
   const items: NavItem[] = [{ key: caps.home, label: t.nav[caps.home as keyof typeof t.nav] ?? t.nav.werven, icon: homeIcon[caps.home] ?? "home" }];
+  // 1.6: wie verslagen schrijft maar een ander startscherm heeft (admin), krijgt Vandaag erbij.
+  if (caps.writeReports && caps.home !== "vandaag") items.push({ key: "vandaag", label: t.nav.vandaag, icon: "home" });
   if (caps.home !== "werven") items.push({ key: "werven", label: t.nav.werven, icon: "building" });
   if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
   if (caps.readTeam) items.push({ key: "team", label: t.nav.team, icon: "people" });
@@ -124,6 +159,11 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const [menu, setMenu] = useState(false);
   const nav = navFor(caps);
   const allowed = new Set(nav.map((n) => n.key));
+  if (caps.writeReports) allowed.add("verslag");
+  const ob = useOutbox();
+  const [outbox, setOutbox] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const askLogout = () => (ob.ops.length > 0 ? setLeaving(true) : onLogout());
   const page = route[0] && allowed.has(route[0]) ? route[0] : caps.home;
 
   // Een externe die een #code=-link opent terwijl hij al gekoppeld is: de code is niet meer nodig.
@@ -135,6 +175,11 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
     switch (page) {
       case "overzicht": return <Overzicht go={go} />;
       case "vandaag":
+        if (caps.writeReports) return <Vandaag go={go} caps={caps} />;
+        return <Home kind={page} go={go} caps={caps} />;
+      case "verslag":
+        if (route[1] && route[2] && /^\d+$/.test(route[1]) && /^\d+$/.test(route[2])) return <Werfverslag key={`${route[1]}-${route[2]}`} workId={BigInt(route[1])} day={BigInt(route[2])} go={go} />;
+        return <Vandaag go={go} caps={caps} />;
       case "week":
       case "offertes":
       case "werven":
@@ -172,24 +217,36 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
     <div className="a-app">
       <aside className="a-side">
         <div className="a-side__brand"><Wordmark size={17} sub={t.app.sub} /></div>
+        {(caps.writeReports || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
         {navList()}
         <div className="a-me">
           <span className="a-avatar">{initials}</span>
           <span className="a-me__name">{person.name}<small>{roleText}</small></span>
-          <Button variant="quiet" icon="logout" iconOnly onClick={onLogout}>{t.common.logout}</Button>
+          <Button variant="quiet" icon="logout" iconOnly onClick={askLogout}>{t.common.logout}</Button>
         </div>
       </aside>
       <div className="a-main">
         <header className="a-bar">
           <span className="a-bar__brand"><Wordmark size={16} sub={t.app.sub} /></span>
+          {(caps.writeReports || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
           <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>
         </header>
         {screen}
       </div>
       <Sheet title={`${person.name} · ${roleText}`} open={menu} onClose={() => setMenu(false)}>
         {navList(() => setMenu(false))}
-        <Button variant="secondary" icon="logout" onClick={onLogout}>{t.common.logout}</Button>
+        <Button variant="secondary" icon="logout" onClick={askLogout}>{t.common.logout}</Button>
       </Sheet>
+      {outbox && <OutboxSheet onClose={() => setOutbox(false)} />}
+      {leaving && (
+        <Sheet title={t.outbox.logoutTitle} open onClose={() => setLeaving(false)}
+          footer={<>
+            <Button variant="danger" onClick={() => { setLeaving(false); onLogout(); }}>{t.outbox.logoutAnyway}</Button>
+            <Button variant="primary" icon="sync" busy={ob.syncing} onClick={() => void ob.sync().then(() => setLeaving(false))}>{t.outbox.logoutSend}</Button>
+          </>}>
+          <p>{t.outbox.logoutLead(ob.ops.length)}</p>
+        </Sheet>
+      )}
     </div>
   );
 }

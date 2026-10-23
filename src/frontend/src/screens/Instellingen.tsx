@@ -73,6 +73,7 @@ export function Instellingen() {
       <DocKinds />
       <Trades />
       <ImportBatches />
+      <Vehicles />
       <section className="a-section" style={{ maxWidth: 720 }}>
         <h2 className="bw-h2">{t.settings.robots}</h2>
         <p className="bw-muted">{t.settings.robotsLead}</p>
@@ -271,6 +272,45 @@ function ImportBatches() {
         onConfirm={() => run.mutate()}
         onClose={() => { setTarget(null); setPreview(null); }}
       />
+    </section>
+  );
+}
+
+/** Voertuigen voor de rit in het werfverslag (1.6): nummerplaat en naam; archiveren in plaats van wissen. */
+function Vehicles() {
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({ queryKey: ["vehicles"], queryFn: () => actor!.listVehicles(true), enabled: !!actor && !isFetching });
+  const [plate, setPlate] = useState("");
+  const [name, setName] = useState("");
+  const save = useMutation({
+    mutationFn: async (v: { id?: bigint; plate: string; name: string; archived: boolean }) => unwrap(await actor!.saveVehicle(v)),
+    onSuccess: () => { setPlate(""); setName(""); toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["vehicles"] }); void qc.invalidateQueries({ queryKey: ["myDay"] }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  return (
+    <section className="a-section" style={{ maxWidth: 720 }}>
+      <h2 className="bw-h2">{t.vehicles.title}</h2>
+      <p className="bw-muted">{t.vehicles.lead}</p>
+      <Loading q={q} />
+      {q.data && q.data.length === 0 && <p className="a-empty">{t.vehicles.none}</p>}
+      {q.data && q.data.length > 0 && (
+        <ul className="a-list">
+          {q.data.map((v) => (
+            <li key={String(v.id)}>
+              <span className="a-tag">{v.plate}</span>
+              <span className="a-list__main"><span>{v.name || "—"}</span>{v.archived && <span className="a-tag a-tag--bad">{t.common.archived}</span>}</span>
+              <Button variant="quiet" busy={save.isPending && save.variables?.id === v.id} onClick={() => save.mutate({ id: v.id, plate: v.plate, name: v.name, archived: !v.archived })}>{v.archived ? t.vehicles.restore : t.vehicles.archive}</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="a-grid2">
+        <Field label={t.vehicles.plate}><input id="veh-plate" className="bw-input bw-mono" value={plate} maxLength={20} onChange={(e) => setPlate(e.target.value.toUpperCase())} /></Field>
+        <Field label={t.vehicles.name}><input id="veh-name" className="bw-input" value={name} maxLength={60} placeholder={t.vehicles.namePh} onChange={(e) => setName(e.target.value)} /></Field>
+      </div>
+      <div><Button icon="plus" disabled={!plate.trim()} busy={save.isPending && save.variables?.id === undefined} onClick={() => save.mutate({ plate, name, archived: false })}>{t.vehicles.add}</Button></div>
     </section>
   );
 }

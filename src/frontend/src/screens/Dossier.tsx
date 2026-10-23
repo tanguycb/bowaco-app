@@ -83,7 +83,7 @@ function Latest({ doc }: { doc: DocumentView }) {
 /** Vertrouwelijk bestand: de verwijzing komt enkel uit een update-call met auditregel (R12, R23) en blijft
  *  alleen in het geheugen van dit onderdeel. Eerst ophalen, dan een gewone link die je zelf aanklikt
  *  (een venster openen na het wachten blokkeert de browser). */
-function OpenConfidential({ fileId }: { fileId: bigint }) {
+export function OpenConfidential({ fileId }: { fileId: bigint }) {
   const { actor } = useBackend();
   const toast = useToast();
   const [url, setUrl] = useState<string | null>(null);

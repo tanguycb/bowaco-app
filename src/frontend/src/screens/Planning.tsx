@@ -527,6 +527,9 @@ function TaskSheet({ workId, w, plan, cal, task, caps, onClose, onOpen }: {
       <Button variant="primary" busy={save.isPending} onClick={() => save.mutate(undefined)}>{t.common.save}</Button>
     </> : <Button onClick={onClose}>{t.common.close}</Button>}>
       {task && task.warnings.length > 0 && <div className="a-alert"><Icon name="alert" size={18} /><span>{task.warnings.join(" · ")}</span></div>}
+      {task && (task.actualStart !== undefined || task.actualEnd !== undefined) && (
+        <p className="a-note">{t.plan.actual(task.actualStart !== undefined ? fmtDayNum(task.actualStart) : "–", task.actualEnd !== undefined ? fmtDayNum(task.actualEnd) : "–")}</p>
+      )}
       {ro && task ? (
         <dl className="a-dl">
           <dt>{t.plan.field.kind}</dt><dd>{t.plan.kinds[task.kind]}</dd>

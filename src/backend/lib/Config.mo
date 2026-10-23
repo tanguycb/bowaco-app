@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1.5-draft13";
-  public let schema : Nat = 6; // 6 = met import van de planning (1.5); 5 = weekbord en afwezigheden (1.4)
+  public let version = "1.6-draft16";
+  public let schema : Nat = 7; // 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -130,6 +130,28 @@ module {
   public let maxAbsenceDays : Nat = 366; // één afwezigheid
   public let maxAbsencesPerOrg : Nat = 200; // niet-gearchiveerde afwezigheden per firma
   public let maxAbsenceNote : Nat = 200;
+
+  // ── Werfverslag (1.6, architectuur §2.6 en §8; grenzen D10) ─────────────
+  // Een verslag mag tot 60 dagen na de werfdag binnenkomen (een gsm die lang zonder bereik was) en niet
+  // later dan morgen (tijdzone). Opdrachten van het toestel komen in pakjes van hoogstens 40.
+  public let reportMaxAgeDays : Nat = 60;
+  public let maxOpsPerCall : Nat = 40;
+  public let opKeepDays : Int = 30; // opId-index (§8.3): daarna opgeruimd door de timer
+  public let maxAttendancesPerReport : Nat = 40;
+  public let maxWorkDonePerReport : Nat = 60;
+  public let maxMaterialsPerReport : Nat = 60;
+  public let maxPhotosPerReport : Nat = 50;
+  public let maxIssuesPerReport : Nat = 30;
+  public let maxTripsPerReport : Nat = 6;
+  public let maxReportText : Nat = 4_000; // samenvatting
+  public let maxHeadcount : Nat = 30;
+  public let maxSlots : Nat = 4;
+  public let maxDelayDays : Nat = 120;
+  public let maxVehicles : Nat = 100;
+  public let myDayMaxWorks : Nat = 60;
+  // Beeld: enkel foto's (JPEG, PNG, WebP); de gsm verkleint tot ≤ 1600 px, dus ruim onder deze grens.
+  public let maxPhotoBytes : Nat = 8_000_000;
+  public func photoMime(mime : Text) : Bool { mime == "image/jpeg" or mime == "image/png" or mime == "image/webp" };
 
   // Sjabloon "standaardrenovatie" (VOORLOPIG tot 0.3 en de bevestiging van Alexis; de admin past het aan in
   // Instellingen → Sjablonen, dan geldt die versie). Volgorde uit architectuur §1.1 punt 2 (mediane positie
