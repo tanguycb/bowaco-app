@@ -42,7 +42,16 @@ Niet bewaard: e-mailadres voor de login, wachtwoorden, IP-adressen (het IC geeft
 
 Bestanden: een opslag-URL is **openbaar voor wie hem kent** (meetverslag 0.2c). De app geeft een URL enkel aan wie de werf mag zien; URL's komen nooit in de auditlog, meldingen of mails. Een foto die echt weg moet, kan alleen door de verwijzing te verwijderen (dan ruimt de gateway het bestand op) — dat strijdt met "permanent bewaren" en vraagt een beslissing per geval.
 
-## 4. Open punten (eigenaar)
+## 4. Exportbestanden
+
+De export (beheerder: *Auditlog → Export*) maakt drie JSON-bestanden: intern, vertrouwelijk en de auditlog. **Behandel alle drie als vertrouwelijk**, ook "intern":
+- de interne en de vertrouwelijke export bevatten de **opslag-URL's** van de bestanden (foto's, plannen, contracten); wie het exportbestand heeft, kan die bestanden openen zonder login (§3);
+- de vertrouwelijke export bevat klantcontactgegevens;
+- alle drie bevatten namen, rollen en gsm-nummers.
+
+Bewaren: niet in e-mail of chat doorsturen; op een versleutelde schijf of in een kluis van de eigenaar. Of de export in 0.7 zonder URL's komt, staat open (verslag 0.6, O-19).
+
+## 5. Open punten (eigenaar)
 
 | # | Punt |
 |---|---|
@@ -50,4 +59,5 @@ Bestanden: een opslag-URL is **openbaar voor wie hem kent** (meetverslag 0.2c). 
 | PR2 | Verwerkersovereenkomst met Caffeine opvragen; vermelden dat Caffeine zelf platformsleutels in de canister plaatst (meetverslag 0.2) |
 | PR3 | Privacyverklaring voor OA's en klanten (foto's van personeel op de werf: beslist "geen bezwaar", maar informeren blijft nodig) |
 | PR4 | Bewaartermijn van auditregels en uitnodigingen na het einde van de samenwerking: 10 jaar voor alles, of korter voor P5/P6/P10? |
+| PR6 | Exportbestanden bevatten opslag-URL's (§4): zo laten of een export zonder URL's (beslissing 0.7) |
 | PR5 | Dit register nakijken bij 1.3 (planning), 1.6 (verslagen, aanwezigheden = uren per persoon) en fase 2 (prijzen) |
