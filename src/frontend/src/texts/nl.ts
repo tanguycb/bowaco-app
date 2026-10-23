@@ -445,6 +445,8 @@ export const nl = {
     assignments: "Uitvoerders",
     assignmentsLead: "De verantwoordelijke is de eerste uitvoerder. Voeg een tweede firma toe voor (een deel van) de taak.",
     addAssignment: "Uitvoerder toevoegen",
+    withTrade: "met dit vakgebied",
+    otherOrgs: "andere firma's",
     fromDay: "Vanaf (optioneel)",
     toDay: "Tot (optioneel)",
     cellNote: "Opmerking",

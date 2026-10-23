@@ -54,7 +54,8 @@ check("import-script, proefronde: niets bewaard", r1.includes("PROEFRONDE") && (
 const r2 = run(["--echt"]);
 const after = (await admin.exportIntern()).orgs.length;
 const firstRun = /nieuw (\d+)/.exec(r2)?.[1];
-check("import-script, echt: firma's erbij", r2.includes("ECHT BEWAARD") && after > before, `${before} → ${after}; ${r2.split("\n").find((l) => l.startsWith("nieuw"))}`);
+// Een tweede run op dezelfde canister vindt alles al terug ("ongewijzigd"): ook goed (idempotent).
+check("import-script, echt: firma's erbij (of al aanwezig bij een tweede run)", r2.includes("ECHT BEWAARD") && (after > before || (/nieuw 0 /.test(r2) && /conflicten 0/.test(r2))), `${before} → ${after}; ${r2.split("\n").find((l) => l.startsWith("nieuw"))}`);
 const r3 = run(["--echt"]);
 check("import-script, nog eens: niets nieuw, niets aangevuld (idempotent)", /nieuw 0 · aangevuld 0 · ongewijzigd \d+/.test(r3) && (await admin.exportIntern()).orgs.length === after, r3.split("\n").find((l) => l.startsWith("nieuw")));
 const elek = await admin.listOas(f({ text: "TESTELEK2" }));

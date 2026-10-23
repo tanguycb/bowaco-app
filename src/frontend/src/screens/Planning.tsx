@@ -185,7 +185,9 @@ function Gantt({ plan, cal, zoom, editable, onOpen, onMove, ghost, workId }: {
   // Bij het openen: naar vandaag (of het begin van de planning) scrollen.
   useEffect(() => {
     const el = scroller.current;
-    if (el) el.scrollLeft = Math.max(0, x(Math.max(first, now - 7)) - 40);
+    // Een planning die pas later begint: open bij haar begin; anders bij vandaag (een week terug).
+    const target = N(plan.start ?? now) > now + 7 ? N(plan.start!) - 3 : now - 7;
+    if (el) el.scrollLeft = Math.max(0, x(Math.max(first, target)) - 40);
   }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const weeks: { monday: number; week: number }[] = [];
@@ -557,12 +559,19 @@ function TaskSheet({ workId, w, plan, cal, task, caps, onClose, onOpen }: {
             <Field label={t.plan.field.org}>
               <select className="bw-input" value={org} onChange={(e) => setOrg(e.target.value)}>
                 <option value="">{t.plan.field.noOrg}</option>
-                {(oas.data ?? []).filter((o) => !trade || o.org.trades.includes(trade) || String(o.org.id) === org).map((o) => <option key={String(o.org.id)} value={String(o.org.id)}>{o.org.name}{o.org.aliases[0] ? ` (${o.org.aliases[0]})` : ""}</option>)}
+                {(() => {
+                  // Firma's met dit vakgebied eerst; de andere blijven kiesbaar.
+                  const opt = (o: { org: { id: bigint; name: string; aliases: string[] } }) => <option key={String(o.org.id)} value={String(o.org.id)}>{o.org.name}{o.org.aliases[0] ? ` (${o.org.aliases[0]})` : ""}</option>;
+                  const all = oas.data ?? [];
+                  if (!trade) return all.map(opt);
+                  const match = all.filter((o) => o.org.trades.includes(trade));
+                  const rest = all.filter((o) => !o.org.trades.includes(trade));
+                  return <>{match.length > 0 && <optgroup label={t.plan.withTrade}>{match.map(opt)}</optgroup>}<optgroup label={t.plan.otherOrgs}>{rest.map(opt)}</optgroup></>;
+                })()}
                 {org && !(oas.data ?? []).some((o) => String(o.org.id) === org) && <option value={org}>{task?.responsibleName || `#${org}`}</option>}
               </select>
             </Field>
           </div>
-          {trade && (oas.data ?? []).length > 0 && <p className="bw-muted">{t.plan.field.trade}: enkel firma's met dit vakgebied</p>}
           <Field label={t.plan.status}>
             <Choice label={t.plan.status} value={status} onChange={setStatus} options={STATUSES.map((s) => ({ value: s, label: <StatusBadge status={statusOf(s)} small /> }))} />
           </Field>
