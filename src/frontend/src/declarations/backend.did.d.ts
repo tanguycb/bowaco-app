@@ -40,6 +40,8 @@ export interface Caps {
   'manageAccess' : boolean,
   'inviteExternal' : boolean,
   'readContracts' : boolean,
+  'importOa' : boolean,
+  'manageOa' : boolean,
   'home' : string,
   'createWork' : boolean,
   'manageSettings' : boolean,
@@ -50,6 +52,7 @@ export interface Caps {
   'export' : boolean,
   'readConfidentialContact' : boolean,
   'readAudit' : boolean,
+  'readOa' : boolean,
 }
 export interface ChecklistLine {
   'doc' : [] | [DocumentView],
@@ -217,7 +220,9 @@ export interface ExportIntern {
   'documents' : Array<Document>,
   'invites' : Array<InviteView>,
   'schema' : bigint,
+  'trades' : Array<TradeView>,
   'orgs' : Array<OrgView>,
+  'orgContacts' : Array<OrgContact>,
   'links' : Array<LinkView>,
   'version' : string,
   'persons' : Array<PersonView>,
@@ -225,6 +230,7 @@ export interface ExportIntern {
   'robots' : Array<RobotView>,
   'proposals' : Array<ProposalView>,
   'works' : Array<WorkView>,
+  'personContacts' : Array<PersonContact>,
   'auditCount' : bigint,
   'memberships' : Array<MembershipView>,
   'linkHistory' : Array<LinkHistory>,
@@ -252,6 +258,47 @@ export type Grant = { 'readReports' : null } |
 export type GuaranteeKind = { 'none' : null } |
   { 'retention' : null } |
   { 'bankGuarantee' : null };
+export type ImportOutcome = { 'created' : null } |
+  { 'conflict' : string } |
+  { 'invalid' : string } |
+  { 'updated' : null } |
+  { 'unchanged' : null };
+export interface ImportPerson {
+  'name' : string,
+  'email' : [] | [string],
+  'jobTitle' : string,
+  'shortCode' : [] | [string],
+  'phone' : [] | [string],
+}
+export interface ImportReport {
+  'created' : bigint,
+  'invalid' : bigint,
+  'results' : Array<ImportResult>,
+  'conflicts' : bigint,
+  'updated' : bigint,
+  'unchanged' : bigint,
+  'dryRun' : boolean,
+}
+export interface ImportResult {
+  'key' : string,
+  'orgId' : [] | [OrgId],
+  'changes' : Array<string>,
+  'outcome' : ImportOutcome,
+}
+export interface ImportRow {
+  'kbo' : [] | [string],
+  'key' : string,
+  'vat' : [] | [string],
+  'trades' : Array<string>,
+  'kind' : OrgKind,
+  'name' : string,
+  'email' : [] | [string],
+  'website' : [] | [string],
+  'persons' : Array<ImportPerson>,
+  'notes' : string,
+  'aliases' : Array<string>,
+  'phone' : [] | [string],
+}
 export interface InviteRequest {
   'tag' : string,
   'validDays' : bigint,
@@ -351,6 +398,61 @@ export interface NotificationView {
   'workId' : [] | [WorkId],
   'readAt' : [] | [bigint],
 }
+export interface OaFilter {
+  'trade' : [] | [string],
+  'kind' : [] | [OrgKind],
+  'text' : [] | [string],
+  'includeArchived' : boolean,
+}
+export interface OaPersonInput {
+  'id' : [] | [PersonId],
+  'name' : string,
+  'note' : string,
+  'email' : [] | [string],
+  'jobTitle' : string,
+  'shortCode' : [] | [string],
+  'phone' : [] | [string],
+}
+export interface OaPersonView {
+  'id' : PersonId,
+  'hasLogin' : boolean,
+  'orgId' : OrgId,
+  'name' : string,
+  'note' : string,
+  'email' : [] | [string],
+  'jobTitle' : string,
+  'shortCode' : [] | [string],
+  'phone' : [] | [string],
+  'archivedAt' : [] | [bigint],
+}
+export interface OaView {
+  'org' : OrgView,
+  'contact' : [] | [OrgContactView],
+  'persons' : Array<OaPersonView>,
+}
+export interface OrgContact {
+  'contactNote' : string,
+  'orgId' : OrgId,
+  'email' : [] | [string],
+  'website' : [] | [string],
+  'extra' : Extra,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'phone' : [] | [string],
+}
+export interface OrgContactInput {
+  'contactNote' : string,
+  'email' : [] | [string],
+  'website' : [] | [string],
+  'phone' : [] | [string],
+}
+export interface OrgContactView {
+  'contactNote' : string,
+  'email' : [] | [string],
+  'website' : [] | [string],
+  'updatedAt' : bigint,
+  'phone' : [] | [string],
+}
 export type OrgId = bigint;
 export interface OrgInput {
   'kbo' : [] | [string],
@@ -382,6 +484,15 @@ export interface OrgView {
   'notes' : string,
   'aliases' : Array<string>,
   'archivedAt' : [] | [bigint],
+}
+export interface PersonContact {
+  'note' : string,
+  'email' : [] | [string],
+  'extra' : Extra,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'personId' : PersonId,
+  'jobTitle' : string,
 }
 export type PersonId = bigint;
 export interface PersonUpdate {
@@ -421,11 +532,19 @@ export type Result = { 'ok' : WorkView } |
   { 'err' : string };
 export type Result_1 = { 'ok' : PersonView } |
   { 'err' : string };
-export type Result_10 = { 'ok' : NewCode } |
+export type Result_10 = { 'ok' : ContractView } |
   { 'err' : string };
-export type Result_11 = { 'ok' : NewTicket } |
+export type Result_11 = { 'ok' : FileView } |
   { 'err' : string };
-export type Result_12 = { 'ok' : TicketInfo } |
+export type Result_12 = { 'ok' : NewCode } |
+  { 'err' : string };
+export type Result_13 = { 'ok' : ImportReport } |
+  { 'err' : string };
+export type Result_14 = { 'ok' : OaView } |
+  { 'err' : string };
+export type Result_15 = { 'ok' : NewTicket } |
+  { 'err' : string };
+export type Result_16 = { 'ok' : TicketInfo } |
   { 'err' : string };
 export type Result_2 = { 'ok' : OrgView } |
   { 'err' : string };
@@ -433,15 +552,15 @@ export type Result_3 = { 'ok' : bigint } |
   { 'err' : string };
 export type Result_4 = { 'ok' : null } |
   { 'err' : string };
-export type Result_5 = { 'ok' : MeView } |
+export type Result_5 = { 'ok' : OrgContactView } |
   { 'err' : string };
-export type Result_6 = { 'ok' : ContactConfidentialView } |
+export type Result_6 = { 'ok' : OaPersonView } |
   { 'err' : string };
-export type Result_7 = { 'ok' : Array<ContractVersionView> } |
+export type Result_7 = { 'ok' : MeView } |
   { 'err' : string };
-export type Result_8 = { 'ok' : ContractView } |
+export type Result_8 = { 'ok' : ContactConfidentialView } |
   { 'err' : string };
-export type Result_9 = { 'ok' : FileView } |
+export type Result_9 = { 'ok' : Array<ContractVersionView> } |
   { 'err' : string };
 export interface RobotView {
   'principal' : Principal,
@@ -478,6 +597,18 @@ export interface TicketInfo {
   'ticketId' : bigint,
   'personId' : PersonId,
   'workId' : [] | [WorkId],
+}
+export interface TradeInput {
+  'key' : string,
+  'order' : bigint,
+  'name' : string,
+  'archived' : boolean,
+}
+export interface TradeView {
+  'key' : string,
+  'order' : bigint,
+  'name' : string,
+  'archived' : boolean,
 }
 export interface WorkCaps {
   'manageMembers' : boolean,
@@ -627,44 +758,50 @@ export interface _SERVICE {
   >,
   'auditCount' : ActorMethod<[], bigint>,
   'auditLog' : ActorMethod<[bigint, bigint], Array<AuditEntry>>,
-  'checkTicket' : ActorMethod<[string], Result_12>,
+  'checkTicket' : ActorMethod<[string], Result_16>,
   'claimBootstrap' : ActorMethod<[string, string], Result_1>,
   'confirmLink' : ActorMethod<[Principal], Result_4>,
   'createOrg' : ActorMethod<[OrgInput], Result_2>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_10>,
-  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_11>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_12>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_15>,
   'createWork' : ActorMethod<[WorkInput], Result>,
   'decideProposal' : ActorMethod<[bigint, boolean, string], Result_4>,
   'endMembership' : ActorMethod<[bigint], Result_4>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
+  'getOa' : ActorMethod<[bigint], Result_14>,
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
-  'invitePerson' : ActorMethod<[InviteRequest], Result_10>,
+  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_13>,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_12>,
   'listDocKinds' : ActorMethod<[boolean], Array<DocKindView>>,
   'listFiles' : ActorMethod<[[] | [bigint]], Array<FileView>>,
   'listInvites' : ActorMethod<[bigint, bigint], Array<InviteView>>,
   'listLinks' : ActorMethod<[], Array<LinkView>>,
   'listMembers' : ActorMethod<[bigint], Array<MembershipView>>,
+  'listOas' : ActorMethod<[OaFilter], Array<OaView>>,
   'listOrgs' : ActorMethod<[boolean], Array<OrgView>>,
   'listPersons' : ActorMethod<[boolean], Array<PersonView>>,
   'listRobots' : ActorMethod<[], Array<RobotView>>,
+  'listTrades' : ActorMethod<[boolean], Array<TradeView>>,
   'listWorks' : ActorMethod<[], Array<WorkView>>,
   'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'me' : ActorMethod<[], MeView>,
   'myNotifications' : ActorMethod<[boolean], Array<NotificationView>>,
   'myProposals' : ActorMethod<[], Array<ProposalView>>,
-  'readConfidentialFile' : ActorMethod<[bigint], Result_9>,
-  'readContract' : ActorMethod<[bigint], Result_8>,
-  'readContractHistory' : ActorMethod<[bigint], Result_7>,
-  'readOrgConfidential' : ActorMethod<[bigint], Result_6>,
-  'redeemCode' : ActorMethod<[string], Result_5>,
+  'readConfidentialFile' : ActorMethod<[bigint], Result_11>,
+  'readContract' : ActorMethod<[bigint], Result_10>,
+  'readContractHistory' : ActorMethod<[bigint], Result_9>,
+  'readOrgConfidential' : ActorMethod<[bigint], Result_8>,
+  'redeemCode' : ActorMethod<[string], Result_7>,
   'restorePerson' : ActorMethod<[bigint], Result_4>,
   'revokeInvite' : ActorMethod<[bigint], Result_4>,
   'revokeLink' : ActorMethod<[Principal], Result_4>,
   'revokeRobot' : ActorMethod<[Principal], Result_4>,
   'saveDocument' : ActorMethod<[bigint, DocumentInput], Result_3>,
+  'saveOaPerson' : ActorMethod<[bigint, OaPersonInput], Result_6>,
+  'saveOrgContact' : ActorMethod<[bigint, OrgContactInput], Result_5>,
   'setContract' : ActorMethod<[bigint, ContractInput, bigint], Result_3>,
   'setDocKind' : ActorMethod<[DocKindInput], Result_4>,
   'setDocumentStatus' : ActorMethod<[bigint, DocStatus, string], Result_4>,
@@ -674,6 +811,7 @@ export interface _SERVICE {
     Result_3
   >,
   'setSettings' : ActorMethod<[SettingsView], Result_4>,
+  'setTrade' : ActorMethod<[TradeInput], Result_4>,
   'setWorkStatus' : ActorMethod<[bigint, WorkStatus], Result_4>,
   'submitProposal' : ActorMethod<[bigint, string, string], Result_3>,
   'updateOrg' : ActorMethod<[bigint, OrgInput], Result_2>,

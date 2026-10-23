@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Principal } from "@icp-sdk/core/principal";
-import type { DocKindView } from "../backend";
+import type { DocKindView, TradeView } from "../backend";
 import { Button, Choice, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtEuro, fmtTime, parseEuro, unwrap, useBackend } from "../util";
@@ -68,6 +68,7 @@ export function Instellingen() {
         </section>
       )}
       <DocKinds />
+      <Trades />
       <section className="a-section" style={{ maxWidth: 720 }}>
         <h2 className="bw-h2">{t.settings.robots}</h2>
         <p className="bw-muted">{t.settings.robotsLead}</p>
@@ -160,6 +161,55 @@ function EditKind({ k, isNew, onClose }: { k: DocKindView; isNew: boolean; onClo
         <label className="a-check"><input type="checkbox" checked={f.oaVisible} onChange={(e) => setF({ ...f, oaVisible: e.target.checked })} />{t.settings.kindOa}</label>
         <label className="a-check"><input type="checkbox" checked={f.confidential} onChange={(e) => setF({ ...f, confidential: e.target.checked })} />{t.settings.kindConf}</label>
         {!isNew && <div><Button variant="quiet" busy={save.isPending} onClick={() => save.mutate({ ...f, archived: !f.archived })}>{f.archived ? t.settings.restoreKind : t.settings.archiveKind}</Button></div>}
+        {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
+      </div>
+    </Sheet>
+  );
+}
+
+/** Vakgebieden van de onderaannemers (1.2, D9): de admin past de keuzelijst aan. */
+function Trades() {
+  const { actor, isFetching } = useBackend();
+  const list = useQuery({ queryKey: ["trades", true], queryFn: () => actor!.listTrades(true), enabled: !!actor && !isFetching });
+  const [edit, setEdit] = useState<TradeView | null>(null);
+  const fresh: TradeView = { key: "", name: "", order: BigInt(((list.data?.length ?? 0) + 1) * 10), archived: false };
+  return (
+    <section className="a-section" style={{ maxWidth: 860 }}>
+      <div className="a-row a-row--between">
+        <h2 className="bw-h2">{t.oa.tradesTitle}</h2>
+        <Button icon="plus" onClick={() => setEdit(fresh)}>{t.oa.newTrade}</Button>
+      </div>
+      <p className="bw-muted">{t.oa.tradesLead}</p>
+      <Loading q={list} />
+      {list.data && (
+        <ul className="a-list">
+          {list.data.map((x) => (
+            <li key={x.key}>
+              <span className="a-list__main"><b>{x.name}</b><span className="a-row"><span className="a-tag">{x.key}</span>{x.archived && <span className="a-tag a-tag--bad">{t.oa.tradeArchived}</span>}</span></span>
+              <Button variant="quiet" onClick={() => setEdit(x)}>{t.team.edit}</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {edit && <EditTrade x={edit} isNew={edit.key === ""} onClose={() => setEdit(null)} />}
+    </section>
+  );
+}
+
+function EditTrade({ x, isNew, onClose }: { x: TradeView; isNew: boolean; onClose: () => void }) {
+  const { actor } = useBackend();
+  const qc = useQueryClient();
+  const [f, setF] = useState(x);
+  const save = useMutation({
+    mutationFn: async (v: TradeView) => unwrap(await actor!.setTrade(v)),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["trades"] }); onClose(); },
+  });
+  return (
+    <Sheet title={isNew ? t.oa.newTrade : t.oa.editTrade} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate(f)}>{t.common.save}</Button></>}>
+      <div className="a-form">
+        <Field label={t.oa.tradeName}><input className="bw-input" value={f.name} maxLength={80} onChange={(e) => setF({ ...f, name: e.target.value, key: isNew ? e.target.value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) : f.key })} /></Field>
+        <Field label={t.oa.tradeKey}><input className="bw-input bw-mono" value={f.key} disabled={!isNew} onChange={(e) => setF({ ...f, key: e.target.value })} /></Field>
+        {!isNew && <div><Button variant="quiet" busy={save.isPending} onClick={() => save.mutate({ ...f, archived: !f.archived })}>{f.archived ? t.oa.restoreTrade : t.oa.archiveTrade}</Button></div>}
         {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
       </div>
     </Sheet>

@@ -34,6 +34,9 @@ module {
     manageRobots : Bool;
     readConfidentialContact : Bool;
     readContracts : Bool; // contractparameters van werven (admin, calculator)
+    readOa : Bool; // onderaannemers-database lezen (1.2)
+    manageOa : Bool; // OA-fiches, contactpersonen en vakgebieden aan een firma beheren
+    importOa : Bool; // import van onderaannemers (enkel admin, R32)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -367,6 +370,69 @@ module {
     codesLockedUntil : ?Int;
   };
 
+
+  // ── Onderaannemers-database (1.2) ───────────────────────────────────────
+  public type TradeView = { key : Text; name : Text; order : Nat; archived : Bool };
+  public type TradeInput = TradeView;
+
+  public type OrgContactView = { phone : ?Text; email : ?Text; website : ?Text; contactNote : Text; updatedAt : Int };
+  public type OrgContactInput = { phone : ?Text; email : ?Text; website : ?Text; contactNote : Text };
+
+  public type OaPersonView = {
+    id : PersonId;
+    orgId : OrgId;
+    name : Text;
+    shortCode : ?Text;
+    phone : ?Text;
+    email : ?Text;
+    jobTitle : Text;
+    note : Text;
+    hasLogin : Bool; // heeft een actieve of wachtende koppeling
+    archivedAt : ?Int;
+  };
+
+  public type OaPersonInput = {
+    id : ?PersonId; // null = nieuwe contactpersoon
+    name : Text;
+    shortCode : ?Text;
+    phone : ?Text;
+    email : ?Text;
+    jobTitle : Text;
+    note : Text;
+  };
+
+  public type OaView = { org : OrgView; contact : ?OrgContactView; persons : [OaPersonView] };
+
+  public type OaFilter = { text : ?Text; trade : ?Text; kind : ?Types.OrgKind; includeArchived : Bool };
+
+  // Import (1.2): één rij = één firma met zijn aliassen, vakgebieden, contact en contactpersonen.
+  public type ImportPerson = { name : Text; shortCode : ?Text; phone : ?Text; email : ?Text; jobTitle : Text };
+  public type ImportRow = {
+    key : Text; // verwijzing van de beller (bv. rijnummer in het validatierapport)
+    kind : Types.OrgKind;
+    name : Text;
+    kbo : ?Text;
+    vat : ?Text;
+    aliases : [Text];
+    trades : [Text];
+    phone : ?Text;
+    email : ?Text;
+    website : ?Text;
+    notes : Text;
+    persons : [ImportPerson];
+  };
+  public type ImportOutcome = { #created; #updated; #unchanged; #conflict : Text; #invalid : Text };
+  public type ImportResult = { key : Text; outcome : ImportOutcome; orgId : ?OrgId; changes : [Text] };
+  public type ImportReport = {
+    dryRun : Bool;
+    results : [ImportResult];
+    created : Nat;
+    updated : Nat;
+    unchanged : Nat;
+    conflicts : Nat;
+    invalid : Nat;
+  };
+
   // Export (§3): intern en vertrouwelijk apart; de auditlog in stukken.
   public type ExportIntern = {
     version : Text;
@@ -382,6 +448,9 @@ module {
     files : [FileView]; // vertrouwelijke zonder verwijzing
     workInfo : [Types.WorkInfo]; // 1.1
     documents : [Types.Document]; // 1.1 (vertrouwelijke documenten: enkel de metadata, bestanden zonder verwijzing)
+    orgContacts : [Types.OrgContact]; // 1.2
+    personContacts : [Types.PersonContact]; // 1.2
+    trades : [TradeView]; // 1.2
     robots : [RobotView];
     proposals : [ProposalView];
     settings : SettingsView;

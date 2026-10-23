@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1.1-draft4";
-  public let schema : Nat = 2; // 2 = met werfdossier (1.1)
+  public let version = "1.2-draft7";
+  public let schema : Nat = 3; // 3 = met onderaannemers-database (1.2)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -97,4 +97,41 @@ module {
   public let maxDocKinds : Nat = 60;
   public let maxDocsPerWork : Nat = 500;
   public let maxFilesPerDoc : Nat = 50;
+
+  // ── Onderaannemers-database (1.2) ───────────────────────────────────────
+  public let maxEmail : Nat = 120;
+  public let maxWebsite : Nat = 120;
+  public let maxJobTitle : Nat = 60;
+  public let maxImportRows : Nat = 40; // per oproep; het script knipt in stukken
+  public let maxPersonsPerOrg : Nat = 40;
+  public let maxTrades : Nat = 80;
+  public let maxTradesPerOrg : Nat = 12;
+
+  // Vakgebieden (VOORLOPIG tot 0.3: B7 uit architectuur §12.2). (sleutel, naam). De admin past de lijst aan
+  // in Instellingen (settings.lookups "trade:<sleutel>"); dan geldt die lijst (D9).
+  public func defaultTrades() : [(Text, Text)] {
+    [
+      ("afbraak", "Afbraakwerken"),
+      ("grond-fundering", "Grond en fundering"),
+      ("riolering", "Riolering"),
+      ("ruwbouw", "Ruwbouw en metselwerk"),
+      ("stabiliteit", "Stabiliteit"),
+      ("dak", "Dakwerken"),
+      ("buitenschrijnwerk", "Buitenschrijnwerk (ramen, deuren)"),
+      ("elektriciteit", "Elektriciteit"),
+      ("sanitair-chauffage", "Sanitair, verwarming en warmtepomp"),
+      ("ventilatie", "Ventilatie"),
+      ("pleister", "Pleisterwerken en binnenplaat"),
+      ("vloerisolatie", "Vloerisolatie"),
+      ("chape", "Chape"),
+      ("parket", "Parket en laminaat"),
+      ("tegels", "Tegelwerken en faïence"),
+      ("binnenschrijnwerk", "Binnenschrijnwerk en keuken"),
+      ("schilder", "Schilderwerken"),
+      ("tuin", "Tuin en verharding"),
+      ("injecteren", "Injecteren (vocht)"),
+      ("studies", "Studies, EPB en veiligheid"),
+      ("algemeen", "Algemene renovatie"),
+    ];
+  };
 };

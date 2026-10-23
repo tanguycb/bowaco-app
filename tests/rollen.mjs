@@ -455,6 +455,106 @@ check("OA leest de documentsoorten niet (intern)", await rejects(oa.listDocKinds
 check("auditlog: documenten en soorten gelogd, zonder opslagverwijzing", (await admin.auditLog(0n, 100n)).some((e) => e.action === "document-bestand") && (await admin.auditLog(0n, 100n)).some((e) => e.action === "documentsoort"));
 check("interne export bevat de documenten en de werfinfo", await admin.exportIntern().then((e) => e.documents.length >= 4 && e.workInfo.length >= 1));
 
+await sec("── 1.2 onderaannemers-database: vakgebieden, contact, personen, zoeken, rechten (R3, R19, R32)");
+const oaFilter = (o = {}) => ({ text: opt(o.text), trade: opt(o.trade), kind: opt(o.kind ? { [o.kind]: null } : undefined), includeArchived: o.archived ?? false });
+const orgIn12 = (name, extra = {}) => ({ kind: { subcontractor: null }, name, kbo: opt(extra.kbo), vat: [], aliases: extra.aliases ?? [], trades: extra.trades ?? [], address: [], notes: "" });
+// Vakgebieden (D9)
+const trd = await admin.listTrades(false);
+check("standaardlijst vakgebieden (21) staat klaar", trd.length === 21 && trd.some((t) => t.key === "elektriciteit"), `${trd.length}`);
+check("werfleider en calculator lezen de vakgebieden", (await wl.listTrades(false)).length === 21 && (await calc.listTrades(false)).length === 21);
+check("OA, architect, klant, veiligheid en anoniem lezen de vakgebieden niet", (await Promise.all([oa, arch, klant, vc, anon].map((x) => rejects(x.listTrades(false))))).every(Boolean));
+check("werfleider kan de vakgebieden niet wijzigen", await rejects(wl.setTrade({ key: "proef-vak", name: "Proefvak", order: 900n, archived: false })));
+check("vakgebied met slechte sleutel geweigerd", "err" in (await admin.setTrade({ key: "Slecht Vak!", name: "x", order: 1n, archived: false })));
+check("admin voegt een vakgebied toe", isOk(await admin.setTrade({ key: "proef-vak", name: "Proefvak", order: 900n, archived: false })));
+check("de standaardlijst blijft erbij (21 + 1)", (await admin.listTrades(false)).length === 22);
+check("admin archiveert het vakgebied → weg uit de lijst", isOk(await admin.setTrade({ key: "proef-vak", name: "Proefvak", order: 900n, archived: true })) && (await admin.listTrades(false)).length === 21 && (await admin.listTrades(true)).length === 22);
+// Firma's: vakgebieden, uniekheid van codes en KBO
+check("firma met onbekend vakgebied geweigerd", errOf(await admin.createOrg(orgIn12("Fout Vak BV", { trades: ["bestaat-niet"] }))).includes("Onbekend vakgebied"));
+check("firma met gearchiveerd vakgebied geweigerd", errOf(await admin.createOrg(orgIn12("Fout Vak BV", { trades: ["proef-vak"] }))).includes("Onbekend vakgebied"));
+const orgElek = await admin.createOrg(orgIn12("Proef Elektro BV", { kbo: "0999.888.777", aliases: ["pel", "Elektro Piet"], trades: ["elektriciteit", "ventilatie"] }));
+check("firma met vakgebieden en aliassen (hoofdletters)", isOk(orgElek) && orgElek.ok.aliases.join() === "PEL,ELEKTRO PIET" && orgElek.ok.trades.length === 2, JSON.stringify(orgElek, big));
+check("dezelfde alias bij een andere firma geweigerd (ook in kleine letters)", errOf(await admin.createOrg(orgIn12("Dubbel A BV", { aliases: ["gils"] }))).includes("hoort al bij"));
+check("dezelfde alias met andere schrijfwijze geweigerd (accenten, spaties)", errOf(await admin.createOrg(orgIn12("Dubbel B BV", { aliases: ["Elektro  Piet"] }))).includes("hoort al bij"));
+check("hetzelfde KBO-nummer bij een andere firma geweigerd", errOf(await admin.createOrg(orgIn12("Dubbel C BV", { kbo: "0999888777" }))).includes("KBO-nummer"));
+check("een firma mag zijn eigen alias en KBO houden bij een wijziging", isOk(await admin.updateOrg(orgElek.ok.id, { ...orgIn12("Proef Elektro BV", { kbo: "0999888777", aliases: ["PEL", "ELEKTRO PIET", "PEL2"], trades: ["elektriciteit"] }) })));
+const oaTegels = await admin.updateOrg(orgX.ok.id, orgIn12("Proef Tegels BV", { kbo: "0123456789", aliases: ["GILS"], trades: ["tegels"] }));
+check("admin zet het vakgebied 'tegels' op de tegelfirma", isOk(oaTegels));
+// Contact (intern)
+const contactIn = { phone: ["0470 11 22 33"], email: ["Piet@Proef-Elektro.be"], website: ["https://proef-elektro.be"], contactNote: "bereikbaar na 17u" };
+check("werfleider bewaart het contact van een OA-firma (e-mail in kleine letters)", await wl.saveOrgContact(orgElek.ok.id, contactIn).then((r) => isOk(r) && r.ok.email[0] === "piet@proef-elektro.be"));
+check("calculator, OA, architect, klant, veiligheid, anoniem kunnen het contact niet wijzigen", (await Promise.all([calc, oa, arch, klant, vc, anon].map((x) => rejects(x.saveOrgContact(orgElek.ok.id, contactIn))))).every(Boolean));
+check("e-mailadres zonder @ geweigerd", errOf(await admin.saveOrgContact(orgElek.ok.id, { ...contactIn, email: ["geen-email"] })).includes("E-mailadres"));
+check("contact van een klant-organisatie geweigerd (vertrouwelijk, klantfiche)", errOf(await admin.saveOrgContact(orgKlant.ok.id, contactIn)).includes("vertrouwelijk"));
+check("auditregel 'oa-contact-gewijzigd' toont enkel veldnamen, geen gegevens", await admin.auditLog(0n, 30n).then((l) => { const e = l.find((x) => x.action === "oa-contact-gewijzigd"); return e && e.detail.includes("e-mail") && !e.detail.includes("proef-elektro") && !e.detail.includes("0470") && !e.detail.includes("17u"); }));
+// Personen
+const pIn = (name, extra = {}) => ({ id: opt(extra.id), name, shortCode: opt(extra.shortCode), phone: opt(extra.phone), email: opt(extra.email), jobTitle: extra.jobTitle ?? "", note: extra.note ?? "" });
+const pKevin = await wl.saveOaPerson(orgElek.ok.id, pIn("Kevin Proef", { shortCode: "kv", email: "kevin@proef-elektro.be", jobTitle: "zaakvoerder", phone: "0475 00 00 01" }));
+check("werfleider maakt een contactpersoon (code in hoofdletters, zonder login)", isOk(pKevin) && pKevin.ok.shortCode[0] === "KV" && pKevin.ok.hasLogin === false && pKevin.ok.jobTitle === "zaakvoerder", JSON.stringify(pKevin, big));
+check("dezelfde persoonscode geweigerd", errOf(await admin.saveOaPerson(orgX.ok.id, pIn("Ander Persoon", { shortCode: "Kv" }))).includes("hoort al bij"));
+check("contactpersoon wijzigen (zelfde code mag)", await admin.saveOaPerson(orgElek.ok.id, pIn("Kevin Proef Jr", { id: pKevin.ok.id, shortCode: "KV", jobTitle: "ploegbaas" })).then((r) => isOk(r) && r.ok.name === "Kevin Proef Jr" && r.ok.jobTitle === "ploegbaas"));
+check("persoon van een andere firma wijzigen via deze firma geweigerd", errOf(await admin.saveOaPerson(orgX.ok.id, pIn("Kaper", { id: pKevin.ok.id }))).includes("hoort niet bij"));
+check("contactpersoon bij een klant-organisatie geweigerd", errOf(await admin.saveOaPerson(orgKlant.ok.id, pIn("Klantpersoon"))).includes("vertrouwelijk"));
+check("calculator, OA, architect, klant, veiligheid kunnen geen contactpersoon maken", (await Promise.all([calc, oa, arch, klant, vc].map((x) => rejects(x.saveOaPerson(orgElek.ok.id, pIn("Kaper 2")))))).every(Boolean));
+check("persoon zonder naam of met slecht e-mailadres geweigerd", "err" in (await admin.saveOaPerson(orgElek.ok.id, pIn(" "))) && "err" in (await admin.saveOaPerson(orgElek.ok.id, pIn("Slecht Mail", { email: "x@y" }))));
+// Lezen en zoeken (R19: query; externen nooit)
+const elekView = (await wl.listOas(oaFilter({ text: "elektro" })))[0];
+check("werfleider vindt de firma op naam, met contact en personen", elekView?.org.name === "Proef Elektro BV" && elekView.contact[0]?.email[0] === "piet@proef-elektro.be" && elekView.persons.length === 1, JSON.stringify(elekView, big));
+check("calculator leest de database ook", (await calc.listOas(oaFilter())).length >= 3);
+check("OA (ook zijn eigen firma), architect, klant, veiligheid en anoniem lezen de database niet", (await Promise.all([oa, arch, klant, vc, anon].map((x) => rejects(x.listOas(oaFilter()))))).every(Boolean) && (await rejects(oa.getOa(orgX.ok.id))));
+check("klant- en BOWACO-organisaties horen niet in de database", !(await admin.listOas(oaFilter())).some((v) => v.org.id === orgKlant.ok.id) && "err" in (await admin.getOa(orgKlant.ok.id)));
+const find = async (o) => (await admin.listOas(oaFilter(o))).map((v) => v.org.name);
+check("zoeken op alias (kleine letters)", (await find({ text: "pel2" })).join() === "Proef Elektro BV");
+check("zoeken op KBO met punten", (await find({ text: "0999.888.777" })).join() === "Proef Elektro BV");
+check("zoeken op contactpersoon (naam en code)", (await find({ text: "kevin" })).join() === "Proef Elektro BV" && (await find({ text: "kv" })).includes("Proef Elektro BV"));
+check("zoeken op e-mail van de firma", (await find({ text: "proef-elektro.be" })).includes("Proef Elektro BV"));
+check("zoeken op de naam van het vakgebied", (await find({ text: "ventilatie" })).length === 0 && (await find({ text: "elektriciteit" })).includes("Proef Elektro BV"));
+check("zoeken negeert hoofdletters en leestekens", (await find({ text: "PROEF-elektro, b.v." })).includes("Proef Elektro BV") && (await find({ text: "PROEF  Elektro" })).includes("Proef Elektro BV"));
+check("filter op vakgebied", (await find({ trade: "tegels" })).join() === "Proef Tegels BV" && (await find({ trade: "elektriciteit" })).join() === "Proef Elektro BV");
+check("filter op soort: architect-bureau zit in de database, OA's niet", (await find({ kind: "architect" })).join() === "Proef Architecten" && !(await find({ kind: "architect" })).includes("Proef Elektro BV"));
+check("zoeken zonder resultaat geeft een lege lijst", (await find({ text: "bestaat helemaal niet" })).length === 0);
+// Import (R32): alleen admin, proef eerst, idempotent
+const row = (key, name, extra = {}) => ({ key, kind: { [extra.kind ?? "subcontractor"]: null }, name, kbo: opt(extra.kbo), vat: [], aliases: extra.aliases ?? [], trades: extra.trades ?? [], phone: opt(extra.phone), email: opt(extra.email), website: [], notes: extra.notes ?? "", persons: extra.persons ?? [] });
+const impPers = (name, shortCode, email) => ({ name, shortCode: opt(shortCode), phone: [], email: opt(email), jobTitle: "" });
+const rowsA = [
+  row("r1", "Proef Sanitair BV", { kbo: "0888.777.666", aliases: ["SAN", "Proef Sanitair"], trades: ["sanitair-chauffage"], phone: "09 111 22 33", email: "info@proef-sanitair.be", persons: [impPers("Tom Proef", "TP", "tom@proef-sanitair.be")] }),
+  row("r2", "Proef Tegels BV", { kbo: "0123456789", aliases: ["GILS", "TEGELS PIET"], trades: ["tegels", "chape"] }),
+  row("r3", "Proef Leverancier NV", { kind: "supplier", aliases: ["LEV"] }),
+  row("r4", "Slecht Vak", { trades: ["bestaat-niet"] }),
+  row("r5", "Proef Raak Beide", { kbo: "0123456789", aliases: ["SAN"] }),
+];
+for (const [who, n] of [[wl, "werfleider"], [calc, "calculator"], [oa, "OA"], [arch, "architect"], [klant, "klant"], [vc, "veiligheid"], [anon, "anoniem"]]) {
+  check(`import geweigerd voor ${n}`, await rejects(who.importOrgs(true, rowsA)));
+}
+check("import: 0 rijen of meer dan 40 rijen geweigerd", "err" in (await admin.importOrgs(true, [])) && "err" in (await admin.importOrgs(true, Array.from({ length: 41 }, (_, i) => row(`x${i}`, `Rij ${i}`)))));
+const orgsBefore = (await admin.listOrgs(true)).length;
+const personsBefore = (await admin.listPersons(true)).length;
+const dry = (await admin.importOrgs(true, rowsA)).ok;
+const kinds12 = (rep) => rep.results.map((r) => Object.keys(r.outcome)[0]).join();
+check("proefronde: nieuw, aangevuld, nieuw, ongeldig, conflict (raakt twee firma's)", kinds12(dry) === "created,updated,created,invalid,conflict", kinds12(dry));
+check("proefronde bewaart niets (geen firma's, geen personen erbij)", (await admin.listOrgs(true)).length === orgsBefore && (await admin.listPersons(true)).length === personsBefore);
+check("proefronde toont wat er zou veranderen", dry.results[1].changes.join().includes("code TEGELS PIET") && dry.results[1].changes.join().includes("vakgebied chape") && dry.results[0].changes.join().includes("persoon Tom Proef"));
+const real = (await admin.importOrgs(false, rowsA)).ok;
+check("echte ronde geeft hetzelfde resultaat als de proef", kinds12(real) === kinds12(dry) && Number(real.created) === 2 && Number(real.updated) === 1 && Number(real.invalid) === 1 && Number(real.conflicts) === 1);
+check("echte ronde: 2 firma's en 1 persoon erbij", (await admin.listOrgs(true)).length === orgsBefore + 2 && (await admin.listPersons(true)).length === personsBefore + 1);
+const san = (await admin.listOas(oaFilter({ text: "SAN" })))[0];
+check("nieuwe firma heeft KBO, aliassen, vakgebied, contact en contactpersoon (rol OA, geen login)", san.org.name === "Proef Sanitair BV" && san.org.kbo[0] === "0888777666" && san.org.aliases.join() === "SAN,PROEF SANITAIR" && san.org.trades[0] === "sanitair-chauffage" && san.contact[0].phone[0] === "09 111 22 33" && san.persons[0].name === "Tom Proef" && san.persons[0].email[0] === "tom@proef-sanitair.be" && !san.persons[0].hasLogin);
+const tegels = (await admin.getOa(orgX.ok.id)).ok;
+check("bestaande firma aangevuld, niets overschreven (naam, KBO, eerdere code en vakgebied blijven)", tegels.org.aliases.join() === "GILS,TEGELS PIET" && tegels.org.trades.join() === "tegels,chape" && tegels.org.name === "Proef Tegels BV");
+const again = (await admin.importOrgs(false, rowsA)).ok;
+check("tweede keer dezelfde import: niets nieuw, niets aangevuld, geen dubbels", Number(again.created) === 0 && Number(again.updated) === 0 && Number(again.unchanged) === 3 && (await admin.listOrgs(true)).length === orgsBefore + 2 && (await admin.listPersons(true)).length === personsBefore + 1, kinds12(again));
+const variant = (await admin.importOrgs(false, [row("v1", "  proef  SANITAIR b.v. ", { aliases: ["san"], persons: [impPers("TOM PROEF", undefined, undefined)] })])).ok;
+check("andere schrijfwijze (hoofdletters, spaties, punten) van dezelfde firma/persoon: geen dubbel", kinds12(variant) === "unchanged" || variant.results[0].changes.length === 0, JSON.stringify(variant, big));
+const kboClash = (await admin.importOrgs(true, [row("k1", "Proef Sanitair BV", { kbo: "0123456789" })])).ok;
+check("zelfde naam maar ander KBO-nummer: conflict, geen stille koppeling", Object.keys(kboClash.results[0].outcome)[0] === "conflict", JSON.stringify(kboClash.results[0], big));
+check("firma van een andere soort onder dezelfde naam: conflict", Object.keys((await admin.importOrgs(true, [row("s1", "Proef Leverancier NV", { kind: "authority" })])).ok.results[0].outcome)[0] === "conflict");
+check("een klant als OA importeren geweigerd (ongeldig)", Object.keys((await admin.importOrgs(true, [row("c1", "Familie X", { kind: "client" })])).ok.results[0].outcome)[0] === "invalid");
+await admin.archiveOrg((await admin.listOas(oaFilter({ text: "Leverancier" })))[0].org.id);
+check("gearchiveerde firma: conflict, eerst terugzetten", Object.keys((await admin.importOrgs(true, [row("a1", "Proef Leverancier NV", { kind: "supplier" })])).ok.results[0].outcome)[0] === "conflict");
+check("auditlog: import gelogd met aantallen, zonder namen of gegevens", await admin.auditLog(0n, 60n).then((l) => { const e = l.find((x) => x.action === "import-organisaties"); return e && e.detail.includes("nieuw") && !e.detail.includes("Sanitair") && !l.some((x) => x.action.startsWith("import") && x.detail.includes("proef-sanitair")); }));
+check("auditlog kent ook de proefronde", (await admin.auditLog(0n, 80n)).some((x) => x.action === "import-organisaties-proef"));
+const exp12 = await admin.exportIntern();
+check("interne export bevat contacten, contactgegevens van personen en vakgebieden", exp12.orgContacts.length >= 2 && exp12.personContacts.length >= 2 && exp12.trades.length === 22);
+
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));
 check("werfleider kan geen robot toevoegen", await rejects(wl.addRobot(P("robot-test"), "Proefrobot", [])));

@@ -1,0 +1,10 @@
+nr;code;ook_geschreven_als;status;aantal_taken;aantal_weekcellen;aantal_werven;voorbeeldwerven;voorbeeldtaken;voorstel_soort;voorstel_vakgebied;BESLISSING;FIRMANAAM;KBO;DEZELFDE_FIRMA_ALS;PERSOONSNAAM;VAKGEBIED;TELEFOON;EMAIL;OPMERKING
+1;TESTELEK;TESTELEKTRO;ZEKER (KBO);3;2;1;;;;;firma;Testfirma Elektro BV;0100.000.101;;;elektriciteit, ventilatie;0470 00 00 01;info@testfirma-elektro.example;
+2;TESTELEK2;;voorstel;3;2;1;;;;;dezelfde firma als;;;TESTELEK;;;;;
+3;TESTDAK;;voorstel;3;2;1;;;;;firma;Testfirma Dak NV;0100.000.102;;;dak;;;
+4;TESTJAN;;voorstel;3;2;1;;;;;persoon;;;TESTDAK;Jan Test;;0470 00 00 02;jan@testfirma-dak.example;
+5;TESTLEV;;voorstel;3;2;1;;;;;leverancier;Test Leverancier BV;;;;;;;
+6;TESTNUT;;voorstel;3;2;1;;;;;nutsbedrijf;Test Nutsbedrijf;;;;;;;
+7;TESTZELF;;voorstel;3;2;1;;;;;persoon;;;;Zelf Test;schilder;0470 00 00 03;;
+8;TESTSYS;;voorstel;3;2;1;;;;;negeren;;;;;;;;
+9;TESTLEEG;;voorstel;3;2;1;;;;;;;;;;;;;

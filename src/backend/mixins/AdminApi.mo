@@ -14,6 +14,7 @@ import Access "../lib/Access";
 import Config "../lib/Config";
 import Rights "../lib/Rights";
 import Dossier "../lib/Dossier";
+import Oa "../lib/Oa";
 
 mixin (
   settings : Types.SettingsState,
@@ -22,6 +23,7 @@ mixin (
   works : Types.WorksState,
   files : Types.FileState,
   dossier : Types.DossierState,
+  oa : Types.OaState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -163,6 +165,9 @@ mixin (
       files = files.files.values().map(Dossier.fileView).toArray();
       workInfo = dossier.info.values().toArray();
       documents = dossier.documents.values().toArray();
+      orgContacts = oa.orgContacts.values().toArray();
+      personContacts = oa.personContacts.values().toArray();
+      trades = Oa.trades(settings, true);
       robots = robot.robots.values().map(robotView).toArray();
       proposals = robot.proposals.values().map(func x = { id = x.id; ticketId = x.ticketId; personId = x.personId; workId = x.workId; kind = x.kind; content = x.content; by = x.by; at = x.at; decision = x.decision }).toArray();
       settings = settingsView();

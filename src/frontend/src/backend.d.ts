@@ -36,6 +36,8 @@ export interface Caps {
     manageAccess: boolean;
     inviteExternal: boolean;
     readContracts: boolean;
+    importOa: boolean;
+    manageOa: boolean;
     home: string;
     createWork: boolean;
     manageSettings: boolean;
@@ -46,6 +48,7 @@ export interface Caps {
     export: boolean;
     readConfidentialContact: boolean;
     readAudit: boolean;
+    readOa: boolean;
 }
 export interface ChecklistLine {
     doc?: DocumentView;
@@ -237,7 +240,9 @@ export interface ExportIntern {
     documents: Array<Document>;
     invites: Array<InviteView>;
     schema: bigint;
+    trades: Array<TradeView>;
     orgs: Array<OrgView>;
+    orgContacts: Array<OrgContact>;
     links: Array<LinkView>;
     version: string;
     persons: Array<PersonView>;
@@ -245,6 +250,7 @@ export interface ExportIntern {
     robots: Array<RobotView>;
     proposals: Array<ProposalView>;
     works: Array<WorkView>;
+    personContacts: Array<PersonContact>;
     auditCount: bigint;
     memberships: Array<MembershipView>;
     linkHistory: Array<LinkHistory>;
@@ -261,6 +267,58 @@ export interface FileView {
     personId: PersonId;
     confidential: boolean;
     workId?: WorkId;
+}
+export type ImportOutcome = {
+    __kind__: "created";
+    created: null;
+} | {
+    __kind__: "conflict";
+    conflict: string;
+} | {
+    __kind__: "invalid";
+    invalid: string;
+} | {
+    __kind__: "updated";
+    updated: null;
+} | {
+    __kind__: "unchanged";
+    unchanged: null;
+};
+export interface ImportPerson {
+    name: string;
+    email?: string;
+    jobTitle: string;
+    shortCode?: string;
+    phone?: string;
+}
+export interface ImportReport {
+    created: bigint;
+    invalid: bigint;
+    results: Array<ImportResult>;
+    conflicts: bigint;
+    updated: bigint;
+    unchanged: bigint;
+    dryRun: boolean;
+}
+export interface ImportResult {
+    key: string;
+    orgId?: OrgId;
+    changes: Array<string>;
+    outcome: ImportOutcome;
+}
+export interface ImportRow {
+    kbo?: string;
+    key: string;
+    vat?: string;
+    trades: Array<string>;
+    kind: OrgKind;
+    name: string;
+    email?: string;
+    website?: string;
+    persons: Array<ImportPerson>;
+    notes: string;
+    aliases: Array<string>;
+    phone?: string;
 }
 export interface InviteRequest {
     tag: string;
@@ -364,6 +422,61 @@ export interface NotificationView {
     workId?: WorkId;
     readAt?: bigint;
 }
+export interface OaFilter {
+    trade?: string;
+    kind?: OrgKind;
+    text?: string;
+    includeArchived: boolean;
+}
+export interface OaPersonInput {
+    id?: PersonId;
+    name: string;
+    note: string;
+    email?: string;
+    jobTitle: string;
+    shortCode?: string;
+    phone?: string;
+}
+export interface OaPersonView {
+    id: PersonId;
+    hasLogin: boolean;
+    orgId: OrgId;
+    name: string;
+    note: string;
+    email?: string;
+    jobTitle: string;
+    shortCode?: string;
+    phone?: string;
+    archivedAt?: bigint;
+}
+export interface OaView {
+    org: OrgView;
+    contact?: OrgContactView;
+    persons: Array<OaPersonView>;
+}
+export interface OrgContact {
+    contactNote: string;
+    orgId: OrgId;
+    email?: string;
+    website?: string;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    phone?: string;
+}
+export interface OrgContactInput {
+    contactNote: string;
+    email?: string;
+    website?: string;
+    phone?: string;
+}
+export interface OrgContactView {
+    contactNote: string;
+    email?: string;
+    website?: string;
+    updatedAt: bigint;
+    phone?: string;
+}
 export type OrgId = bigint;
 export interface OrgInput {
     kbo?: string;
@@ -388,6 +501,15 @@ export interface OrgView {
     notes: string;
     aliases: Array<string>;
     archivedAt?: bigint;
+}
+export interface PersonContact {
+    note: string;
+    email?: string;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    personId: PersonId;
+    jobTitle: string;
 }
 export type PersonId = bigint;
 export interface PersonUpdate {
@@ -444,19 +566,47 @@ export type Result_1 = {
 };
 export type Result_10 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: ContractView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_11 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: FileView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_12 = {
+    __kind__: "ok";
+    ok: NewCode;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_13 = {
+    __kind__: "ok";
+    ok: ImportReport;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_14 = {
+    __kind__: "ok";
+    ok: OaView;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_15 = {
+    __kind__: "ok";
+    ok: NewTicket;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_16 = {
     __kind__: "ok";
     ok: TicketInfo;
 } | {
@@ -486,35 +636,35 @@ export type Result_4 = {
 };
 export type Result_5 = {
     __kind__: "ok";
-    ok: MeView;
+    ok: OrgContactView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_6 = {
     __kind__: "ok";
-    ok: ContactConfidentialView;
+    ok: OaPersonView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_7 = {
     __kind__: "ok";
-    ok: Array<ContractVersionView>;
+    ok: MeView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_8 = {
     __kind__: "ok";
-    ok: ContractView;
+    ok: ContactConfidentialView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_9 = {
     __kind__: "ok";
-    ok: FileView;
+    ok: Array<ContractVersionView>;
 } | {
     __kind__: "err";
     err: string;
@@ -547,6 +697,18 @@ export interface TicketInfo {
     ticketId: bigint;
     personId: PersonId;
     workId?: WorkId;
+}
+export interface TradeInput {
+    key: string;
+    order: bigint;
+    name: string;
+    archived: boolean;
+}
+export interface TradeView {
+    key: string;
+    order: bigint;
+    name: string;
+    archived: boolean;
 }
 export interface WorkCaps {
     manageMembers: boolean;
@@ -718,50 +880,57 @@ export interface backendInterface {
     attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_3>;
     auditCount(): Promise<bigint>;
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
-    checkTicket(ticket: string): Promise<Result_12>;
+    checkTicket(ticket: string): Promise<Result_16>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
     confirmLink(p: Principal): Promise<Result_4>;
     createOrg(input: OrgInput): Promise<Result_2>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_10>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_11>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_12>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_15>;
     createWork(i: WorkInput): Promise<Result>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
     endMembership(id: bigint): Promise<Result_4>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
     getDossier(workId: bigint): Promise<DossierView>;
+    getOa(id: bigint): Promise<Result_14>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
-    invitePerson(req: InviteRequest): Promise<Result_10>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_13>;
+    invitePerson(req: InviteRequest): Promise<Result_12>;
     listDocKinds(withArchived: boolean): Promise<Array<DocKindView>>;
     listFiles(workId: bigint | null): Promise<Array<FileView>>;
     listInvites(from: bigint, limit: bigint): Promise<Array<InviteView>>;
     listLinks(): Promise<Array<LinkView>>;
     listMembers(workId: bigint): Promise<Array<MembershipView>>;
+    listOas(f: OaFilter): Promise<Array<OaView>>;
     listOrgs(includeArchived: boolean): Promise<Array<OrgView>>;
     listPersons(includeArchived: boolean): Promise<Array<PersonView>>;
     listRobots(): Promise<Array<RobotView>>;
+    listTrades(withArchived: boolean): Promise<Array<TradeView>>;
     listWorks(): Promise<Array<WorkView>>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     me(): Promise<MeView>;
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
-    readConfidentialFile(id: bigint): Promise<Result_9>;
-    readContract(workId: bigint): Promise<Result_8>;
-    readContractHistory(workId: bigint): Promise<Result_7>;
-    readOrgConfidential(id: bigint): Promise<Result_6>;
-    redeemCode(code: string): Promise<Result_5>;
+    readConfidentialFile(id: bigint): Promise<Result_11>;
+    readContract(workId: bigint): Promise<Result_10>;
+    readContractHistory(workId: bigint): Promise<Result_9>;
+    readOrgConfidential(id: bigint): Promise<Result_8>;
+    redeemCode(code: string): Promise<Result_7>;
     restorePerson(id: bigint): Promise<Result_4>;
     revokeInvite(inviteId: bigint): Promise<Result_4>;
     revokeLink(p: Principal): Promise<Result_4>;
     revokeRobot(principal: Principal): Promise<Result_4>;
     saveDocument(workId: bigint, i: DocumentInput): Promise<Result_3>;
+    saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_6>;
+    saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_5>;
     setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_3>;
     setDocKind(k: DocKindInput): Promise<Result_4>;
     setDocumentStatus(docId: bigint, status: DocStatus, note: string): Promise<Result_4>;
     setLinkLabel(p: Principal, tag: string): Promise<Result_4>;
     setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_3>;
     setSettings(s: SettingsView): Promise<Result_4>;
+    setTrade(t: TradeInput): Promise<Result_4>;
     setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_4>;
     submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_3>;
     updateOrg(id: bigint, input: OrgInput): Promise<Result_2>;

@@ -5,3 +5,10 @@ dist
 .claude/
 dist-prototype
 tests/.laatste-*.json
+# Stap 1.2: validatierapporten, beslissingenbestanden en analyses bevatten echte firma- en persoonsnamen:
+# die horen nooit in git (ze staan in bowaco-docs of ~/.bowaco). Alleen de verzonnen testdata mag erin.
+*.csv
+!tests/oa-testdata.csv
+BOWACO_validatie_*
+analyse.json
+oa-echt*

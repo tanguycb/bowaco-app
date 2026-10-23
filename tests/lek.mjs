@@ -57,6 +57,10 @@ const workUpd = { code: "", name: "", address: addr, parentId: [], clientOrgId: 
 const badContract = { contract: { estimatedAmountCents: [], priceRevision: { none: null }, guarantee: { retention: null }, guaranteeBp: 9999n, paymentTermDays: 0n, invoicingRhythm: { monthly: null }, signedQuoteVersionId: [], note: "" }, clientContact: [], notes: "" };
 const docIn = { id: [], kind: "bestaat-niet", title: "", dueDay: [], validUntil: [], note: "", ownerOrgId: [] };
 const kindIn = { key: "", name: "", rule: "altijd", deliverer: "bowaco", oaVisible: false, confidential: false, order: 0n, archived: false };
+const oaFilterIn = { text: [], trade: [], kind: [], includeArchived: false };
+const contactIn = { phone: [], email: [], website: [], contactNote: "" };
+const oaPersonIn = { id: [], name: "", shortCode: [], phone: [], email: [], jobTitle: "", note: "" };
+const tradeIn = { key: "", name: "", order: 0n, archived: false };
 const personUpd = { name: "", roles: [], orgId: [], shortCode: [], lang: [], phone: [] };
 
 // Wie mag wat (R1–R34 zoals gebouwd in 0.6 en 1.1). Groepen:
@@ -112,6 +116,14 @@ const table = {
   archiveDocument: [["admin", "werfleider"], () => [docGone.id]],
   listDocKinds: [INTERNAL, () => [false]],
   setDocKind: [ADMIN, () => [kindIn]],
+  // 1.2 onderaannemers-database: lezen interne rollen (R19), beheren admin en werfleider, vakgebieden en import enkel admin (R32)
+  listOas: [INTERNAL, () => [oaFilterIn]],
+  getOa: [INTERNAL, () => [X]],
+  saveOrgContact: [["admin", "werfleider"], () => [X, contactIn]],
+  saveOaPerson: [["admin", "werfleider"], () => [X, oaPersonIn]],
+  listTrades: [INTERNAL, () => [false]],
+  setTrade: [ADMIN, () => [tradeIn]],
+  importOrgs: [ADMIN, () => [true, []]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

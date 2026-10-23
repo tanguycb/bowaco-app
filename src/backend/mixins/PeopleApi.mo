@@ -14,6 +14,7 @@ import Views "../types/views";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Ids "../lib/Ids";
+import Oa "../lib/Oa";
 import Rights "../lib/Rights";
 
 mixin (
@@ -127,6 +128,8 @@ mixin (
     switch (orgFrom(0, input, p.id, 0, [])) { case (#err e) return #err(e); case (#ok _) {} };
     let id = Ids.next(ctr, "org");
     let rec = switch (orgFrom(id, input, p.id, Time.now(), [])) { case (#ok o) o; case (#err e) return #err(e) };
+    switch (Oa.clash(org, 0, rec.kbo, rec.aliases)) { case (?e) return #err(e); case null {} };
+    switch (Oa.tradeError(settings, rec.trades, [])) { case (?e) return #err(e); case null {} };
     org.orgs.add(id, rec);
     Access.audit(audit, caller, ?p.id, null, "organisatie-gemaakt", rec.name # " #" # id.toText());
     #ok(orgView(rec));
@@ -138,6 +141,8 @@ mixin (
     let old = org.orgs.get(id) ?? return #err("Onbekende organisatie");
     if (old.archivedAt != null) { return #err("Organisatie is gearchiveerd") };
     let o = switch (orgFrom(id, input, old.createdBy, old.createdAt, old.extra)) { case (#ok o) o; case (#err e) return #err(e) };
+    switch (Oa.clash(org, id, o.kbo, o.aliases)) { case (?e) return #err(e); case null {} };
+    switch (Oa.tradeError(settings, o.trades, old.trades)) { case (?e) return #err(e); case null {} };
     org.orgs.add(id, o);
     Access.audit(audit, caller, ?p.id, null, "organisatie-gewijzigd", old.name # " → " # o.name # " #" # id.toText());
     #ok(orgView(o));
@@ -198,13 +203,7 @@ mixin (
     let name = Access.cleanText(i.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
     if (i.aliases.size() > Config.maxAliases or i.trades.size() > Config.maxAliases) { return #err("Te veel codes of vakgebieden") };
     if (i.notes.size() > Config.maxText) { return #err("Notities te lang") };
-    let kbo = switch (i.kbo) {
-      case null null;
-      case (?k) {
-        let digits = Text.fromIter(k.chars().filter(func c = c >= '0' and c <= '9'));
-        if (digits.size() == 0) null else if (digits.size() == 10) ?digits else if (digits.size() == 9) ?("0" # digits) else return #err("KBO-nummer: 10 cijfers");
-      };
-    };
+    let kbo = switch (Oa.normKbo(i.kbo)) { case (#ok k) k; case (#err e) return #err(e) };
     let aliases = i.aliases.filterMap(func a = Access.cleanText(Text.toUpper(a), Config.maxShort));
     #ok({
       id;

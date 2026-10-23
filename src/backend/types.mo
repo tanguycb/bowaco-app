@@ -162,6 +162,39 @@ module {
     vehicles : Map.Map<Nat, Vehicle>;
   };
 
+
+  // ── Onderaannemers-database (stap 1.2, architectuur §2.3) ───────────────
+  // Eigen domein `oa` in plaats van Org en Person te verbreden (D1b): een nieuwe Map is een kleine
+  // migratie in deelvorm (OldActor = {}). Wat OA's, leveranciers, nutsbedrijven en architecten
+  // betreft zijn contactgegevens intern (architectuur §3); klantcontact blijft in OrgConfidential.
+  // klasse: intern
+  public type OrgContact = {
+    orgId : OrgId;
+    phone : ?Text;
+    email : ?Text;
+    website : ?Text;
+    contactNote : Text; // bv. "bereikbaar na 17u", "enkel via WhatsApp"
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: intern. Contactgegevens van een persoon van een externe firma (geen klant: die zijn vertrouwelijk).
+  public type PersonContact = {
+    personId : PersonId;
+    email : ?Text;
+    jobTitle : Text; // "zaakvoerder", "ploegbaas"
+    note : Text;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  public type OaState = {
+    orgContacts : Map.Map<OrgId, OrgContact>;
+    personContacts : Map.Map<PersonId, PersonContact>;
+  };
+
   // ── Werven en lidmaatschappen (§2.4, §2.3) ──────────────────────────────
   public type WorkStatus = { #request; #quoting; #planned; #running; #delivered; #aftercare; #cancelled };
 

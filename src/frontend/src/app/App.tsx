@@ -12,6 +12,7 @@ import { Werven } from "../screens/Werven";
 import { WerfDetail } from "../screens/Werf";
 import { Team } from "../screens/Team";
 import { Codes } from "../screens/Codes";
+import { Onderaannemers } from "../screens/Onderaannemers";
 import { Organisaties } from "../screens/Organisaties";
 import { Audit } from "../screens/Audit";
 import { Instellingen } from "../screens/Instellingen";
@@ -105,6 +106,7 @@ function navFor(caps: Caps): NavItem[] {
   if (caps.home !== "werven") items.push({ key: "werven", label: t.nav.werven, icon: "building" });
   if (caps.readTeam) items.push({ key: "team", label: t.nav.team, icon: "people" });
   if (caps.inviteExternal || caps.manageAccess) items.push({ key: "codes", label: t.nav.codes, icon: "key" });
+  if (caps.readOa) items.push({ key: "onderaannemers", label: t.nav.onderaannemers, icon: "building" });
   if (caps.readTeam) items.push({ key: "organisaties", label: t.nav.organisaties, icon: "list" });
   if (caps.readAudit) items.push({ key: "audit", label: t.nav.audit, icon: "receipt" });
   if (caps.manageSettings) items.push({ key: "instellingen", label: t.nav.instellingen, icon: "settings" });
@@ -136,6 +138,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         return route[0] === "werven" && route[1] ? <WerfDetail id={BigInt(route[1])} caps={caps} go={go} /> : page === "werven" ? <Werven caps={caps} go={go} /> : <Home kind={page} go={go} />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;
+      case "onderaannemers": return <Onderaannemers caps={caps} />;
       case "organisaties": return <Organisaties caps={caps} />;
       case "audit": return <Audit caps={caps} />;
       case "instellingen": return <Instellingen />;

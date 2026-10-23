@@ -27,6 +27,8 @@ module {
     #manageSettings; #manageRobots; #export; #readAudit; #useTickets;
     // 1.1: contractparameters (vertrouwelijk, R27), afgeleide feiten, werfleider aanduiden
     #readContract; #editContract; #readWorkFacts; #setLeader;
+    // 1.2: onderaannemers-database
+    #readOa; #manageOa; #importOa;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -138,6 +140,11 @@ module {
       // Organisaties: interne rollen lezen; admin en werfleider beheren (OA-fiches)
       case (#readOrgs) internal(p);
       case (#manageOrgs) admin or wl;
+      // 1.2: de OA-database (contacten van OA's, leveranciers, nutsbedrijven) is intern: interne rollen
+      // lezen, admin en werfleider beheren; externen zien elkaar en de database nooit. Import: R32.
+      case (#readOa) internal(p);
+      case (#manageOa) admin or wl;
+      case (#importOa) admin;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -295,6 +302,9 @@ module {
       manageRobots = may(ctx, p, #manageRobots, null);
       readConfidentialContact = may(ctx, p, #readConfidentialContact, null);
       readContracts = may(ctx, p, #readCosts, null);
+      readOa = may(ctx, p, #readOa, null);
+      manageOa = may(ctx, p, #manageOa, null);
+      importOa = may(ctx, p, #importOa, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };
