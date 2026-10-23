@@ -33,6 +33,7 @@ module {
     manageSettings : Bool;
     manageRobots : Bool;
     readConfidentialContact : Bool;
+    readContracts : Bool; // contractparameters van werven (admin, calculator)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -132,6 +133,20 @@ module {
   // vertrouwelijk: alleen uit een update-call
   public type ContactConfidentialView = { contact : ?Types.Contact; notes : ?Text; version : Nat; sealed : Bool };
 
+  // Afgeleide feiten uit het (vertrouwelijke) contract, zonder bedragen of percentages (R27).
+  // null = onbekend (geen contractparameters, of versleuteld).
+  public type WorkFacts = {
+    contractKnown : Bool;
+    inheritedFrom : ?WorkId; // contract van de hoofdwerf
+    guarantee : ?Bool; // waarborg van toepassing
+    priceRevision : ?Bool;
+    art30bis : ?Bool; // geraamde aanneemsom ≥ drempel aangifte van werken
+    checkinatwork : ?Bool;
+  };
+
+  // Wat de beller op deze werf mag (knoppen); de backend controleert elke handeling opnieuw.
+  public type WorkCaps = { edit : Bool; manageMembers : Bool; setLeader : Bool; contract : Bool; upload : Bool };
+
   public type WorkView = {
     id : WorkId;
     code : Text;
@@ -146,6 +161,115 @@ module {
     createdAt : Int;
     createdBy : PersonId;
     archivedAt : ?Int;
+    // 1.1
+    plannedStart : ?Types.Day;
+    plannedEnd : ?Types.Day;
+    analyticCode : ?Text; // null = de werfcode
+    vatNote : Text;
+    facts : ?WorkFacts; // enkel voor interne rollen
+    checklistOpen : ?Nat; // verplichte documenten die nog ontbreken (enkel interne rollen)
+    caps : WorkCaps;
+  };
+
+  public type WorkUpdate = {
+    code : Text;
+    name : Text;
+    address : Types.Address;
+    parentId : ?WorkId;
+    clientOrgId : ?OrgId;
+    architectOrgId : ?OrgId;
+    leaderPersonId : ?PersonId;
+    vatBp : Nat;
+    plannedStart : ?Types.Day;
+    plannedEnd : ?Types.Day;
+    analyticCode : ?Text;
+    vatNote : Text;
+  };
+
+  // vertrouwelijk: alleen uit een update-call (readContract)
+  public type ContractView = {
+    workId : WorkId;
+    version : Nat; // 0 = nog niets ingevuld
+    contract : ?Types.ContractParams;
+    clientContact : ?Types.Contact;
+    notes : ?Text;
+    sealed : Bool;
+    inheritedFrom : ?WorkId; // overgenomen van de hoofdwerf (deelwerf zonder eigen contract)
+    updatedAt : ?Int;
+    updatedByName : Text;
+  };
+
+  public type ContractInput = { contract : Types.ContractParams; clientContact : ?Types.Contact; notes : Text };
+
+  public type ContractVersionView = {
+    version : Nat;
+    at : Int;
+    byName : Text;
+    contract : ?Types.ContractParams;
+    clientContact : ?Types.Contact;
+    notes : ?Text;
+    sealed : Bool;
+  };
+
+  // ── Documenten en checklist (§2.7, A5) ─────────────────────────────────
+  public type DocKindView = {
+    key : Text;
+    name : Text;
+    rule : Text; // zie Config.defaultDocKinds
+    deliverer : Text; // "bowaco" of een rolsleutel
+    oaVisible : Bool;
+    confidential : Bool;
+    order : Nat;
+    archived : Bool;
+  };
+
+  public type DocKindInput = DocKindView;
+
+  public type DocumentView = {
+    id : Nat;
+    workId : WorkId;
+    kind : Text;
+    kindLabel : Text;
+    title : Text;
+    status : Types.DocStatus; // "verlopen" berekend uit validUntil
+    dueDay : ?Types.Day;
+    validUntil : ?Types.Day;
+    note : Text;
+    ownerOrgId : ?OrgId;
+    confidential : Bool;
+    files : [FileView]; // vertrouwelijk: zonder verwijzing
+    updatedAt : Int;
+    updatedByName : Text;
+    canDeliver : Bool;
+  };
+
+  public type Applies = { #yes; #no; #unknown };
+
+  public type ChecklistLine = {
+    kind : Text;
+    name : Text;
+    rule : Text;
+    applies : Applies; // #unknown: bv. geraamde aanneemsom of veiligheidscoördinator nog niet gekend
+    deliverer : Text;
+    doc : ?DocumentView;
+  };
+
+  public type DossierView = {
+    workId : WorkId;
+    checklist : [ChecklistLine]; // verplichte (of nog onbekende) soorten, plus elke soort met een document
+    documents : [DocumentView]; // alle documenten die de beller mag zien
+    deliverKinds : [DocKindView]; // soorten waaraan de beller een bestand mag hangen
+    canManage : Bool; // status, titel, termijn, archiveren
+  };
+
+  public type DocumentInput = {
+    id : ?Nat; // null = nieuw
+    kind : Text;
+    title : Text;
+    dueDay : ?Types.Day;
+    validUntil : ?Types.Day;
+    note : Text;
+    ownerOrgId : ?OrgId;
   };
 
   public type WorkInput = {
@@ -227,7 +351,12 @@ module {
     readAt : ?Int;
   };
 
-  public type SettingsView = { werfleiderZietAlles : Bool; inviteDays : Nat };
+  public type SettingsView = {
+    werfleiderZietAlles : Bool;
+    inviteDays : Nat;
+    threshold30bisCents : Nat; // 1.1, VOORLOPIG
+    thresholdCheckinatworkCents : Nat;
+  };
 
   public type AccessStats = {
     persons : Nat;
@@ -251,6 +380,8 @@ module {
     works : [WorkView];
     memberships : [MembershipView];
     files : [FileView]; // vertrouwelijke zonder verwijzing
+    workInfo : [Types.WorkInfo]; // 1.1
+    documents : [Types.Document]; // 1.1 (vertrouwelijke documenten: enkel de metadata, bestanden zonder verwijzing)
     robots : [RobotView];
     proposals : [ProposalView];
     settings : SettingsView;
@@ -262,5 +393,7 @@ module {
     orgs : [(OrgId, ContactConfidentialView)];
     persons : [(PersonId, ContactConfidentialView)];
     files : [FileView];
+    workConfidential : [Types.WorkConfidential]; // 1.1
+    workConfidentialHistory : [Types.WorkConfidentialVersion];
   };
 };

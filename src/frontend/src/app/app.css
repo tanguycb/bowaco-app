@@ -64,6 +64,17 @@ body { color: var(--bw-ink); }
 .a-alert > .bw-icon { color: var(--bw-st-blocked); }
 .a-note { padding: 12px 14px; border-radius: var(--bw-radius); background: var(--bw-sunken); font-size: var(--bw-fs-sm); color: var(--bw-ink-2); }
 
+/* werffiche (1.1): label – waarde in twee kolommen; vertrouwelijk blok met eigen rand */
+.a-dl { display: grid; grid-template-columns: minmax(120px, 34%) minmax(0, 1fr); gap: 8px 14px; margin: 0; padding: 14px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); font-size: var(--bw-fs-sm); }
+.a-dl dt { color: var(--bw-ink-2); }
+.a-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.a-facts { display: flex; flex-direction: column; gap: 8px; }
+.a-confidential { padding: 14px; border: 1px solid var(--bw-line-strong); border-radius: var(--bw-radius-lg); background: var(--bw-surface-2); }
+.a-tag--link { border: 0; cursor: pointer; }
+.a-tag--link:hover { color: var(--bw-ink); }
+.a-list__btn--sub { padding-left: 22px; }
+.a-list__main b { overflow-wrap: anywhere; }
+
 /* formulieren */
 .a-form { display: flex; flex-direction: column; gap: 14px; }
 .a-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -94,4 +105,8 @@ select.bw-input { appearance: auto; }
   .a-counter:nth-child(3) { border-left: 0; }
   .a-counter:nth-child(n + 3) { border-top: 1px solid var(--bw-line); }
   .a-grid2, .a-grid3 { grid-template-columns: minmax(0, 1fr); }
+  .a-dl { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
+  .a-list > li.a-doc { flex-wrap: wrap; }
+  .a-list > li.a-doc > .a-list__main { flex-basis: 100%; }
+  .a-dl dd { margin-bottom: 8px; }
 }

@@ -14,12 +14,14 @@ import Access "../lib/Access";
 import Config "../lib/Config";
 import Ids "../lib/Ids";
 import Rights "../lib/Rights";
+import Dossier "../lib/Dossier";
 
 mixin (
   settings : Types.SettingsState,
   access : Types.AccessState,
   works : Types.WorksState,
   files : Types.FileState,
+  dossier : Types.DossierState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -47,15 +49,16 @@ mixin (
     #ok(id);
   };
 
-  // Bestanden die de beller mag zien; vertrouwelijke zonder verwijzing.
+  // Bestanden die de beller mag zien; vertrouwelijke zonder verwijzing. Een bestand dat aan een
+  // document hangt dat de beller niet mag zien (R10), verschijnt hier ook niet (R12).
   public query ({ caller }) func listFiles(workId : ?Nat) : async [Views.FileView] {
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
-    switch workId {
-      case (?w) Rights.require(ctx, p, #readDocs, ?w);
-      case null Rights.require(ctx, p, #readTeam, null);
+    let hidden = switch workId {
+      case (?w) { Rights.require(ctx, p, #readDocs, ?w); Dossier.hiddenFileIds(ctx, dossier, p, w) };
+      case null { Rights.require(ctx, p, #readTeam, null); [] };
     };
-    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId).map(fileView).toArray();
+    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null).map(Dossier.fileView).toArray();
   };
 
   public shared ({ caller }) func readConfidentialFile(id : Nat) : async Result.Result<Views.FileView, Text> {
@@ -63,7 +66,7 @@ mixin (
     Rights.require({ works; settings }, p, #readCosts, null);
     let f = files.files.get(id) ?? return #err("Onbekend bestand");
     Access.audit(audit, caller, ?p.id, f.workId, "bekeek:bestand-vertrouwelijk", "#" # id.toText());
-    #ok({ fileView(f) with blob = ?f.blob });
+    #ok({ Dossier.fileView(f) with blob = ?f.blob });
   };
 
   public shared ({ caller }) func archiveFile(id : Nat) : async Result.Result<(), Text> {
@@ -76,19 +79,5 @@ mixin (
     f.archivedAt := ?Time.now();
     Access.audit(audit, caller, ?p.id, f.workId, "bestand-gearchiveerd", f.name # " #" # id.toText());
     #ok;
-  };
-
-  func fileView(f : Types.FileRef) : Views.FileView {
-    {
-      id = f.id;
-      name = f.name;
-      mime = f.mime;
-      size = f.size;
-      blob = if (f.confidential) null else ?f.blob;
-      workId = f.workId;
-      confidential = f.confidential;
-      personId = f.personId;
-      at = f.at;
-    };
   };
 };

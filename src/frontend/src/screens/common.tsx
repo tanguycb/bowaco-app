@@ -55,12 +55,13 @@ export function WorkList({ works, go, empty }: { works: WorkView[]; go: (to: str
     <ul className="a-list">
       {works.map((w) => (
         <li key={String(w.id)}>
-          <button type="button" className="a-list__btn" onClick={() => go(`werven/${w.id}`)}>
+          <button type="button" className={`a-list__btn${w.parentId !== undefined ? " a-list__btn--sub" : ""}`} onClick={() => go(`werven/${w.id}`)}>
             <span className="a-tag">{w.code}</span>
             <span className="a-list__main">
               <b>{w.name}</b>
-              <span className="bw-muted">{[w.address.street, w.address.number].filter(Boolean).join(" ")}{w.address.city ? `, ${w.address.city}` : ""}</span>
+              <span className="bw-muted">{w.parentId !== undefined ? `${t.werven.sub} · ` : ""}{[w.address.street, w.address.number].filter(Boolean).join(" ")}{w.address.city ? `, ${w.address.city}` : ""}</span>
             </span>
+            {w.checklistOpen !== undefined && w.checklistOpen > 0n && <span className="a-tag a-tag--warn">{t.werven.docsOpen(Number(w.checklistOpen))}</span>}
             <WorkBadge status={w.status} />
             <Icon name="next" size={18} />
           </button>

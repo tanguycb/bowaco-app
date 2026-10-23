@@ -13,6 +13,7 @@ import Views "../types/views";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Rights "../lib/Rights";
+import Dossier "../lib/Dossier";
 
 mixin (
   settings : Types.SettingsState,
@@ -20,6 +21,7 @@ mixin (
   org : Types.OrgState,
   works : Types.WorksState,
   files : Types.FileState,
+  dossier : Types.DossierState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -29,17 +31,31 @@ mixin (
   public query ({ caller }) func getSettings() : async Views.SettingsView {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #readTeam, null);
-    { werfleiderZietAlles = settings.werfleiderZietAlles; inviteDays = settings.inviteDays };
+    settingsView();
+  };
+
+  func settingsView() : Views.SettingsView {
+    {
+      werfleiderZietAlles = settings.werfleiderZietAlles;
+      inviteDays = settings.inviteDays;
+      threshold30bisCents = Dossier.threshold30bis(settings);
+      thresholdCheckinatworkCents = Dossier.thresholdCheckinatwork(settings);
+    };
   };
 
   public shared ({ caller }) func setSettings(s : Views.SettingsView) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #manageSettings, null);
     if (s.inviteDays == 0 or s.inviteDays > Config.inviteDaysMax) { return #err("Geldigheid: 1 tot " # Config.inviteDaysMax.toText() # " dagen") };
-    let before = (settings.werfleiderZietAlles, settings.inviteDays);
+    if (s.threshold30bisCents == 0 or s.thresholdCheckinatworkCents == 0 or s.threshold30bisCents > 10_000_000_000 or s.thresholdCheckinatworkCents > 10_000_000_000) {
+      return #err("Drempels: tussen € 0,01 en € 100 miljoen");
+    };
+    let before = settingsView();
     settings.werfleiderZietAlles := s.werfleiderZietAlles;
     settings.inviteDays := s.inviteDays;
-    Access.audit(audit, caller, ?p.id, null, "instellingen", "werfleider ziet alles " # debug_show (before.0) # " → " # debug_show (s.werfleiderZietAlles) # "; codes " # before.1.toText() # " → " # s.inviteDays.toText() # " dagen");
+    settings.values.add("drempel30bis", s.threshold30bisCents.toText());
+    settings.values.add("drempelCheckinatwork", s.thresholdCheckinatworkCents.toText());
+    Access.audit(audit, caller, ?p.id, null, "instellingen", "werfleider ziet alles " # debug_show (before.werfleiderZietAlles) # " → " # debug_show (s.werfleiderZietAlles) # "; codes " # before.inviteDays.toText() # " → " # s.inviteDays.toText() # " dagen" # (if (before.threshold30bisCents != s.threshold30bisCents or before.thresholdCheckinatworkCents != s.thresholdCheckinatworkCents) "; drempels 30bis/Checkinatwork gewijzigd" else ""));
     #ok;
   };
 
@@ -142,12 +158,14 @@ mixin (
       linkHistory = access.linkHistory.values().toArray();
       invites = access.invites.values().map(func i = Access.inviteView(access, i)).toArray();
       orgs = org.orgs.values().map(func o = { id = o.id; kind = o.kind; name = o.name; kbo = o.kbo; vat = o.vat; aliases = o.aliases; trades = o.trades; address = o.address; notes = o.notes; createdAt = o.createdAt; createdBy = o.createdBy; archivedAt = o.archivedAt }).toArray();
-      works = works.works.values().map(func w = { id = w.id; code = w.code; name = w.name; address = w.address; parentId = w.parentId; clientOrgId = w.clientOrgId; architectOrgId = w.architectOrgId; leaderPersonId = w.leaderPersonId; status = w.status; vatBp = w.vatBp; createdAt = w.createdAt; createdBy = w.createdBy; archivedAt = w.archivedAt }).toArray();
+      works = works.works.values().map(func w = Dossier.workView({ works; settings }, dossier, p, w)).toArray();
       memberships = works.memberships.values().map(func m = { id = m.id; workId = m.workId; personId = m.personId; orgId = m.orgId; name = ""; archived = false; role = m.role; grants = m.grants; grantedAt = m.grantedAt; grantedBy = m.grantedBy; endedAt = m.endedAt }).toArray();
-      files = files.files.values().map(func f = { id = f.id; name = f.name; mime = f.mime; size = f.size; blob = if (f.confidential) null else ?f.blob; workId = f.workId; confidential = f.confidential; personId = f.personId; at = f.at }).toArray();
+      files = files.files.values().map(Dossier.fileView).toArray();
+      workInfo = dossier.info.values().toArray();
+      documents = dossier.documents.values().toArray();
       robots = robot.robots.values().map(robotView).toArray();
       proposals = robot.proposals.values().map(func x = { id = x.id; ticketId = x.ticketId; personId = x.personId; workId = x.workId; kind = x.kind; content = x.content; by = x.by; at = x.at; decision = x.decision }).toArray();
-      settings = { werfleiderZietAlles = settings.werfleiderZietAlles; inviteDays = settings.inviteDays };
+      settings = settingsView();
       auditCount = audit.log.size();
     };
   };
@@ -168,6 +186,8 @@ mixin (
       orgs = org.orgConfidential.values().map(func c = (c.orgId, view(c.contact, ?c.notes, c.version))).toArray();
       persons = access.personConfidential.values().map(func c = (c.personId, view(c.contact, null, c.version))).toArray();
       files = files.files.values().filter(func f = f.confidential).map(func f = { id = f.id; name = f.name; mime = f.mime; size = f.size; blob = ?f.blob; workId = f.workId; confidential = true; personId = f.personId; at = f.at }).toArray();
+      workConfidential = dossier.confidential.values().toArray();
+      workConfidentialHistory = dossier.confidentialHistory.values().toArray();
     };
   };
 

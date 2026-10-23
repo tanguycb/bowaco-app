@@ -42,7 +42,9 @@ const ex = await admin.exportIntern();
 const ended = ex.memberships.find((m) => m.endedAt.length === 1);
 const file = ex.files.find((f) => !f.confidential);
 const decided = ex.proposals.find((p) => p.decision.length === 1);
-if (!ended || !file || !decided) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
+const doc = ex.documents.find((d) => d.kind === "vgplan" && d.archivedAt.length === 0);
+const docGone = ex.documents.find((d) => d.archivedAt.length === 1);
+if (!ended || !file || !decided || !doc || !docGone) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
 const someone = identity("proef-lek-onbekend").getPrincipal();
 const hash = "sha256:" + "c".repeat(64);
@@ -51,9 +53,13 @@ const invReq = { name: "", roles: [{ onderaannemer: null }], orgId: [], shortCod
 const orgIn = { kind: { other: null }, name: "", kbo: [], vat: [], aliases: [], trades: [], address: [], notes: "" };
 const addr = { street: "", number: "", zip: "", city: "", country: "" };
 const workIn = { code: "", name: "", address: addr, parentId: [], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 600n };
+const workUpd = { code: "", name: "", address: addr, parentId: [], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 600n, plannedStart: [], plannedEnd: [], analyticCode: [], vatNote: "" };
+const badContract = { contract: { estimatedAmountCents: [], priceRevision: { none: null }, guarantee: { retention: null }, guaranteeBp: 9999n, paymentTermDays: 0n, invoicingRhythm: { monthly: null }, signedQuoteVersionId: [], note: "" }, clientContact: [], notes: "" };
+const docIn = { id: [], kind: "bestaat-niet", title: "", dueDay: [], validUntil: [], note: "", ownerOrgId: [] };
+const kindIn = { key: "", name: "", rule: "altijd", deliverer: "bowaco", oaVisible: false, confidential: false, order: 0n, archived: false };
 const personUpd = { name: "", roles: [], orgId: [], shortCode: [], lang: [], phone: [] };
 
-// Wie mag wat (R1–R34 zoals gebouwd in 0.6). Groepen:
+// Wie mag wat (R1–R34 zoals gebouwd in 0.6 en 1.1). Groepen:
 const ALL = Object.keys(roles);
 const AUTH = ALL.filter((r) => r !== "anoniem");
 const ACTIVE = ["admin", "werfleider", "calculator", "architect", "oa", "klant", "veiligheid"];
@@ -93,8 +99,21 @@ const table = {
   listMembers: [ON_B, () => [B]],
   addMembership: [["admin", "werfleider"], () => [B, [], [], { onderaannemer: null }, []]],
   endMembership: [["admin", "werfleider"], () => [ended.id]],
+  // 1.1 werffiche en contract (R4, R23, R27): contract enkel admin en calculator, nooit de werfleider-rol zelf
+  updateWork: [["admin", "werfleider"], () => [B, workUpd]],
+  readContract: [["admin", "calculator"], () => [B]],
+  setContract: [["admin", "calculator"], () => [B, badContract, 999n]],
+  readContractHistory: [["admin", "calculator"], () => [B]],
+  // 1.1 documenten (R10, R11): lezen per werf, beheren admin/werfleider, soorten enkel admin
+  getDossier: [ON_B, () => [B]],
+  saveDocument: [["admin", "werfleider"], () => [B, docIn]],
+  attachDocumentFile: [ON_B, () => [B, "andere", [], X]], // daarna "onbekend bestand"; leveren zelf: rollentest
+  setDocumentStatus: [["admin", "werfleider"], () => [doc.id, { approved: null }, doc.note]],
+  archiveDocument: [["admin", "werfleider"], () => [docGone.id]],
+  listDocKinds: [INTERNAL, () => [false]],
+  setDocKind: [ADMIN, () => [kindIn]],
   getSettings: [INTERNAL, () => []],
-  setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n }]],
+  setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],
   addRobot: [ADMIN, () => [Principal.anonymous(), "", []]],
   revokeRobot: [ADMIN, () => [someone]],

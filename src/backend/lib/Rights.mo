@@ -25,6 +25,8 @@ module {
     #inviteExternal; #inviteInternal; #confirmLinks; #manageAccess; #readTeam;
     #readOrgs; #manageOrgs; #readConfidentialContact;
     #manageSettings; #manageRobots; #export; #readAudit; #useTickets;
+    // 1.1: contractparameters (vertrouwelijk, R27), afgeleide feiten, werfleider aanduiden
+    #readContract; #editContract; #readWorkFacts; #setLeader;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -145,11 +147,76 @@ module {
       case (#readAudit) admin;
       // R29: tickets voor actieve personen; welke taak, beslist Config.ticketTasks
       case (#useTickets) internal(p);
+      // R27: contractparameters en klantcontact van een werf: admin, calculator. Een werfleider enkel
+      // als hij ook calculator is (rechten = som van rollen); de werfleiderrol zelf nooit.
+      case (#readContract) on(func w = (admin or calc) and seesWork(ctx, p, w));
+      case (#editContract) on(func w = (admin or calc) and seesWork(ctx, p, w));
+      // R27: de afgeleide feiten (waarborg ja/nee, 30bis, Checkinatwork) voor interne rollen, zonder bedragen
+      case (#readWorkFacts) on(func w = internal(p) and seesWork(ctx, p, w));
+      // De werfleider van een werf aanduiden is een interne toewijzing (zoals een werfleider-lidmaatschap)
+      case (#setLeader) on(func w = admin);
     };
   };
 
   public func require(ctx : Ctx, p : Person, action : Action, work : ?WorkId) {
     if (not may(ctx, p, action, work)) { Runtime.trap("Geen toegang") };
+  };
+
+  // ── Documenten (R10, R11) ───────────────────────────────────────────────
+  // Wat een documentsoort zegt over wie mag lezen en leveren. deliverer null = BOWACO (interne rollen).
+  public type DocAccess = { deliverer : ?Role; oaVisible : Bool; confidential : Bool; ownerOrgId : ?Types.OrgId };
+
+  public func mayReadDoc(ctx : Ctx, p : Person, w : WorkId, d : DocAccess) : Bool {
+    if (not may(ctx, p, #readDocs, ?w)) { return false };
+    if (d.confidential) { return may(ctx, p, #readCosts, null) };
+    if (internal(p)) { return true };
+    if (memberAs(ctx, p, w, #architect)) { return true };
+    if (memberAs(ctx, p, w, #veiligheidscoordinator) and (d.deliverer == ?#veiligheidscoordinator or d.oaVisible)) { return true };
+    if (memberAs(ctx, p, w, #onderaannemer) and (d.oaVisible or (d.ownerOrgId != null and d.ownerOrgId == p.orgId))) { return true };
+    memberAs(ctx, p, w, #klant) and d.deliverer == ?#klant;
+  };
+
+  // Een bestand aan een document hangen (en het zo "ontvangen" zetten). Interne rollen: elk document
+  // dat ze mogen zien; externen enkel de soorten die hun rol levert (VC: VG-plan …), met uploadrecht.
+  // De klant levert in fase 1 nog niets zelf (fase 4); BOWACO hangt zijn attest eraan.
+  public func mayDeliverDoc(ctx : Ctx, p : Person, w : WorkId, d : DocAccess) : Bool {
+    if (not may(ctx, p, #uploadDocs, ?w)) { return false };
+    if (not mayReadDoc(ctx, p, w, d)) { return false };
+    if (internal(p)) { return true };
+    if (d.confidential) { return false };
+    switch (d.deliverer) {
+      case (?#veiligheidscoordinator) memberAs(ctx, p, w, #veiligheidscoordinator);
+      case (?#architect) memberAs(ctx, p, w, #architect) and grant(ctx, p, w, #uploadDocs);
+      case (?#onderaannemer) memberAs(ctx, p, w, #onderaannemer);
+      case _ false;
+    };
+  };
+
+  // Kan deze persoon werfleider zijn van een werf? (fiche: rol werfleider, niet afgezet)
+  public func canLead(p : Person) : Bool { p.archivedAt == null and has(p, #werfleider) };
+
+  public func roleFromKey(k : Text) : ?Role {
+    switch k {
+      case "admin" ?#admin;
+      case "werfleider" ?#werfleider;
+      case "calculator" ?#calculator;
+      case "architect" ?#architect;
+      case "onderaannemer" ?#onderaannemer;
+      case "klant" ?#klant;
+      case "veiligheidscoordinator" ?#veiligheidscoordinator;
+      case _ null;
+    };
+  };
+
+  // Wat de beller op één werf mag (voor de knoppen van de werfpagina; de backend controleert opnieuw).
+  public func workCaps(ctx : Ctx, p : Person, w : WorkId) : Views.WorkCaps {
+    {
+      edit = may(ctx, p, #editWork, ?w);
+      manageMembers = may(ctx, p, #manageMembers, ?w);
+      setLeader = may(ctx, p, #setLeader, ?w);
+      contract = may(ctx, p, #readContract, ?w);
+      upload = may(ctx, p, #uploadDocs, ?w);
+    };
   };
 
   // Mag p deze persoon met deze rollen uitnodigen voor deze werven? (R15)
@@ -227,6 +294,7 @@ module {
       manageSettings = may(ctx, p, #manageSettings, null);
       manageRobots = may(ctx, p, #manageRobots, null);
       readConfidentialContact = may(ctx, p, #readConfidentialContact, null);
+      readContracts = may(ctx, p, #readCosts, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

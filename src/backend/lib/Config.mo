@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "0.6-draft3";
-  public let schema : Nat = 1;
+  public let version = "1.1-draft4";
+  public let schema : Nat = 2; // 2 = met werfdossier (1.1)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -51,4 +51,50 @@ module {
 
   // Timer: elke 10 min klein werk (0.2 open punt 6)
   public let timerSeconds : Nat = 600;
+
+  // ── Werffiche en contract (1.1) ─────────────────────────────────────────
+  public let maxFormula : Nat = 500;
+  public let maxGuaranteeBp : Nat = 2_000; // 20 %
+  public let maxPaymentTermDays : Nat = 365;
+  public let maxAmountCents : Int = 100_000_000_000; // € 1 miljard: tikfoutgrens
+  // Drempels (VOORLOPIG, instelbaar in settings.values; na te kijken met de boekhouder):
+  // aangifte van werken (30bis) vanaf € 30.000 excl. btw, Checkinatwork vanaf € 500.000 (bouwplan §5.4).
+  public let threshold30bisCentsDefault : Nat = 3_000_000;
+  public let thresholdCheckinatworkCentsDefault : Nat = 50_000_000;
+
+  // ── Documentsoorten (A5, VOORLOPIG) ─────────────────────────────────────
+  // (sleutel, naam, wanneer verplicht, wie levert, zichtbaar voor OA, vertrouwelijk)
+  // verplicht: "altijd" · "btw6" (werf op 6 %) · "30bis" · "checkinatwork" (drempels hierboven) ·
+  //            "vc" (de werf heeft of vraagt een veiligheidscoördinator) · "oplevering" (opgeleverd) · "optioneel"
+  // levert:    "bowaco" (interne rollen) of een externe rol: architect, veiligheidscoordinator, onderaannemer, klant
+  // De admin past de lijst aan in Instellingen (settings.lookups "docKind:<sleutel>"); dan geldt die lijst.
+  public func defaultDocKinds() : [(Text, Text, Text, Text, Bool, Bool)] {
+    [
+      ("contract", "Aannemingsovereenkomst / getekende offerte", "altijd", "bowaco", false, true),
+      ("btw6-attest", "Btw-attest 6 % (verklaring van de klant)", "btw6", "klant", false, false),
+      ("plannen", "Plannen", "optioneel", "architect", true, false),
+      ("lastenboek", "Lastenboek / meetstaat", "optioneel", "architect", true, false),
+      ("omgevingsvergunning", "Omgevingsvergunning", "optioneel", "architect", true, false),
+      ("vgplan", "Veiligheids- en gezondheidsplan", "vc", "veiligheidscoordinator", true, false),
+      ("coordinatiedagboek", "Coördinatiedagboek", "vc", "veiligheidscoordinator", false, false),
+      ("pid", "Postinterventiedossier (PID)", "vc", "veiligheidscoordinator", false, false),
+      ("aangifte-30bis", "Aangifte van werken (30bis)", "30bis", "bowaco", false, false),
+      ("checkinatwork", "Checkinatwork-registratie", "checkinatwork", "bowaco", false, false),
+      ("asbestinventaris", "Asbestinventaris", "optioneel", "klant", true, false),
+      ("plaatsbeschrijving", "Plaatsbeschrijving vóór de werken", "optioneel", "bowaco", false, false),
+      ("verzekering", "Verzekering (ABR / tienjarige aansprakelijkheid)", "optioneel", "bowaco", false, false),
+      ("epb", "EPB-aangifte / -verslag", "optioneel", "architect", false, false),
+      ("keuring-elektriciteit", "Keuring elektriciteit (AREI)", "optioneel", "onderaannemer", true, false),
+      ("keuring-verwarming", "Keuring verwarming / gas", "optioneel", "onderaannemer", true, false),
+      ("pv-voorlopige-oplevering", "PV voorlopige oplevering", "oplevering", "bowaco", false, false),
+      ("pv-definitieve-oplevering", "PV definitieve oplevering", "optioneel", "bowaco", false, false),
+      ("oa-offerte", "Offerte onderaannemer", "optioneel", "bowaco", false, true),
+      ("oa-factuur", "Factuur onderaannemer", "optioneel", "bowaco", false, true),
+      ("andere", "Ander document", "optioneel", "bowaco", false, false),
+    ];
+  };
+  public func docRules() : [Text] { ["altijd", "btw6", "30bis", "checkinatwork", "vc", "oplevering", "optioneel"] };
+  public let maxDocKinds : Nat = 60;
+  public let maxDocsPerWork : Nat = 500;
+  public let maxFilesPerDoc : Nat = 50;
 };

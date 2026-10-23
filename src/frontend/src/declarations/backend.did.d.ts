@@ -25,6 +25,9 @@ export interface Address {
   'city' : string,
   'number' : string,
 }
+export type Applies = { 'no' : null } |
+  { 'yes' : null } |
+  { 'unknown' : null };
 export interface AuditEntry {
   'at' : bigint,
   'who' : Principal,
@@ -36,6 +39,7 @@ export interface AuditEntry {
 export interface Caps {
   'manageAccess' : boolean,
   'inviteExternal' : boolean,
+  'readContracts' : boolean,
   'home' : string,
   'createWork' : boolean,
   'manageSettings' : boolean,
@@ -47,12 +51,26 @@ export interface Caps {
   'readConfidentialContact' : boolean,
   'readAudit' : boolean,
 }
+export interface ChecklistLine {
+  'doc' : [] | [DocumentView],
+  'kind' : string,
+  'name' : string,
+  'rule' : string,
+  'applies' : Applies,
+  'deliverer' : string,
+}
 export type CodeKind = { 'invite' : null } |
   { 'recovery' : null };
 export type CodeState = { 'revoked' : { 'at' : bigint, 'by' : PersonId } } |
   { 'expired' : { 'at' : bigint } } |
   { 'open' : null } |
   { 'used' : { 'at' : bigint, 'by' : Principal } };
+export type Confidential = { 'sealed' : Sealed } |
+  { 'plain' : Contact };
+export type Confidential_1 = { 'sealed' : Sealed } |
+  { 'plain' : ContractParams };
+export type Confidential_2 = { 'sealed' : Sealed } |
+  { 'plain' : string };
 export interface Contact {
   'name' : string,
   'email' : [] | [string],
@@ -65,21 +83,138 @@ export interface ContactConfidentialView {
   'version' : bigint,
   'notes' : [] | [string],
 }
+export interface ContractInput {
+  'contract' : ContractParams,
+  'notes' : string,
+  'clientContact' : [] | [Contact],
+}
+export interface ContractParams {
+  'note' : string,
+  'signedQuoteVersionId' : [] | [bigint],
+  'invoicingRhythm' : InvoicingRhythm,
+  'guarantee' : GuaranteeKind,
+  'paymentTermDays' : bigint,
+  'estimatedAmountCents' : [] | [bigint],
+  'priceRevision' : PriceRevision,
+  'guaranteeBp' : bigint,
+}
+export interface ContractVersionView {
+  'at' : bigint,
+  'byName' : string,
+  'contract' : [] | [ContractParams],
+  'sealed' : boolean,
+  'version' : bigint,
+  'notes' : [] | [string],
+  'clientContact' : [] | [Contact],
+}
+export interface ContractView {
+  'contract' : [] | [ContractParams],
+  'sealed' : boolean,
+  'inheritedFrom' : [] | [WorkId],
+  'version' : bigint,
+  'updatedByName' : string,
+  'updatedAt' : [] | [bigint],
+  'notes' : [] | [string],
+  'workId' : WorkId,
+  'clientContact' : [] | [Contact],
+}
+export type Day = bigint;
 export interface Decision {
   'at' : bigint,
   'by' : PersonId,
   'note' : string,
   'accepted' : boolean,
 }
+export interface DocKindInput {
+  'key' : string,
+  'order' : bigint,
+  'name' : string,
+  'rule' : string,
+  'oaVisible' : boolean,
+  'deliverer' : string,
+  'confidential' : boolean,
+  'archived' : boolean,
+}
+export interface DocKindView {
+  'key' : string,
+  'order' : bigint,
+  'name' : string,
+  'rule' : string,
+  'oaVisible' : boolean,
+  'deliverer' : string,
+  'confidential' : boolean,
+  'archived' : boolean,
+}
+export type DocStatus = { 'requested' : null } |
+  { 'expired' : null } |
+  { 'missing' : null } |
+  { 'approved' : null } |
+  { 'notApplicable' : null } |
+  { 'received' : null };
+export interface Document {
+  'id' : bigint,
+  'status' : DocStatus,
+  'title' : string,
+  'kind' : string,
+  'note' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'extra' : Extra,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'dueDay' : [] | [Day],
+  'confidential' : boolean,
+  'ownerOrgId' : [] | [OrgId],
+  'workId' : WorkId,
+  'validUntil' : [] | [Day],
+  'archivedAt' : [] | [bigint],
+  'fileIds' : Array<bigint>,
+}
+export interface DocumentInput {
+  'id' : [] | [bigint],
+  'title' : string,
+  'kind' : string,
+  'note' : string,
+  'dueDay' : [] | [Day],
+  'ownerOrgId' : [] | [OrgId],
+  'validUntil' : [] | [Day],
+}
+export interface DocumentView {
+  'id' : bigint,
+  'files' : Array<FileView>,
+  'status' : DocStatus,
+  'title' : string,
+  'kind' : string,
+  'note' : string,
+  'kindLabel' : string,
+  'updatedByName' : string,
+  'updatedAt' : bigint,
+  'dueDay' : [] | [Day],
+  'confidential' : boolean,
+  'canDeliver' : boolean,
+  'ownerOrgId' : [] | [OrgId],
+  'workId' : WorkId,
+  'validUntil' : [] | [Day],
+}
+export interface DossierView {
+  'canManage' : boolean,
+  'documents' : Array<DocumentView>,
+  'checklist' : Array<ChecklistLine>,
+  'workId' : WorkId,
+  'deliverKinds' : Array<DocKindView>,
+}
 export interface ExportConfidential {
   'at' : bigint,
   'files' : Array<FileView>,
   'orgs' : Array<[OrgId, ContactConfidentialView]>,
+  'workConfidentialHistory' : Array<WorkConfidentialVersion>,
   'persons' : Array<[PersonId, ContactConfidentialView]>,
+  'workConfidential' : Array<WorkConfidential>,
 }
 export interface ExportIntern {
   'at' : bigint,
   'files' : Array<FileView>,
+  'documents' : Array<Document>,
   'invites' : Array<InviteView>,
   'schema' : bigint,
   'orgs' : Array<OrgView>,
@@ -93,8 +228,10 @@ export interface ExportIntern {
   'auditCount' : bigint,
   'memberships' : Array<MembershipView>,
   'linkHistory' : Array<LinkHistory>,
+  'workInfo' : Array<WorkInfo>,
 }
 export type ExternalBlob = Uint8Array;
+export type Extra = Array<[string, string]>;
 export interface FileView {
   'at' : bigint,
   'id' : bigint,
@@ -112,6 +249,9 @@ export type Grant = { 'readReports' : null } |
   { 'readSellPrices' : null } |
   { 'readProgress' : null } |
   { 'uploadDocs' : null };
+export type GuaranteeKind = { 'none' : null } |
+  { 'retention' : null } |
+  { 'bankGuarantee' : null };
 export interface InviteRequest {
   'tag' : string,
   'validDays' : bigint,
@@ -136,6 +276,10 @@ export interface InviteView {
   'state' : CodeState,
   'workIds' : Array<WorkId>,
 }
+export type InvoicingRhythm = { 'other' : string } |
+  { 'perPhase' : null } |
+  { 'perProgress' : null } |
+  { 'monthly' : null };
 export interface LinkHistory {
   'id' : bigint,
   'tag' : string,
@@ -260,6 +404,8 @@ export interface PersonView {
   'roles' : Array<Role>,
   'archivedAt' : [] | [bigint],
 }
+export type PriceRevision = { 'none' : null } |
+  { 'formula' : string };
 export interface ProposalView {
   'at' : bigint,
   'by' : Principal,
@@ -271,27 +417,31 @@ export interface ProposalView {
   'personId' : [] | [PersonId],
   'workId' : [] | [WorkId],
 }
-export type Result = { 'ok' : PersonView } |
+export type Result = { 'ok' : WorkView } |
   { 'err' : string };
-export type Result_1 = { 'ok' : OrgView } |
+export type Result_1 = { 'ok' : PersonView } |
   { 'err' : string };
-export type Result_10 = { 'ok' : TicketInfo } |
+export type Result_10 = { 'ok' : NewCode } |
   { 'err' : string };
-export type Result_2 = { 'ok' : bigint } |
+export type Result_11 = { 'ok' : NewTicket } |
   { 'err' : string };
-export type Result_3 = { 'ok' : null } |
+export type Result_12 = { 'ok' : TicketInfo } |
   { 'err' : string };
-export type Result_4 = { 'ok' : MeView } |
+export type Result_2 = { 'ok' : OrgView } |
   { 'err' : string };
-export type Result_5 = { 'ok' : ContactConfidentialView } |
+export type Result_3 = { 'ok' : bigint } |
   { 'err' : string };
-export type Result_6 = { 'ok' : FileView } |
+export type Result_4 = { 'ok' : null } |
   { 'err' : string };
-export type Result_7 = { 'ok' : NewCode } |
+export type Result_5 = { 'ok' : MeView } |
   { 'err' : string };
-export type Result_8 = { 'ok' : WorkView } |
+export type Result_6 = { 'ok' : ContactConfidentialView } |
   { 'err' : string };
-export type Result_9 = { 'ok' : NewTicket } |
+export type Result_7 = { 'ok' : Array<ContractVersionView> } |
+  { 'err' : string };
+export type Result_8 = { 'ok' : ContractView } |
+  { 'err' : string };
+export type Result_9 = { 'ok' : FileView } |
   { 'err' : string };
 export interface RobotView {
   'principal' : Principal,
@@ -308,9 +458,17 @@ export type Role = { 'admin' : null } |
   { 'veiligheidscoordinator' : null } |
   { 'architect' : null } |
   { 'klant' : null };
+export interface Sealed {
+  'ct' : Uint8Array,
+  'iv' : Uint8Array,
+  'alg' : string,
+  'keyId' : string,
+}
 export interface SettingsView {
+  'threshold30bisCents' : bigint,
   'inviteDays' : bigint,
   'werfleiderZietAlles' : boolean,
+  'thresholdCheckinatworkCents' : bigint,
 }
 export interface TicketInfo {
   'expiresAt' : bigint,
@@ -321,7 +479,50 @@ export interface TicketInfo {
   'personId' : PersonId,
   'workId' : [] | [WorkId],
 }
+export interface WorkCaps {
+  'manageMembers' : boolean,
+  'contract' : boolean,
+  'edit' : boolean,
+  'upload' : boolean,
+  'setLeader' : boolean,
+}
+export interface WorkConfidential {
+  'contract' : Confidential_1,
+  'extra' : Extra,
+  'version' : bigint,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'notes' : Confidential_2,
+  'workId' : WorkId,
+  'clientContact' : Confidential,
+}
+export interface WorkConfidentialVersion {
+  'at' : bigint,
+  'by' : PersonId,
+  'id' : bigint,
+  'contract' : Confidential_1,
+  'version' : bigint,
+  'notes' : Confidential_2,
+  'workId' : WorkId,
+  'clientContact' : Confidential,
+}
+export interface WorkFacts {
+  'art30bis' : [] | [boolean],
+  'checkinatwork' : [] | [boolean],
+  'inheritedFrom' : [] | [WorkId],
+  'guarantee' : [] | [boolean],
+  'contractKnown' : boolean,
+  'priceRevision' : [] | [boolean],
+}
 export type WorkId = bigint;
+export interface WorkInfo {
+  'analyticCode' : [] | [string],
+  'extra' : Extra,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'workId' : WorkId,
+  'vatNote' : string,
+}
 export interface WorkInput {
   'leaderPersonId' : [] | [PersonId],
   'clientOrgId' : [] | [OrgId],
@@ -339,19 +540,40 @@ export type WorkStatus = { 'cancelled' : null } |
   { 'delivered' : null } |
   { 'aftercare' : null } |
   { 'running' : null };
+export interface WorkUpdate {
+  'plannedEnd' : [] | [Day],
+  'leaderPersonId' : [] | [PersonId],
+  'clientOrgId' : [] | [OrgId],
+  'analyticCode' : [] | [string],
+  'vatBp' : bigint,
+  'code' : string,
+  'name' : string,
+  'address' : Address,
+  'plannedStart' : [] | [Day],
+  'parentId' : [] | [WorkId],
+  'architectOrgId' : [] | [OrgId],
+  'vatNote' : string,
+}
 export interface WorkView {
   'id' : WorkId,
   'status' : WorkStatus,
+  'plannedEnd' : [] | [Day],
   'leaderPersonId' : [] | [PersonId],
   'clientOrgId' : [] | [OrgId],
+  'analyticCode' : [] | [string],
   'vatBp' : bigint,
+  'checklistOpen' : [] | [bigint],
+  'caps' : WorkCaps,
   'code' : string,
   'name' : string,
   'createdAt' : bigint,
   'createdBy' : PersonId,
   'address' : Address,
+  'plannedStart' : [] | [Day],
   'parentId' : [] | [WorkId],
   'architectOrgId' : [] | [OrgId],
+  'vatNote' : string,
+  'facts' : [] | [WorkFacts],
   'archivedAt' : [] | [bigint],
 }
 export interface _ImmutableObjectStorageCreateCertificateResult {
@@ -388,32 +610,39 @@ export interface _SERVICE {
   'accessStats' : ActorMethod<[], AccessStats>,
   'addFile' : ActorMethod<
     [string, string, bigint, ExternalBlob, [] | [bigint], boolean],
-    Result_2
+    Result_3
   >,
   'addMembership' : ActorMethod<
     [bigint, [] | [bigint], [] | [bigint], Role, Array<Grant>],
-    Result_2
+    Result_3
   >,
-  'addRobot' : ActorMethod<[Principal, string, Array<string>], Result_3>,
-  'archiveFile' : ActorMethod<[bigint], Result_3>,
-  'archiveOrg' : ActorMethod<[bigint], Result_3>,
-  'archivePerson' : ActorMethod<[bigint], Result_3>,
+  'addRobot' : ActorMethod<[Principal, string, Array<string>], Result_4>,
+  'archiveDocument' : ActorMethod<[bigint], Result_4>,
+  'archiveFile' : ActorMethod<[bigint], Result_4>,
+  'archiveOrg' : ActorMethod<[bigint], Result_4>,
+  'archivePerson' : ActorMethod<[bigint], Result_4>,
+  'attachDocumentFile' : ActorMethod<
+    [bigint, string, [] | [bigint], bigint],
+    Result_3
+  >,
   'auditCount' : ActorMethod<[], bigint>,
   'auditLog' : ActorMethod<[bigint, bigint], Array<AuditEntry>>,
-  'checkTicket' : ActorMethod<[string], Result_10>,
-  'claimBootstrap' : ActorMethod<[string, string], Result>,
-  'confirmLink' : ActorMethod<[Principal], Result_3>,
-  'createOrg' : ActorMethod<[OrgInput], Result_1>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_7>,
-  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_9>,
-  'createWork' : ActorMethod<[WorkInput], Result_8>,
-  'decideProposal' : ActorMethod<[bigint, boolean, string], Result_3>,
-  'endMembership' : ActorMethod<[bigint], Result_3>,
+  'checkTicket' : ActorMethod<[string], Result_12>,
+  'claimBootstrap' : ActorMethod<[string, string], Result_1>,
+  'confirmLink' : ActorMethod<[Principal], Result_4>,
+  'createOrg' : ActorMethod<[OrgInput], Result_2>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_10>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_11>,
+  'createWork' : ActorMethod<[WorkInput], Result>,
+  'decideProposal' : ActorMethod<[bigint, boolean, string], Result_4>,
+  'endMembership' : ActorMethod<[bigint], Result_4>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
+  'getDossier' : ActorMethod<[bigint], DossierView>,
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
-  'invitePerson' : ActorMethod<[InviteRequest], Result_7>,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_10>,
+  'listDocKinds' : ActorMethod<[boolean], Array<DocKindView>>,
   'listFiles' : ActorMethod<[[] | [bigint]], Array<FileView>>,
   'listInvites' : ActorMethod<[bigint, bigint], Array<InviteView>>,
   'listLinks' : ActorMethod<[], Array<LinkView>>,
@@ -426,23 +655,30 @@ export interface _SERVICE {
   'me' : ActorMethod<[], MeView>,
   'myNotifications' : ActorMethod<[boolean], Array<NotificationView>>,
   'myProposals' : ActorMethod<[], Array<ProposalView>>,
-  'readConfidentialFile' : ActorMethod<[bigint], Result_6>,
-  'readOrgConfidential' : ActorMethod<[bigint], Result_5>,
-  'redeemCode' : ActorMethod<[string], Result_4>,
-  'restorePerson' : ActorMethod<[bigint], Result_3>,
-  'revokeInvite' : ActorMethod<[bigint], Result_3>,
-  'revokeLink' : ActorMethod<[Principal], Result_3>,
-  'revokeRobot' : ActorMethod<[Principal], Result_3>,
-  'setLinkLabel' : ActorMethod<[Principal, string], Result_3>,
+  'readConfidentialFile' : ActorMethod<[bigint], Result_9>,
+  'readContract' : ActorMethod<[bigint], Result_8>,
+  'readContractHistory' : ActorMethod<[bigint], Result_7>,
+  'readOrgConfidential' : ActorMethod<[bigint], Result_6>,
+  'redeemCode' : ActorMethod<[string], Result_5>,
+  'restorePerson' : ActorMethod<[bigint], Result_4>,
+  'revokeInvite' : ActorMethod<[bigint], Result_4>,
+  'revokeLink' : ActorMethod<[Principal], Result_4>,
+  'revokeRobot' : ActorMethod<[Principal], Result_4>,
+  'saveDocument' : ActorMethod<[bigint, DocumentInput], Result_3>,
+  'setContract' : ActorMethod<[bigint, ContractInput, bigint], Result_3>,
+  'setDocKind' : ActorMethod<[DocKindInput], Result_4>,
+  'setDocumentStatus' : ActorMethod<[bigint, DocStatus, string], Result_4>,
+  'setLinkLabel' : ActorMethod<[Principal, string], Result_4>,
   'setOrgConfidential' : ActorMethod<
     [bigint, [] | [Contact], string],
-    Result_2
+    Result_3
   >,
-  'setSettings' : ActorMethod<[SettingsView], Result_3>,
-  'setWorkStatus' : ActorMethod<[bigint, WorkStatus], Result_3>,
-  'submitProposal' : ActorMethod<[bigint, string, string], Result_2>,
-  'updateOrg' : ActorMethod<[bigint, OrgInput], Result_1>,
-  'updatePerson' : ActorMethod<[bigint, PersonUpdate], Result>,
+  'setSettings' : ActorMethod<[SettingsView], Result_4>,
+  'setWorkStatus' : ActorMethod<[bigint, WorkStatus], Result_4>,
+  'submitProposal' : ActorMethod<[bigint, string, string], Result_3>,
+  'updateOrg' : ActorMethod<[bigint, OrgInput], Result_2>,
+  'updatePerson' : ActorMethod<[bigint, PersonUpdate], Result_1>,
+  'updateWork' : ActorMethod<[bigint, WorkUpdate], Result>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

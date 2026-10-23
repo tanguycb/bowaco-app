@@ -1,30 +1,56 @@
-// Werven (basis voor 1.1): lijst, nieuwe werf, en per werf wie erbij hoort en de bestanden.
-// Wat iemand mag, beslist de backend (Rights.mo); een geweigerde handeling toont de reden.
+// Werven (1.1): lijst met zoeken en deelwerven, nieuwe werf of deelwerf, en de onderdelen die de
+// werfpagina (Werf.tsx) gebruikt. Wat iemand mag, beslist de backend (Rights.mo).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ExternalBlob, Grant, Role, WorkStatus, type Caps, type FileView } from "../backend";
+import { ExternalBlob, Grant, Role, type Caps, type FileView, type WorkView } from "../backend";
 import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtBytes, fmtTime, unwrap, useBackend } from "../util";
-import { Loading, Page, RoleTags, useWorks, WorkBadge, WorkList } from "./common";
+import { Loading, Page, RoleTags, useWorks, WorkList } from "./common";
+
+/** Hoofdwerven met hun deelwerven er meteen onder; zoeken op code, naam of gemeente. */
+function nested(works: WorkView[], q: string): WorkView[] {
+  const s = q.trim().toLowerCase();
+  const hit = (w: WorkView) => !s || [w.code, w.name, w.address.city, w.analyticCode ?? ""].some((x) => x.toLowerCase().includes(s));
+  const byCode = (a: WorkView, b: WorkView) => a.code.localeCompare(b.code, "nl");
+  const tops = works.filter((w) => w.parentId === undefined || !works.some((p) => p.id === w.parentId)).sort(byCode);
+  const out: WorkView[] = [];
+  for (const top of tops) {
+    const subs = works.filter((w) => w.parentId === top.id).sort(byCode);
+    if (hit(top) || subs.some(hit)) out.push(top, ...subs.filter((x) => hit(x) || hit(top)));
+  }
+  return out;
+}
 
 export function Werven({ caps, go }: { caps: Caps; go: (to: string) => void }) {
   const works = useWorks();
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const list = works.data ? nested(works.data, q) : [];
   return (
     <Page title={t.werven.title} actions={caps.createWork && <Button variant="primary" icon="plus" onClick={() => setOpen(true)}>{t.werven.new}</Button>}>
+      {works.data && works.data.length > 6 && <input className="bw-input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.werven.search} aria-label={t.werven.search} />}
       <Loading q={works} />
-      {works.data && <WorkList works={works.data} go={go} empty={t.werven.empty} />}
-      {open && <NewWork onClose={() => setOpen(false)} />}
+      {works.data && <WorkList works={list} go={go} empty={q ? t.werven.noMatch : t.werven.empty} />}
+      {open && <NewWork onClose={() => setOpen(false)} go={go} />}
     </Page>
   );
 }
 
-function NewWork({ onClose }: { onClose: () => void }) {
+/** Nieuwe werf, of een deelwerf van `parent` (zelfde adres, klant en btw als vertrekpunt). */
+export function NewWork({ onClose, parent, go }: { onClose: () => void; parent?: WorkView; go?: (to: string) => void }) {
   const { actor } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
-  const [f, setF] = useState({ code: "", name: "", street: "", number: "", zip: "", city: "", vat: 600 });
+  const [f, setF] = useState({
+    code: parent ? `${parent.code}-` : "",
+    name: parent ? `${parent.name} ` : "",
+    street: parent?.address.street ?? "",
+    number: parent?.address.number ?? "",
+    zip: parent?.address.zip ?? "",
+    city: parent?.address.city ?? "",
+    vat: parent ? Number(parent.vatBp) : 600,
+  });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const save = useMutation({
     mutationFn: async () =>
@@ -32,12 +58,16 @@ function NewWork({ onClose }: { onClose: () => void }) {
         code: f.code,
         name: f.name,
         address: { street: f.street, number: f.number, zip: f.zip, city: f.city, country: "BE" },
+        parentId: parent?.id,
+        clientOrgId: parent?.clientOrgId,
+        architectOrgId: parent?.architectOrgId,
+        leaderPersonId: undefined,
         vatBp: BigInt(f.vat),
       })),
-    onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["works"] }); onClose(); },
+    onSuccess: (w) => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["works"] }); onClose(); go?.(`werven/${w.id}`); },
   });
   return (
-    <Sheet title={t.werven.new} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></>}>
+    <Sheet title={parent ? `${t.werven.newSub} · ${parent.code}` : t.werven.new} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></>}>
       <div className="a-form">
         <div className="a-grid2">
           <Field label={t.werven.code}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} placeholder="2026-231" /></Field>
@@ -65,75 +95,9 @@ export function Field({ label, children }: { label: string; children: React.Reac
   );
 }
 
-const MEMBER_ROLES: Role[] = [Role.werfleider, Role.onderaannemer, Role.architect, Role.klant, Role.veiligheidscoordinator];
+const MEMBER_ROLES: Role[] = [Role.werfleider, Role.veiligheidscoordinator, Role.architect, Role.klant, Role.onderaannemer];
 
-export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: string) => void }) {
-  const { actor, isFetching } = useBackend();
-  const on = !!actor && !isFetching;
-  const qc = useQueryClient();
-  const toast = useToast();
-  const work = useQuery({ queryKey: ["work", String(id)], queryFn: () => actor!.getWork(id), enabled: on });
-  const members = useQuery({ queryKey: ["members", String(id)], queryFn: () => actor!.listMembers(id), enabled: on && !!work.data, refetchOnWindowFocus: true });
-  const [adding, setAdding] = useState(false);
-  const status = useMutation({
-    mutationFn: async (s: WorkStatus) => unwrap(await actor!.setWorkStatus(id, s)),
-    onSuccess: () => void qc.invalidateQueries(),
-    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
-  });
-  const end = useMutation({
-    mutationFn: async (mid: bigint) => unwrap(await actor!.endMembership(mid)),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["members", String(id)] }),
-    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
-  });
-
-  if (!work.data) {
-    return (
-      <Page title={t.werven.title} actions={<Button icon="back" onClick={() => go("werven")}>{t.common.back}</Button>}>
-        <Loading q={work} />
-      </Page>
-    );
-  }
-  const w = work.data;
-  return (
-    <Page label={w.code} title={w.name} actions={<Button icon="back" onClick={() => go("werven")}>{t.common.back}</Button>}>
-      <div className="a-row">
-        <WorkBadge status={w.status} />
-        <span className="bw-muted">{[w.address.street, w.address.number].filter(Boolean).join(" ")}{w.address.city ? `, ${w.address.zip} ${w.address.city}` : ""}</span>
-        <span className="a-tag">btw {Number(w.vatBp) / 100} %</span>
-      </div>
-      {caps.createWork && (
-        <Choice label={t.werven.status} value={w.status} onChange={(s) => { if (s !== w.status && !status.isPending) status.mutate(s); }} options={[WorkStatus.planned, WorkStatus.running, WorkStatus.delivered, WorkStatus.aftercare].map((s) => ({ value: s, label: t.workStatus[s] }))} />
-      )}
-      <div className="a-cols">
-        <section className="a-section">
-          <div className="a-row a-row--between">
-            <h2 className="bw-h2">{t.werven.members}</h2>
-            {caps.createWork && <Button icon="plus" onClick={() => setAdding(true)}>{t.werven.addMember}</Button>}
-          </div>
-          <Loading q={members} />
-          {members.data && members.data.length === 0 && <p className="a-empty">—</p>}
-          {members.data && members.data.length > 0 && (
-            <ul className="a-list">
-              {members.data.map((m) => (
-                <li key={String(m.id)}>
-                  <span className="a-list__main">
-                    <b>{m.name}</b>
-                    <span className="a-row"><RoleTags roles={[m.role]} />{m.archived && <span className="a-tag a-tag--bad">{t.werven.archivedMember}</span>}{m.orgId !== undefined && m.personId === undefined && <span className="a-tag">{t.werven.org}</span>}{m.grants.map((g) => <span key={g} className="a-tag">{t.grants[g] ?? g}</span>)}</span>
-                  </span>
-                  {caps.createWork && <Button variant="quiet" busy={end.isPending && end.variables === m.id} onClick={() => end.mutate(m.id)}>{t.werven.endMember}</Button>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-        <Files workId={id} canUpload={caps.upload} />
-      </div>
-      {adding && <AddMember workId={id} onClose={() => setAdding(false)} />}
-    </Page>
-  );
-}
-
-function AddMember({ workId, onClose }: { workId: bigint; onClose: () => void }) {
+export function AddMember({ workId, allowLeader, onClose }: { workId: bigint; allowLeader: boolean; onClose: () => void }) {
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
   const qc = useQueryClient();
@@ -165,7 +129,7 @@ function AddMember({ workId, onClose }: { workId: bigint; onClose: () => void })
           </select>
         </Field>
         <Field label={t.werven.role}>
-          <Choice label={t.werven.role} value={role} onChange={setRole} options={MEMBER_ROLES.map((r) => ({ value: r, label: t.roles[r] }))} />
+          <Choice label={t.werven.role} value={role} onChange={setRole} options={MEMBER_ROLES.filter((r) => allowLeader || r !== Role.werfleider).map((r) => ({ value: r, label: t.roles[r] }))} />
         </Field>
         {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
       </div>
@@ -174,7 +138,7 @@ function AddMember({ workId, onClose }: { workId: bigint; onClose: () => void })
 }
 
 // Foto's worden op het toestel verkleind (≤ 1600 px, JPEG): kleiner en zonder EXIF-locatie (§8.5).
-async function shrinkPhoto(file: File): Promise<Blob> {
+export async function shrinkPhoto(file: File): Promise<Blob> {
   const bmp = await createImageBitmap(file);
   const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
   const canvas = document.createElement("canvas");
@@ -184,7 +148,7 @@ async function shrinkPhoto(file: File): Promise<Blob> {
   return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("Verkleinen mislukt"))), "image/jpeg", 0.82));
 }
 
-function Files({ workId, canUpload }: { workId: bigint; canUpload: boolean }) {
+export function Files({ workId, canUpload, title }: { workId: bigint; canUpload: boolean; title?: string }) {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -209,7 +173,7 @@ function Files({ workId, canUpload }: { workId: bigint; canUpload: boolean }) {
   const sorted = (files.data ?? []).slice().sort((a, b) => Number(b.at - a.at));
   return (
     <section className="a-section">
-      <h2 className="bw-h2">{t.werven.files}</h2>
+      <h2 className="bw-h2">{title ?? t.werven.files}</h2>
       {canUpload && (
         <label className="bw-btn bw-btn--secondary" style={{ position: "relative" }}>
           <Icon name="camera" size={22} />

@@ -88,9 +88,10 @@ const oa2 = await as("proef-oa2");
 const klant = await as("proef-klant");
 const vc = await as("proef-vc");
 const vreemde = await as("proef-vreemde");
+const wlcalc = await as("proef-wlcalc");
 const nieuw = await as("proef-nieuw");
 const robot = await as("robot-test");
-const everyone = [anon, admin, admin2, wl, wl2, calc, arch, oa, oa2, klant, vc, vreemde, nieuw, robot];
+const everyone = [anon, admin, admin2, wl, wl2, calc, arch, oa, oa2, klant, vc, vreemde, nieuw, robot, wlcalc];
 const P = (n) => identity(n).getPrincipal();
 const codes = []; // alle uitgegeven codes, voor de auditcontrole
 
@@ -222,12 +223,12 @@ check("werfleider wijzigt werfstatus", isOk(await wl.setWorkStatus(A, { running:
 const nAudit = await admin.auditCount();
 check("dezelfde status nog eens: ok maar geen auditregel", isOk(await wl.setWorkStatus(A, { running: null })) && (await admin.auditCount()) === nAudit);
 check("auditregel werfstatus toont oud → nieuw", (await admin.auditLog(0n, 20n)).some((e) => e.action === "werf-status" && e.detail.includes("gepland → bezig")));
-check("werfleider mag geen instellingen wijzigen", await rejects(wl.setSettings({ werfleiderZietAlles: false, inviteDays: 7n })));
-check("admin zet 'werfleider ziet alles' uit", isOk(await admin.setSettings({ werfleiderZietAlles: false, inviteDays: 7n })));
+check("werfleider mag geen instellingen wijzigen", await rejects(wl.setSettings({ werfleiderZietAlles: false, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n })));
+check("admin zet 'werfleider ziet alles' uit", isOk(await admin.setSettings({ werfleiderZietAlles: false, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n })));
 check("werfleider (alles-zien uit) ziet enkel A (zijn werf)", eq(await ids(wl), [Number(A)]));
 check("werfleider (alles-zien uit): werf B faalt", await rejects(wl.getWork(B)));
 check("werfleider (alles-zien uit) kan voor B geen OA uitnodigen", await denied(invite(wl, "x", roles("onderaannemer"), { workIds: [B] })));
-await admin.setSettings({ werfleiderZietAlles: true, inviteDays: 7n });
+await admin.setSettings({ werfleiderZietAlles: true, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n });
 
 await sec("── lidmaatschappen (R15, R31)");
 const oaDakId = (await oa2.me()).person[0].id;
@@ -321,6 +322,139 @@ check("OA Tegels ziet de bestanden van B niet", await rejects(oa.listFiles([B]))
 check("werfleider kan het vertrouwelijke bestand niet openen", await rejects(wl.readConfidentialFile(fC.ok)));
 check("calculator opent het vertrouwelijke bestand (gelogd)", isOk(await calc.readConfidentialFile(fC.ok)));
 
+await sec("── 1.1 werffiche, contractparameters (vertrouwelijk, R23, R27), deelwerven, documenten (A5, A9)");
+// Een werfleider die ook calculator is (rechten = som van rollen, R2).
+await mk("Proef Werfleider-Calculator", roles("werfleider", "calculator"), {}, wlcalc);
+await admin.confirmLink(P("proef-wlcalc"));
+const calcId = (await calc.me()).person[0].id;
+const contractIn = (amount, extra = {}) => ({
+  contract: { estimatedAmountCents: opt(amount), priceRevision: { formula: "p = P × (0,2 + 0,4 s/S + 0,4 i/I)" }, guarantee: { retention: null }, guaranteeBp: 500n, paymentTermDays: 30n, invoicingRhythm: { perProgress: null }, signedQuoteVersionId: [], note: "", ...extra },
+  clientContact: [{ name: "Dhr. Werfcontact", phone: ["0470 00 00 00"], email: [], address: [] }],
+  notes: "korting gevraagd",
+});
+const c0 = await calc.readContract(A);
+check("calculator leest het contract van A (nog leeg, versie 0)", isOk(c0) && c0.ok.version === 0n && c0.ok.contract.length === 0, errOf(c0));
+const c1 = await calc.setContract(A, contractIn(4_500_000n), 0n);
+check("calculator bewaart contractparameters (prijsherziening, waarborg, termijn, aanneemsom) → v1", isOk(c1) && c1.ok === 1n, errOf(c1));
+check("bewaren met een oude versie: geweigerd (niet stil overschrijven)", errOf(await calc.setContract(A, contractIn(4_600_000n), 0n)).includes("intussen"));
+check("waarborg boven 20 % geweigerd", "err" in (await calc.setContract(A, contractIn(4_500_000n, { guaranteeBp: 2500n }), 1n)));
+check("waarborgsoort zonder percentage geweigerd", "err" in (await calc.setContract(A, contractIn(4_500_000n, { guaranteeBp: 0n }), 1n)));
+const ca = await admin.readContract(A);
+check("admin leest het contract (update-call): aanneemsom, waarborg, termijn", isOk(ca) && ca.ok.contract[0].estimatedAmountCents[0] === 4_500_000n && ca.ok.contract[0].guaranteeBp === 500n && ca.ok.contract[0].paymentTermDays === 30n && ca.ok.clientContact[0].name === "Dhr. Werfcontact");
+check("werfleider (zonder calculatorrol) leest het contract NIET", await rejects(wl.readContract(A)));
+check("werfleider (zonder calculatorrol) wijzigt het contract NIET", await rejects(wl.setContract(A, contractIn(1n), 1n)));
+check("werfleider (zonder calculatorrol) leest de contracthistoriek NIET", await rejects(wl.readContractHistory(A)));
+check("werfleider die ook calculator is, leest het contract wel", isOk(await wlcalc.readContract(A)));
+check("architect leest het contract niet", await rejects(arch.readContract(A)));
+check("OA leest het contract niet", await rejects(oa.readContract(A)));
+check("klant leest het contract niet (ook niet van zijn eigen werf)", await rejects(klant.readContract(A)));
+check("veiligheidscoördinator leest het contract niet", await rejects(vc.readContract(A)));
+check("OA kan het contract niet wijzigen", await rejects(oa.setContract(A, contractIn(1n), 1n)));
+check("calculator: contract van een onbestaande werf geweigerd", await rejects(calc.readContract(999n)));
+const wA = await wl.getWork(A);
+const fa = wA.facts[0];
+check("werfleider ziet enkel de afgeleide feiten: waarborg ja, prijsherziening ja, 30bis ja, Checkinatwork nee", !!fa && fa.guarantee[0] === true && fa.priceRevision[0] === true && fa.art30bis[0] === true && fa.checkinatwork[0] === false, JSON.stringify(fa, big));
+check("de werffiche van de werfleider bevat geen bedrag", !JSON.stringify(wA, big).includes("4500000"));
+check("OA, klant, architect en VC krijgen geen feiten en geen checklistteller", (await Promise.all([oa, klant, arch, vc].map((x) => x.getWork(A)))).every((w) => w.facts.length === 0 && w.checklistOpen.length === 0));
+check("werfcaps: werfleider bewerkt, ziet geen contract; calculator ziet contract, bewerkt niet", wA.caps.edit && !wA.caps.contract && (await calc.getWork(A)).caps.contract && !(await calc.getWork(A)).caps.edit);
+await admin.setSettings({ werfleiderZietAlles: true, inviteDays: 7n, threshold30bisCents: 5_000_000n, thresholdCheckinatworkCents: 50_000_000n });
+check("drempel 30bis instelbaar: € 50.000 → werf A (€ 45.000) valt eronder", (await wl.getWork(A)).facts[0].art30bis[0] === false);
+await admin.setSettings({ werfleiderZietAlles: true, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n });
+const hist = await admin.readContractHistory(A);
+check("contracthistoriek: elke versie bewaard", isOk(hist) && hist.ok.length === 1 && hist.ok[0].byName === "Proef Calculator");
+const logC = await admin.auditLog(0n, 200n);
+check("auditlog: 'bekeek:contract' bij elk lezen", logC.filter((e) => e.action === "bekeek:contract").length >= 3);
+const chg = logC.find((e) => e.action === "vertrouwelijk-gewijzigd" && e.detail.startsWith("contract"));
+check("auditlog bij wijzigen: enkel veldnamen, geen bedragen of percentages", !!chg && !/4500000|45\.000|500|5 %|korting/.test(chg.detail), chg?.detail);
+const exC2 = await admin.exportConfidential();
+check("vertrouwelijke export bevat het contract en de historiek", exC2.workConfidential.length === 1 && exC2.workConfidentialHistory.length === 1);
+check("interne export bevat geen contractbedrag", !JSON.stringify(await admin.exportIntern(), big).includes("4500000"));
+
+// Werffiche wijzigen (R4) en werfleider aanduiden (enkel admin)
+const upd0 = { code: "P-A", name: "Proefstraat 1", address: addr("Proefstraat"), parentId: [], clientOrgId: [orgKlant.ok.id], architectOrgId: [orgArch.ok.id], leaderPersonId: [], vatBp: 600n, plannedStart: [20_400n], plannedEnd: [20_500n], analyticCode: ["ANA-PA"], vatNote: "woning ouder dan 10 jaar" };
+const u1 = await wl.updateWork(A, upd0);
+check("werfleider wijzigt de fiche (analytische code, btw-grond, periode)", isOk(u1) && u1.ok.analyticCode[0] === "ANA-PA" && u1.ok.vatNote === "woning ouder dan 10 jaar" && u1.ok.plannedStart[0] === 20_400n, errOf(u1));
+check("auditregel 'werf-gewijzigd' toont oud → nieuw", (await admin.auditLog(0n, 10n)).some((e) => e.action === "werf-gewijzigd" && e.detail.includes("analytische code – → ANA-PA")));
+check("werfleider kan de werfleider niet aanduiden (intern, admin)", errOf(await wl.updateWork(A, { ...upd0, leaderPersonId: [wlId] })).includes("beheerder"));
+check("enkel iemand met de rol werfleider kan werfleider zijn", "err" in (await admin.updateWork(A, { ...upd0, leaderPersonId: [calcId] })));
+check("admin duidt de werfleider aan", isOk(await admin.updateWork(A, { ...upd0, leaderPersonId: [wlId] })));
+check("calculator kan de fiche niet wijzigen", await rejects(calc.updateWork(A, upd0)));
+check("OA kan de fiche niet wijzigen", await rejects(oa.updateWork(A, upd0)));
+check("klant kan de fiche niet wijzigen", await rejects(klant.updateWork(A, upd0)));
+check("einde vóór de start geweigerd", "err" in (await wl.updateWork(A, { ...upd0, plannedEnd: [20_300n] })));
+check("bestaande code van een andere werf geweigerd", "err" in (await wl.updateWork(A, { ...upd0, code: "P-B" })));
+check("btw-tarief enkel 6 of 21 %", "err" in (await wl.updateWork(A, { ...upd0, vatBp: 1200n })));
+
+// Deelwerven (A9, VOORLOPIG: één niveau, eigen team, contract van de hoofdwerf tot er een eigen is)
+const wA1 = await admin.createWork({ code: "P-A1", name: "Proefstraat 1 Gevel", address: addr("Proefstraat"), parentId: [A], clientOrgId: [orgKlant.ok.id], architectOrgId: [], leaderPersonId: [], vatBp: 600n });
+check("admin maakt een deelwerf van A", isOk(wA1) && wA1.ok.parentId[0] === A, errOf(wA1));
+const A1 = wA1.ok.id;
+check("deelwerf van een deelwerf geweigerd", "err" in (await admin.createWork({ code: "P-A1b", name: "x", address: addr("x"), parentId: [A1], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 600n })));
+check("een werf met deelwerven wordt zelf geen deelwerf", "err" in (await admin.updateWork(A, { ...upd0, leaderPersonId: [wlId], parentId: [B] })));
+check("een werf is niet haar eigen hoofdwerf", "err" in (await admin.updateWork(A1, { ...upd0, code: "P-A1", parentId: [A1] })));
+const cA1 = await calc.readContract(A1);
+check("deelwerf zonder eigen contract toont dat van de hoofdwerf", isOk(cA1) && cA1.ok.inheritedFrom[0] === A && cA1.ok.contract[0].estimatedAmountCents[0] === 4_500_000n);
+check("werfleider: feiten van de deelwerf komen van de hoofdwerf", (await wl.getWork(A1)).facts[0].inheritedFrom[0] === A);
+check("deelwerf heeft een eigen team: de architect van A ziet A1 niet", await rejects(arch.getWork(A1)));
+check("deelwerf krijgt een eigen contract", isOk(await calc.setContract(A1, contractIn(1_000_000n), 0n)) && (await calc.readContract(A1)).ok.inheritedFrom.length === 0);
+
+// Documentenlijst en checklist (A5, VOORLOPIG)
+const lineOf = (d, k) => d.checklist.find((l) => l.kind === k);
+const dA = await admin.getDossier(A);
+check("checklist A: contract (altijd), btw-attest (6 %), VG-plan (VC), 30bis (≥ drempel)", ["contract", "btw6-attest", "vgplan", "aangifte-30bis"].every((k) => "yes" in (lineOf(dA, k)?.applies ?? {})), dA.checklist.map((l) => l.kind).join(","));
+check("checklist A: Checkinatwork en PV oplevering staan er (nog) niet op", !lineOf(dA, "checkinatwork") && !lineOf(dA, "pv-voorlopige-oplevering"));
+check("checklist B (21 %, geen VC, geen contract): geen btw-attest, VG-plan en 30bis onbekend", await admin.getDossier(B).then((d) => !lineOf(d, "btw6-attest") && "unknown" in lineOf(d, "vgplan").applies && "unknown" in lineOf(d, "aangifte-30bis").applies));
+check("werfleider ziet het aantal ontbrekende verplichte documenten", (await wl.getWork(A)).checklistOpen[0] >= 4n);
+const fVg = await vc.addFile("vgplan.pdf", "application/pdf", 2000n, blob("1"), [A], false);
+const dVg = await vc.attachDocumentFile(A, "vgplan", [], fVg.ok);
+check("veiligheidscoördinator laadt het VG-plan op → ontvangen", isOk(dVg) && "received" in (await admin.getDossier(A)).documents.find((d) => d.id === dVg.ok).status, errOf(dVg));
+const fX = await vc.addFile("x.pdf", "application/pdf", 2000n, blob("2"), [A], false);
+check("VC kan geen btw-attest leveren (soort van de klant)", await denied(vc.attachDocumentFile(A, "btw6-attest", [], fX.ok)));
+check("VC kan geen plannen leveren (soort van de architect)", await denied(vc.attachDocumentFile(A, "plannen", [], fX.ok)));
+check("VC kan geen document goedkeuren", await rejects(vc.setDocumentStatus(dVg.ok, { approved: null }, "")));
+check("werfleider keurt het VG-plan goed", isOk(await wl.setDocumentStatus(dVg.ok, { approved: null }, "")));
+check("OA kan geen documentstatus zetten", await rejects(oa.setDocumentStatus(dVg.ok, { missing: null }, "")));
+const fCt = await calc.addFile("aanneming.pdf", "application/pdf", 3000n, blob("3"), [A], true);
+const dCt = await calc.attachDocumentFile(A, "contract", [], fCt.ok);
+check("calculator hangt het (vertrouwelijke) contract aan de checklist", isOk(dCt), errOf(dCt));
+check("een gewoon bestand aan een vertrouwelijk document: geweigerd", "err" in (await admin.attachDocumentFile(A, "contract", [dCt.ok], fX.ok)));
+const dWl = await wl.getDossier(A);
+check("werfleider ziet het contractdocument niet (vertrouwelijk)", !dWl.documents.some((d) => d.kind === "contract") && !lineOf(dWl, "contract"));
+check("werfleider ziet het contractbestand ook niet in de bestandenlijst", !(await wl.listFiles([A])).some((f) => f.id === fCt.ok));
+const dKl = await klant.getDossier(A);
+check("klant ziet enkel de soorten die hij levert (btw-attest), geen VG-plan of contract", dKl.checklist.every((l) => l.kind === "btw6-attest") && dKl.documents.every((d) => d.kind === "btw6-attest"), dKl.checklist.map((l) => l.kind).join(","));
+check("klant ziet het VG-plan ook niet in de bestandenlijst", !(await klant.listFiles([A])).some((f) => f.id === fVg.ok));
+const dOa = await oa.getDossier(A);
+check("OA ziet het VG-plan (zichtbaar voor OA), geen coördinatiedagboek, geen contract", dOa.documents.some((d) => d.kind === "vgplan") && !lineOf(dOa, "coordinatiedagboek") && !lineOf(dOa, "contract"));
+const dAr = await arch.getDossier(A);
+check("architect ziet het VG-plan, niet het contract", dAr.documents.some((d) => d.kind === "vgplan") && !dAr.documents.some((d) => d.kind === "contract"));
+check("OA Tegels: het dossier van werf B geweigerd", await rejects(oa.getDossier(B)));
+const fEl = await oa.addFile("keuring.pdf", "application/pdf", 2000n, blob("4"), [A], false);
+const dEl = await oa.attachDocumentFile(A, "keuring-elektriciteit", [], fEl.ok);
+check("OA levert een keuring (soort van de OA)", isOk(dEl), errOf(dEl));
+check("OA kan geen plannen leveren", await denied(oa.attachDocumentFile(A, "plannen", [], fEl.ok)));
+check("OA kan geen bestand van een ander aan een document hangen", "err" in (await oa.attachDocumentFile(A, "keuring-verwarming", [], fVg.ok)));
+const today = BigInt(Math.floor(Date.now() / 86_400_000));
+check("werfleider zet de geldigheid (gisteren) → status verlopen", isOk(await wl.saveDocument(A, { id: [dEl.ok], kind: "keuring-elektriciteit", title: "", dueDay: [], validUntil: [today - 1n], note: "" , ownerOrgId: [] })) && "expired" in (await wl.getDossier(A)).documents.find((d) => d.id === dEl.ok).status);
+const dBtw = await wl.saveDocument(A, { id: [], kind: "btw6-attest", title: "", dueDay: [today + 14n], validUntil: [], note: "", ownerOrgId: [] });
+check("werfleider zet het btw-attest op de lijst en vraagt het op (gevraagd)", isOk(dBtw) && isOk(await wl.setDocumentStatus(dBtw.ok, { requested: null }, "gevraagd aan de klant")));
+check("goedkeuren zonder bestand: geweigerd", "err" in (await wl.setDocumentStatus(dBtw.ok, { approved: null }, "")));
+const dAnd = await wl.saveDocument(A, { id: [], kind: "andere", title: "Proef weg", dueDay: [], validUntil: [], note: "", ownerOrgId: [] });
+check("werfleider archiveert een document (verdwijnt uit de lijst)", isOk(await wl.archiveDocument(dAnd.ok)) && !(await wl.getDossier(A)).documents.some((d) => d.id === dAnd.ok));
+check("onbekende documentsoort geweigerd", "err" in (await wl.saveDocument(A, { id: [], kind: "bestaat-niet", title: "", dueDay: [], validUntil: [], note: "", ownerOrgId: [] })));
+check("OA kan geen document aanmaken", await rejects(oa.saveDocument(A, { id: [], kind: "andere", title: "", dueDay: [], validUntil: [], note: "", ownerOrgId: [] })));
+const kind = { key: "keuring-lift", name: "Keuring lift", rule: "altijd", deliverer: "onderaannemer", oaVisible: true, confidential: false, order: 500n, archived: false };
+check("werfleider kan de documentsoorten niet wijzigen", await rejects(wl.setDocKind(kind)));
+check("een interne rol als 'wie levert' geweigerd", "err" in (await admin.setDocKind({ ...kind, deliverer: "werfleider" })));
+check("admin voegt een documentsoort toe (instelbaar, A5)", isOk(await admin.setDocKind(kind)));
+const kinds = await admin.listDocKinds(false);
+check("de standaardlijst blijft erbij (21 + 1)", kinds.length === 22 && kinds.some((k) => k.key === "keuring-lift"), `${kinds.length}`);
+check("nieuwe verplichte soort staat meteen op de checklist", "yes" in lineOf(await admin.getDossier(A), "keuring-lift").applies);
+check("admin archiveert de soort → weg van de checklist", isOk(await admin.setDocKind({ ...kind, archived: true })) && !lineOf(await admin.getDossier(A), "keuring-lift"));
+check("OA leest de documentsoorten niet (intern)", await rejects(oa.listDocKinds(false)));
+check("auditlog: documenten en soorten gelogd, zonder opslagverwijzing", (await admin.auditLog(0n, 100n)).some((e) => e.action === "document-bestand") && (await admin.auditLog(0n, 100n)).some((e) => e.action === "documentsoort"));
+check("interne export bevat de documenten en de werfinfo", await admin.exportIntern().then((e) => e.documents.length >= 4 && e.workInfo.length >= 1));
+
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));
 check("werfleider kan geen robot toevoegen", await rejects(wl.addRobot(P("robot-test"), "Proefrobot", [])));
@@ -379,7 +513,7 @@ check("auditlog: 'bekeek' bij vertrouwelijk lezen", log.some((e) => e.action ===
 check("werfleider ziet enkel zijn eigen auditregels", (await wl.auditLog(0n, 500n)).every((e) => e.personId[0] === wlId));
 check("werfleider kan geen export", await rejects(wl.exportIntern()));
 const ex = await admin.exportIntern();
-check("admin: interne export met personen, codes zonder hash, werven", ex.persons.length >= 10 && ex.invites.length >= 10 && !("hash" in ex.invites[0]) && ex.works.length === 2);
+check("admin: interne export met personen, codes zonder hash, werven", ex.persons.length >= 10 && ex.invites.length >= 10 && !("hash" in ex.invites[0]) && ex.works.length === 3);
 check("export staat in de auditlog", (await admin.auditLog(0n, 5n)).some((e) => e.action === "export-intern"));
 
 if (local && !process.env.ZONDER_KLOK) {

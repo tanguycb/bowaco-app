@@ -165,13 +165,13 @@ module {
   // ── Werven en lidmaatschappen (§2.4, §2.3) ──────────────────────────────
   public type WorkStatus = { #request; #quoting; #planned; #running; #delivered; #aftercare; #cancelled };
 
-  // klasse: intern
+  // klasse: intern. Wijzigen = het record vervangen + een auditregel per veld (D2).
   public type Work = {
     id : WorkId;
     code : Text; // "2026-231" of "W-0042"
     name : Text;
     address : Address;
-    parentId : ?WorkId; // deelwerf
+    parentId : ?WorkId; // deelwerf (één niveau diep, VOORLOPIG tot A9)
     clientOrgId : ?OrgId;
     architectOrgId : ?OrgId;
     leaderPersonId : ?PersonId;
@@ -179,7 +179,9 @@ module {
     vatBp : Nat; // 600 of 2100
     plannedStart : ?Nat; // Day
     plannedEnd : ?Nat;
-    estimatedAmountCents : ?Int; // orde van grootte (30bis, Checkinatwork)
+    // verouderd sinds 1.1: de geraamde aanneemsom is vertrouwelijk (ContractParams); blijft null.
+    estimatedAmountCents : ?Int;
+    // verouderd sinds 1.1: de veiligheidscoördinator is een lidmaatschap van de werf; blijft null.
     safetyCoordinatorOrgId : ?OrgId;
     createdAt : Int;
     createdBy : PersonId;
@@ -224,6 +226,92 @@ module {
   };
 
   public type FileState = { files : Map.Map<Nat, FileRef> };
+
+  // ── Werfdossier (stap 1.1, architectuur §2.4 en §2.7) ──────────────────
+  // Eén nieuw domein in plaats van Work en FileState te verbreden (D1b): zo vraagt 1.1 één kleine
+  // migratie in deelvorm met OldActor = {} (migrations/20261023_*).
+  public type Day = Nat; // dagen sinds 1970-01-01 (Belgische kalenderdatum, D4)
+
+  public type PriceRevision = { #none; #formula : Text };
+  public type GuaranteeKind = { #none; #retention; #bankGuarantee }; // geen · inhouding op facturen · bankwaarborg
+  public type InvoicingRhythm = { #monthly; #perPhase; #perProgress; #other : Text };
+
+  // klasse: vertrouwelijk (de inhoud van Confidential<ContractParams>)
+  public type ContractParams = {
+    estimatedAmountCents : ?Int; // geraamde aanneemsom excl. btw (30bis, Checkinatwork)
+    priceRevision : PriceRevision;
+    guarantee : GuaranteeKind;
+    guaranteeBp : Nat; // 500 = 5 %
+    paymentTermDays : Nat;
+    invoicingRhythm : InvoicingRhythm;
+    signedQuoteVersionId : ?Nat; // fase 2
+    note : Text;
+  };
+
+  // klasse: vertrouwelijk. Lezen alleen via een update-call met auditregel (R23, R27).
+  public type WorkConfidential = {
+    workId : WorkId;
+    contract : Confidential<ContractParams>;
+    clientContact : Confidential<Contact>; // contactpersoon van de klant voor deze werf
+    notes : Confidential<Text>; // commerciële notities
+    version : Nat;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. Elke versie blijft bewaard (D2, append-only).
+  public type WorkConfidentialVersion = {
+    id : Nat;
+    workId : WorkId;
+    version : Nat;
+    contract : Confidential<ContractParams>;
+    clientContact : Confidential<Contact>;
+    notes : Confidential<Text>;
+    at : Int;
+    by : PersonId;
+  };
+
+  // klasse: intern. Administratieve gegevens van de werffiche die Work zelf niet heeft.
+  public type WorkInfo = {
+    workId : WorkId;
+    analyticCode : ?Text; // analytische code boekhouding; null = de werfcode
+    vatNote : Text; // grond voor het btw-tarief ("woning ouder dan 10 jaar")
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  public type DocStatus = { #missing; #requested; #received; #approved; #expired; #notApplicable };
+
+  // klasse: intern; met confidential = true vertrouwelijk (de bestanden zijn dan ook vertrouwelijk).
+  // Soort = sleutel uit settings.lookups ("docKind:…") of uit Config.defaultDocKinds (D9).
+  public type Document = {
+    id : Nat;
+    workId : WorkId;
+    kind : Text;
+    title : Text;
+    fileIds : [Nat]; // versies, de laatste is de actuele
+    status : DocStatus;
+    dueDay : ?Day;
+    validUntil : ?Day; // keuring, verzekering: daarna "verlopen"
+    note : Text;
+    ownerOrgId : ?OrgId; // wie levert (firma van de veiligheidscoördinator, de OA …)
+    confidential : Bool;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  public type DossierState = {
+    info : Map.Map<WorkId, WorkInfo>;
+    confidential : Map.Map<WorkId, WorkConfidential>;
+    confidentialHistory : Map.Map<Nat, WorkConfidentialVersion>;
+    documents : Map.Map<Nat, Document>;
+  };
 
   // ── Robot: tickets en voorstellen (§2.10, §6) ───────────────────────────
   public type TicketState = { #open; #used : Int; #expired };

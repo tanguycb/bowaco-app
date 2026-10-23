@@ -12,6 +12,7 @@ import WorksApi "mixins/WorksApi";
 import AdminApi "mixins/AdminApi";
 import FilesApi "mixins/FilesApi";
 import TicketsApi "mixins/TicketsApi";
+import DossierApi "mixins/DossierApi";
 
 persistent actor {
   let settings : Types.SettingsState;
@@ -19,6 +20,7 @@ persistent actor {
   let org : Types.OrgState;
   let works : Types.WorksState;
   let files : Types.FileState;
+  let dossier : Types.DossierState; // 1.1: werffiche, contract (vertrouwelijk), documenten
   let robot : Types.RobotState;
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -26,9 +28,10 @@ persistent actor {
   include StorageGate(settings, access, works);
   include AccessApi(settings, access, works, robot, audit, ctr, org);
   include PeopleApi(settings, access, org, works, audit, ctr);
-  include WorksApi(settings, access, org, works, audit, ctr);
-  include AdminApi(settings, access, org, works, files, robot, audit, ctr);
-  include FilesApi(settings, access, works, files, audit, ctr);
+  include WorksApi(settings, access, org, works, dossier, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, robot, audit, ctr);
+  include FilesApi(settings, access, works, files, dossier, audit, ctr);
+  include DossierApi(settings, access, works, files, dossier, audit, ctr);
   include TicketsApi(settings, access, works, robot, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.

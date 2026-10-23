@@ -35,6 +35,7 @@ export interface AuditEntry {
 export interface Caps {
     manageAccess: boolean;
     inviteExternal: boolean;
+    readContracts: boolean;
     home: string;
     createWork: boolean;
     manageSettings: boolean;
@@ -45,6 +46,14 @@ export interface Caps {
     export: boolean;
     readConfidentialContact: boolean;
     readAudit: boolean;
+}
+export interface ChecklistLine {
+    doc?: DocumentView;
+    kind: string;
+    name: string;
+    rule: string;
+    applies: Applies;
+    deliverer: string;
 }
 export type CodeState = {
     __kind__: "revoked";
@@ -67,6 +76,27 @@ export type CodeState = {
         by: Principal;
     };
 };
+export type Confidential = {
+    __kind__: "sealed";
+    sealed: Sealed;
+} | {
+    __kind__: "plain";
+    plain: Contact;
+};
+export type Confidential_1 = {
+    __kind__: "sealed";
+    sealed: Sealed;
+} | {
+    __kind__: "plain";
+    plain: ContractParams;
+};
+export type Confidential_2 = {
+    __kind__: "sealed";
+    sealed: Sealed;
+} | {
+    __kind__: "plain";
+    plain: string;
+};
 export interface Contact {
     name: string;
     email?: string;
@@ -79,21 +109,132 @@ export interface ContactConfidentialView {
     version: bigint;
     notes?: string;
 }
+export interface ContractInput {
+    contract: ContractParams;
+    notes: string;
+    clientContact?: Contact;
+}
+export interface ContractParams {
+    note: string;
+    signedQuoteVersionId?: bigint;
+    invoicingRhythm: InvoicingRhythm;
+    guarantee: GuaranteeKind;
+    paymentTermDays: bigint;
+    estimatedAmountCents?: bigint;
+    priceRevision: PriceRevision;
+    guaranteeBp: bigint;
+}
+export interface ContractVersionView {
+    at: bigint;
+    byName: string;
+    contract?: ContractParams;
+    sealed: boolean;
+    version: bigint;
+    notes?: string;
+    clientContact?: Contact;
+}
+export interface ContractView {
+    contract?: ContractParams;
+    sealed: boolean;
+    inheritedFrom?: WorkId;
+    version: bigint;
+    updatedByName: string;
+    updatedAt?: bigint;
+    notes?: string;
+    workId: WorkId;
+    clientContact?: Contact;
+}
+export type Day = bigint;
 export interface Decision {
     at: bigint;
     by: PersonId;
     note: string;
     accepted: boolean;
 }
+export interface DocKindInput {
+    key: string;
+    order: bigint;
+    name: string;
+    rule: string;
+    oaVisible: boolean;
+    deliverer: string;
+    confidential: boolean;
+    archived: boolean;
+}
+export interface DocKindView {
+    key: string;
+    order: bigint;
+    name: string;
+    rule: string;
+    oaVisible: boolean;
+    deliverer: string;
+    confidential: boolean;
+    archived: boolean;
+}
+export interface Document {
+    id: bigint;
+    status: DocStatus;
+    title: string;
+    kind: string;
+    note: string;
+    createdAt: bigint;
+    createdBy: PersonId;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    dueDay?: Day;
+    confidential: boolean;
+    ownerOrgId?: OrgId;
+    workId: WorkId;
+    validUntil?: Day;
+    archivedAt?: bigint;
+    fileIds: Array<bigint>;
+}
+export interface DocumentInput {
+    id?: bigint;
+    title: string;
+    kind: string;
+    note: string;
+    dueDay?: Day;
+    ownerOrgId?: OrgId;
+    validUntil?: Day;
+}
+export interface DocumentView {
+    id: bigint;
+    files: Array<FileView>;
+    status: DocStatus;
+    title: string;
+    kind: string;
+    note: string;
+    kindLabel: string;
+    updatedByName: string;
+    updatedAt: bigint;
+    dueDay?: Day;
+    confidential: boolean;
+    canDeliver: boolean;
+    ownerOrgId?: OrgId;
+    workId: WorkId;
+    validUntil?: Day;
+}
+export interface DossierView {
+    canManage: boolean;
+    documents: Array<DocumentView>;
+    checklist: Array<ChecklistLine>;
+    workId: WorkId;
+    deliverKinds: Array<DocKindView>;
+}
 export interface ExportConfidential {
     at: bigint;
     files: Array<FileView>;
     orgs: Array<[OrgId, ContactConfidentialView]>;
+    workConfidentialHistory: Array<WorkConfidentialVersion>;
     persons: Array<[PersonId, ContactConfidentialView]>;
+    workConfidential: Array<WorkConfidential>;
 }
 export interface ExportIntern {
     at: bigint;
     files: Array<FileView>;
+    documents: Array<Document>;
     invites: Array<InviteView>;
     schema: bigint;
     orgs: Array<OrgView>;
@@ -107,7 +248,9 @@ export interface ExportIntern {
     auditCount: bigint;
     memberships: Array<MembershipView>;
     linkHistory: Array<LinkHistory>;
+    workInfo: Array<WorkInfo>;
 }
+export type Extra = Array<[string, string]>;
 export interface FileView {
     at: bigint;
     id: bigint;
@@ -143,6 +286,19 @@ export interface InviteView {
     state: CodeState;
     workIds: Array<WorkId>;
 }
+export type InvoicingRhythm = {
+    __kind__: "other";
+    other: string;
+} | {
+    __kind__: "perPhase";
+    perPhase: null;
+} | {
+    __kind__: "perProgress";
+    perProgress: null;
+} | {
+    __kind__: "monthly";
+    monthly: null;
+};
 export interface LinkHistory {
     id: bigint;
     tag: string;
@@ -254,6 +410,13 @@ export interface PersonView {
     roles: Array<Role>;
     archivedAt?: bigint;
 }
+export type PriceRevision = {
+    __kind__: "none";
+    none: null;
+} | {
+    __kind__: "formula";
+    formula: string;
+};
 export interface ProposalView {
     at: bigint;
     by: Principal;
@@ -267,19 +430,33 @@ export interface ProposalView {
 }
 export type Result = {
     __kind__: "ok";
-    ok: PersonView;
+    ok: WorkView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_1 = {
     __kind__: "ok";
-    ok: OrgView;
+    ok: PersonView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_10 = {
+    __kind__: "ok";
+    ok: NewCode;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_11 = {
+    __kind__: "ok";
+    ok: NewTicket;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_12 = {
     __kind__: "ok";
     ok: TicketInfo;
 } | {
@@ -288,56 +465,56 @@ export type Result_10 = {
 };
 export type Result_2 = {
     __kind__: "ok";
-    ok: bigint;
+    ok: OrgView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_3 = {
     __kind__: "ok";
-    ok: null;
+    ok: bigint;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_4 = {
     __kind__: "ok";
-    ok: MeView;
+    ok: null;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_5 = {
     __kind__: "ok";
-    ok: ContactConfidentialView;
+    ok: MeView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_6 = {
     __kind__: "ok";
-    ok: FileView;
+    ok: ContactConfidentialView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_7 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: Array<ContractVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_8 = {
     __kind__: "ok";
-    ok: WorkView;
+    ok: ContractView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_9 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: FileView;
 } | {
     __kind__: "err";
     err: string;
@@ -350,9 +527,17 @@ export interface RobotView {
     kinds: Array<string>;
     revokedAt?: bigint;
 }
+export interface Sealed {
+    ct: Uint8Array;
+    iv: Uint8Array;
+    alg: string;
+    keyId: string;
+}
 export interface SettingsView {
+    threshold30bisCents: bigint;
     inviteDays: bigint;
     werfleiderZietAlles: boolean;
+    thresholdCheckinatworkCents: bigint;
 }
 export interface TicketInfo {
     expiresAt: bigint;
@@ -363,7 +548,50 @@ export interface TicketInfo {
     personId: PersonId;
     workId?: WorkId;
 }
+export interface WorkCaps {
+    manageMembers: boolean;
+    contract: boolean;
+    edit: boolean;
+    upload: boolean;
+    setLeader: boolean;
+}
+export interface WorkConfidential {
+    contract: Confidential_1;
+    extra: Extra;
+    version: bigint;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    notes: Confidential_2;
+    workId: WorkId;
+    clientContact: Confidential;
+}
+export interface WorkConfidentialVersion {
+    at: bigint;
+    by: PersonId;
+    id: bigint;
+    contract: Confidential_1;
+    version: bigint;
+    notes: Confidential_2;
+    workId: WorkId;
+    clientContact: Confidential;
+}
+export interface WorkFacts {
+    art30bis?: boolean;
+    checkinatwork?: boolean;
+    inheritedFrom?: WorkId;
+    guarantee?: boolean;
+    contractKnown: boolean;
+    priceRevision?: boolean;
+}
 export type WorkId = bigint;
+export interface WorkInfo {
+    analyticCode?: string;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    workId: WorkId;
+    vatNote: string;
+}
 export interface WorkInput {
     leaderPersonId?: PersonId;
     clientOrgId?: OrgId;
@@ -374,24 +602,58 @@ export interface WorkInput {
     parentId?: WorkId;
     architectOrgId?: OrgId;
 }
+export interface WorkUpdate {
+    plannedEnd?: Day;
+    leaderPersonId?: PersonId;
+    clientOrgId?: OrgId;
+    analyticCode?: string;
+    vatBp: bigint;
+    code: string;
+    name: string;
+    address: Address;
+    plannedStart?: Day;
+    parentId?: WorkId;
+    architectOrgId?: OrgId;
+    vatNote: string;
+}
 export interface WorkView {
     id: WorkId;
     status: WorkStatus;
+    plannedEnd?: Day;
     leaderPersonId?: PersonId;
     clientOrgId?: OrgId;
+    analyticCode?: string;
     vatBp: bigint;
+    checklistOpen?: bigint;
+    caps: WorkCaps;
     code: string;
     name: string;
     createdAt: bigint;
     createdBy: PersonId;
     address: Address;
+    plannedStart?: Day;
     parentId?: WorkId;
     architectOrgId?: OrgId;
+    vatNote: string;
+    facts?: WorkFacts;
     archivedAt?: bigint;
+}
+export enum Applies {
+    no = "no",
+    yes = "yes",
+    unknown = "unknown"
 }
 export enum CodeKind {
     invite = "invite",
     recovery = "recovery"
+}
+export enum DocStatus {
+    requested = "requested",
+    expired = "expired",
+    missing = "missing",
+    approved = "approved",
+    notApplicable = "notApplicable",
+    received = "received"
 }
 export enum Grant {
     readReports = "readReports",
@@ -400,6 +662,11 @@ export enum Grant {
     readSellPrices = "readSellPrices",
     readProgress = "readProgress",
     uploadDocs = "uploadDocs"
+}
+export enum GuaranteeKind {
+    none = "none",
+    retention = "retention",
+    bankGuarantee = "bankGuarantee"
 }
 export enum LinkStatus {
     active = "active",
@@ -441,28 +708,32 @@ export enum WorkStatus {
 }
 export interface backendInterface {
     accessStats(): Promise<AccessStats>;
-    addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_2>;
-    addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_2>;
-    addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_3>;
-    archiveFile(id: bigint): Promise<Result_3>;
-    archiveOrg(id: bigint): Promise<Result_3>;
-    archivePerson(id: bigint): Promise<Result_3>;
+    addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_3>;
+    addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_3>;
+    addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_4>;
+    archiveDocument(docId: bigint): Promise<Result_4>;
+    archiveFile(id: bigint): Promise<Result_4>;
+    archiveOrg(id: bigint): Promise<Result_4>;
+    archivePerson(id: bigint): Promise<Result_4>;
+    attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_3>;
     auditCount(): Promise<bigint>;
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
-    checkTicket(ticket: string): Promise<Result_10>;
-    claimBootstrap(code: string, name: string): Promise<Result>;
-    confirmLink(p: Principal): Promise<Result_3>;
-    createOrg(input: OrgInput): Promise<Result_1>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_7>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_9>;
-    createWork(i: WorkInput): Promise<Result_8>;
-    decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_3>;
-    endMembership(id: bigint): Promise<Result_3>;
+    checkTicket(ticket: string): Promise<Result_12>;
+    claimBootstrap(code: string, name: string): Promise<Result_1>;
+    confirmLink(p: Principal): Promise<Result_4>;
+    createOrg(input: OrgInput): Promise<Result_2>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_10>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_11>;
+    createWork(i: WorkInput): Promise<Result>;
+    decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
+    endMembership(id: bigint): Promise<Result_4>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
+    getDossier(workId: bigint): Promise<DossierView>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
-    invitePerson(req: InviteRequest): Promise<Result_7>;
+    invitePerson(req: InviteRequest): Promise<Result_10>;
+    listDocKinds(withArchived: boolean): Promise<Array<DocKindView>>;
     listFiles(workId: bigint | null): Promise<Array<FileView>>;
     listInvites(from: bigint, limit: bigint): Promise<Array<InviteView>>;
     listLinks(): Promise<Array<LinkView>>;
@@ -475,18 +746,25 @@ export interface backendInterface {
     me(): Promise<MeView>;
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
-    readConfidentialFile(id: bigint): Promise<Result_6>;
-    readOrgConfidential(id: bigint): Promise<Result_5>;
-    redeemCode(code: string): Promise<Result_4>;
-    restorePerson(id: bigint): Promise<Result_3>;
-    revokeInvite(inviteId: bigint): Promise<Result_3>;
-    revokeLink(p: Principal): Promise<Result_3>;
-    revokeRobot(principal: Principal): Promise<Result_3>;
-    setLinkLabel(p: Principal, tag: string): Promise<Result_3>;
-    setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_2>;
-    setSettings(s: SettingsView): Promise<Result_3>;
-    setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_3>;
-    submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_2>;
-    updateOrg(id: bigint, input: OrgInput): Promise<Result_1>;
-    updatePerson(id: bigint, u: PersonUpdate): Promise<Result>;
+    readConfidentialFile(id: bigint): Promise<Result_9>;
+    readContract(workId: bigint): Promise<Result_8>;
+    readContractHistory(workId: bigint): Promise<Result_7>;
+    readOrgConfidential(id: bigint): Promise<Result_6>;
+    redeemCode(code: string): Promise<Result_5>;
+    restorePerson(id: bigint): Promise<Result_4>;
+    revokeInvite(inviteId: bigint): Promise<Result_4>;
+    revokeLink(p: Principal): Promise<Result_4>;
+    revokeRobot(principal: Principal): Promise<Result_4>;
+    saveDocument(workId: bigint, i: DocumentInput): Promise<Result_3>;
+    setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_3>;
+    setDocKind(k: DocKindInput): Promise<Result_4>;
+    setDocumentStatus(docId: bigint, status: DocStatus, note: string): Promise<Result_4>;
+    setLinkLabel(p: Principal, tag: string): Promise<Result_4>;
+    setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_3>;
+    setSettings(s: SettingsView): Promise<Result_4>;
+    setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_4>;
+    submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_3>;
+    updateOrg(id: bigint, input: OrgInput): Promise<Result_2>;
+    updatePerson(id: bigint, u: PersonUpdate): Promise<Result_1>;
+    updateWork(id: bigint, u: WorkUpdate): Promise<Result>;
 }
