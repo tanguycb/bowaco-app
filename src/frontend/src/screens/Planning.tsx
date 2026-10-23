@@ -441,12 +441,12 @@ function TaskRows({ tasks, onOpen, workId }: { tasks: TaskView[]; onOpen: (id: b
             <span className="a-list__main">
               <b>{x.title}</b>
               <span className="bw-num bw-muted">{N(x.workdays) === 0 ? `${t.plan.kinds[x.kind]} · ${fmtShort(x.start)}` : `${fmtShort(x.start)} – ${fmtShort(x.end)} · ${t.plan.workdays(N(x.workdays))}`}</span>
-              {(x.responsibleName || x.assignments.length > 0) && <span className="bw-muted">{x.assignments.length > 0 ? x.assignments.map((a) => `${a.orgName}${a.orgCode ? ` (${a.orgCode})` : ""}`).join(", ") : x.responsibleName}</span>}
+              {(x.responsibleName || x.assignments.length > 0) && <span className="bw-muted">{x.assignments.length > 0 ? [...new Set(x.assignments.map((a) => `${a.orgName}${a.orgCode ? ` (${a.orgCode})` : ""}`))].join(", ") : x.responsibleName}</span>}
               {x.warnings.map((wn) => <span key={wn} className="a-err">{wn}</span>)}
             </span>
             <span className="a-stack" style={{ alignItems: "flex-end", gap: 4 }}>
               <StatusBadge status={statusOf(x.status)} small />
-              {x.assignments.map((a) => <ConfTag key={String(a.id)} a={a} />)}
+              {x.assignments.filter((a, i, arr) => arr.findIndex((b) => b.orgId === a.orgId && Object.keys(b.confirmation)[0] === Object.keys(a.confirmation)[0]) === i).map((a) => <ConfTag key={String(a.id)} a={a} />)}
             </span>
           </button>
           <span hidden>{String(workId)}</span>

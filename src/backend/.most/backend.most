@@ -76,6 +76,38 @@ type Address__766490103 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__963656299 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
+type Appointment__3400962 =
+  {
+    archivedAt : ?Int;
+    batchId : ?Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    day : Day__162369424;
+    extra : Extra__945213800;
+    id : Nat;
+    orgId : ?OrgId__17031398;
+    taskId : Nat;
+    text : Text;
+    time : ?Text;
+    weekFallback : Bool;
+    workId : WorkId__929594816
+  };
+type Appointment__983589821 =
+  {
+    archivedAt : ?Int;
+    batchId : ?Text;
+    createdAt : Int;
+    createdBy : PersonId__1012124006;
+    day : Day__786034210;
+    extra : Extra__741696500;
+    id : Nat;
+    orgId : ?OrgId__168115520;
+    taskId : Nat;
+    text : Text;
+    time : ?Text;
+    weekFallback : Bool;
+    workId : WorkId__872672482
+  };
 type Assignment__428445028 =
   {
     archivedAt : ?Int;
@@ -260,6 +292,7 @@ type Counters__137216085 = Map__230067015<Text, Nat>;
 type Data__44217153<K, V> = {var count : Nat__227979830; kvs : [var ?(K, V)]};
 type Day__162369424 = Nat;
 type Day__672613163 = Nat;
+type Day__786034210 = Nat;
 type Day__821488089 = Nat;
 type Day__923906744 = Nat;
 type Decision__965673210 =
@@ -349,6 +382,7 @@ type Extra__482036894 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
 type Extra__550678138 = [(Text, Text)];
 type Extra__594079308 = [(Text, Text)];
+type Extra__741696500 = [(Text, Text)];
 type Extra__911541576 = [(Text, Text)];
 type Extra__945213800 = [(Text, Text)];
 type FileRef__312567383 =
@@ -398,6 +432,48 @@ type Grant__365704929 =
   };
 type GuaranteeKind__187207818 = {#bankGuarantee; #none; #retention};
 type GuaranteeKind__391074589 = {#bankGuarantee; #none; #retention};
+type ImportBatch__410759962 =
+  {
+    appointments : Nat;
+    assignments : Nat;
+    at : Int;
+    blocks : Nat;
+    by : PersonId__1012124006;
+    extra : Extra__741696500;
+    id : Text;
+    rolledBackAt : ?Int;
+    rolledBackBy : ?PersonId__1012124006;
+    tasks : Nat;
+    title : Text;
+    works : Nat
+  };
+type ImportBatch__918829545 =
+  {
+    appointments : Nat;
+    assignments : Nat;
+    at : Int;
+    blocks : Nat;
+    by : PersonId__967516914;
+    extra : Extra__945213800;
+    id : Text;
+    rolledBackAt : ?Int;
+    rolledBackBy : ?PersonId__967516914;
+    tasks : Nat;
+    title : Text;
+    works : Nat
+  };
+type ImportKey__605447614 =
+  {batchId : Text; entityId : Nat; key : Text; kind : ImportKind__412852149};
+type ImportKey__648908705 =
+  {batchId : Text; entityId : Nat; key : Text; kind : ImportKind__35195153};
+type ImportKind__35195153 = {#appointment; #assignment; #link; #task; #work};
+type ImportKind__412852149 = {#appointment; #assignment; #link; #task; #work};
+type ImportState__440367384 =
+  {
+    appointments : Map__230067015<Nat, Appointment__983589821>;
+    batches : Map__230067015<Text, ImportBatch__410759962>;
+    keys : Map__230067015<Text, ImportKey__648908705>
+  };
 type Internal__283199666<K, V> =
   {children : [var ?Node__204828119<K, V>]; data : Data__44217153<K, V>};
 type Invite__1071795559 =
@@ -556,6 +632,7 @@ type NewActor__1057791986 =
   };
 type NewActor__14273466 = {board : BoardState__816524089};
 type NewActor__2917504 = {plan : PlanState__393161007};
+type NewActor__398557116 = {imp : ImportState__440367384};
 type NewActor__914032600 = {oa : OaState__978871092};
 type Node__204828119<K, V> =
   {#internal : Internal__283199666<K, V>; #leaf : Leaf__598469445<K, V>};
@@ -590,6 +667,7 @@ type OaState__978871092 =
 type OldActor__1025357807 = {};
 type OldActor__211850744 = {};
 type OldActor__305186077 = {};
+type OldActor__381654595 = {};
 type OldActor__415128861 = {};
 type OldActor__574962007 = {};
 type OrgConfidential__581272438 =
@@ -628,6 +706,7 @@ type OrgContact__539818738 =
     updatedBy : PersonId__967516914;
     website : ?Text
   };
+type OrgId__168115520 = Nat;
 type OrgId__17031398 = Nat;
 type OrgId__208183745 = Nat;
 type OrgId__232449879 = Nat;
@@ -726,6 +805,7 @@ type PersonContact__279373132 =
     updatedBy : PersonId__967516914
   };
 type PersonId__1007515609 = Nat;
+type PersonId__1012124006 = Nat;
 type PersonId__185004052 = Nat;
 type PersonId__253911295 = Nat;
 type PersonId__677245278 = Nat;
@@ -1091,6 +1171,7 @@ type WorkConfidential__838957099 =
 type WorkId__111716167 = Nat;
 type WorkId__171501769 = Nat;
 type WorkId__838834227 = Nat;
+type WorkId__872672482 = Nat;
 type WorkId__929594816 = Nat;
 type WorkInfo__383931944 =
   {
@@ -1182,7 +1263,8 @@ type WorksState__605582232 =
   "20261023_150000" : OldActor__574962007 -> NewActor__1036484427;
   "20261023_180000" : OldActor__211850744 -> NewActor__914032600;
   "20261023_210000" : OldActor__1025357807 -> NewActor__2917504;
-  "20261023_235000" : OldActor__305186077 -> NewActor__14273466
+  "20261023_235000" : OldActor__305186077 -> NewActor__14273466;
+  "20261024_090000" : OldActor__381654595 -> NewActor__398557116
 }
 actor  {
   stable access :
@@ -1221,6 +1303,12 @@ actor  {
       info : Map__230067015<WorkId__929594816, WorkInfo__383931944>
     };
   stable files : {files : Map__230067015<Nat, FileRef__388390992>};
+  stable imp :
+    {
+      appointments : Map__230067015<Nat, Appointment__3400962>;
+      batches : Map__230067015<Text, ImportBatch__918829545>;
+      keys : Map__230067015<Text, ImportKey__605447614>
+    };
   stable oa :
     {
       orgContacts : Map__230067015<OrgId__17031398, OrgContact__539818738>;
