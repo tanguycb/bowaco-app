@@ -65,14 +65,18 @@ export function Weekbord({ caps, go }: { caps: Caps; go: (to: string) => void })
   const trades = useQuery({ queryKey: ["trades", false], queryFn: () => actor!.listTrades(false), enabled: on });
   const tradeName = (k: string) => trades.data?.find((x) => x.key === k)?.name ?? k;
   const b = board.data;
-  const first = isoWeek(from).week;
-  const last = isoWeek(from + 7 * (weeks - 1)).week;
+  const stale = board.isPlaceholderData;
+  const shownFrom = b ? N(b.from) : from;
+  const shownWeeks = b ? b.weeks.length : weeks;
+  const fw = isoWeek(shownFrom);
+  const lw = isoWeek(shownFrom + 7 * (shownWeeks - 1));
+  const title = fw.year === lw.year ? t.board.weeksRange(fw.week, lw.week) : t.board.weeksRangeYears(fw.week, fw.year, lw.week, lw.year);
   const allConflicts = (b?.rows ?? []).flatMap((r) => r.conflicts);
   const selRow = b?.rows.find((r) => r.orgId === orgSel) ?? null;
 
   const step = wide ? weeks * 7 : 7;
   return (
-    <Page label={t.board.title} title={t.board.weeksRange(first, last)} actions={<>
+    <Page label={t.board.title} title={title} actions={<>
       <Button iconOnly icon="back" onClick={() => setFrom(from - step)}>{t.board.prev}</Button>
       <Button disabled={from === thisMonday()} onClick={() => setFrom(thisMonday())}>{t.board.now}</Button>
       <Button iconOnly icon="next" onClick={() => setFrom(from + step)}>{t.board.next}</Button>
@@ -93,7 +97,7 @@ export function Weekbord({ caps, go }: { caps: Caps; go: (to: string) => void })
       </div>
       <Loading q={board} />
       {b && (
-        <>
+        <div className={`a-stack${stale ? " wb-stale" : ""}`} aria-busy={stale}>
           {N(b.conflictTotal) > 0 ? (
             <div className="a-alert" role="alert">
               <Icon name="alert" size={20} />
@@ -121,7 +125,7 @@ export function Weekbord({ caps, go }: { caps: Caps; go: (to: string) => void })
             </div>
           )}
           <p className="bw-muted bw-num wb-cost">{t.board.cost((N(b.instructions) / 1e6).toFixed(0))}</p>
-        </>
+        </div>
       )}
       {item && b && <ItemSheet b={b} sel={item} go={go} onClose={() => setItem(null)} onOrg={() => { setOrgSel(item.row.orgId); setItem(null); }} />}
       {orgSel !== null && b && <OrgSheet orgId={orgSel} row={selRow} b={b} caps={caps} tradeName={tradeName} onClose={() => setOrgSel(null)} go={go} />}
@@ -373,16 +377,17 @@ export function AbsencePanel({ orgId, from, canEdit, persons, own }: { orgId: bi
           {hist.data.map((h) => <li key={String(h.id)}><span className="a-list__main"><span>{h.what}: {h.detail}</span><span className="bw-muted bw-num">{fmtTime(h.at)} · {h.byName}</span></span></li>)}
         </ul>
       ) : <p className="a-empty">{t.absence.historyNone}</p>)}
-      {edit !== null && <AbsenceSheet orgId={orgId} current={edit === "new" ? null : edit} persons={persons} own={own} onClose={() => setEdit(null)} />}
+      {edit !== null && <AbsenceSheet orgId={orgId} current={edit === "new" ? null : edit} persons={persons} own={own} from={from} onClose={() => setEdit(null)} />}
     </section>
   );
 }
 
-function AbsenceSheet({ orgId, current, persons, own, onClose }: { orgId: bigint; current: AbsenceView | null; persons: { id: bigint; name: string }[]; own?: boolean; onClose: () => void }) {
+function AbsenceSheet({ orgId, current, persons, own, from: shown, onClose }: { orgId: bigint; current: AbsenceView | null; persons: { id: bigint; name: string }[]; own?: boolean; from: number; onClose: () => void }) {
   const { actor } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
-  const start = thisMonday() + 7;
+  // Nieuw: de week die op het weekbord in beeld is (of volgende week als die al voorbij is).
+  const start = Math.max(shown, thisMonday() + 7);
   const [kind, setKind] = useState<AbsenceKind>(current?.kind ?? AbsenceKind.verlof);
   const [who, setWho] = useState(current?.personId !== undefined ? String(current.personId) : "");
   const [from, setFrom] = useState(dayToInput(current ? current.from : BigInt(start)));

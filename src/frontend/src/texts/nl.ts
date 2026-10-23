@@ -514,6 +514,7 @@ export const nl = {
     title: "Weekbord per OA",
     lead: "Wie staat wanneer op welke werf. Rijen zijn firma's, kolommen weken; klik een werf voor de taken.",
     weeksRange: (a: number, b: number) => (a === b ? `Week ${a}` : `Week ${a} – ${b}`),
+    weeksRangeYears: (a: number, ya: number, b: number, yb: number) => `Week ${a} (${ya}) – ${b} (${yb})`,
     prev: "Vorige weken",
     next: "Volgende weken",
     now: "Deze week",

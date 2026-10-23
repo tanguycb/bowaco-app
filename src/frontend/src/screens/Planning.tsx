@@ -190,7 +190,10 @@ function Gantt({ plan, cal, zoom, editable, onOpen, onMove, ghost, workId }: {
   useEffect(() => {
     const el = scroller.current;
     // Een planning die pas later begint: open bij haar begin; anders bij vandaag (een week terug).
-    const target = N(plan.start ?? now) > now + 7 ? N(plan.start!) - 3 : now - 7;
+    // Vanaf het weekbord (?taak=…): naar die taak.
+    const m = window.location.hash.match(/[?&]taak=(\d+)/);
+    const focus = m ? plan.tasks.find((t) => String(t.id) === m[1]) : undefined;
+    const target = focus ? N(focus.start) - 7 : N(plan.start ?? now) > now + 7 ? N(plan.start!) - 3 : now - 7;
     if (el) el.scrollLeft = Math.max(0, x(Math.max(first, target)) - 40);
   }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
