@@ -1,4 +1,62 @@
 // Version: 4.0.0
+type AbsenceChange__783558869 =
+  {
+    absenceId : Nat;
+    at : Int;
+    by : PersonId__967516914;
+    detail : Text;
+    id : Nat;
+    orgId : OrgId__17031398;
+    what : Text
+  };
+type AbsenceChange__950988514 =
+  {
+    absenceId : Nat;
+    at : Int;
+    by : PersonId__677245278;
+    detail : Text;
+    id : Nat;
+    orgId : OrgId__370186017;
+    what : Text
+  };
+type AbsenceKind__134719462 = {#andere; #verlof; #ziekte};
+type AbsenceKind__325144580 = {#andere; #verlof; #ziekte};
+type AbsenceSource__1067387388 = {#intern; #oa};
+type AbsenceSource__239554428 = {#intern; #oa};
+type Absence__191448577 =
+  {
+    archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__677245278;
+    extra : Extra__911541576;
+    from : Day__672613163;
+    id : Nat;
+    kind : AbsenceKind__134719462;
+    note : Text;
+    orgId : OrgId__370186017;
+    personId : ?PersonId__677245278;
+    source : AbsenceSource__1067387388;
+    to : Day__672613163;
+    updatedAt : Int;
+    updatedBy : PersonId__677245278
+  };
+type Absence__781970149 =
+  {
+    archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    from : Day__162369424;
+    id : Nat;
+    kind : AbsenceKind__325144580;
+    note : Text;
+    orgId : OrgId__17031398;
+    personId : ?PersonId__967516914;
+    source : AbsenceSource__239554428;
+    to : Day__162369424;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914
+  };
 type AccessState__192760844 =
   {
     attempts : Map__230067015<Principal, Attempts__294006982>;
@@ -87,6 +145,12 @@ type BlockScope__237227244 =
   {#company; #org : OrgId__17031398; #work : WorkId__929594816};
 type BlockScope__269159993 =
   {#company; #org : OrgId__208183745; #work : WorkId__171501769};
+type BoardState__816524089 =
+  {
+    absenceChanges : Map__230067015<Nat, AbsenceChange__950988514>;
+    absences : Map__230067015<Nat, Absence__191448577>;
+    capacity : Map__230067015<Text, CapacityRule__34831421>
+  };
 type CalendarBlock__116234807 =
   {
     archivedAt : ?Int;
@@ -112,6 +176,26 @@ type CalendarBlock__30581876 =
     reason : Text;
     scope : BlockScope__269159993;
     to : Day__821488089
+  };
+type CapacityRule__34831421 =
+  {
+    archivedAt : ?Int;
+    extra : Extra__911541576;
+    key : Text;
+    maxWorks : Nat;
+    note : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__677245278
+  };
+type CapacityRule__80176380 =
+  {
+    archivedAt : ?Int;
+    extra : Extra__945213800;
+    key : Text;
+    maxWorks : Nat;
+    note : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914
   };
 type CodeKind__234575351 = {#invite; #recovery};
 type CodeKind__972856206 = {#invite; #recovery};
@@ -175,6 +259,7 @@ type ContractParams__951290881 =
 type Counters__137216085 = Map__230067015<Text, Nat>;
 type Data__44217153<K, V> = {var count : Nat__227979830; kvs : [var ?(K, V)]};
 type Day__162369424 = Nat;
+type Day__672613163 = Nat;
 type Day__821488089 = Nat;
 type Day__923906744 = Nat;
 type Decision__965673210 =
@@ -264,6 +349,7 @@ type Extra__482036894 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
 type Extra__550678138 = [(Text, Text)];
 type Extra__594079308 = [(Text, Text)];
+type Extra__911541576 = [(Text, Text)];
 type Extra__945213800 = [(Text, Text)];
 type FileRef__312567383 =
   {
@@ -468,6 +554,7 @@ type NewActor__1057791986 =
     settings : SettingsState__180579617;
     works : WorksState__605582232
   };
+type NewActor__14273466 = {board : BoardState__816524089};
 type NewActor__2917504 = {plan : PlanState__393161007};
 type NewActor__914032600 = {oa : OaState__978871092};
 type Node__204828119<K, V> =
@@ -502,6 +589,7 @@ type OaState__978871092 =
   };
 type OldActor__1025357807 = {};
 type OldActor__211850744 = {};
+type OldActor__305186077 = {};
 type OldActor__415128861 = {};
 type OldActor__574962007 = {};
 type OrgConfidential__581272438 =
@@ -543,6 +631,7 @@ type OrgContact__539818738 =
 type OrgId__17031398 = Nat;
 type OrgId__208183745 = Nat;
 type OrgId__232449879 = Nat;
+type OrgId__370186017 = Nat;
 type OrgId__875663865 = Nat;
 type OrgId__98679714 = Nat;
 type OrgKind__867804321 =
@@ -639,6 +728,7 @@ type PersonContact__279373132 =
 type PersonId__1007515609 = Nat;
 type PersonId__185004052 = Nat;
 type PersonId__253911295 = Nat;
+type PersonId__677245278 = Nat;
 type PersonId__820620982 = Nat;
 type PersonId__967516914 = Nat;
 type Person__726696944 =
@@ -1091,7 +1181,8 @@ type WorksState__605582232 =
   "20261022_220241" : OldActor__415128861 -> NewActor__1057791986;
   "20261023_150000" : OldActor__574962007 -> NewActor__1036484427;
   "20261023_180000" : OldActor__211850744 -> NewActor__914032600;
-  "20261023_210000" : OldActor__1025357807 -> NewActor__2917504
+  "20261023_210000" : OldActor__1025357807 -> NewActor__2917504;
+  "20261023_235000" : OldActor__305186077 -> NewActor__14273466
 }
 actor  {
   stable access :
@@ -1111,6 +1202,12 @@ actor  {
     {
       log : List__836382695<AuditEntry__190608878>;
       notifications : Map__230067015<Nat, Notification__1016009815>
+    };
+  stable board :
+    {
+      absenceChanges : Map__230067015<Nat, AbsenceChange__783558869>;
+      absences : Map__230067015<Nat, Absence__781970149>;
+      capacity : Map__230067015<Text, CapacityRule__80176380>
     };
   stable ctr :
     {var root : Node__204828119<Text, Nat>; var size : Nat__227979830};
