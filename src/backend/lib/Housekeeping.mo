@@ -6,11 +6,14 @@ import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Types "../types";
+import Access "Access";
 import Config "Config";
 
 module {
   public func tick(access : Types.AccessState, robot : Types.RobotState, reports : Types.ReportState) {
     let now = Time.now();
+    // 1.9 (T11): pogingentellers van principals die niet meer geblokkeerd zijn, in stukken.
+    ignore Access.pruneAttempts(access, Config.attemptsPruneMax);
     // opId's van de gsm (§8.3): na 30 dagen weg, de oudste eerst, hoogstens 1.000 per keer (D2-uitzondering).
     var n = 0;
     label ops for ((seq, opId) in reports.opOrder.entries()) {

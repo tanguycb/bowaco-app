@@ -35,3 +35,5 @@ echo "canister $cid"
 export ICP_HOST=http://localhost:$port
 node tests/rollen.mjs "$cid"
 node tests/lek.mjs "$cid"
+# 1.9: de aanvallen uit de securityreview (externen, bestanden, robot, grenzen, herstelpoort, opruiming van tellers).
+node tests/review.mjs "$cid"

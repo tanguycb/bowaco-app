@@ -112,6 +112,19 @@ module {
     if (Time.now() - access.throttle.windowStart > Config.hour) 0 else access.throttle.failures;
   };
 
+  // 1.9 (T11): tellers opruimen van principals die niet (meer) geblokkeerd zijn en waarvan het uurvenster voorbij is.
+  // Eerst de sleutels verzamelen, dan schrappen (nooit schrappen tijdens het doorlopen); begrensd per tik.
+  public func pruneAttempts(access : AccessState, max : Nat) : Nat {
+    let now = Time.now();
+    let gone = List.empty<Principal>();
+    label scan for ((p, a) in access.attempts.entries()) {
+      if (gone.size() >= max) { break scan };
+      if (a.blockedUntil <= now and now - a.windowStart > Config.hour) { gone.add(p) };
+    };
+    for (p in gone.values()) { access.attempts.remove(p) };
+    gone.size();
+  };
+
   // ── Audit en meldingen ──────────────────────────────────────────────────
   public func audit(log : Types.AuditState, who : Principal, personId : ?Nat, workId : ?Nat, action : Text, detail : Text) {
     log.log.add({ at = Time.now(); who; personId; workId; action; detail });
@@ -194,6 +207,27 @@ module {
 
   public func optText(t : ?Text, max : Nat) : ?Text {
     switch t { case null null; case (?x) cleanText(x, max) };
+  };
+
+  // 1.9 (D10): grenzen op een adres en een contactpersoon, overal dezelfde (werf, firma, klantcontact).
+  public func addressError(a : Types.Address) : ?Text {
+    if (a.street.size() > Config.maxName or a.number.size() > Config.maxShort or a.zip.size() > Config.maxShort or a.city.size() > Config.maxName or a.country.size() > 5) {
+      return ?"Adres: een veld is te lang";
+    };
+    null;
+  };
+
+  public func contactError(c : Types.Contact) : ?Text {
+    if (c.name.size() > Config.maxName) { return ?"Naam contactpersoon te lang" };
+    if ((c.phone ?? "").size() > 30 or (c.email ?? "").size() > Config.maxEmail) { return ?"Gsm of e-mail te lang" };
+    switch (c.address) { case (?a) addressError(a); case null null };
+  };
+
+  // Een `extra`-lijst (D8) van buiten: begrensd in aantal en lengte.
+  public func extraError(x : Types.Extra) : ?Text {
+    if (x.size() > Config.maxExtraPairs) { return ?"Te veel extra velden" };
+    for ((k, v) in x.values()) { if (k.size() > Config.maxExtraText or v.size() > Config.maxExtraText) { return ?"Extra veld te lang" } };
+    null;
   };
 
   public func page<T>(items : [T], from : Nat, limit : Nat) : [T] {

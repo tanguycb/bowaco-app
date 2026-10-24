@@ -6,6 +6,7 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Result "mo:core/Result";
+import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Types "../types";
@@ -140,6 +141,7 @@ mixin (
 
   public shared ({ caller }) func markNotificationsRead(ids : [Nat]) : async () {
     let p = Access.requireActive(access, caller);
+    if (ids.size() > Config.maxNotificationIds) { Runtime.trap("Hoogstens " # Config.maxNotificationIds.toText() # " meldingen per keer") };
     let now = Time.now();
     for (id in ids.values()) {
       switch (audit.notifications.get(id)) {
@@ -165,7 +167,7 @@ mixin (
       invites = access.invites.values().map(func i = Access.inviteView(access, i)).toArray();
       orgs = org.orgs.values().map(func o = { id = o.id; kind = o.kind; name = o.name; kbo = o.kbo; vat = o.vat; aliases = o.aliases; trades = o.trades; address = o.address; notes = o.notes; createdAt = o.createdAt; createdBy = o.createdBy; archivedAt = o.archivedAt }).toArray();
       works = works.works.values().map(func w = Dossier.workView({ works; settings }, dossier, p, w)).toArray();
-      memberships = works.memberships.values().map(func m = { id = m.id; workId = m.workId; personId = m.personId; orgId = m.orgId; name = ""; archived = false; role = m.role; grants = m.grants; grantedAt = m.grantedAt; grantedBy = m.grantedBy; endedAt = m.endedAt }).toArray();
+      memberships = works.memberships.values().map(func m = { id = m.id; workId = m.workId; personId = m.personId; orgId = m.orgId; name = ""; archived = false; role = m.role; grants = m.grants; grantedAt = m.grantedAt; grantedBy = m.grantedBy; endedAt = m.endedAt; endedBy = m.endedBy }).toArray();
       files = files.files.values().map(Dossier.fileView).toArray();
       workInfo = dossier.info.values().toArray();
       documents = dossier.documents.values().toArray();
@@ -198,7 +200,90 @@ mixin (
       proposals = robot.proposals.values().map(func x = { id = x.id; ticketId = x.ticketId; personId = x.personId; workId = x.workId; kind = x.kind; content = x.content; by = x.by; at = x.at; decision = x.decision }).toArray();
       settings = settingsView();
       auditCount = audit.log.size();
+      // 1.9 (hersteltest M9)
+      notifications = audit.notifications.values().map(func(n : Types.Notification) : Views.NotificationExport = { id = n.id; personId = n.personId; kind = n.kind; text = n.text; workId = n.workId; createdAt = n.createdAt; readAt = n.readAt }).toArray();
+      lookups = settings.lookups.values().map(func(l : Types.Lookup) : Views.LookupView = { list = l.list; key = l.key; tag = l.tag; order = l.order; archivedAt = l.archivedAt; extra = l.extra }).toArray();
+      values = settings.values.entries().toArray();
+      sequences = settings.sequences.entries().toArray();
+      counters = ctr.entries().toArray();
+      planVersions = plan.versions.entries().toArray();
+      reportKeys = reports.keys.entries().toArray();
+      ops = reports.ops.values().toArray();
     };
+  };
+
+  // 1.9 (O-11): dezelfde export in stukken, per collectie, zodat de back-up (tests/herstel.mjs) nooit op de
+  // berichtgrens van het IC botst (één exportIntern wordt bij ± 100 werven groter dan 2 MiB). Zelfde rechten:
+  // admin; de vertrouwelijke collecties vragen ook #readConfidentialContact en worden als "bekeek" gelogd.
+  // Eén auditregel per collectie (bij het eerste stuk), niet per stuk.
+  public shared ({ caller }) func exportChunk(kind : Text, from : Nat, limit : Nat) : async Result.Result<Views.RestorePart, Text> {
+    let p = Access.requireActive(access, caller);
+    let ctx = { works; settings };
+    Rights.require(ctx, p, #export, null);
+    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory";
+    if (confidentialKind) { Rights.require(ctx, p, #readConfidentialContact, null) };
+    if (from == 0) { Access.audit(audit, caller, ?p.id, null, if confidentialKind "bekeek:export-vertrouwelijk-deel" else "export-deel", kind) };
+    func pg<T>(xs : [T]) : [T] { Access.page(xs, from, limit) };
+    let view = func(c : Types.Confidential<Types.Contact>, n : ?Types.Confidential<Text>, v : Nat) : Views.ContactConfidentialView {
+      let contact = switch c { case (#plain x) ?x; case (#sealed _) null };
+      let notes = switch n { case (?#plain x) ?x; case _ null };
+      let sealed = (switch c { case (#sealed _) true; case _ false }) or (switch n { case (?#sealed _) true; case _ false });
+      { contact; notes; version = v; sealed };
+    };
+    let part : ?Views.RestorePart = switch kind {
+      case "persons" ?#persons(pg(access.persons.values().map(Access.personView).toArray()));
+      case "links" ?#links(pg(access.links.entries().map(func(pr, l) = Access.linkView(access, pr, l)).toArray()));
+      case "linkHistory" ?#linkHistory(pg(access.linkHistory.values().toArray()));
+      case "invites" ?#invites(pg(access.invites.values().map(func i = Access.inviteView(access, i)).toArray()));
+      case "orgs" ?#orgs(pg(org.orgs.values().map(Oa.orgView).toArray()));
+      case "works" ?#works(pg(works.works.values().map(func w = Dossier.workView(ctx, dossier, p, w)).toArray()));
+      case "memberships" ?#memberships(pg(works.memberships.values().map(func m = { id = m.id; workId = m.workId; personId = m.personId; orgId = m.orgId; name = ""; archived = false; role = m.role; grants = m.grants; grantedAt = m.grantedAt; grantedBy = m.grantedBy; endedAt = m.endedAt; endedBy = m.endedBy }).toArray()));
+      case "files" ?#files(pg(files.files.values().map(Dossier.fileView).toArray()));
+      case "confidentialFiles" ?#files(pg(files.files.values().filter(func f = f.confidential).map(func f = { Dossier.fileView(f) with blob = ?f.blob }).toArray()));
+      case "workInfo" ?#workInfo(pg(dossier.info.values().toArray()));
+      case "documents" ?#documents(pg(dossier.documents.values().toArray()));
+      case "orgContacts" ?#orgContacts(pg(oa.orgContacts.values().toArray()));
+      case "personContacts" ?#personContacts(pg(oa.personContacts.values().toArray()));
+      case "lookups" ?#lookups(pg(settings.lookups.values().map(func(l : Types.Lookup) : Views.LookupView = { list = l.list; key = l.key; tag = l.tag; order = l.order; archivedAt = l.archivedAt; extra = l.extra }).toArray()));
+      case "values" ?#values(pg(settings.values.entries().toArray()));
+      case "sequences" ?#sequences(pg(settings.sequences.entries().toArray()));
+      case "settings" ?#settings(settingsView());
+      case "tasks" ?#tasks(pg(plan.tasks.values().toArray()));
+      case "assignments" ?#assignments(pg(plan.assignments.values().toArray()));
+      case "dependencies" ?#dependencies(pg(plan.dependencies.values().toArray()));
+      case "calendarBlocks" ?#calendarBlocks(pg(plan.calendarBlocks.values().toArray()));
+      case "taskChanges" ?#taskChanges(pg(plan.taskChanges.values().toArray()));
+      case "templates" ?#templates(pg(plan.templates.values().toArray()));
+      case "planVersions" ?#planVersions(pg(plan.versions.entries().toArray()));
+      case "absences" ?#absences(pg(board.absences.values().toArray()));
+      case "absenceChanges" ?#absenceChanges(pg(board.absenceChanges.values().toArray()));
+      case "capacity" ?#capacity(pg(board.capacity.values().toArray()));
+      case "importBatches" ?#importBatches(pg(imp.batches.values().toArray()));
+      case "importKeys" ?#importKeys(pg(imp.keys.values().toArray()));
+      case "appointments" ?#appointments(pg(imp.appointments.values().toArray()));
+      case "vehicles" ?#vehicles(pg(org.vehicles.values().map(func(v : Types.Vehicle) : Views.VehicleView = { id = v.id; plate = v.plate; name = v.name; archived = v.archivedAt != null }).toArray()));
+      case "dayReports" ?#dayReports(pg(reports.reports.values().toArray()));
+      case "reportKeys" ?#reportKeys(pg(reports.keys.entries().toArray()));
+      case "reportChanges" ?#reportChanges(pg(reports.changes.values().toArray()));
+      case "attendances" ?#attendances(pg(reports.attendances.values().toArray()));
+      case "hoursConfirmations" ?#hoursConfirmations(pg(reports.confirmations.values().flatMap(func(cs : [Types.HoursConfirmation]) : Iter.Iter<Types.HoursConfirmation> = cs.values()).toArray()));
+      case "workDone" ?#workDone(pg(reports.workDone.values().toArray()));
+      case "materials" ?#materials(pg(reports.materials.values().toArray()));
+      case "photos" ?#photos(pg(reports.photos.values().toArray()));
+      case "issues" ?#issues(pg(reports.issues.values().toArray()));
+      case "trips" ?#trips(pg(reports.trips.values().toArray()));
+      case "ops" ?#ops(pg(reports.ops.values().toArray()));
+      case "robots" ?#robots(pg(robot.robots.values().map(robotView).toArray()));
+      case "proposals" ?#proposals(pg(robot.proposals.values().map(func x = { id = x.id; ticketId = x.ticketId; personId = x.personId; workId = x.workId; kind = x.kind; content = x.content; by = x.by; at = x.at; decision = x.decision }).toArray()));
+      case "notifications" ?#notifications(pg(audit.notifications.values().map(func(n : Types.Notification) : Views.NotificationExport = { id = n.id; personId = n.personId; kind = n.kind; text = n.text; workId = n.workId; createdAt = n.createdAt; readAt = n.readAt }).toArray()));
+      case "counters" ?#counters(pg(ctr.entries().toArray()));
+      case "orgConfidential" ?#orgConfidential(pg(org.orgConfidential.values().map(func c = (c.orgId, view(c.contact, ?c.notes, c.version))).toArray()));
+      case "personConfidential" ?#personConfidential(pg(access.personConfidential.values().map(func c = (c.personId, view(c.contact, null, c.version))).toArray()));
+      case "workConfidential" ?#workConfidential(pg(dossier.confidential.values().toArray()));
+      case "workConfidentialHistory" ?#workConfidentialHistory(pg(dossier.confidentialHistory.values().toArray()));
+      case _ null;
+    };
+    switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
   };
 
   public shared ({ caller }) func exportConfidential() : async Views.ExportConfidential {
@@ -216,7 +301,7 @@ mixin (
       at = Time.now();
       orgs = org.orgConfidential.values().map(func c = (c.orgId, view(c.contact, ?c.notes, c.version))).toArray();
       persons = access.personConfidential.values().map(func c = (c.personId, view(c.contact, null, c.version))).toArray();
-      files = files.files.values().filter(func f = f.confidential).map(func f = { id = f.id; name = f.name; mime = f.mime; size = f.size; blob = ?f.blob; workId = f.workId; confidential = true; personId = f.personId; at = f.at }).toArray();
+      files = files.files.values().filter(func f = f.confidential).map(func f = { id = f.id; name = f.name; mime = f.mime; size = f.size; blob = ?f.blob; workId = f.workId; confidential = true; personId = f.personId; at = f.at; archivedAt = f.archivedAt }).toArray();
       workConfidential = dossier.confidential.values().toArray();
       workConfidentialHistory = dossier.confidentialHistory.values().toArray();
     };

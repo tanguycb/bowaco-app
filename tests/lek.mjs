@@ -97,8 +97,9 @@ const ON_B = ["admin", "werfleider", "calculator", "oa"]; // werf B: interne rol
 const table = {
   me: [ALL, () => []],
   _initialize_access_control: [ALL, () => []],
-  claimBootstrap: [AUTH, () => ["BOW-0000-0000-0000-0000", "x"]],
-  redeemCode: [AUTH, () => ["BOW-0000-0000-0000"]],
+  // 1.9 (R28): een robotprincipal is nooit een persoon, dus ook geen code.
+  claimBootstrap: [AUTH.filter((r) => r !== "robot"), () => ["BOW-0000-0000-0000-0000", "x"]],
+  redeemCode: [AUTH.filter((r) => r !== "robot"), () => ["BOW-0000-0000-0000"]],
   invitePerson: [["admin", "werfleider"], () => [invReq]],
   createRecoveryCode: [ADMIN, () => [X, 0n, ""]],
   confirmLink: [ADMIN, () => [someone]],
@@ -224,6 +225,7 @@ const table = {
   markNotificationsRead: [ACTIVE, () => [[]]],
   exportIntern: [ADMIN, () => []],
   exportConfidential: [ADMIN, () => []],
+  exportChunk: [ADMIN, () => ["persons", 0n, 1n]], // 1.9: export in stukken (O-11)
   addFile: [ON_B, () => ["", "image/jpeg", 0n, blob, [B], false]],
   listFiles: [ON_B, () => [[B]]],
   readConfidentialFile: [["admin", "calculator"], () => [X]],
@@ -239,9 +241,13 @@ const table = {
   _immutableObjectStorageBlobsToDelete: [NONE, () => []],
   _immutableObjectStorageConfirmBlobDeletion: [NONE, () => [[]]],
   _immutableObjectStorageRefillCashier: [NONE, () => [[]]],
-  // Ongewijzigd van Caffeine: iedereen mag de gatewaylijst laten verversen (één call naar de kassier).
-  // Lokaal trapt hij altijd (geen kassier); daarom niet vergeleken. Open punt voor de review (0.7).
+  // Zoals bij Caffeine mag iedereen de gatewaylijst laten verversen; sinds 1.9 hoogstens eens per 5 min echt naar de
+  // kassier (O-06). Lokaal trapt hij altijd (geen kassier); daarom niet vergeleken.
   _immutableObjectStorageUpdateGatewayPrincipals: [null, () => []],
+  // 1.9 herstel (M9): enkel op een LEGE canister met de opstartcode; hier is de canister gevuld, dus voor niemand.
+  restoreBegin: [NONE, () => ["BOW-0000-0000-0000-0000"]],
+  restoreChunk: [NONE, () => ["BOW-0000-0000-0000-0000", { counters: [] }]],
+  restoreFinish: [NONE, () => ["BOW-0000-0000-0000-0000"]],
 };
 
 async function allowed(fn, args) {

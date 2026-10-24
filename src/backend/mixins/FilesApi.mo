@@ -61,8 +61,17 @@ mixin (
     };
     // Foto's en bonnen van een werfverslag tonen enkel via het verslag (R8: lezen per rol, 1.6).
     // 1.7: een los vertrouwelijk bestand ziet een externe (architect, OA, klant, VC) zelfs niet bij naam (R12, R20).
+    // 1.9: een externe ziet van de losse bestanden enkel wat hijzelf of zijn eigen firma oplaadde; wat aan een
+    // document hangt dat hij mag lezen, staat in het dossier (getDossier). Zo ziet een OA nooit de bon van een andere.
     let internal = Rights.internal(p);
-    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id) and (internal or not f.confidential)).map(Dossier.fileView).toArray();
+    let own = func(f : Types.FileRef) : Bool {
+      if (f.personId == p.id) { return true };
+      switch (p.orgId) {
+        case (?o) { switch (access.persons.get(f.personId)) { case (?q) q.orgId == ?o; case null false } };
+        case null false;
+      };
+    };
+    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id) and (internal or (not f.confidential and own(f)))).map(Dossier.fileView).toArray();
   };
 
   public shared ({ caller }) func readConfidentialFile(id : Nat) : async Result.Result<Views.FileView, Text> {
@@ -75,7 +84,8 @@ mixin (
 
   public shared ({ caller }) func archiveFile(id : Nat) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
-    let f = files.files.get(id) ?? return #err("Onbekend bestand");
+    // Onbekend of niet van jou: hetzelfde antwoord (geen id-orakel, 1.9).
+    let f = files.files.get(id) ?? return #err("Geen toegang");
     let ctx = { works; settings };
     let allowed = Rights.may(ctx, p, #manageAccess, null) or (f.personId == p.id and (switch (f.workId) { case (?w) Rights.may(ctx, p, #uploadDocs, ?w); case null true }));
     if (not allowed) { return #err("Geen toegang") };

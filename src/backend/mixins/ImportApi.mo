@@ -457,6 +457,7 @@ mixin (
       if (t.key.size() == 0 or t.key.size() > Config.maxImportKey) { return ?"Sleutel van een taak: 1 tot 200 tekens" };
       if (t.title.size() == 0 or t.title.size() > Config.maxName) { return ?"Titel van een taak: 1 tot 80 tekens" };
       if (t.note.size() > Config.maxNote) { return ?"Notitie te lang" };
+      switch (Access.extraError(t.extra)) { case (?e) return ?e; case null {} };
       if (t.percent > 100) { return ?"Voortgang: 0 tot 100 %" };
       if (t.workdays == 0 or t.workdays > Config.maxWorkdays) { return ?("Duur: 1 tot " # Config.maxWorkdays.toText() # " werkdagen") };
       if (t.start < Config.minDay or t.start > Config.maxDay or Plan.weekday(t.start) > 4) { return ?"Start: een werkdag tussen 2019 en 2079" };

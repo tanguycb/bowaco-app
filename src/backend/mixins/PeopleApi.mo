@@ -177,6 +177,7 @@ mixin (
     Rights.require({ works; settings }, p, #readConfidentialContact, null);
     if (not org.orgs.containsKey(id)) { return #err("Onbekende organisatie") };
     if (notes.size() > Config.maxText) { return #err("Notities te lang") };
+    switch contact { case (?c) { switch (Access.contactError(c)) { case (?e) return #err(e); case null {} } }; case null {} };
     let c : Types.Contact = switch contact { case (?c) c; case null { { name = ""; phone = null; email = null; address = null } } };
     let version = switch (org.orgConfidential.get(id)) {
       case (?old) {
@@ -216,6 +217,7 @@ mixin (
     let name = Access.cleanText(i.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
     if (i.aliases.size() > Config.maxAliases or i.trades.size() > Config.maxAliases) { return #err("Te veel codes of vakgebieden") };
     if (i.notes.size() > Config.maxText) { return #err("Notities te lang") };
+    switch (i.address) { case (?a) { switch (Access.addressError(a)) { case (?e) return #err(e); case null {} } }; case null {} };
     let kbo = switch (Oa.normKbo(i.kbo)) { case (#ok k) k; case (#err e) return #err(e) };
     let aliases = i.aliases.filterMap(func a = Access.cleanText(Text.toUpper(a), Config.maxShort));
     #ok({

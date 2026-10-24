@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1.8-draft20";
+  public let version = "1.9-draft21";
   public let schema : Nat = 7; // 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -25,6 +25,13 @@ module {
   // en alle codepogingen dicht tot het einde van het uur vanaf de tweede grens.
   public let globalAlertPerHour : Nat = 100;
   public let globalLockPerHour : Nat = 1_000;
+  // 1.9 (T11): de pogingenteller per principal groeit met elke nieuwe principal die een code probeert; de timer
+  // ruimt tellers op die niet meer geblokkeerd zijn en waarvan het uurvenster voorbij is, in stukken.
+  public let attemptsPruneMax : Nat = 2_000;
+
+  // 1.9: de gatewaylijst van de opslag wordt hoogstens eens per 5 minuten bij de kassier opgehaald
+  // (de functie is voor iedereen aanroepbaar, zoals bij Caffeine; zo kost ze geen cycles bij misbruik, O-06).
+  public let gatewayRefreshMin : Int = 300_000_000_000;
 
   // Grenzen (D10)
   public let maxName : Nat = 80;
@@ -35,6 +42,9 @@ module {
   public let maxRoles : Nat = 7;
   public let maxWorkIdsPerInvite : Nat = 50;
   public let maxAliases : Nat = 20;
+  public let maxNotificationIds : Nat = 500; // meldingen gelezen zetten per oproep (1.9)
+  public let maxExtraPairs : Nat = 20; // `extra` op een record (import 1.5): aantal paren en lengte per tekst
+  public let maxExtraText : Nat = 200;
 
   // Tickets (§6)
   public let ticketTtl : Int = 600_000_000_000; // 10 min
@@ -136,7 +146,9 @@ module {
   // later dan morgen (tijdzone). Opdrachten van het toestel komen in pakjes van hoogstens 40.
   public let reportMaxAgeDays : Nat = 60;
   public let maxOpsPerCall : Nat = 40;
-  public let opKeepDays : Int = 30; // opId-index (§8.3): daarna opgeruimd door de timer
+  // opId-index (§8.3): daarna opgeruimd door de timer. 1.9: even lang als een verslag mag binnenkomen (60 dagen):
+  // een gsm die 45 dagen zonder bereik was, mag zijn opdrachten niet als nieuw (dubbel) zien uitvoeren.
+  public let opKeepDays : Int = 60;
   public let maxAttendancesPerReport : Nat = 40;
   public let maxWorkDonePerReport : Nat = 60;
   public let maxMaterialsPerReport : Nat = 60;

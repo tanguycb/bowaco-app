@@ -47,6 +47,7 @@ mixin (
     let code = Access.cleanText(i.code, Config.maxShort) ?? return #err("Code: 1 tot " # Config.maxShort.toText() # " tekens");
     if (works.works.values().any(func w = w.code == code)) { return #err("Code bestaat al") };
     if (i.vatBp != 600 and i.vatBp != 2100) { return #err("Btw-tarief: 6 of 21 %") };
+    switch (Access.addressError(i.address)) { case (?e) return #err(e); case null {} };
     for (o in [i.clientOrgId, i.architectOrgId].values()) {
       switch o { case (?x) { if (not org.orgs.containsKey(x)) { return #err("Onbekende organisatie") } }; case null {} };
     };
@@ -93,7 +94,7 @@ mixin (
     let code = Access.cleanText(u.code, Config.maxShort) ?? return #err("Code: 1 tot " # Config.maxShort.toText() # " tekens");
     if (code != old.code and works.works.values().any(func w = w.code == code)) { return #err("Code bestaat al") };
     if (u.vatBp != 600 and u.vatBp != 2100) { return #err("Btw-tarief: 6 of 21 %") };
-    switch (addressError(u.address)) { case (?e) return #err(e); case null {} };
+    switch (Access.addressError(u.address)) { case (?e) return #err(e); case null {} };
     for (o in [u.clientOrgId, u.architectOrgId].values()) {
       switch o { case (?x) { if (not org.orgs.containsKey(x)) { return #err("Onbekende organisatie") } }; case null {} };
     };
@@ -216,8 +217,7 @@ mixin (
     if (k.signedQuoteVersionId != null) { return #err("Getekende offerteversie: komt in fase 2") };
     let contact : Types.Contact = switch (i.clientContact) {
       case (?c) {
-        if (c.name.size() > Config.maxName) { return #err("Naam contactpersoon te lang") };
-        if ((c.phone ?? "").size() > 30 or (c.email ?? "").size() > 120) { return #err("Gsm of e-mail te lang") };
+        switch (Access.contactError(c)) { case (?e) return #err(e); case null {} };
         c;
       };
       case null { { name = ""; phone = null; email = null; address = null } };
@@ -279,11 +279,24 @@ mixin (
     #ok;
   };
 
-  // Wie hoort bij deze werf: namen en rollen (intern; R3 "team").
+  // Wie hoort bij deze werf: namen en rollen (intern; R3 "team"). 1.9: een externe (OA, architect, klant, VC) ziet
+  // enkel het kantoor (interne rollen) en zijn eigen firma; nooit de klant of de andere firma's (register P2/P3).
   public query ({ caller }) func listMembers(workId : Nat) : async [Views.MembershipView] {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #readWork, ?workId);
-    works.memberships.values().filter(func m = m.workId == workId and m.endedAt == null).map(membershipView).toArray();
+    let internal = Rights.internal(p);
+    works.memberships.values().filter(func m = m.workId == workId and m.endedAt == null and (internal or memberVisibleTo(p, m))).map(membershipView).toArray();
+  };
+
+  func memberVisibleTo(p : Types.Person, m : Types.Membership) : Bool {
+    if (Rights.isInternalRole(m.role)) { return true };
+    if (m.personId == ?p.id) { return true };
+    if (p.orgId == null) { return false };
+    if (m.orgId != null and m.orgId == p.orgId) { return true };
+    switch (m.personId) {
+      case (?x) { switch (access.persons.get(x)) { case (?q) q.orgId == p.orgId; case null false } };
+      case null false;
+    };
   };
 
   public shared ({ caller }) func addMembership(workId : Nat, personId : ?Nat, orgId : ?Nat, role : Types.Role, grants : [Types.Grant]) : async Result.Result<Nat, Text> {
@@ -298,6 +311,9 @@ mixin (
       case _ { return #err("Kies een persoon of een organisatie") };
     };
     if (grants.size() > 6) { return #err("Te veel rechten") };
+    // 1.9: enkel rechten die bij de rol passen (zoals setMemberGrants), ook bij het toevoegen.
+    let allowedG = Rights.allowedGrants(role);
+    if (grants.any(func g = not allowedG.any(func x = x == g))) { return #err("Een van de rechten past niet bij de rol " # Rights.roleKey(role)) };
     let id = addMember(workId, personId, orgId, role, grants, p.id);
     Access.audit(audit, caller, ?p.id, ?workId, "lid-toegevoegd", Rights.roleKey(role) # " #" # id.toText());
     #ok(id);
@@ -306,7 +322,8 @@ mixin (
   // R31: einde van een lidmaatschap werkt meteen; de historiek blijft.
   public shared ({ caller }) func endMembership(id : Nat) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
-    let m = works.memberships.get(id) ?? return #err("Onbekend lidmaatschap");
+    // Onbekend of niet van jou: hetzelfde antwoord (geen id-orakel voor externen, 1.9).
+    let m = works.memberships.get(id) ?? return #err("Geen toegang");
     if (not Rights.mayAddMember({ works; settings }, p, m.workId, m.role)) { return #err("Geen toegang") };
     if (m.endedAt != null) { return #err("Al beëindigd") };
     m.endedAt := ?Time.now();
@@ -356,13 +373,6 @@ mixin (
     null;
   };
 
-  func addressError(a : Types.Address) : ?Text {
-    if (a.street.size() > Config.maxName or a.number.size() > Config.maxShort or a.zip.size() > Config.maxShort or a.city.size() > Config.maxName or a.country.size() > 5) {
-      return ?"Adres: een veld is te lang";
-    };
-    null;
-  };
-
   func addressText(a : Types.Address) : Text { a.street # " " # a.number # ", " # a.zip # " " # a.city };
   func pct(bp : Nat) : Text { (bp / 100).toText() # " %" };
   func workCode(id : Nat) : Text { switch (works.works.get(id)) { case (?w) w.code; case null "#" # id.toText() } };
@@ -389,6 +399,7 @@ mixin (
       grantedAt = m.grantedAt;
       grantedBy = m.grantedBy;
       endedAt = m.endedAt;
+      endedBy = m.endedBy;
     };
   };
 };

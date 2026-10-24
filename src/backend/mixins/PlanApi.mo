@@ -67,7 +67,7 @@ mixin (
       dependencies = if (scope == #summary) [] else deps.filter(func d = shown.containsKey(d.fromTaskId) and shown.containsKey(d.toTaskId)).map(
         func d = { id = d.id; fromTaskId = d.fromTaskId; toTaskId = d.toTaskId; kind = d.kind; lagDays = d.lagDays }
       );
-      blocks = Plan.blocksFor(plan, works, workId).map(plBlockView);
+      blocks = Plan.blocksFor(plan, works, workId).map(func b = plBlockView(b, scope == #full));
       start = first;
       end = last;
       caps = {
@@ -437,11 +437,12 @@ mixin (
     switch workId {
       case null {
         Rights.require(ctx, p, #readOrgPlanning, null);
-        plan.calendarBlocks.values().filter(func b = b.archivedAt == null and b.scope == #company).map(plBlockView).toArray();
+        plan.calendarBlocks.values().filter(func b = b.archivedAt == null and b.scope == #company).map(func b = plBlockView(b, true)).toArray();
       };
       case (?w) {
         Rights.require(ctx, p, #readPlanning, ?w);
-        Plan.blocksFor(plan, works, w).map(plBlockView);
+        let full = Rights.planScope(ctx, p, w) == #full;
+        Plan.blocksFor(plan, works, w).map(func b = plBlockView(b, full));
       };
     };
   };
@@ -876,8 +877,11 @@ mixin (
     };
   };
 
-  func plBlockView(b : Types.CalendarBlock) : Views.BlockView {
-    { id = b.id; scope = b.scope; kind = b.kind; from = b.from; to = b.to; reason = b.reason; createdByName = Access.personName(access, b.createdBy) };
+  // 1.9: een externe (architect, OA, klant, VC) ziet van een blok de periode en het soort; de reden van een STOP op
+  // een werf ("wacht op betaling") en wie hem zette, zijn kantoorgegevens. Bedrijfsblokken (bouwverlof) tonen hun reden.
+  func plBlockView(b : Types.CalendarBlock, full : Bool) : Views.BlockView {
+    let open = full or b.scope == #company;
+    { id = b.id; scope = b.scope; kind = b.kind; from = b.from; to = b.to; reason = if open b.reason else ""; createdByName = if full Access.personName(access, b.createdBy) else "" };
   };
 
   func plBlockRight(p : Types.Person, scope : Types.BlockScope) {

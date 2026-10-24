@@ -2,6 +2,14 @@
 <html lang="nl">
   <head>
     <meta charset="UTF-8" />
+    <!-- CSP (T18, O-08, stap 1.9): enkel eigen code; het Internet Computer, de II-login en de opslag van Caffeine als
+         verbindingen; cdn.caffeine.ai voor het hulpscript dat Caffeine in een draft injecteert (editor-voorbeeld).
+         frame-ancestors kan niet in een meta-tag: de framebeveiliging staat in main.tsx. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://cdn.caffeine.ai; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://blob.caffeine.ai; font-src 'self'; connect-src 'self' https://icp-api.io https://*.icp0.io https://*.ic0.app https://id.ai https://blob.caffeine.ai https://*.caffeine.ai; worker-src 'self'; manifest-src 'self'; frame-src https://id.ai; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <meta name="referrer" content="no-referrer" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#111111" />
     <link rel="manifest" href="/manifest.webmanifest" />

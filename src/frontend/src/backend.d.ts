@@ -74,6 +74,7 @@ export interface AccessStats {
     codesLockedUntil?: bigint;
     persons: bigint;
     activeLinks: bigint;
+    attemptsTracked: bigint;
     openInvites: bigint;
 }
 export interface Address {
@@ -716,6 +717,7 @@ export interface ExportConfidential {
 }
 export interface ExportIntern {
     at: bigint;
+    ops: Array<OpRecord>;
     files: Array<FileView>;
     absences: Array<Absence>;
     tasks: Array<Task>;
@@ -724,7 +726,9 @@ export interface ExportIntern {
     documents: Array<Document>;
     trips: Array<Trip>;
     attendances: Array<Attendance>;
+    lookups: Array<LookupView>;
     assignments: Array<Assignment>;
+    notifications: Array<NotificationExport>;
     reportChanges: Array<ReportChange>;
     absenceChanges: Array<AbsenceChange>;
     invites: Array<InviteView>;
@@ -732,16 +736,20 @@ export interface ExportIntern {
     trades: Array<TradeView>;
     orgs: Array<OrgView>;
     importKeys: Array<ImportKey>;
+    values: Array<[string, string]>;
+    planVersions: Array<[WorkId, bigint]>;
     calendarBlocks: Array<CalendarBlock>;
     hoursConfirmations: Array<HoursConfirmation>;
     orgContacts: Array<OrgContact>;
     links: Array<LinkView>;
+    reportKeys: Array<[string, bigint]>;
     version: string;
     issues: Array<Issue>;
     persons: Array<PersonView>;
     taskChanges: Array<TaskChange>;
     settings: SettingsView;
     dayReports: Array<DayReport>;
+    counters: Array<[string, bigint]>;
     appointments: Array<Appointment>;
     materials: Array<MaterialNote>;
     dependencies: Array<Dependency>;
@@ -751,6 +759,7 @@ export interface ExportIntern {
     proposals: Array<ProposalView>;
     works: Array<WorkView>;
     personContacts: Array<PersonContact>;
+    sequences: Array<[string, bigint]>;
     auditCount: bigint;
     memberships: Array<MembershipView>;
     photos: Array<Photo>;
@@ -786,6 +795,7 @@ export interface FileView {
     personId: PersonId;
     confidential: boolean;
     workId?: WorkId;
+    archivedAt?: bigint;
 }
 export interface HoursConfirmation {
     at: bigint;
@@ -1039,6 +1049,14 @@ export interface LinkView {
     revokedAt?: bigint;
     revokedBy?: PersonId;
 }
+export interface LookupView {
+    key: string;
+    tag: string;
+    order: bigint;
+    list: string;
+    extra: Extra;
+    archivedAt?: bigint;
+}
 export interface MaterialNote {
     id: bigint;
     blockKey: string;
@@ -1082,6 +1100,7 @@ export interface MembershipView {
     grantedBy: PersonId;
     orgId?: OrgId;
     endedAt?: bigint;
+    endedBy?: PersonId;
     name: string;
     role: Role;
     personId?: PersonId;
@@ -1112,6 +1131,15 @@ export interface NewTicket {
     ticket: string;
     expiresAt: bigint;
     ticketId: bigint;
+}
+export interface NotificationExport {
+    id: bigint;
+    kind: string;
+    createdAt: bigint;
+    text: string;
+    personId: PersonId;
+    workId?: WorkId;
+    readAt?: bigint;
 }
 export interface NotificationView {
     id: bigint;
@@ -1164,6 +1192,16 @@ export type OpOutcome = {
         reportId: bigint;
     };
 };
+export interface OpRecord {
+    at: bigint;
+    by: PersonId;
+    seq: bigint;
+    kind: string;
+    note: string;
+    opId: string;
+    entityId?: bigint;
+    reportId: bigint;
+}
 export interface OpResult {
     repeated: boolean;
     opId: string;
@@ -1520,6 +1558,166 @@ export interface ReportView {
     workDone: Array<WorkDoneView>;
     totalMinutes: bigint;
 }
+export type RestorePart = {
+    __kind__: "ops";
+    ops: Array<OpRecord>;
+} | {
+    __kind__: "files";
+    files: Array<FileView>;
+} | {
+    __kind__: "absences";
+    absences: Array<Absence>;
+} | {
+    __kind__: "tasks";
+    tasks: Array<Task>;
+} | {
+    __kind__: "vehicles";
+    vehicles: Array<VehicleView>;
+} | {
+    __kind__: "templates";
+    templates: Array<Template>;
+} | {
+    __kind__: "documents";
+    documents: Array<Document>;
+} | {
+    __kind__: "trips";
+    trips: Array<Trip>;
+} | {
+    __kind__: "attendances";
+    attendances: Array<Attendance>;
+} | {
+    __kind__: "lookups";
+    lookups: Array<LookupView>;
+} | {
+    __kind__: "audit";
+    audit: Array<AuditEntry>;
+} | {
+    __kind__: "assignments";
+    assignments: Array<Assignment>;
+} | {
+    __kind__: "notifications";
+    notifications: Array<NotificationExport>;
+} | {
+    __kind__: "personConfidential";
+    personConfidential: Array<[PersonId, ContactConfidentialView]>;
+} | {
+    __kind__: "reportChanges";
+    reportChanges: Array<ReportChange>;
+} | {
+    __kind__: "absenceChanges";
+    absenceChanges: Array<AbsenceChange>;
+} | {
+    __kind__: "invites";
+    invites: Array<InviteView>;
+} | {
+    __kind__: "orgs";
+    orgs: Array<OrgView>;
+} | {
+    __kind__: "importKeys";
+    importKeys: Array<ImportKey>;
+} | {
+    __kind__: "values";
+    values: Array<[string, string]>;
+} | {
+    __kind__: "planVersions";
+    planVersions: Array<[WorkId, bigint]>;
+} | {
+    __kind__: "calendarBlocks";
+    calendarBlocks: Array<CalendarBlock>;
+} | {
+    __kind__: "hoursConfirmations";
+    hoursConfirmations: Array<HoursConfirmation>;
+} | {
+    __kind__: "orgContacts";
+    orgContacts: Array<OrgContact>;
+} | {
+    __kind__: "links";
+    links: Array<LinkView>;
+} | {
+    __kind__: "reportKeys";
+    reportKeys: Array<[string, bigint]>;
+} | {
+    __kind__: "workConfidentialHistory";
+    workConfidentialHistory: Array<WorkConfidentialVersion>;
+} | {
+    __kind__: "issues";
+    issues: Array<Issue>;
+} | {
+    __kind__: "persons";
+    persons: Array<PersonView>;
+} | {
+    __kind__: "workConfidential";
+    workConfidential: Array<WorkConfidential>;
+} | {
+    __kind__: "taskChanges";
+    taskChanges: Array<TaskChange>;
+} | {
+    __kind__: "settings";
+    settings: SettingsView;
+} | {
+    __kind__: "dayReports";
+    dayReports: Array<DayReport>;
+} | {
+    __kind__: "counters";
+    counters: Array<[string, bigint]>;
+} | {
+    __kind__: "appointments";
+    appointments: Array<Appointment>;
+} | {
+    __kind__: "materials";
+    materials: Array<MaterialNote>;
+} | {
+    __kind__: "dependencies";
+    dependencies: Array<Dependency>;
+} | {
+    __kind__: "robots";
+    robots: Array<RobotView>;
+} | {
+    __kind__: "capacity";
+    capacity: Array<CapacityRule>;
+} | {
+    __kind__: "importBatches";
+    importBatches: Array<ImportBatch>;
+} | {
+    __kind__: "proposals";
+    proposals: Array<ProposalView>;
+} | {
+    __kind__: "works";
+    works: Array<WorkView>;
+} | {
+    __kind__: "orgConfidential";
+    orgConfidential: Array<[OrgId, ContactConfidentialView]>;
+} | {
+    __kind__: "personContacts";
+    personContacts: Array<PersonContact>;
+} | {
+    __kind__: "sequences";
+    sequences: Array<[string, bigint]>;
+} | {
+    __kind__: "memberships";
+    memberships: Array<MembershipView>;
+} | {
+    __kind__: "photos";
+    photos: Array<Photo>;
+} | {
+    __kind__: "linkHistory";
+    linkHistory: Array<LinkHistory>;
+} | {
+    __kind__: "workDone";
+    workDone: Array<WorkDone>;
+} | {
+    __kind__: "workInfo";
+    workInfo: Array<WorkInfo>;
+};
+export interface RestoreSummary {
+    files: bigint;
+    tasks: bigint;
+    audit: bigint;
+    persons: bigint;
+    counters: Array<[string, bigint]>;
+    reports: bigint;
+    works: bigint;
+}
 export type Result = {
     __kind__: "ok";
     ok: WorkView;
@@ -1536,70 +1734,70 @@ export type Result_1 = {
 };
 export type Result_10 = {
     __kind__: "ok";
-    ok: ContactConfidentialView;
+    ok: MeView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_11 = {
     __kind__: "ok";
-    ok: Array<ContractVersionView>;
+    ok: ContactConfidentialView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_12 = {
     __kind__: "ok";
-    ok: ContractView;
+    ok: Array<ContractVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_13 = {
     __kind__: "ok";
-    ok: FileView;
+    ok: ContractView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_14 = {
     __kind__: "ok";
-    ok: PlanPreview;
+    ok: FileView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_15 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: PlanPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_16 = {
     __kind__: "ok";
-    ok: PlanImportReport;
+    ok: NewCode;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_17 = {
     __kind__: "ok";
-    ok: ImportReport;
+    ok: PlanImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_18 = {
     __kind__: "ok";
-    ok: OaView;
+    ok: ImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_19 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: OaView;
 } | {
     __kind__: "err";
     err: string;
@@ -1612,6 +1810,20 @@ export type Result_2 = {
     err: string;
 };
 export type Result_20 = {
+    __kind__: "ok";
+    ok: RestorePart;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_21 = {
+    __kind__: "ok";
+    ok: NewTicket;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_22 = {
     __kind__: "ok";
     ok: TicketInfo;
 } | {
@@ -1662,7 +1874,7 @@ export type Result_8 = {
 };
 export type Result_9 = {
     __kind__: "ok";
-    ok: MeView;
+    ok: RestoreSummary;
 } | {
     __kind__: "err";
     err: string;
@@ -2010,6 +2222,7 @@ export interface WorkView {
     name: string;
     createdAt: bigint;
     createdBy: PersonId;
+    extra: Extra;
     address: Address;
     plannedStart?: Day;
     parentId?: WorkId;
@@ -2167,32 +2380,33 @@ export interface backendInterface {
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
     boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
     boardRules(): Promise<BoardRulesView>;
-    checkTicket(ticket: string): Promise<Result_20>;
+    checkTicket(ticket: string): Promise<Result_22>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
     confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_4>;
     confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_4>;
     confirmLink(p: Principal): Promise<Result_4>;
     createOrg(input: OrgInput): Promise<Result_2>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_15>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_19>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_16>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_21>;
     createWork(i: WorkInput): Promise<Result>;
     dashboard(day: bigint): Promise<DashboardView>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
     endMembership(id: bigint): Promise<Result_4>;
+    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_20>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
     getDossier(workId: bigint): Promise<DossierView>;
-    getOa(id: bigint): Promise<Result_18>;
+    getOa(id: bigint): Promise<Result_19>;
     getPlan(workId: bigint): Promise<PlanView>;
     getReport(reportId: bigint): Promise<ReportView>;
     getReportDay(workId: bigint, day: bigint): Promise<Array<ReportView>>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
     handleIssue(issueId: bigint, note: string): Promise<Result_4>;
-    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_17>;
-    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_16>;
-    inviteExistingPerson(i: ExistingInvite): Promise<Result_15>;
-    invitePerson(req: InviteRequest): Promise<Result_15>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_18>;
+    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_17>;
+    inviteExistingPerson(i: ExistingInvite): Promise<Result_16>;
+    invitePerson(req: InviteRequest): Promise<Result_16>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
     listCalendarBlocks(workId: bigint | null): Promise<Array<BlockView>>;
@@ -2222,15 +2436,18 @@ export interface backendInterface {
     myProposals(): Promise<Array<ProposalView>>;
     myWorks(): Promise<Array<ExternalWork>>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
-    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_14>;
-    previewPlan(workId: bigint, change: PlanChange): Promise<Result_14>;
-    readConfidentialFile(id: bigint): Promise<Result_13>;
-    readContract(workId: bigint): Promise<Result_12>;
-    readContractHistory(workId: bigint): Promise<Result_11>;
-    readOrgConfidential(id: bigint): Promise<Result_10>;
-    redeemCode(code: string): Promise<Result_9>;
+    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_15>;
+    previewPlan(workId: bigint, change: PlanChange): Promise<Result_15>;
+    readConfidentialFile(id: bigint): Promise<Result_14>;
+    readContract(workId: bigint): Promise<Result_13>;
+    readContractHistory(workId: bigint): Promise<Result_12>;
+    readOrgConfidential(id: bigint): Promise<Result_11>;
+    redeemCode(code: string): Promise<Result_10>;
     removeDependency(workId: bigint, depId: bigint, expectedVersion: bigint): Promise<Result_3>;
     reportSync(ops: Array<ReportOpInput>): Promise<Array<OpResult>>;
+    restoreBegin(code: string): Promise<Result_4>;
+    restoreChunk(code: string, part: RestorePart): Promise<Result_3>;
+    restoreFinish(code: string): Promise<Result_9>;
     restorePerson(id: bigint): Promise<Result_4>;
     revokeInvite(inviteId: bigint): Promise<Result_4>;
     revokeLink(p: Principal): Promise<Result_4>;

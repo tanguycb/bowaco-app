@@ -7,9 +7,11 @@
 import Array "mo:core/Array";
 import Prim "mo:prim";
 import Runtime "mo:core/Runtime";
+import Time "mo:core/Time";
 import Storage "mo:caffeineai-object-storage/Storage";
 import Types "../types";
 import Access "../lib/Access";
+import Config "../lib/Config";
 import Rights "../lib/Rights";
 
 mixin (
@@ -18,6 +20,7 @@ mixin (
   works : Types.WorksState,
 ) {
   transient let _immutableObjectStorageState : Storage.State = Storage.new();
+  transient var _gatewayRefreshedAt : Int = 0;
 
   type _ImmutableObjectStorageRefillInformation = { proposed_top_up_amount : ?Nat };
   type _ImmutableObjectStorageRefillResult = { success : ?Bool; topped_up_amount : ?Nat };
@@ -29,7 +32,12 @@ mixin (
     await Storage.refillCashier(_immutableObjectStorageState, cashier, refillInformation);
   };
 
+  // Voor iedereen aanroepbaar, zoals bij Caffeine (de gateway belt ze). 1.9 (O-06): hoogstens eens per 5 minuten echt
+  // naar de kassier zolang de lijst gevuld is, zodat niemand op onze kosten cycles kan laten verbranden.
   public shared func _immutableObjectStorageUpdateGatewayPrincipals() : async () {
+    let now = Time.now();
+    if (_immutableObjectStorageState.authorizedPrincipals.size() > 0 and now - _gatewayRefreshedAt < Config.gatewayRefreshMin) { return };
+    _gatewayRefreshedAt := now;
     await Storage.updateGatewayPrincipals(_immutableObjectStorageState);
   };
 

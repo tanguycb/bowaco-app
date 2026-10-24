@@ -228,11 +228,13 @@ module {
       archivedAt = w.archivedAt;
       plannedStart = w.plannedStart;
       plannedEnd = w.plannedEnd;
-      analyticCode = switch info { case (?i) i.analyticCode; case null null };
-      vatNote = switch info { case (?i) i.vatNote; case null "" };
+      // 1.9: de analytische code (boekhouding) en de btw-grond zijn kantoorgegevens: enkel interne rollen.
+      analyticCode = if internalFacts (switch info { case (?i) i.analyticCode; case null null }) else null;
+      vatNote = if internalFacts (switch info { case (?i) i.vatNote; case null "" }) else "";
       facts = if internalFacts ?facts(ctx.settings, ctx.works, d, w.id) else null;
       checklistOpen = if internalFacts ?openCount(ctx.settings, ctx.works, d, w) else null;
       caps = Rights.workCaps(ctx, p, w.id);
+      extra = w.extra;
     };
   };
 
@@ -247,6 +249,7 @@ module {
       confidential = f.confidential;
       personId = f.personId;
       at = f.at;
+      archivedAt = f.archivedAt;
     };
   };
 

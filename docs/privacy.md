@@ -8,12 +8,12 @@ Verwerkingsverantwoordelijke: **BOWACO** (zaakvoerder Alexis). Beheerder van de 
 
 | # | Wie | Gegevens | Waar (backend) | Klasse | Grondslag | Bewaartermijn | Wie ziet het |
 |---|---|---|---|---|---|---|---|
-| P1 | Medewerkers BOWACO (admin, werfleider, calculator) | naam, rol(len), planningcode, gsm (optioneel), taal | `access.persons` | intern | uitvoering arbeidsovereenkomst / gerechtvaardigd belang (werforganisatie) | zolang in dienst; daarna **afgezet** (gearchiveerd), niet gewist: verslagen en audit verwijzen ernaar (bewijs, 10 jaar na oplevering) | interne rollen (team) |
-| P2 | Personen van onderaannemers, architecten, veiligheidscoördinatoren | naam, rol, organisatie, planningcode, gsm (optioneel) | `access.persons`, `works.memberships` | intern | gerechtvaardigd belang (uitvoering aanneming, wettelijke werfadministratie) | zolang de samenwerking loopt; daarna afgezet; lidmaatschap per werf beëindigd (R31) | interne rollen; de persoon zelf |
+| P1 | Medewerkers BOWACO (admin, werfleider, calculator) | naam, rol(len), planningcode, gsm (optioneel), taal | `access.persons` | intern | uitvoering arbeidsovereenkomst / gerechtvaardigd belang (werforganisatie) | zolang in dienst; daarna **afgezet** (gearchiveerd), niet gewist: verslagen en audit verwijzen ernaar (bewijs, 10 jaar na oplevering) | interne rollen (team); **sinds 1.7 ziet een externe van zijn werf de naam en de gsm van de werfleider** (*Mijn werven*, om te bellen) en in het team de namen van de interne rollen (1.9) |
+| P2 | Personen van onderaannemers, architecten, veiligheidscoördinatoren | naam, rol, organisatie, planningcode, gsm (optioneel) | `access.persons`, `works.memberships` | intern | gerechtvaardigd belang (uitvoering aanneming, wettelijke werfadministratie) | zolang de samenwerking loopt; daarna afgezet; lidmaatschap per werf beëindigd (R31) | interne rollen; de persoon zelf en zijn eigen firma; **sinds 1.9 ziet een andere externe op dezelfde werf hen niet meer in het team** (vóór 1.9 wel: hersteld in de securityreview); de architect/VC ziet wel de firma's en namen van uitvoerders in de planning (R3) |
 | P3 | Klanten (particulieren) | naam (als persoon of als organisatie) | `access.persons` / `org.orgs` | intern | uitvoering overeenkomst (aanneming) | 10 jaar na oplevering (aansprakelijkheid) | interne rollen |
 | P4 | Klanten: contactgegevens | contactpersoon, gsm, e-mail, adres, commerciële notities | `org.orgConfidential` / `access.personConfidential` (`Confidential<T>`) | **vertrouwelijk** | uitvoering overeenkomst | idem P3 | admin en calculator; elk bekijken staat in de auditlog (R23, R27) |
 | P5 | Iedereen met een login | **principal** (pseudoniem van Internet Identity per adres), tijdstip van koppelen, laatste 2 tekens van de gebruikte code, toestelnaam (optioneel, door de admin) | `access.links`, `access.linkHistory` | technisch | gerechtvaardigd belang (beveiliging, toegangsbeheer) | zolang de persoon bestaat; ingetrokken koppelingen blijven (historiek) | admin |
-| P6 | Iedereen die een code probeert | principal, aantal foute pogingen, blokkering | `access.attempts`, `access.throttle` | technisch | gerechtvaardigd belang (beveiliging) | wordt overschreven (venster van 1 uur, blokkering 24 uur) | admin (auditlog) |
+| P6 | Iedereen die een code probeert | principal, aantal foute pogingen, blokkering | `access.attempts`, `access.throttle` | technisch | gerechtvaardigd belang (beveiliging) | wordt overschreven (venster van 1 uur, blokkering 24 uur); **sinds 1.9 ruimt de timer verlopen tellers op** (niet geblokkeerd en venster voorbij) | admin (auditlog, *accessStats*) |
 | P7 | Iedereen die iets doet | auditregel: tijdstip, principal, persoon-id, werf-id, handeling, korte omschrijving (nooit een code of bestandsadres) | `audit.log` | intern | gerechtvaardigd belang + bewijs | 10 jaar (bewijs bij aansprakelijkheid); geen wissen (D2) | admin; ieder zijn eigen regels |
 | P8 | Ontvangers van meldingen | melding met naam van wie zich koppelde | `audit.notifications` | intern | gerechtvaardigd belang | tot gelezen + bewaard als historiek | de ontvanger |
 | P9 | Wie een bestand oplaadt; wie op een foto staat | bestandsnaam, tijdstip, uploader; de foto zelf in de opslag van Caffeine | `files.files` + opslagdienst Caffeine | intern (vertrouwelijk als `confidential`) | gerechtvaardigd belang (werfopvolging, bewijs) | **permanent** (beslist 22-10): bewijs bij aansprakelijkheid | wie de werf mag zien (R12); de URL is openbaar-voor-wie-hem-kent (zie §3) |
@@ -48,14 +48,14 @@ Niet bewaard: e-mailadres voor de login, wachtwoorden, IP-adressen (het IC geeft
 
 Bestanden: een opslag-URL is **openbaar voor wie hem kent** (meetverslag 0.2c). De app geeft een URL enkel aan wie de werf mag zien; URL's komen nooit in de auditlog, meldingen of mails. Een foto die echt weg moet, kan alleen door de verwijzing te verwijderen (dan ruimt de gateway het bestand op) — dat strijdt met "permanent bewaren" en vraagt een beslissing per geval.
 
-## 4. Exportbestanden
+## 4. Exportbestanden en herstel
 
-De export (beheerder: *Auditlog → Export*) maakt drie JSON-bestanden: intern, vertrouwelijk en de auditlog. **Behandel alle drie als vertrouwelijk**, ook "intern":
+De export (beheerder: *Auditlog → Export*, of `tests/herstel.mjs export`) maakt drie JSON-bestanden: intern, vertrouwelijk en de auditlog. Sinds 1.9 is dat ook de **back-up** die met `RestoreApi` op een lege canister teruggezet kan worden (draaiboek `docs/herstel.md`); de interne export bevat daarvoor ook de meldingen van iedereen, de toestelsleutels en de offline-opdrachten (≤ 60 dagen) van de werfleiders. **Behandel alle drie als vertrouwelijk**, ook "intern":
 - de interne en de vertrouwelijke export bevatten de **opslag-URL's** van de bestanden (foto's, plannen, contracten); wie het exportbestand heeft, kan die bestanden openen zonder login (§3);
 - de vertrouwelijke export bevat klantcontactgegevens;
 - alle drie bevatten namen, rollen en gsm-nummers.
 
-Bewaren: niet in e-mail of chat doorsturen; op een versleutelde schijf of in een kluis van de eigenaar. Of de export in 0.7 zonder URL's komt, staat open (verslag 0.6, O-19).
+Bewaren: niet in e-mail of chat doorsturen; op een versleutelde schijf of in een kluis van de eigenaar. Stand na de review (1.9): de interne export bevat enkel de URL's van **niet-vertrouwelijke** bestanden (foto's, plannen); de URL's van vertrouwelijke bestanden (contracten) staan alleen in de vertrouwelijke export (keuze (c) van O-19; definitief te bevestigen door de eigenaar, E-5). Voor een herstel zijn de URL's nodig: een export zonder URL's is dus geen volledige back-up.
 
 ## 5. Open punten (eigenaar)
 
@@ -70,3 +70,4 @@ Bewaren: niet in e-mail of chat doorsturen; op een versleutelde schijf of in een
 | PR9 | 1.4: afwezigheden (P16). Voor een eenmanszaak is "ziekte" een gezondheidsgegeven van een persoon: volstaat "afwezig" (zonder soort) of mag "ziekte" blijven? Bewaartermijn van gearchiveerde afwezigheden (bv. 1 jaar en dan het soort wissen)? Vóór live met de eigenaar/jurist beslissen |
 | PR8 | 1.3: planning (P15) toegevoegd; een weigering van een OA bevat een vrije reden (geen gezondheids- of privéredenen vragen: tekst in de app zegt "waarom lukt het niet?") |
 | PR5 | Dit register nakijken bij 1.6 (verslagen, aanwezigheden = uren per persoon) en fase 2 (prijzen) |
+| PR10 | 1.9: een hersteld exemplaar van de app (lokaal of een nieuw project) bevat dezelfde persoonsgegevens; de exportbestanden zijn dus zelf een verwerking (bewaartermijn en plaats vastleggen: kluis van de eigenaar, hoe lang?) |

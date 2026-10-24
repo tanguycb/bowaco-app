@@ -68,6 +68,8 @@ mixin (
   // Eerste installatie: wie de opstartcode heeft, wordt de eerste admin. Daarna is de code ongeldig.
   public shared ({ caller }) func claimBootstrap(code : Text, name : Text) : async Result.Result<Views.PersonView, Text> {
     Access.requireAuthenticated(caller);
+    // R28 (1.9): een robotprincipal is nooit een persoon.
+    if (Access.isRobot(robot, caller)) { return #err("Geen toegang: een robot is geen persoon") };
     if (not mayStartLink(caller)) { return #err("Deze login is al gekoppeld") };
     switch (Access.blockedUntil(access, caller)) {
       case (?until) { return #err("Te veel pogingen; probeer opnieuw na " # until.toText()) };
@@ -220,6 +222,8 @@ mixin (
   // De persoon voert de code in na de II-login. Geen await: alles in één bericht (T12).
   public shared ({ caller }) func redeemCode(code : Text) : async Result.Result<Views.MeView, Text> {
     Access.requireAuthenticated(caller);
+    // R28 (1.9): een robotprincipal is nooit een persoon, ook niet met een geldige code.
+    if (Access.isRobot(robot, caller)) { return #err("Geen toegang: een robot is geen persoon") };
     if (not mayStartLink(caller)) { return #err("Deze login is al gekoppeld") };
     switch (Access.blockedUntil(access, caller)) {
       case (?until) { return #err("Te veel pogingen; probeer opnieuw na " # until.toText()) };
@@ -343,6 +347,7 @@ mixin (
       openInvites = access.invites.values().filter(func i = i.state == #open and i.expiresAt > now).size();
       failuresThisHour = Access.failuresThisHour(access);
       codesLockedUntil = if (access.throttle.lockedUntil > now) ?access.throttle.lockedUntil else null;
+      attemptsTracked = access.attempts.size();
     };
   };
 

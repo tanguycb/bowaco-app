@@ -37,13 +37,42 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 // Fouten niet stil opnieuw proberen: een "Geen toegang" moet meteen zichtbaar zijn (§8.1 regel 6).
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
-// withAttributes={false}: geen e-mail of naam uit II opvragen (§1: login zonder e-mailadres).
-createRoot(document.getElementById("root")!).render(
-  <QueryClientProvider client={queryClient}>
-    <InternetIdentityProvider withAttributes={false}>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
-    </InternetIdentityProvider>
-  </QueryClientProvider>,
-);
+// Framebeveiliging (T18, O-08; stap 1.9). Een CSP in een meta-tag kan geen frame-ancestors zetten en de gateway van
+// Caffeine stuurt geen X-Frame-Options, dus beslist de app zelf: ingesloten door een vreemde pagina (clickjacking) toont
+// ze enkel een link om zichzelf bovenaan te openen. Enkel de Caffeine-editor (het voorbeeldvenster op caffeine.ai) mag
+// insluiten; zonder referrer (of een andere) geldt: niet tonen.
+function framedByStranger(): boolean {
+  if (window.top === window.self) return false;
+  try {
+    const host = document.referrer ? new URL(document.referrer).hostname : "";
+    return !(host === "caffeine.ai" || host.endsWith(".caffeine.ai"));
+  } catch {
+    return true;
+  }
+}
+
+const root = document.getElementById("root")!;
+if (framedByStranger()) {
+  const box = document.createElement("div");
+  box.className = "a-gate";
+  const p = document.createElement("p");
+  p.textContent = "BOWACO werven opent niet binnen een andere website.";
+  const a = document.createElement("a");
+  a.href = window.location.href;
+  a.target = "_top";
+  a.rel = "noopener";
+  a.textContent = "Open de app zelf";
+  box.append(p, a);
+  root.replaceChildren(box);
+} else {
+  // withAttributes={false}: geen e-mail of naam uit II opvragen (§1: login zonder e-mailadres).
+  createRoot(root).render(
+    <QueryClientProvider client={queryClient}>
+      <InternetIdentityProvider withAttributes={false}>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </InternetIdentityProvider>
+    </QueryClientProvider>,
+  );
+}

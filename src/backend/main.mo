@@ -20,6 +20,7 @@ import ImportApi "mixins/ImportApi";
 import ReportsApi "mixins/ReportsApi";
 import ExternApi "mixins/ExternApi";
 import DashboardApi "mixins/DashboardApi";
+import RestoreApi "mixins/RestoreApi";
 
 persistent actor {
   let settings : Types.SettingsState;
@@ -52,6 +53,8 @@ persistent actor {
   include ExternApi(settings, access, org, works, reports, audit, ctr);
   include DashboardApi(settings, access, org, works, plan, reports);
   include TicketsApi(settings, access, works, robot, audit, ctr);
+  // 1.9: herstel uit een export op een LEGE canister met de opstartcode (M9, T16).
+  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, robot, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

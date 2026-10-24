@@ -182,6 +182,7 @@ module {
     facts : ?WorkFacts; // enkel voor interne rollen
     checklistOpen : ?Nat; // verplichte documenten die nog ontbreken (enkel interne rollen)
     caps : WorkCaps;
+    extra : Types.Extra; // 1.9 (export/herstel): o.a. de importbatch
   };
 
   public type WorkUpdate = {
@@ -308,6 +309,7 @@ module {
     grantedAt : Int;
     grantedBy : PersonId;
     endedAt : ?Int;
+    endedBy : ?PersonId; // 1.9 (export/herstel)
   };
 
   public type FileView = {
@@ -320,6 +322,7 @@ module {
     confidential : Bool;
     personId : PersonId;
     at : Int;
+    archivedAt : ?Int; // 1.9 (export/herstel): lijsten tonen enkel niet-gearchiveerde
   };
 
   public type NewTicket = { ticketId : Nat; ticket : Text; expiresAt : Int };
@@ -378,6 +381,7 @@ module {
     openInvites : Nat;
     failuresThisHour : Nat;
     codesLockedUntil : ?Int;
+    attemptsTracked : Nat; // 1.9: principals met een pogingenteller (de timer ruimt op, T11)
   };
 
 
@@ -782,7 +786,75 @@ module {
     proposals : [ProposalView];
     settings : SettingsView;
     auditCount : Nat;
+    // 1.9 (hersteltest M9): wat een herstel nog nodig heeft naast de lijsten hierboven.
+    notifications : [NotificationExport];
+    lookups : [LookupView]; // documentsoorten en vakgebieden zoals bewaard (leeg = de standaard uit de code)
+    values : [(Text, Text)]; // kleine vlaggen: weekbordregels, drempels
+    sequences : [(Text, Nat)];
+    counters : [(Text, Nat)]; // laatst uitgegeven id per collectie (D3)
+    planVersions : [(WorkId, Nat)];
+    reportKeys : [(Text, Nat)]; // sleutel van een toestel → verslag
+    ops : [Types.OpRecord]; // uitgevoerde offline-opdrachten (hoogstens 60 dagen)
   };
+
+  // 1.9: keuzelijst in ruwe vorm (export en herstel).
+  public type LookupView = { list : Text; key : Text; tag : Text; order : Nat; archivedAt : ?Int; extra : Types.Extra };
+  public type NotificationExport = { id : Nat; personId : PersonId; kind : Text; text : Text; workId : ?WorkId; createdAt : Int; readAt : ?Int };
+
+  // 1.9: herstel uit een export (M9, T16), per collectie in stukken; zie mixins/RestoreApi.mo.
+  public type RestorePart = {
+    #persons : [PersonView];
+    #links : [LinkView];
+    #linkHistory : [Types.LinkHistory];
+    #invites : [InviteView];
+    #orgs : [OrgView];
+    #orgConfidential : [(OrgId, ContactConfidentialView)];
+    #personConfidential : [(PersonId, ContactConfidentialView)];
+    #works : [WorkView];
+    #workInfo : [Types.WorkInfo];
+    #workConfidential : [Types.WorkConfidential];
+    #workConfidentialHistory : [Types.WorkConfidentialVersion];
+    #memberships : [MembershipView];
+    #files : [FileView];
+    #documents : [Types.Document];
+    #orgContacts : [Types.OrgContact];
+    #personContacts : [Types.PersonContact];
+    #lookups : [LookupView];
+    #values : [(Text, Text)];
+    #sequences : [(Text, Nat)];
+    #settings : SettingsView;
+    #tasks : [Types.Task];
+    #assignments : [Types.Assignment];
+    #dependencies : [Types.Dependency];
+    #calendarBlocks : [Types.CalendarBlock];
+    #taskChanges : [Types.TaskChange];
+    #templates : [Types.Template];
+    #planVersions : [(WorkId, Nat)];
+    #absences : [Types.Absence];
+    #absenceChanges : [Types.AbsenceChange];
+    #capacity : [Types.CapacityRule];
+    #importBatches : [Types.ImportBatch];
+    #importKeys : [Types.ImportKey];
+    #appointments : [Types.Appointment];
+    #vehicles : [VehicleView];
+    #dayReports : [Types.DayReport];
+    #reportKeys : [(Text, Nat)];
+    #reportChanges : [Types.ReportChange];
+    #attendances : [Types.Attendance];
+    #hoursConfirmations : [Types.HoursConfirmation];
+    #workDone : [Types.WorkDone];
+    #materials : [Types.MaterialNote];
+    #photos : [Types.Photo];
+    #issues : [Types.Issue];
+    #trips : [Types.Trip];
+    #ops : [Types.OpRecord];
+    #robots : [RobotView];
+    #proposals : [ProposalView];
+    #notifications : [NotificationExport];
+    #audit : [Types.AuditEntry];
+    #counters : [(Text, Nat)];
+  };
+  public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
   public type ExportConfidential = {
     at : Int;
