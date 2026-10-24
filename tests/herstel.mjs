@@ -47,7 +47,7 @@ async function exportAll(cid, dir) {
     const out = [];
     for (let from = 0; ; from += n) {
       const r = ok(await admin.exportChunk(kind, BigInt(from), BigInt(n)));
-      const xs = r[kind];
+      const xs = Object.values(r)[0]; // de variant draagt de collectie ("confidentialFiles" komt terug als #files)
       if (!Array.isArray(xs)) return xs; // settings: één record
       out.push(...xs);
       if (xs.length < n) return out;
@@ -57,13 +57,20 @@ async function exportAll(cid, dir) {
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
   const vertrouwelijk = { at: intern.at, orgs: await part("orgConfidential"), persons: await part("personConfidential"), files: await part("confidentialFiles"), workConfidential: await part("workConfidential"), workConfidentialHistory: await part("workConfidentialHistory") };
-  // Auditlog in stukken (nieuwste eerst) → chronologisch bewaren.
+  // Auditlog in stukken (nieuwste eerst) → chronologisch bewaren. De log groeit tijdens het lezen (elke
+  // export-oproep schrijft een regel), dus dubbels eruit en op tijd sorteren.
+  const seen = new Set();
   const audit = [];
   for (let from = 0; ; from += 500) {
     const page = await admin.auditLog(BigInt(from), 500n);
-    audit.push(...page);
+    for (const e of page) {
+      const k = `${e.at}|${e.action}|${e.who.toText()}|${e.detail}`;
+      if (!seen.has(k)) { seen.add(k); audit.push(e); }
+    }
     if (page.length < 500) break;
   }
+  // Bladzijden komen nieuwste-eerst: omkeren geeft de volgorde van de log zelf (regels uit één ronde delen een tijdstip,
+  // dus sorteren op tijd zou ze kunnen verwisselen).
   audit.reverse();
   save(dir, "intern.json", intern);
   save(dir, "vertrouwelijk.json", vertrouwelijk);
@@ -238,10 +245,9 @@ async function compare(dir, cid) {
   const a = normalize(load(dir, "intern.json"), load(dir, "vertrouwelijk.json"), load(dir, "audit.json"));
   const tmp = join(dir, "na-herstel");
   const b0 = await exportAll(cid, tmp);
-  // De herstelde auditlog = de oude, dan de regels van het herstel zelf (begonnen, klaar) en van deze vergelijking
-  // (export-intern, bekeek:export-vertrouwelijk): alles vanaf 'herstel-begonnen' telt niet mee.
-  const cut = b0.audit.findIndex((e) => e.action === "herstel-begonnen");
-  const restoredAudit = cut < 0 ? b0.audit : b0.audit.slice(0, cut);
+  // De herstelde auditlog = 'herstel-begonnen', dan de oude regels, dan 'herstel-klaar' en de regels van deze
+  // vergelijking (export-deel …): zonder de herstelregels telt enkel het eerste stuk, even lang als de bron.
+  const restoredAudit = b0.audit.filter((e) => !/^herstel-/.test(e.action)).slice(0, a.audit.length);
   const b = normalize(b0.intern, b0.vertrouwelijk, restoredAudit);
   let same = 0;
   let diff = 0;

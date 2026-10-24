@@ -167,8 +167,10 @@ mixin (
       case (#settings s) {
         settings.werfleiderZietAlles := s.werfleiderZietAlles;
         settings.inviteDays := s.inviteDays;
-        settings.values.add("drempel30bis", s.threshold30bisCents.toText());
-        settings.values.add("drempelCheckinatwork", s.thresholdCheckinatworkCents.toText());
+        // De drempels enkel als vlag bewaren als ze van de standaard afwijken (zoals de bron: anders staan er na
+        // een herstel twee vlaggen meer dan ervoor en is de export niet gelijk).
+        if (s.threshold30bisCents != Config.threshold30bisCentsDefault) { settings.values.add("drempel30bis", s.threshold30bisCents.toText()) };
+        if (s.thresholdCheckinatworkCents != Config.thresholdCheckinatworkCentsDefault) { settings.values.add("drempelCheckinatwork", s.thresholdCheckinatworkCents.toText()) };
         1;
       };
       case (#tasks xs) { for (t in xs.values()) { plan.tasks.add(t.id, t) }; xs.size() };
