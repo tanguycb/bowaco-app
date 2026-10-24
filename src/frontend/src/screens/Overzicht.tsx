@@ -45,8 +45,12 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
           <h2 className="bw-h2">{t.overzicht.attention}</h2>
           <IssueAttention go={go} />
           <BoardAttention go={go} />
-          {dash.data && dash.data.works.filter((w) => w.missingReport !== undefined || w.confirmDeclined > 0n).map((w) => (
-            <div key={String(w.id)} className="a-alert"><Icon name="alert" size={20} /><span><button type="button" className="wb-link" onClick={() => go(`werven/${w.id}`)}><b>{w.code}</b></button> · {w.warnings.filter((x) => /verslag|kan niet/.test(x)).join(" · ")}</span></div>
+          {/* Werven zonder verslag van de vorige werkdag en OA's die niet kunnen: telkens één regel met de werven. */}
+          {dash.data && [
+            { key: "missing", list: dash.data.works.filter((w) => w.missingReport !== undefined), text: (n: number) => t.overzicht.missing(n, dash.data!.works.find((w) => w.missingReport !== undefined)?.missingReport) },
+            { key: "declined", list: dash.data.works.filter((w) => w.confirmDeclined > 0n), text: (n: number) => t.overzicht.declined(n) },
+          ].filter((g) => g.list.length > 0).map((g) => (
+            <div key={g.key} className="a-alert"><Icon name="alert" size={20} /><span><b>{g.text(g.list.length)}</b>: {g.list.map((w, i) => <span key={String(w.id)}>{i > 0 && ", "}<button type="button" className="wb-link" onClick={() => go(`werven/${w.id}`)}>{w.code}</button></span>)}</span></div>
           ))}
           <Loading q={links} />
           {s?.codesLockedUntil !== undefined && (

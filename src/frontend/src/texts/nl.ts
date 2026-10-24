@@ -104,6 +104,8 @@ export const nl = {
     confirmPlanning: "planning bevestigen",
   } as Record<string, string>,
   overzicht: {
+    missing: (n: number, day?: bigint) => `${n === 1 ? "1 werf" : `${n} werven`} zonder werfverslag${day !== undefined ? ` op ${new Date(Number(day) * 86_400_000).toISOString().slice(8, 10)}.${new Date(Number(day) * 86_400_000).toISOString().slice(5, 7)}` : ""}`,
+    declined: (n: number) => `${n === 1 ? "1 werf" : `${n} werven`} waar een OA niet kan`,
     access: (persons: string, active: string, codes: string) => `Toegang: ${persons} personen · ${active} actieve logins · ${codes} open codes`,
     title: "Overzicht",
     attention: "Vraagt aandacht",

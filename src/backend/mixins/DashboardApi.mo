@@ -160,7 +160,8 @@ mixin (
       let open = switch (issuesBy.get(wid)) { case (?n) n; case null 0 };
       let isDelayed = lateN > 0 or delayedN > 0 or delayIssue.containsKey(wid);
       let lastRep = lastBy.get(wid);
-      let missingRep : ?Nat = if (workedPrev and not reports.dayIndex.containsKey(Reports.dayKey(wid, prevWork)) and (w.status == #running or w.status == #planned)) ?prevWork else null;
+      // Enkel werven die echt "bezig" zijn: een geplande werf (bv. uit de import) heeft nog geen werfverslag nodig.
+      let missingRep : ?Nat = if (workedPrev and w.status == #running and not reports.dayIndex.containsKey(Reports.dayKey(wid, prevWork))) ?prevWork else null;
       if (w.status == #running) { running += 1 };
       if (isDelayed and w.status != #delivered and w.status != #aftercare) { delayed += 1 };
       if (missingRep != null) { missing += 1 };
