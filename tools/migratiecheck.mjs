@@ -8,7 +8,7 @@
 // Stappen: (1) oud leeg → nieuw; (2) oud + rollentest-data → nieuw; tellingen uit exportIntern vóór/na gelijk.
 // Bij 0.6 bestaat er nog geen vorige draft op de nieuwe keten: dan enkel (0) verse installatie.
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { backend, KEYDIR } from "./lib.mjs";
 
@@ -19,6 +19,14 @@ const oud = process.env.OUD;
 process.env.ICP_HOST = `http://localhost:${process.env.BOWACO_PORT || 8041}`;
 const icp = (...a) => execFileSync("icp", a, { cwd: net, env: process.env, encoding: "utf8" });
 const cid = () => JSON.parse(readFileSync(join(net, ".icp/cache/mappings/local.ids.json"), "utf8")).backend;
+// 1b.5: sinds draft 28 heeft de rollentest de nep-maildienst nodig (INTEGRATIONS_CANISTER_ID, zoals tests/lokaal.sh ze
+// zet); na elke (her)installatie opnieuw zetten als NEPMAIL bekend is.
+const deploy = (mode) => {
+  icp("deploy", "backend", "--mode", mode, "-y");
+  if (process.env.NEPMAIL) icp("canister", "settings", "update", "backend", "-e", "local", "--add-environment-variable", `INTEGRATIONS_CANISTER_ID=${process.env.NEPMAIL}`);
+};
+// De uitvoer van de oude rollentest gaat naar een logbestand (fouten zijn anders onzichtbaar).
+const rollenLog = join(KEYDIR, "migratiecheck-oud-rollen.log");
 const oudRepo = process.env.OUD_REPO;
 // Telling met de code van de vorige draft (oude .did): `node <OUD_REPO>/tools/telling.mjs <cid>`.
 const tellingOud = () => {
@@ -32,23 +40,28 @@ const telling = async () => {
 
 if (!oud) {
   process.env.WASM = nieuw;
-  icp("deploy", "backend", "--mode", "reinstall", "-y");
+  deploy("reinstall");
   console.log("(0) verse installatie van de nieuwe keten: OK (geen vorige draft om van te upgraden)");
   process.exit(0);
 }
 if (!existsSync(oud)) throw new Error(`OUD bestaat niet: ${oud}`);
 process.env.WASM = oud;
-icp("deploy", "backend", "--mode", "reinstall", "-y");
+deploy("reinstall");
 process.env.WASM = nieuw;
-icp("deploy", "backend", "--mode", "upgrade", "-y");
+deploy("upgrade");
 console.log("(1) oud leeg → nieuw: OK");
 if (process.env.ZONDER_DATA) process.exit(0); // (2) dan op de draft zelf: tools/telling.mjs voor en na
 process.env.WASM = oud;
-icp("deploy", "backend", "--mode", "reinstall", "-y");
-execFileSync("node", [join(oudRepo ?? repo, "tests/rollen.mjs"), cid()], { env: { ...process.env, ZONDER_KLOK: "1" }, stdio: "ignore" });
+deploy("reinstall");
+const logFd = openSync(rollenLog, "w");
+try {
+  execFileSync("node", [join(oudRepo ?? repo, "tests/rollen.mjs"), cid()], { env: { ...process.env, ZONDER_KLOK: "1" }, stdio: ["ignore", logFd, logFd] });
+} catch (e) {
+  throw new Error(`de rollentest van de vorige draft faalde (zie ${rollenLog}): ${e.message}`);
+}
 const voor = oudRepo ? tellingOud() : await telling();
 process.env.WASM = nieuw;
-icp("deploy", "backend", "--mode", "upgrade", "-y");
+deploy("upgrade");
 const na = await telling();
 const gelijk = JSON.stringify(voor) === JSON.stringify({ ...na, audit: voor.audit });
 console.log(`(2) oud met data → nieuw: ${gelijk ? "GELIJK" : "VERSCHIL"}`, JSON.stringify(voor), "→", JSON.stringify(na));
