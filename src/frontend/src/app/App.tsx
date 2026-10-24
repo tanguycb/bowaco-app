@@ -79,13 +79,33 @@ function AppInner() {
   const { identity, isAuthenticated, isInitializing, isLoggingIn, isLoginError, loginError, login, clear } = useInternetIdentity();
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
-  const [linkCode] = useState(codeFromLink);
+  const [linkCode, setLinkCode] = useState(codeFromLink);
   const me = useQuery({
     // De principal in de sleutel: na inloggen nooit het antwoord van de anonieme sessie hergebruiken.
     queryKey: ["me", identity?.getPrincipal().toText()],
     queryFn: () => meWithCache(actor!, identity!.getPrincipal().toText()),
     enabled: !!actor && !isFetching && isAuthenticated,
   });
+
+  // II-test punt 6: wie afgezet wordt terwijl de app openstaat, krijgt bij de volgende oproep "geen actieve
+  // koppeling". Dan meteen me() opnieuw vragen (→ codescherm), en een #code=-link die later binnenkomt (zonder
+  // herladen, enkel het deel na #) ook meteen gebruiken.
+  useEffect(() => {
+    const unlinked = (e: unknown) => /geen actieve koppeling/i.test(e instanceof Error ? e.message : String(e));
+    const recheck = () => void qc.invalidateQueries({ queryKey: ["me"] });
+    const onHash = () => {
+      const c = codeFromLink();
+      if (c) { setLinkCode(c); recheck(); }
+    };
+    window.addEventListener("hashchange", onHash);
+    const offQ = qc.getQueryCache().subscribe((ev) => {
+      if (ev.type === "updated" && ev.action.type === "error" && ev.query.queryKey[0] !== "me" && unlinked(ev.action.error)) recheck();
+    });
+    const offM = qc.getMutationCache().subscribe((ev) => {
+      if (ev.type === "updated" && ev.action.type === "error" && unlinked(ev.action.error)) recheck();
+    });
+    return () => { window.removeEventListener("hashchange", onHash); offQ(); offM(); };
+  }, [qc]);
 
   const ob = useOutbox();
   const logout = async () => {
@@ -115,7 +135,7 @@ function AppInner() {
   if (status === Status.unlinked || status === Status.anonymous) {
     return (
       <Gate onLogout={() => void logout()}>
-        <CodeEntry initial={linkCode} blockedUntil={me.data.blockedUntil} onDone={refresh} />
+        <CodeEntry key={linkCode ?? ""} initial={linkCode} blockedUntil={me.data.blockedUntil} onDone={refresh} />
       </Gate>
     );
   }

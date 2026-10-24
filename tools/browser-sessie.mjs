@@ -1,0 +1,21 @@
+// Testsleutel uit ~/.bowaco als browsersessie (zonder Internet Identity), om de schermen per rol in Chrome te
+// bekijken. Stap 1 in de draftpagina: maak een ECDSA-sleutelpaar (niet exporteerbaar) en geef de publieke sleutel
+// (SPKI, hex). Stap 2 hier: de testsleutel delegeert 2 uur aan die sleutel. Stap 3 in de pagina: zet sleutelpaar +
+// keten in de slots "session" en "app" van @icp-sdk/auth 9 en de staat "ic-session-state"; herladen.
+// De testsleutel zelf verlaat deze computer niet.
+//   node tools/browser-sessie.mjs proef-klant <spki-hex>
+import { DelegationChain } from "@icp-sdk/core/identity";
+import { Principal } from "@icp-sdk/core/principal";
+import { identity } from "./lib.mjs";
+
+const [name, hex, cid = "w5pbr-raaaa-aaaal-qs3aq-cai"] = process.argv.slice(2);
+if (!name || !hex) throw new Error("gebruik: node tools/browser-sessie.mjs <sleutelnaam> <spki-hex> [backend-id]");
+// @icp-sdk/auth 9 eist een sessieketen beperkt tot de II-canister en een app-keten voor de backend.
+const II = Principal.fromText("rdmx6-jaaaa-aaaaa-aaadq-cai");
+const der = Uint8Array.from(hex.match(/../g).map((h) => parseInt(h, 16)));
+const exp = new Date(Date.now() + 2 * 3600_000);
+const id = identity(name);
+const key = { toDer: () => der, derKey: der };
+const session = await DelegationChain.create(id, key, exp, { targets: [II] });
+const app = await DelegationChain.create(id, key, exp, { targets: [Principal.fromText(cid)] });
+console.log(JSON.stringify({ session: JSON.stringify(session.toJSON()), app: JSON.stringify(app.toJSON()), state: `${id.getPrincipal().toText()}|${BigInt(exp.getTime()) * 1_000_000n}` }));

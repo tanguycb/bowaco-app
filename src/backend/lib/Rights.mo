@@ -51,6 +51,8 @@ module {
 
   public func isInternalRole(r : Role) : Bool { r == #admin or r == #werfleider or r == #calculator };
   public func isExternalRole(r : Role) : Bool { not isInternalRole(r) };
+  // II-test: rollen waarvoor een werf bij de uitnodiging iets betekent (lid van de werf); admin en calculator zien alles.
+  public func usesWorks(r : Role) : Bool { isExternalRole(r) or r == #werfleider };
 
   public func internal(p : Person) : Bool { p.roles.find(isInternalRole) != null };
   public func isAdmin(p : Person) : Bool { has(p, #admin) };

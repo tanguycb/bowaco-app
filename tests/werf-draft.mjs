@@ -41,6 +41,13 @@ check("werfleider ziet de feiten (30bis ja), geen bedrag", wA.facts[0]?.art30bis
 check("externen: geen feiten", (await Promise.all([arch, oa2, klant, vc].map((x) => x.getWork(A)))).every((w) => w.facts.length === 0));
 
 const ref = (h) => new TextEncoder().encode("!caf!sha256:" + h.repeat(64));
+// II-test punt 3: herhalen gaf elke keer een nieuw VG-plan en contract. Eerst de eigen proefdocumenten van vorige runs
+// archiveren (niet wissen): enkel VG-plan/contract op P-A waarvan elk bestand een proefbestand van dit script is.
+const proefDoc = (d) => ["vgplan", "contract"].includes(d.kind) && d.files.length > 0 && d.files.every((f) => /^proef-(vgplan|contract)\.pdf$/.test(f.name));
+const oldDocs = (await admin.getDossier(A)).documents.filter(proefDoc);
+let archived = 0;
+for (const d of oldDocs) if (isOk(await admin.archiveDocument(d.id))) archived++;
+check("vorige proefdocumenten (VG-plan, contract) gearchiveerd", archived === oldDocs.length, `${archived}/${oldDocs.length}`);
 const fVg = await vc.addFile("proef-vgplan.pdf", "application/pdf", 2000n, ref("7"), [A], false);
 const dVg = isOk(fVg) ? await vc.attachDocumentFile(A, "vgplan", [], fVg.ok) : fVg;
 check("veiligheidscoördinator levert het VG-plan", isOk(dVg), errOf(dVg));
@@ -57,6 +64,8 @@ check("werfleider zet een document op de lijst en archiveert het", isOk(dAnd) &&
 check("OA kan geen documentstatus zetten", await rejects(oa2.setDocumentStatus(dVg.ok, { missing: null }, "")));
 const log = await admin.auditLog(0n, 100n);
 const chg = log.filter((e) => e.action === "vertrouwelijk-gewijzigd" && e.detail.startsWith("contract"));
+const left = (await admin.getDossier(A)).documents.filter(proefDoc);
+check("na deze run: precies één proef-VG-plan en één proefcontract op P-A", left.filter((d) => d.kind === "vgplan").length === 1 && left.filter((d) => d.kind === "contract").length === 1, left.map((d) => d.kind).join(","));
 check("auditlog: 'bekeek:contract' en wijziging zonder bedragen", log.some((e) => e.action === "bekeek:contract") && chg.every((e) => !e.detail.includes("4500000") && !e.detail.includes("45.000")));
 check("auditlog zonder opslagverwijzing", !log.some((e) => e.detail.includes("!caf!")));
 console.log(`\n${pass} ✓  ${fail} ✗`);

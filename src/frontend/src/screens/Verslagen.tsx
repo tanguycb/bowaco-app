@@ -2,7 +2,7 @@
 // vertragingen ("Vraagt aandacht") en de wachtrij van de gsm. Wat iemand ziet, beslist de backend (reportScope).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { Caps, IssueView, ReportSummary, ReportView } from "../backend";
+import type { Caps, ConfirmationView, IssueView, ReportSummary, ReportView } from "../backend";
 import { Button, Icon, Sheet, useToast } from "../design";
 import { blobUrlOf } from "../offline/cached";
 import { useOutbox } from "../offline/outbox";
@@ -51,7 +51,8 @@ function SummaryRow({ r, onOpen }: { r: ReportSummary; onOpen: () => void }) {
         <span className="a-list__main">
           <b>{r.workDone.length ? r.workDone.join(" · ") : r.authorName || "—"}</b>
           <span className="bw-muted bw-num">
-            {r.authorName && `${R.by} ${r.authorName} · `}{R.people(Number(r.headcount))}{r.totalMinutes > 0n ? ` · ${fmtDur(r.totalMinutes)}` : ""}{r.regieMinutes > 0n ? ` (${R.regie} ${fmtDur(r.regieMinutes)})` : ""} · {R.photos(Number(r.photos))}
+            {/* II-test: wie geen aanwezigen mag zien (klant), krijgt 0 van de backend: dan geen teller in plaats van "0 personen". */}
+            {[r.authorName && `${R.by} ${r.authorName}`, r.headcount > 0n && `${R.people(Number(r.headcount))}${r.totalMinutes > 0n ? ` · ${fmtDur(r.totalMinutes)}` : ""}${r.regieMinutes > 0n ? ` (${R.regie} ${fmtDur(r.regieMinutes)})` : ""}`, R.photos(Number(r.photos))].filter(Boolean).join(" · ")}
             {r.corrects !== undefined ? ` · ${V.correction(String(r.corrects))}` : ""}
           </span>
         </span>
@@ -60,6 +61,41 @@ function SummaryRow({ r, onOpen }: { r: ReportSummary; onOpen: () => void }) {
         <Icon name="next" size={18} />
       </button>
     </li>
+  );
+}
+
+/** Werkfoto met bijschrift; laadt het beeld niet, dan een link in plaats van een leeg vak (II-test punt 1). */
+function PhotoTile({ full, thumb, caption }: { full?: string; thumb?: string; caption: string }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <a href={full} target="_blank" rel="noreferrer" title={caption} className="m-photo">
+      {broken ? <span className="m-photo__fail">{R.photoFailed} ↗</span> : <img src={thumb ?? full} alt={caption || R.photoTitle} loading="lazy" onError={() => setBroken(true)} />}
+      {caption && <span className="m-photo__cap">{caption}</span>}
+    </a>
+  );
+}
+
+/** Per uurregel de laatste bevestiging; wat eerder anders was, kort erbij. Herhalingen tellen niet (II-test punt 2). */
+export function confRuns(list: ConfirmationView[]): ConfirmationView[] {
+  const out: ConfirmationView[] = [];
+  for (const c of list) {
+    const last = out[out.length - 1];
+    if (last && last.ok === c.ok && last.byName === c.byName && last.remark === c.remark) out[out.length - 1] = c;
+    else out.push(c);
+  }
+  return out;
+}
+
+function Confirmations({ list }: { list: ConfirmationView[] }) {
+  const runs = confRuns(list);
+  const last = runs[runs.length - 1];
+  if (!last) return null;
+  const word = (c: ConfirmationView) => `${c.ok ? t.hours.confirmed : t.hours.disputed} · ${c.byName}${c.remark ? `: ${c.remark}` : ""}`;
+  return (
+    <>
+      <span className={`a-tag ${last.ok ? "a-tag--ok" : "a-tag--bad"}`} title={fmtTime(last.at)}>{word(last)}</span>
+      {runs.length > 1 && <span className="bw-muted">{t.hours.earlier}: {runs.slice(0, -1).map(word).join(" → ")}</span>}
+    </>
   );
 }
 
@@ -96,7 +132,7 @@ export function ReportBody({ r }: { r: ReportView }) {
                 <span className="a-list__main">
                   <span>{a.names || a.orgName}{a.headcount > 1n ? ` · ${a.headcount} personen` : ""}</span>
                   <span className="m-slots">{a.slots.map((s) => `${fmtMin(s.fromMin)}–${fmtMin(s.toMin)}`).join(" · ")} = {fmtDur(a.minutesTotal)}</span>
-                  {a.confirmations.map((c) => <span key={String(c.id)} className={`a-tag ${c.ok ? "a-tag--ok" : "a-tag--bad"}`}>{c.ok ? t.hours.confirmed : t.hours.disputed} · {c.byName}{c.remark ? `: ${c.remark}` : ""}</span>)}
+                  <Confirmations list={a.confirmations} />
                 </span>
                 {a.regie && <span className="m-tag m-tag--regie">regie</span>}
               </li>
@@ -115,13 +151,12 @@ export function ReportBody({ r }: { r: ReportView }) {
         </>
       )}
       {r.photos.length > 0 && (
-        <div className="m-gallery">
-          {r.photos.map((p) => (
-            <a key={String(p.id)} href={blobUrlOf(p.file.blob)} target="_blank" rel="noreferrer" title={p.caption}>
-              <img src={blobUrlOf(p.thumb?.blob) ?? blobUrlOf(p.file.blob)} alt={p.caption} loading="lazy" />
-            </a>
-          ))}
-        </div>
+        <>
+          <h3 className="bw-h3">{R.photoTitle} · {r.photos.length}</h3>
+          <div className="m-gallery">
+            {r.photos.map((p) => <PhotoTile key={String(p.id)} full={blobUrlOf(p.file.blob)} thumb={blobUrlOf(p.thumb?.blob)} caption={p.caption} />)}
+          </div>
+        </>
       )}
       {r.materials.length > 0 && (
         <>

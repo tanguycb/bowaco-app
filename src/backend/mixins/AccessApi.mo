@@ -123,6 +123,13 @@ mixin (
     };
     let orgKind = switch (req.orgId) { case (?o) { switch (org.orgs.get(o)) { case (?x) ?x.kind; case null null } }; case null null };
     switch (Rights.orgRuleError(req.roles, orgKind)) { case (?e) return #err(e); case null {} };
+    // II-test (R15, §4.1 seesWork): werven bij een uitnodiging gelden voor externe rollen (lid van de werf) en voor
+    // een werfleider (werfleider van die werf, telt als "werfleider ziet alles" uit staat). Beheerder en calculator
+    // zien alle werven: werven meegeven is dan een vergissing, geen stil genegeerde keuze.
+    if (req.workIds.size() > 0) {
+      if (not req.roles.any(func r = Rights.usesWorks(r))) { return #err("Werven gelden enkel voor een werfleider of een externe rol: een beheerder of calculator ziet alle werven. Laat de werven leeg.") };
+      for (w in req.workIds.values()) { if (not works.works.containsKey(w)) { return #err("Onbekende werf") } };
+    };
     let entropy = await Random.blob();
     // R33: na de await opnieuw nakijken; de uitnodiger kan intussen afgezet zijn.
     let again = Access.activePerson(access, caller) ?? return #err("Geen toegang meer");
@@ -143,10 +150,11 @@ mixin (
       extra = [];
     };
     access.persons.add(id, person);
-    // Externe uitnodiging voor een werf = meteen lid (met de standaardrechten per rol).
+    // Uitnodiging voor een werf = meteen lid (met de standaardrechten per rol): externen, en een werfleider als
+    // werfleider van die werf (interne rol: telt pas na de bevestiging door een andere admin, want dan pas actief).
     for (w in req.workIds.values()) {
       for (r in person.roles.values()) {
-        if (Rights.isExternalRole(r)) {
+        if (Rights.usesWorks(r)) {
           let mid = Ids.next(ctr, "membership");
           let m : Types.Membership = { id = mid; workId = w; personId = ?id; orgId = null; role = r; grants = Rights.defaultGrants(r); grantedAt = now; grantedBy = again.id; var endedAt = null; var endedBy = null };
           works.memberships.add(mid, m);

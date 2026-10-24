@@ -60,6 +60,9 @@
 .m-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
 .m-gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--bw-radius-sm); display: block; background: var(--bw-sunken); }
 .m-gallery a { display: block; }
+.m-photo { color: inherit; text-decoration: none; }
+.m-photo__cap { display: block; font-size: 12px; color: var(--bw-ink-2); margin-top: 4px; overflow-wrap: anywhere; }
+.m-photo__fail { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; padding: 8px; text-align: center; font-size: 12px; background: var(--bw-sunken); border-radius: var(--bw-radius-sm); }
 .m-slots { font-family: var(--bw-font-mono); font-size: var(--bw-fs-xs); color: var(--bw-ink-2); }
 @media (max-width: 420px) { .m-foot--two { grid-template-columns: 1fr 1.4fr; } }
 /* Kop op de gsm: de verbindingsstatus mag de menuknop nooit wegduwen (geen horizontale scroll, §8.3). */

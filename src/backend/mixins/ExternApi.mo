@@ -63,6 +63,11 @@ mixin (
     if (why.size() > Config.maxNote) { return #err("Opmerking: hoogstens " # Config.maxNote.toText() # " tekens") };
     if (not ok and why.size() == 0) { return #err("Schrijf wat er niet klopt") };
     let prev = switch (reports.confirmations.get(attendanceId)) { case (?cs) cs; case null [] };
+    // II-test: dezelfde bevestiging nog eens (zelfde persoon, zelfde oordeel en opmerking) voegt niets toe.
+    if (prev.size() > 0) {
+      let last = prev[prev.size() - 1];
+      if (last.by == p.id and last.ok == ok and last.remark == why) { return #ok };
+    };
     if (prev.size() >= 10) { return #err("Te veel bevestigingen voor deze regel") };
     let orgId = switch (a.orgId) { case (?o) o; case null 0 };
     let id = Ids.next(ctr, "hoursConfirmation");

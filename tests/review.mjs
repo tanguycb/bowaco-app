@@ -129,6 +129,91 @@ const page2 = await admin.exportChunk("tasks", 2n, 2n);
 check("(B12) exportChunk geeft dezelfde taken als exportIntern, in stukken", isOk(page1) && isOk(page2) && JSON.stringify([...page1.ok.tasks, ...page2.ok.tasks], big) === JSON.stringify(ex.tasks.slice(0, 4), big), errOf(page1));
 check("(B12) exportChunk: onbekende collectie geweigerd, werfleider geweigerd", "err" in (await admin.exportChunk("bestaat-niet", 0n, 1n)) && (await denied(wl.exportChunk("tasks", 0n, 1n))));
 
+// ── (C) Rollentest met echte II (24-10, verslag II-test): de punten als vaste controle ──
+// (C1) De fototeller in de lijst = wat de rol in de fiche ziet; enkel werkfoto's tellen (geen bonfoto's).
+const reps = (await admin.listReports(A, 0n, 6n)).filter((r) => r.photos > 0n);
+check("(C1) er is een verslag met een werkfoto op P-A", reps.length > 0);
+for (const [who, x] of [["klant", klant], ["architect", arch], ["admin", admin]]) {
+  let same = true;
+  const seen = [];
+  for (const r of reps) {
+    const sum = (await x.listReports(A, 0n, 50n)).find((y) => y.id === r.id);
+    const full = await x.getReport(r.id);
+    seen.push(`${r.id}:${sum?.photos}/${full.photos.length}`);
+    if (!sum || Number(sum.photos) !== full.photos.length) same = false;
+  }
+  check(`(C1) ${who}: teller "n foto's" = foto's in de fiche`, same, seen.join(" "));
+}
+const fAdmin = await admin.getReport(reps[0].id);
+check("(C1) een bonfoto telt niet als foto (teller = werkfoto's)", Number(reps[0].photos) === fAdmin.photos.length, `${reps[0].photos} vs ${fAdmin.photos.length} werkfoto's, ${fAdmin.materials.filter((m) => m.hasFile).length} bon(nen)`);
+// (C7) De klant krijgt geen aanwezigen (de lijst toont dan geen "0 personen"; de frontend laat de teller weg bij 0).
+const kSum = await klant.listReports(A, 0n, 6n);
+check("(C7) klant: geen aantallen, uren of auteur in de verslagenlijst", kSum.every((r) => r.headcount === 0n && r.attendances === 0n && r.totalMinutes === 0n && r.authorName === ""));
+// (C2) Dezelfde bevestiging nog eens voegt niets toe (de fiche toonde "bevestigd · Proef OA Dak" acht keer).
+// Een uurregel zoeken die een OA (Dak of GILS) mag bevestigen: in een afgesloten verslag op P-A of P-B (de dag uit
+// het verslag zelf, want lokaal verzet de rollentest de klok).
+const oa1 = await backend("proef-oa", cid);
+let hl = null;
+let hx = null;
+let restoreGrants = async () => {};
+for (const w of [A, B]) {
+  for (const r of await admin.listReports(w, 0n, 30n)) {
+    if (hl || r.attendances === 0n || "draft" in r.status) continue;
+    for (const x of [oa2, oa1]) {
+      const l = (await x.myHours(r.day > 0n ? r.day - 1n : 0n, r.day + 1n).catch(() => [])).find((y) => y.reportId === r.id && y.canConfirm);
+      if (l) { hl = l; hx = x; break; }
+    }
+  }
+}
+if (!hl) {
+  // Nog geen (lokaal): de werfleider schrijft één afgesloten verslag met een regel van Proef Dak NV op een vrije
+  // werkdag van P-A (de dag volgt de klok van de canister: het jongste verslag), daarna bevestigt Proef Dak.
+  const recent = await admin.listReports(A, 0n, 1n);
+  let D = recent.length ? (await admin.getReport(recent[0].id)).createdAt / 86_400_000_000_000n : today;
+  for (let i = 0; i < 40 && (((Number(D) + 3) % 7) >= 5 || (await admin.getReportDay(A, D)).length > 0); i++) D -= 1n;
+  const K2 = uid();
+  const res = await wl.reportSync([
+    { opId: uid(), clientKey: K2, op: { ensure: { workId: A, day: D } } },
+    { opId: uid(), clientKey: K2, op: { attendance: { orgId: [orgDak.id], personId: [], names: "Review", headcount: 1n, slots: [{ fromMin: 480n, toMin: 720n }], regie: false, taskId: [], note: "", replaces: [] } } },
+    { opId: uid(), clientKey: K2, op: { finalize: null } },
+  ]);
+  const rid = res[0] && "done" in res[0].outcome ? res[0].outcome.done.reportId : null;
+  // Lokaal heeft de rollentest het recht "uren bevestigen" van Proef Dak op P-A weggenomen: even terug, achteraf hersteld.
+  const mDak = (await admin.listMembers(A)).find((m) => m.orgId[0] === orgDak.id && "onderaannemer" in m.role);
+  if (mDak && !mDak.grants.some((g) => "confirmHours" in g)) {
+    await admin.setMemberGrants(mDak.id, [...mDak.grants, { confirmHours: null }]);
+    restoreGrants = () => admin.setMemberGrants(mDak.id, mDak.grants);
+  }
+  if (rid !== null) hl = (await oa2.myHours(D > 0n ? D - 1n : 0n, D + 1n).catch(() => [])).find((y) => y.reportId === rid && y.canConfirm) ?? null;
+  hx = oa2;
+  check("(C2) proefverslag met een uurregel van Proef Dak NV (lokaal)", !!hl, JSON.stringify(res.map((r) => r.outcome), big));
+}
+if (hl) {
+  const n0 = hl.confirmations.length;
+  const last = hl.confirmations[n0 - 1];
+  const ok1 = await hx.confirmHours(hl.attendanceId, last ? last.ok : true, last ? last.remark : "");
+  const ok2 = await hx.confirmHours(hl.attendanceId, last ? last.ok : true, last ? last.remark : "");
+  const n1 = (await hx.myHours(hl.day > 0n ? hl.day - 1n : 0n, hl.day + 1n)).find((l) => l.attendanceId === hl.attendanceId).confirmations.length;
+  check("(C2) dezelfde bevestiging twee keer: hoogstens één erbij", isOk(ok1) && isOk(ok2) && (last ? n1 === n0 : n1 === 1), `${n0} → ${n1}`);
+  await restoreGrants();
+} else check("(C2) een OA heeft een uurregel om te bevestigen", false, "geen afgesloten verslag met uren van een proef-OA op P-A/P-B");
+// (C4) Werven bij een interne uitnodiging: werfleider = werfleider van die werf; calculator/beheerder = duidelijke weigering.
+const invWl = await admin.invitePerson({ name: "Proef WL met werf (review)", roles: [{ werfleider: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [B], validDays: 1n, tag: "review" });
+check("(C4) werfleider uitnodigen met werf P-B: lukt", isOk(invWl), errOf(invWl));
+const mWl = isOk(invWl) ? (await admin.listMembers(B)).filter((m) => m.personId[0] === invWl.ok.personId && "werfleider" in m.role) : [];
+check("(C4) … en is meteen werfleider-lid van P-B (niet stil genegeerd)", mWl.length === 1, JSON.stringify(mWl.map((m) => m.id), big));
+const invCalc = await admin.invitePerson({ name: "Proef calculator met werf (review)", roles: [{ calculator: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [B], validDays: 1n, tag: "review" });
+check("(C4) calculator met een werf: geweigerd met uitleg", /Werven gelden enkel/.test(errOf(invCalc)), errOf(invCalc));
+check("(C4) werfleider (geen admin) kan geen werfleider uitnodigen, ook niet met werf", await denied(wl.invitePerson({ name: "x", roles: [{ werfleider: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [A], validDays: 1n, tag: "" })));
+if (isOk(invWl)) check("(C4) opruimen: code ingetrokken, persoon afgezet, lidmaatschap beëindigd", isOk(await admin.revokeInvite(invWl.ok.inviteId)) && isOk(await admin.archivePerson(invWl.ok.personId)) && !(await admin.listMembers(B)).some((m) => m.personId[0] === invWl.ok.personId));
+// (C5) Het versielabel volgt de draft (tools/push.sh zet het); lokaal staat er "-dev".
+if (local) check("(C5) lokaal: versielabel uit de broncode (-dev)", /-dev$/.test(me.version), me.version);
+else {
+  const nums = (await import("node:fs")).readdirSync(KEYDIR).filter((f) => /^preview-\d+\.json$/.test(f)).map((f) => JSON.parse(readFileSync(join(KEYDIR, f), "utf8"))?.data?.draftVersion ?? 0);
+  const n = Math.max(0, ...nums);
+  check(`(C5) draft: versielabel noemt draft ${n}`, me.version.includes(`-draft${n} `), me.version);
+}
+
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──
 if (local && !process.env.ZONDER_KLOK) {
   const before = (await admin.accessStats()).attemptsTracked;

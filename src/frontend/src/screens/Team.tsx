@@ -58,6 +58,9 @@ function Invite({ caps, onClose }: { caps: Caps; onClose: () => void }) {
   // Standaard een interne rol (BOWACO zelf) voor de beheerder; een werfleider nodigt enkel externen uit.
   const [f, setF] = useState({ name: "", role: caps.manageAccess ? Role.werfleider : Role.onderaannemer, org: "", code: "", phone: "", days: "", tag: "" });
   const external = EXTERNAL.includes(f.role);
+  // II-test punt 4 (R15): werven gelden voor externen (lid) en een werfleider (werfleider van die werf); beheerder en
+  // calculator zien alles. Een rolwissel laat geen werven meer achter die de backend dan zou weigeren.
+  const withWorks = external || f.role === Role.werfleider;
   const orgChoices = (orgs.data ?? []).filter((o) => o.kind !== OrgKind.bowaco && (ORG_FOR[f.role] === undefined || o.kind === ORG_FOR[f.role]));
   const [workIds, setWorkIds] = useState<bigint[]>([]);
   const [code, setCode] = useState<NewCode | null>(null);
@@ -70,7 +73,7 @@ function Invite({ caps, onClose }: { caps: Caps; onClose: () => void }) {
         shortCode: optText(f.code),
         lang: "nl",
         phone: optText(f.phone),
-        workIds,
+        workIds: withWorks ? workIds : [],
         validDays: BigInt(f.days || "0"),
         tag: f.tag,
       })),
@@ -82,7 +85,7 @@ function Invite({ caps, onClose }: { caps: Caps; onClose: () => void }) {
     <Sheet title={t.team.inviteTitle} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} disabled={!f.name.trim() || (external && !f.org)} onClick={() => save.mutate()}>{t.team.invite}</Button></>}>
       <div className="a-form">
         <Field label={t.team.name}><input className="bw-input" value={f.name} onChange={set("name")} maxLength={80} /></Field>
-        <Field label={t.team.roles}><Choice label={t.team.roles} value={f.role} onChange={(r) => setF({ ...f, role: r, org: "" })} options={roles.map((r) => ({ value: r, label: t.roles[r] }))} /></Field>
+        <Field label={t.team.roles}><Choice label={t.team.roles} value={f.role} onChange={(r) => { setF({ ...f, role: r, org: "" }); if (!(EXTERNAL.includes(r) || r === Role.werfleider)) setWorkIds([]); }} options={roles.map((r) => ({ value: r, label: t.roles[r] }))} /></Field>
         {external ? (
           <Field label={t.team.org}>
             <select className="bw-input" value={f.org} onChange={set("org")}>
@@ -98,8 +101,9 @@ function Invite({ caps, onClose }: { caps: Caps; onClose: () => void }) {
           <Field label={t.team.shortCode}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} maxLength={20} /></Field>
           <Field label={t.team.phone}><input className="bw-input" value={f.phone} onChange={set("phone")} inputMode="tel" /></Field>
         </div>
-        {EXTERNAL.includes(f.role) && (works.data?.length ?? 0) > 0 && (
-          <Field label={t.team.works}>
+        {!withWorks && <p className="bw-muted">{t.team.worksNone}</p>}
+        {withWorks && (works.data?.length ?? 0) > 0 && (
+          <Field label={external ? t.team.works : t.team.worksLeader}>
             <div className="a-stack">
               {works.data!.map((w) => (
                 <label key={String(w.id)} className="a-check">
