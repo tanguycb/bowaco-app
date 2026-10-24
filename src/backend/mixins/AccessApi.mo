@@ -200,7 +200,7 @@ mixin (
   func acInviteNotice(inviter : Types.Person, name : Text, roles : [Types.Role], workIds : [Nat]) {
     if (Rights.isAdmin(inviter)) { return };
     let codes = workIds.map<Nat, Text>(func w = switch (works.works.get(w)) { case (?x) x.code; case null "#" # w.toText() });
-    Access.notifyAdmins(access, audit, ctr, "uitnodiging", inviter.name # " nodigde " # name # " uit als " # rolesText(roles) # (if (codes.size() > 0) " voor " # Text.join(codes.values(), ", ") else ""));
+    Access.notifyAdmins(access, audit, ctr, "uitnodiging", inviter.name # " nodigde " # name # " uit als " # Text.join(roles.map<Types.Role, Text>(Rights.roleKey).values(), ", ") # (if (codes.size() > 0) " voor " # Text.join(codes.values(), ", ") else ""));
   };
 
   // Herstelcode: een extra principal voor een bestaande persoon (nieuw toestel, verloren passkey, live na draft).

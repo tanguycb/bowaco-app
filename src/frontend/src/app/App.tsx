@@ -27,6 +27,7 @@ import { Werfverslag } from "../screens/Werfverslag";
 import { OutboxSheet } from "../screens/Verslagen";
 import { MijnUren } from "../screens/Extern";
 import { Bell } from "../screens/Meldingen";
+import { DashboardPage } from "../screens/Dashboard";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -145,6 +146,8 @@ function navFor(caps: Caps): NavItem[] {
   if (caps.home !== "werven") items.push({ key: "werven", label: t.nav.werven, icon: "building" });
   // 1.7: de OA bevestigt zijn uren uit de werfverslagen.
   if (caps.home === "week") items.push({ key: "uren", label: t.nav.uren, icon: "clock" });
+  // 1.8: het dashboard voor kantoor (de admin heeft het op zijn startscherm Overzicht).
+  if (caps.readOrgPlanning && caps.home !== "overzicht") items.push({ key: "dashboard", label: t.nav.dashboard, icon: "grid" });
   if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
   if (caps.readTeam) items.push({ key: "team", label: t.nav.team, icon: "people" });
   if (caps.inviteExternal || caps.manageAccess) items.push({ key: "codes", label: t.nav.codes, icon: "key" });
@@ -192,6 +195,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         }
         return page === "werven" ? <Werven caps={caps} go={go} /> : <Home kind={page} go={go} caps={caps} />;
       case "uren": return <MijnUren />;
+      case "dashboard": return <DashboardPage go={go} />;
       case "weekbord": return <Weekbord key={window.location.hash} caps={caps} go={go} />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;

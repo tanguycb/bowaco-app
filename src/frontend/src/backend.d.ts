@@ -489,6 +489,75 @@ export interface ContractView {
     workId: WorkId;
     clientContact?: Contact;
 }
+export interface DashConfirm {
+    end: Day;
+    orgName: string;
+    taskTitle: string;
+    start: Day;
+    taskId: bigint;
+    assignmentId: bigint;
+    workId: WorkId;
+    declined: boolean;
+    workCode: string;
+    reason: string;
+}
+export interface DashCounters {
+    delayed: bigint;
+    confirmDeclined: bigint;
+    permitsThisMonth?: bigint;
+    confirmOpen: bigint;
+    openIssues: bigint;
+    running: bigint;
+    missingReports: bigint;
+}
+export interface DashTask {
+    end: Day;
+    status: TaskStatus;
+    title: string;
+    percent: bigint;
+    start: Day;
+    taskId: bigint;
+    lateDays: bigint;
+    orgNames: Array<string>;
+    workId: WorkId;
+    workCode: string;
+}
+export interface DashWork {
+    id: WorkId;
+    end?: Day;
+    status: WorkStatus;
+    delayed: boolean;
+    tasksLate: bigint;
+    confirmDeclined: bigint;
+    leaderId?: PersonId;
+    confirmOpen: bigint;
+    city: string;
+    code: string;
+    name: string;
+    percent: bigint;
+    leaderName: string;
+    start?: Day;
+    warnings: Array<string>;
+    tasksThisWeek: bigint;
+    tasksDelayed: bigint;
+    tasksTotal: bigint;
+    openIssues: bigint;
+    nextMilestone?: [string, Day];
+    parentId?: WorkId;
+    lastReport?: Day;
+    missingReport?: Day;
+}
+export interface DashboardView {
+    day: Day;
+    confirmations: Array<DashConfirm>;
+    leaders: Array<PersonRef>;
+    thisWeek: Array<DashTask>;
+    late: Array<DashTask>;
+    instructions: bigint;
+    counters: DashCounters;
+    monday: Day;
+    works: Array<DashWork>;
+}
 export type Day = bigint;
 export interface DayReport {
     id: bigint;
@@ -2107,6 +2176,7 @@ export interface backendInterface {
     createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_15>;
     createTicket(task: string, workId: bigint | null): Promise<Result_19>;
     createWork(i: WorkInput): Promise<Result>;
+    dashboard(day: bigint): Promise<DashboardView>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
     endMembership(id: bigint): Promise<Result_4>;
     exportConfidential(): Promise<ExportConfidential>;

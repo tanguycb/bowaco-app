@@ -1024,4 +1024,77 @@ module {
     leaderPhone : ?Text;
   };
   public type ExistingInvite = { personId : PersonId; workIds : [WorkId]; validDays : Nat; tag : Text };
+
+  // ── Dashboard (1.8, bouwplan §8.2 en §8.4) ──────────────────────────────
+  // Eén berekende stand voor kantoor: tellers, de werven als kaarten, achterstanden, deze week, openstaande
+  // bevestigingen en ontbrekende werfverslagen. Niets bewaard: alles uit planning, verslagen en lidmaatschappen.
+  public type DashTask = {
+    taskId : Nat;
+    workId : WorkId;
+    workCode : Text;
+    title : Text;
+    status : Types.TaskStatus;
+    percent : Nat;
+    start : Day;
+    end : Day;
+    orgNames : [Text];
+    lateDays : Nat; // werkdagen voorbij het geplande einde (achterstand)
+  };
+  public type DashConfirm = {
+    assignmentId : Nat;
+    taskId : Nat;
+    workId : WorkId;
+    workCode : Text;
+    taskTitle : Text;
+    orgName : Text;
+    start : Day;
+    end : Day;
+    declined : Bool;
+    reason : Text;
+  };
+  public type DashWork = {
+    id : WorkId;
+    code : Text;
+    name : Text;
+    city : Text;
+    status : Types.WorkStatus;
+    leaderId : ?PersonId;
+    leaderName : Text;
+    parentId : ?WorkId;
+    start : ?Day; // eerste taak
+    end : ?Day; // laatste taak
+    percent : Nat; // gemiddelde voortgang van de gewone taken (gewogen naar werkdagen)
+    tasksTotal : Nat;
+    tasksLate : Nat;
+    tasksDelayed : Nat;
+    tasksThisWeek : Nat;
+    confirmOpen : Nat;
+    confirmDeclined : Nat;
+    openIssues : Nat;
+    nextMilestone : ?(Text, Day);
+    lastReport : ?Day;
+    missingReport : ?Day; // werkdag met werk in de planning maar zonder verslag
+    warnings : [Text];
+    delayed : Bool; // achterstand, vertraagde taak of open vertraging
+  };
+  public type DashCounters = {
+    running : Nat;
+    delayed : Nat;
+    confirmOpen : Nat;
+    confirmDeclined : Nat;
+    openIssues : Nat;
+    missingReports : Nat;
+    permitsThisMonth : ?Nat; // vergunningen komen in fase 1b: null
+  };
+  public type DashboardView = {
+    day : Day;
+    monday : Day;
+    counters : DashCounters;
+    works : [DashWork];
+    late : [DashTask];
+    thisWeek : [DashTask];
+    confirmations : [DashConfirm];
+    leaders : [PersonRef];
+    instructions : Nat;
+  };
 };

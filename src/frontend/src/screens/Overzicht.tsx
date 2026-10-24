@@ -1,12 +1,15 @@
-// Startscherm van de beheerder: "Vraagt aandacht" (bouwplan §8.2). In 0.6: koppelingen die op
-// bevestiging wachten, de globale remming op codes en de meldingen; daaronder de werven.
+// Startscherm van de beheerder (bouwplan §8.2 en §8.4): bovenaan de tellers van het dashboard (1.8), daarnaast
+// "Vraagt aandacht" (problemen en vertragingen, dubbele boekingen, werven zonder verslag, OA's die niet kunnen,
+// koppelingen die op bevestiging wachten, de remming op codes) en de meldingen; daaronder de werven als kaarten,
+// de achterstanden, deze week en de openstaande bevestigingen.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LinkStatus } from "../backend";
 import { Button, Icon, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
-import { Loading, Page, useWorks, WorkList } from "./common";
+import { Loading, Page } from "./common";
 import { BoardAttention } from "./Weekbord";
+import { DashboardBody, DashCounters, useDashboard } from "./Dashboard";
 import { IssueAttention } from "./Verslagen";
 
 export function Overzicht({ go }: { go: (to: string) => void }) {
@@ -17,7 +20,7 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
   const stats = useQuery({ queryKey: ["accessStats"], queryFn: () => actor!.accessStats(), enabled: on });
   const links = useQuery({ queryKey: ["links"], queryFn: () => actor!.listLinks(), enabled: on });
   const notes = useQuery({ queryKey: ["notes"], queryFn: () => actor!.myNotifications(true), enabled: on });
-  const works = useWorks();
+  const dash = useDashboard();
 
   const confirm = useMutation({
     mutationFn: async (p: Parameters<NonNullable<typeof actor>["confirmLink"]>[0]) => unwrap(await actor!.confirmLink(p)),
@@ -35,19 +38,16 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
 
   return (
     <Page title={t.overzicht.title}>
-      {s && (
-        <div className="a-counters">
-          <div className="a-counter"><span className="a-counter__n">{String(s.persons)}</span><span className="a-counter__l">{t.overzicht.counters.persons}</span></div>
-          <div className="a-counter"><span className="a-counter__n">{String(s.activeLinks)}</span><span className="a-counter__l">{t.overzicht.counters.active}</span></div>
-          <div className={`a-counter${s.pendingLinks > 0n ? " a-counter--accent" : ""}`}><span className="a-counter__n">{String(s.pendingLinks)}</span><span className="a-counter__l">{t.overzicht.counters.pending}</span></div>
-          <div className="a-counter"><span className="a-counter__n">{String(s.openInvites)}</span><span className="a-counter__l">{t.overzicht.counters.codes}</span></div>
-        </div>
-      )}
+      {dash.data && <DashCounters v={dash.data} />}
+      {s && <p className="bw-muted bw-num">{t.overzicht.access(String(s.persons), String(s.activeLinks), String(s.openInvites))}</p>}
       <div className="a-cols">
         <section className="a-section">
           <h2 className="bw-h2">{t.overzicht.attention}</h2>
           <IssueAttention go={go} />
           <BoardAttention go={go} />
+          {dash.data && dash.data.works.filter((w) => w.missingReport !== undefined || w.confirmDeclined > 0n).map((w) => (
+            <div key={String(w.id)} className="a-alert"><Icon name="alert" size={20} /><span><button type="button" className="wb-link" onClick={() => go(`werven/${w.id}`)}><b>{w.code}</b></button> · {w.warnings.filter((x) => /verslag|kan niet/.test(x)).join(" · ")}</span></div>
+          ))}
           <Loading q={links} />
           {s?.codesLockedUntil !== undefined && (
             <div className="a-alert" role="alert"><Icon name="alert" size={20} /><span><b>{t.overzicht.locked}</b> · {fmtTime(s.codesLockedUntil)}</span></div>
@@ -70,9 +70,6 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
           ) : (
             links.data && s?.codesLockedUntil === undefined && <p className="a-empty">{t.overzicht.noPending}</p>
           )}
-          <h2 className="bw-h2">{t.overzicht.works}</h2>
-          <Loading q={works} />
-          {works.data && <WorkList works={works.data} go={go} empty={t.werven.empty} />}
         </section>
         <section className="a-section">
           <div className="a-row a-row--between">
@@ -92,6 +89,7 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
           )}
         </section>
       </div>
+      <DashboardBody go={go} withCounters={false} />
     </Page>
   );
 }

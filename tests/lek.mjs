@@ -56,6 +56,7 @@ const absGone = ex.absences.find((a) => a.archivedAt.length === 1 && "intern" in
 const repA = ex.dayReports?.find((r) => r.workId === A);
 const issDone = ex.issues?.find((i) => "handled" in i.status);
 const attDak = ex.attendances?.find((a) => a.orgId[0] === orgDak?.id && a.archivedAt.length === 0);
+const dakMayConfirm = !!attDak && ex.memberships.some((m) => m.workId === attDak.workId && m.endedAt.length === 0 && "onderaannemer" in m.role && (m.orgId[0] === orgDak?.id) && m.grants.some((g) => "confirmHours" in g));
 const memDakB = ex.memberships.find((m) => m.workId === B && "onderaannemer" in m.role && m.personId.length === 1 && m.endedAt.length === 0);
 if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone || !repA || !issDone || !attDak || !memDakB) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
@@ -204,10 +205,14 @@ const table = {
   // per externe: wie het team beheert (een recht dat niet bij de rol past: daarna "past niet"); een bestaande
   // persoon uitnodigen: admin en werfleider (onbekende persoon: daarna "Onbekende persoon").
   myHours: [ACTIVE, () => [20_000n, 20_001n]],
-  confirmHours: [NONE, () => [attDak.id, true, ""]],
+  // Verwacht: de OA Dak enkel als zijn firma op die werf het recht "uren bevestigen" heeft (op de draft zet
+  // tests/extern-draft.mjs dat aan; in de rollentest niet). Wie de uren mag bevestigen, voegt een bevestiging toe.
+  confirmHours: [dakMayConfirm ? ["oa"] : NONE, () => [attDak.id, true, ""]],
   myWorks: [ACTIVE, () => []],
   setMemberGrants: [["admin", "werfleider"], () => [memDakB.id, [{ readSellPrices: null }]]],
   inviteExistingPerson: [["admin", "werfleider"], () => [{ personId: X, workIds: [], validDays: 0n, tag: "" }]],
+  // 1.8 dashboard: interne rollen (een werfleider zonder "ziet alles" enkel zijn werven)
+  dashboard: [INTERNAL, () => [20_000n]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

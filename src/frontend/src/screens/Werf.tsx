@@ -2,7 +2,7 @@
 // Wat iemand mag, zegt de backend per werf (WorkView.caps, Rights.mo); elke handeling wordt opnieuw nagekeken.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { GuaranteeKind, Role, WorkStatus, type Caps, type ContractInput, type ContractView, type InvoicingRhythm, type WorkView } from "../backend";
+import { GuaranteeKind, OrgKind, Role, WorkStatus, type Caps, type ContractInput, type ContractView, type InvoicingRhythm, type WorkView } from "../backend";
 import { Button, Choice, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, parsePct, unwrap, useBackend } from "../util";
@@ -128,7 +128,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
 
       {adding && <AddMember workId={id} allowLeader={w.caps.setLeader} onClose={() => setAdding(false)} />}
       {inviting && <InviteToWork workId={id} onClose={() => setInviting(false)} />}
-      {editing && <EditWork w={w} onClose={() => setEditing(false)} />}
+      {editing && <EditWork w={w} caps={caps} onClose={() => setEditing(false)} />}
       {newSub && <NewWork parent={w} onClose={() => setNewSub(false)} go={go} />}
     </Page>
   );
@@ -308,7 +308,7 @@ function EditContract({ w, view, onClose, onSaved }: { w: WorkView; view: Contra
   );
 }
 
-function EditWork({ w, onClose }: { w: WorkView; onClose: () => void }) {
+function EditWork({ w, caps, onClose }: { w: WorkView; caps: Caps; onClose: () => void }) {
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
   const qc = useQueryClient();
@@ -354,6 +354,14 @@ function EditWork({ w, onClose }: { w: WorkView; onClose: () => void }) {
     onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries(); onClose(); },
   });
   const orgOpts = (kind: string) => (orgs.data ?? []).filter((o) => o.kind === kind);
+  // P-10 (1.1): een nieuwe klant of een nieuw bureau meteen hier aanmaken (enkel de naam; de rest in Organisaties).
+  const [newOrg, setNewOrg] = useState<{ kind: "client" | "architect"; name: string } | null>(null);
+  const makeOrg = useMutation({
+    mutationFn: async (v: { kind: "client" | "architect"; name: string }) =>
+      unwrap(await actor!.createOrg({ kind: v.kind === "client" ? OrgKind.client : OrgKind.architect, name: v.name, kbo: undefined, vat: undefined, aliases: [], trades: [], address: undefined, notes: "" })),
+    onSuccess: (o, v) => { void qc.invalidateQueries({ queryKey: ["orgs"] }); setF((x) => ({ ...x, [v.kind]: String(o.id) })); setNewOrg(null); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
   // Mogelijke hoofdwerven: zelfstandige werven, niet deze, en niet als deze werf zelf deelwerven heeft.
   const hasSubs = (works.data ?? []).some((x) => x.parentId === w.id);
   const parents = (works.data ?? []).filter((x) => x.parentId === undefined && x.id !== w.id);
@@ -384,13 +392,24 @@ function EditWork({ w, onClose }: { w: WorkView; onClose: () => void }) {
               <option value="">{t.werven.noOrgPick}</option>
               {orgOpts("client").map((o) => <option key={String(o.id)} value={String(o.id)}>{o.name}</option>)}
             </select>
+            {caps.manageOrgs && <Button variant="quiet" icon="plus" onClick={() => setNewOrg({ kind: "client", name: "" })}>{t.werven.newClient}</Button>}
           </Field>
           <Field label={t.werven.architect}>
             <select className="bw-input" value={f.architect} onChange={set("architect")}>
               <option value="">{t.werven.noOrgPick}</option>
               {orgOpts("architect").map((o) => <option key={String(o.id)} value={String(o.id)}>{o.name}</option>)}
             </select>
+            {caps.manageOrgs && <Button variant="quiet" icon="plus" onClick={() => setNewOrg({ kind: "architect", name: "" })}>{t.werven.newArchitect}</Button>}
           </Field>
+        </div>
+        {newOrg && (
+          <div className="a-row">
+            <input id="new-org" className="bw-input" value={newOrg.name} maxLength={80} placeholder={newOrg.kind === "client" ? t.werven.newClient : t.werven.newArchitect} onChange={(e) => setNewOrg({ ...newOrg, name: e.target.value })} />
+            <Button variant="primary" disabled={!newOrg.name.trim()} busy={makeOrg.isPending} onClick={() => makeOrg.mutate(newOrg)}>{t.common.save}</Button>
+            <Button variant="quiet" onClick={() => setNewOrg(null)}>{t.common.cancel}</Button>
+          </div>
+        )}
+        <div>
         </div>
         <Field label={t.werven.leader}>
           {w.caps.setLeader ? (

@@ -270,6 +270,83 @@ export const WorkView = IDL.Record({
   'archivedAt' : IDL.Opt(IDL.Int),
 });
 export const Result = IDL.Variant({ 'ok' : WorkView, 'err' : IDL.Text });
+export const DashConfirm = IDL.Record({
+  'end' : Day,
+  'orgName' : IDL.Text,
+  'taskTitle' : IDL.Text,
+  'start' : Day,
+  'taskId' : IDL.Nat,
+  'assignmentId' : IDL.Nat,
+  'workId' : WorkId,
+  'declined' : IDL.Bool,
+  'workCode' : IDL.Text,
+  'reason' : IDL.Text,
+});
+export const PersonRef = IDL.Record({ 'id' : PersonId, 'name' : IDL.Text });
+export const TaskStatus = IDL.Variant({
+  'delayed' : IDL.Null,
+  'busy' : IDL.Null,
+  'done' : IDL.Null,
+  'blocked' : IDL.Null,
+  'planned' : IDL.Null,
+});
+export const DashTask = IDL.Record({
+  'end' : Day,
+  'status' : TaskStatus,
+  'title' : IDL.Text,
+  'percent' : IDL.Nat,
+  'start' : Day,
+  'taskId' : IDL.Nat,
+  'lateDays' : IDL.Nat,
+  'orgNames' : IDL.Vec(IDL.Text),
+  'workId' : WorkId,
+  'workCode' : IDL.Text,
+});
+export const DashCounters = IDL.Record({
+  'delayed' : IDL.Nat,
+  'confirmDeclined' : IDL.Nat,
+  'permitsThisMonth' : IDL.Opt(IDL.Nat),
+  'confirmOpen' : IDL.Nat,
+  'openIssues' : IDL.Nat,
+  'running' : IDL.Nat,
+  'missingReports' : IDL.Nat,
+});
+export const DashWork = IDL.Record({
+  'id' : WorkId,
+  'end' : IDL.Opt(Day),
+  'status' : WorkStatus,
+  'delayed' : IDL.Bool,
+  'tasksLate' : IDL.Nat,
+  'confirmDeclined' : IDL.Nat,
+  'leaderId' : IDL.Opt(PersonId),
+  'confirmOpen' : IDL.Nat,
+  'city' : IDL.Text,
+  'code' : IDL.Text,
+  'name' : IDL.Text,
+  'percent' : IDL.Nat,
+  'leaderName' : IDL.Text,
+  'start' : IDL.Opt(Day),
+  'warnings' : IDL.Vec(IDL.Text),
+  'tasksThisWeek' : IDL.Nat,
+  'tasksDelayed' : IDL.Nat,
+  'tasksTotal' : IDL.Nat,
+  'openIssues' : IDL.Nat,
+  'nextMilestone' : IDL.Opt(IDL.Tuple(IDL.Text, Day)),
+  'parentId' : IDL.Opt(WorkId),
+  'lastReport' : IDL.Opt(Day),
+  'missingReport' : IDL.Opt(Day),
+});
+export const DashboardView = IDL.Record({
+  'day' : Day,
+  'confirmations' : IDL.Vec(DashConfirm),
+  'leaders' : IDL.Vec(PersonRef),
+  'thisWeek' : IDL.Vec(DashTask),
+  'late' : IDL.Vec(DashTask),
+  'instructions' : IDL.Nat,
+  'counters' : DashCounters,
+  'monday' : Day,
+  'works' : IDL.Vec(DashWork),
+});
 export const FileView = IDL.Record({
   'at' : IDL.Int,
   'id' : IDL.Nat,
@@ -389,13 +466,6 @@ export const Absence = IDL.Record({
   'updatedBy' : PersonId,
   'personId' : IDL.Opt(PersonId),
   'archivedAt' : IDL.Opt(IDL.Int),
-});
-export const TaskStatus = IDL.Variant({
-  'delayed' : IDL.Null,
-  'busy' : IDL.Null,
-  'done' : IDL.Null,
-  'blocked' : IDL.Null,
-  'planned' : IDL.Null,
 });
 export const TaskKind = IDL.Variant({
   'work' : IDL.Null,
@@ -1491,7 +1561,6 @@ export const PlannedOrg = IDL.Record({
   'code' : IDL.Text,
   'name' : IDL.Text,
 });
-export const PersonRef = IDL.Record({ 'id' : PersonId, 'name' : IDL.Text });
 export const DayTask = IDL.Record({
   'id' : IDL.Nat,
   'end' : Day,
@@ -1960,6 +2029,7 @@ export const idlService = IDL.Service({
     ),
   'createTicket' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_19], []),
   'createWork' : IDL.Func([WorkInput], [Result], []),
+  'dashboard' : IDL.Func([IDL.Nat], [DashboardView], ['query']),
   'decideProposal' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_4], []),
   'endMembership' : IDL.Func([IDL.Nat], [Result_4], []),
   'exportConfidential' : IDL.Func([], [ExportConfidential], []),
@@ -2382,6 +2452,83 @@ export const idlFactory = ({ IDL }) => {
     'archivedAt' : IDL.Opt(IDL.Int),
   });
   const Result = IDL.Variant({ 'ok' : WorkView, 'err' : IDL.Text });
+  const DashConfirm = IDL.Record({
+    'end' : Day,
+    'orgName' : IDL.Text,
+    'taskTitle' : IDL.Text,
+    'start' : Day,
+    'taskId' : IDL.Nat,
+    'assignmentId' : IDL.Nat,
+    'workId' : WorkId,
+    'declined' : IDL.Bool,
+    'workCode' : IDL.Text,
+    'reason' : IDL.Text,
+  });
+  const PersonRef = IDL.Record({ 'id' : PersonId, 'name' : IDL.Text });
+  const TaskStatus = IDL.Variant({
+    'delayed' : IDL.Null,
+    'busy' : IDL.Null,
+    'done' : IDL.Null,
+    'blocked' : IDL.Null,
+    'planned' : IDL.Null,
+  });
+  const DashTask = IDL.Record({
+    'end' : Day,
+    'status' : TaskStatus,
+    'title' : IDL.Text,
+    'percent' : IDL.Nat,
+    'start' : Day,
+    'taskId' : IDL.Nat,
+    'lateDays' : IDL.Nat,
+    'orgNames' : IDL.Vec(IDL.Text),
+    'workId' : WorkId,
+    'workCode' : IDL.Text,
+  });
+  const DashCounters = IDL.Record({
+    'delayed' : IDL.Nat,
+    'confirmDeclined' : IDL.Nat,
+    'permitsThisMonth' : IDL.Opt(IDL.Nat),
+    'confirmOpen' : IDL.Nat,
+    'openIssues' : IDL.Nat,
+    'running' : IDL.Nat,
+    'missingReports' : IDL.Nat,
+  });
+  const DashWork = IDL.Record({
+    'id' : WorkId,
+    'end' : IDL.Opt(Day),
+    'status' : WorkStatus,
+    'delayed' : IDL.Bool,
+    'tasksLate' : IDL.Nat,
+    'confirmDeclined' : IDL.Nat,
+    'leaderId' : IDL.Opt(PersonId),
+    'confirmOpen' : IDL.Nat,
+    'city' : IDL.Text,
+    'code' : IDL.Text,
+    'name' : IDL.Text,
+    'percent' : IDL.Nat,
+    'leaderName' : IDL.Text,
+    'start' : IDL.Opt(Day),
+    'warnings' : IDL.Vec(IDL.Text),
+    'tasksThisWeek' : IDL.Nat,
+    'tasksDelayed' : IDL.Nat,
+    'tasksTotal' : IDL.Nat,
+    'openIssues' : IDL.Nat,
+    'nextMilestone' : IDL.Opt(IDL.Tuple(IDL.Text, Day)),
+    'parentId' : IDL.Opt(WorkId),
+    'lastReport' : IDL.Opt(Day),
+    'missingReport' : IDL.Opt(Day),
+  });
+  const DashboardView = IDL.Record({
+    'day' : Day,
+    'confirmations' : IDL.Vec(DashConfirm),
+    'leaders' : IDL.Vec(PersonRef),
+    'thisWeek' : IDL.Vec(DashTask),
+    'late' : IDL.Vec(DashTask),
+    'instructions' : IDL.Nat,
+    'counters' : DashCounters,
+    'monday' : Day,
+    'works' : IDL.Vec(DashWork),
+  });
   const FileView = IDL.Record({
     'at' : IDL.Int,
     'id' : IDL.Nat,
@@ -2492,13 +2639,6 @@ export const idlFactory = ({ IDL }) => {
     'updatedBy' : PersonId,
     'personId' : IDL.Opt(PersonId),
     'archivedAt' : IDL.Opt(IDL.Int),
-  });
-  const TaskStatus = IDL.Variant({
-    'delayed' : IDL.Null,
-    'busy' : IDL.Null,
-    'done' : IDL.Null,
-    'blocked' : IDL.Null,
-    'planned' : IDL.Null,
   });
   const TaskKind = IDL.Variant({
     'work' : IDL.Null,
@@ -3588,7 +3728,6 @@ export const idlFactory = ({ IDL }) => {
     'code' : IDL.Text,
     'name' : IDL.Text,
   });
-  const PersonRef = IDL.Record({ 'id' : PersonId, 'name' : IDL.Text });
   const DayTask = IDL.Record({
     'id' : IDL.Nat,
     'end' : Day,
@@ -4055,6 +4194,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'createTicket' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_19], []),
     'createWork' : IDL.Func([WorkInput], [Result], []),
+    'dashboard' : IDL.Func([IDL.Nat], [DashboardView], ['query']),
     'decideProposal' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_4], []),
     'endMembership' : IDL.Func([IDL.Nat], [Result_4], []),
     'exportConfidential' : IDL.Func([], [ExportConfidential], []),

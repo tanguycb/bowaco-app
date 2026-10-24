@@ -73,4 +73,8 @@ await measure("weekBoard 6 weken, een jaar later", () => admin.weekBoard(bq({ fr
 await measure("boardConflicts 6 weken (Vraagt aandacht)", () => admin.boardConflicts(monday, 6n, 50n));
 const w1 = ex.works.find((w) => w.code === "S-001");
 await measure("workConflicts S-001, 12 weken (werfpagina)", () => admin.workConflicts(w1.id, monday, 12n));
+// 1.8: het dashboard rekent over alle werven, taken, toewijzingen en verslagen.
+await measure("dashboard (alle werven, 1.8)", () => admin.dashboard(today));
+// 1.6: Vandaag voor alle werven van vandaag.
+await measure("myDay alle werven (1.6)", () => admin.myDay(today, true));
 console.log(`(antwoordgrens van een query: 3 MiB; ${r6.rows.length} rijen in de eerste pagina)`);

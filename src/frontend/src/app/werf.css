@@ -70,3 +70,20 @@
 .a-bell--on { background: var(--bw-accent); color: var(--bw-on-accent, #fff); }
 .a-strong { font-weight: 600; }
 .a-side .a-row--tight { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+/* Dashboard (1.8, bouwplan §8.4) */
+.d-counters { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.d-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.d-filters .bw-field { min-width: 200px; }
+.d-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.d-card { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.d-card:hover { border-color: var(--bw-line-strong); }
+.d-card--late { border-left: 4px solid var(--bw-st-delayed); }
+.d-card__head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.d-card__name { font-size: var(--bw-fs-md); line-height: 1.25; }
+.d-card__stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--bw-fs-xs); color: var(--bw-ink-2); }
+.d-card__warn { font-size: var(--bw-fs-xs); color: var(--bw-st-delayed); display: flex; gap: 4px; align-items: flex-start; }
+.d-warn { color: var(--bw-st-delayed); }
+.d-bar { display: block; height: 6px; border-radius: 3px; background: var(--bw-sunken); overflow: hidden; }
+.d-bar > span { display: block; height: 100%; background: var(--bw-accent); }
+@media (max-width: 899px) { .d-counters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

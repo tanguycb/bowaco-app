@@ -29,6 +29,7 @@ if (A === undefined || B === undefined || !orgDak) throw new Error("P-A/P-B of P
 // Rechten van Proef Dak NV op P-A (lid als firma): planning en uren bevestigen aan.
 const memA = (await wl.listMembers(A)).find((m) => m.orgId[0] === orgDak.id && "onderaannemer" in m.role && m.endedAt.length === 0);
 check("Proef Dak NV is als firma lid van P-A", !!memA);
+const before = memA.grants;
 check("calculator en OA zetten geen rechten", (await rejects(calc.setMemberGrants(memA.id, []))) && (await rejects(oa2.setMemberGrants(memA.id, []))));
 check("werfleider zet 'planning en uren bevestigen' voor Proef Dak NV op P-A", isOk(await wl.setMemberGrants(memA.id, [{ confirmPlanning: null }, { confirmHours: null }])));
 // Mijn uren en bevestigen
@@ -57,5 +58,6 @@ const inv = await wl.inviteExistingPerson({ personId: cp.id, workIds: [A], valid
 check("werfleider nodigt de bestaande contactpersoon uit voor P-A (geen nieuwe persoon)", isOk(inv) && inv.ok.personId === cp.id, errOf(inv));
 if (isOk(inv)) check("de proefcode wordt meteen ingetrokken (niets bruikbaars achterlaten)", isOk(await admin.revokeInvite(inv.ok.inviteId)));
 check("de admin kreeg een melding van de uitnodiging", (await admin.myNotifications(false)).some((n) => n.kind === "uitnodiging" && n.text.includes("Proef Contact 1.7")));
+check("rechten van Proef Dak NV op P-A teruggezet zoals ze waren", isOk(await wl.setMemberGrants(memA.id, before)));
 console.log(`\n${pass} ✓  ${fail} ✗`);
 process.exit(fail ? 1 : 0);
