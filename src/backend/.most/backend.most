@@ -493,6 +493,7 @@ type DossierState__7485337 =
     documents : Map__230067015<Nat, Document__661322582>;
     info : Map__230067015<WorkId__838834227, WorkInfo__968164740>
   };
+type Extra__1018104949 = [(Text, Text)];
 type Extra__268650993 = [(Text, Text)];
 type Extra__365037972 = [(Text, Text)];
 type Extra__459120016 = [(Text, Text)];
@@ -815,6 +816,42 @@ type Lookup__440791825 =
     order : Nat;
     tag : Text
   };
+type MailLog__188710171 =
+  {
+    at : Int;
+    attempt : Nat;
+    cycles : Nat;
+    extra : Extra__1018104949;
+    id : Nat;
+    jobId : Nat;
+    key : Text;
+    kind : Text;
+    lang : Text;
+    orgId : ?OrgId__331006062;
+    outcome : MailOutcome__898356228;
+    recipients : Nat;
+    test : Bool
+  };
+type MailLog__213783183 =
+  {
+    at : Int;
+    attempt : Nat;
+    cycles : Nat;
+    extra : Extra__945213800;
+    id : Nat;
+    jobId : Nat;
+    key : Text;
+    kind : Text;
+    lang : Text;
+    orgId : ?OrgId__17031398;
+    outcome : MailOutcome__28833086;
+    recipients : Nat;
+    test : Bool
+  };
+type MailOutcome__28833086 = {#dryRun; #failed : Text; #sent; #unsure : Text};
+type MailOutcome__898356228 =
+  {#dryRun; #failed : Text; #sent; #unsure : Text};
+type MailState__347325858 = {log : Map__230067015<Nat, MailLog__188710171>};
 type Map__230067015<K, V> = Map__405889023<K, V>;
 type Map__405889023<K, V> = Map__603270868<K, V>;
 type Map__603270868<K, V> =
@@ -953,6 +990,7 @@ type NewActor__473839593 = {wadm : WadmState__864899804};
 type NewActor__542837279 = {reports : ReportState__211051397};
 type NewActor__914032600 = {oa : OaState__978871092};
 type NewActor__918578615 = {permits : PermitState__160097102};
+type NewActor__984285705 = {mail : MailState__347325858};
 type Node__204828119<K, V> =
   {#internal : Internal__283199666<K, V>; #leaf : Leaf__598469445<K, V>};
 type Notification__1016009815 =
@@ -992,6 +1030,7 @@ type OldActor__415128861 = {};
 type OldActor__430767433 = {};
 type OldActor__574962007 = {};
 type OldActor__669130419 = {};
+type OldActor__804964816 = {};
 type OldActor__853471898 = {};
 type OpRecord__50968246 =
   {
@@ -1057,6 +1096,7 @@ type OrgId__168115520 = Nat;
 type OrgId__17031398 = Nat;
 type OrgId__208183745 = Nat;
 type OrgId__232449879 = Nat;
+type OrgId__331006062 = Nat;
 type OrgId__370186017 = Nat;
 type OrgId__579572044 = Nat;
 type OrgId__875663865 = Nat;
@@ -1962,7 +2002,8 @@ type WorksState__605582232 =
   "20261024_120000" : OldActor__430767433 -> NewActor__542837279;
   "20261024_150000" : OldActor__669130419 -> NewActor__918578615;
   "20261024_180000" : OldActor__285002242 -> NewActor__127410502;
-  "20261024_210000" : OldActor__853471898 -> NewActor__473839593
+  "20261024_210000" : OldActor__853471898 -> NewActor__473839593;
+  "20261024_230000" : OldActor__804964816 -> NewActor__984285705
 }
 actor  {
   stable access :
@@ -2007,6 +2048,7 @@ actor  {
       batches : Map__230067015<Text, ImportBatch__918829545>;
       keys : Map__230067015<Text, ImportKey__605447614>
     };
+  stable mail : {log : Map__230067015<Nat, MailLog__213783183>};
   stable oa :
     {
       orgContacts : Map__230067015<OrgId__17031398, OrgContact__539818738>;
