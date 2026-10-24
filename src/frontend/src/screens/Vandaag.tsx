@@ -11,6 +11,7 @@ import { fmtDayNum, todayDay, useBackend } from "../util";
 import { Loading, Page, WorkBadge } from "./common";
 import { IssueAttention } from "./Verslagen";
 import { BoardAttention } from "./Weekbord";
+import { PermitsOnSite } from "./Vergunningen";
 
 const V = t.vandaag;
 const ALL_KEY = "bw-vandaag-alle";
@@ -45,6 +46,7 @@ export function Vandaag({ go, caps }: { go: (to: string) => void; caps: Caps }) 
       <div className="v-cards">
         {works.map((w) => <WorkCard key={String(w.id)} w={w} day={day} go={go} />)}
       </div>
+      {caps.permits && <PermitsOnSite />}
       {caps.readOrgPlanning && (
         <section className="a-section">
           <h2 className="bw-h2">{t.overzicht.attention}</h2>

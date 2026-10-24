@@ -58,6 +58,10 @@ const issDone = ex.issues?.find((i) => "handled" in i.status);
 const attDak = ex.attendances?.find((a) => a.orgId[0] === orgDak?.id && a.archivedAt.length === 0);
 const dakMayConfirm = !!attDak && ex.memberships.some((m) => m.workId === attDak.workId && m.endedAt.length === 0 && "onderaannemer" in m.role && (m.orgId[0] === orgDak?.id) && m.grants.some((g) => "confirmHours" in g));
 const memDakB = ex.memberships.find((m) => m.workId === B && "onderaannemer" in m.role && m.personId.length === 1 && m.endedAt.length === 0);
+// 1b.1: een lopende vergunning op B en een gearchiveerde (rollentest of tests/vergunning-draft.mjs)
+const pmB = ex.permits?.find((x) => x.workId === B && x.archivedAt.length === 0);
+const pmGone = ex.permits?.find((x) => x.archivedAt.length === 1);
+if (!pmB || !pmGone) throw new Error("eerst tests/rollen.mjs (lokaal) of tests/vergunning-draft.mjs (draft) draaien: geen vergunningen");
 if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone || !repA || !issDone || !attDak || !memDakB) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
 const someone = identity("proef-lek-onbekend").getPrincipal();
@@ -214,6 +218,24 @@ const table = {
   inviteExistingPerson: [["admin", "werfleider"], () => [{ personId: X, workIds: [], validDays: 0n, tag: "" }]],
   // 1.8 dashboard: interne rollen (een werfleider zonder "ziet alles" enkel zijn werven)
   dashboard: [INTERNAL, () => [20_000n]],
+  // 1b.1 vergunningen (R13): lezen per werf = intern zonder de calculator + architect/OA/VC als lid (B: OA Dak);
+  // wijzigen admin en werfleider; de lijst en de gsm admin en werfleider; de kennisbank intern, aanvullen admin en
+  // werfleider; soorten, regels en de meldronde enkel admin. Argumenten botsen daarna op een invoerfout.
+  listPermitKinds: [INTERNAL, () => [false]],
+  setPermitKind: [ADMIN, () => [{ key: "", name: "", leadDays: 0n, words: [], publicDomain: false, order: 0n, archived: false }]],
+  permitRules: [INTERNAL, () => []],
+  setPermitRules: [ADMIN, () => [{ warnDays: 0n, expiryDays: 0n }]],
+  scanPermits: [ADMIN, () => []],
+  workPermits: [["admin", "werfleider", "oa"], () => [B]],
+  savePermit: [["admin", "werfleider"], () => [B, { id: [], kind: "bestaat-niet", title: "", municipalityId: [], status: { needed: null }, location: "", taskIds: [], neededFrom: [], neededTo: [], leadDays: [], requestedOn: [], validFrom: [], validTo: [], reference: "", costCents: [], note: "" }]],
+  attachPermitFile: [["admin", "werfleider"], () => [pmB.id, X]], // daarna "Onbekend bestand"
+  archivePermit: [["admin", "werfleider"], () => [pmGone.id, ""]], // al gearchiveerd: er verandert niets
+  permitHistory: [["admin", "werfleider", "oa"], () => [pmB.id]],
+  listPermits: [["admin", "werfleider"], () => ["alles", []]],
+  permitsOnSite: [["admin", "werfleider"], () => [20_000n]],
+  listMunicipalities: [INTERNAL, () => [false]],
+  saveMunicipality: [["admin", "werfleider"], () => [{ id: [], name: "", zips: [], portal: [], email: [], phone: [], contact: "", notes: "", archived: false }]],
+  saveProcedure: [["admin", "werfleider"], () => [{ municipalityId: X, kind: "", how: "", portal: [], email: [], leadDays: 0n, cost: "", attachments: [], contact: "", notes: "", archived: false }]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

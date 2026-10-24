@@ -21,7 +21,8 @@ const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin"
 const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A")?.id;
 if (A === undefined) throw new Error("werf P-A ontbreekt: eerst tests/rollen.mjs op deze canister");
-check("versie 1.1 of later op de canister", /^1\.[1-9]/.test((await admin.me()).version), (await admin.me()).version);
+const v11 = (await admin.me()).version;
+check("versie 1.1 of later op de canister", /^1b\.|^[2-9]\.|^1\.[1-9]/.test(v11), v11);
 
 const cur = await calc.readContract(A);
 check("calculator leest het contract van P-A (update-call)", isOk(cur), errOf(cur));

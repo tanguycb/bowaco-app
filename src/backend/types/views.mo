@@ -47,6 +47,10 @@ module {
     writeReports : Bool; // werfverslagen schrijven (1.6: admin, werfleider)
     manageVehicles : Bool; // voertuigen beheren (1.6: admin)
     readTrips : Bool; // ritten lezen (1.6, R14: admin alle, werfleider de zijne)
+    permits : Bool; // 1b.1: vergunningen over alle werven (admin, werfleider)
+    readMunicipalities : Bool; // 1b.1: kennisbank per gemeente lezen (interne rollen)
+    manageMunicipalities : Bool; // 1b.1: kennisbank aanvullen (admin, werfleider)
+    managePermitKinds : Bool; // 1b.1: vergunningssoorten (admin)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -795,6 +799,12 @@ module {
     planVersions : [(WorkId, Nat)];
     reportKeys : [(Text, Nat)]; // sleutel van een toestel → verslag
     ops : [Types.OpRecord]; // uitgevoerde offline-opdrachten (hoogstens 60 dagen)
+    // 1b.1: vergunningen, hun wijzigingen, de kennisbank en de meldingen die al verstuurd zijn
+    permits : [Types.Permit];
+    permitChanges : [Types.PermitChange];
+    municipalities : [Types.Municipality];
+    procedures : [Types.PermitProcedure];
+    permitAlerts : [(Text, Int)];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -853,6 +863,11 @@ module {
     #notifications : [NotificationExport];
     #audit : [Types.AuditEntry];
     #counters : [(Text, Nat)];
+    #permits : [Types.Permit]; // 1b.1
+    #permitChanges : [Types.PermitChange];
+    #municipalities : [Types.Municipality];
+    #procedures : [Types.PermitProcedure];
+    #permitAlerts : [(Text, Int)];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -1156,7 +1171,7 @@ module {
     confirmDeclined : Nat;
     openIssues : Nat;
     missingReports : Nat;
-    permitsThisMonth : ?Nat; // vergunningen komen in fase 1b: null
+    permitsThisMonth : ?Nat; // 1b.1: vergunningen die aandacht vragen (deadline, verloopt, planning schoof); null = geen recht
   };
   public type DashboardView = {
     day : Day;
@@ -1169,4 +1184,123 @@ module {
     leaders : [PersonRef];
     instructions : Nat;
   };
+
+  // ── Vergunningen (1b.1) ─────────────────────────────────────────────────
+  // Een soort (D9: keuzelijst, de admin past ze aan). words = woorden in een taak die de vergunning vragen
+  // ("container", "kraan"); leadDays = doorlooptijd als de kennisbank niets weet; publicDomain = op de openbare weg.
+  public type PermitKindView = { key : Text; name : Text; leadDays : Nat; words : [Text]; publicDomain : Bool; order : Nat; archived : Bool };
+
+  // Waarom een vergunning aandacht vraagt (berekend, niets bewaard).
+  public type PermitWarning = {
+    #deadlineSoon : Int; // dagen tot de uiterste aanvraagdag
+    #deadlinePassed : Int; // dagen te laat
+    #noDates; // geen taken en geen periode: geen deadline te berekenen
+    #refused;
+    #noDocument; // toegekend maar de vergunning zelf staat er niet in (bewijs bij controle)
+    #expiresSoon : Int; // dagen tot het einde, terwijl ze daarna nog nodig is
+    #expired; // geldigheid voorbij terwijl ze nog nodig is
+    #outsidePlan : { neededFrom : Day; neededTo : Day }; // de planning schoof buiten de geldige periode
+  };
+
+  public type PermitView = {
+    id : Nat;
+    workId : WorkId;
+    workCode : Text;
+    workName : Text;
+    kind : Text;
+    kindName : Text;
+    title : Text;
+    municipalityId : ?Nat;
+    municipalityName : Text;
+    status : Types.PermitStatus; // #expired = berekend (geldig tot < vandaag)
+    location : Text;
+    taskIds : [Nat];
+    taskTitles : [Text];
+    neededFrom : ?Day; // berekend uit de taken (start van de eerste, einde van de laatste) of met de hand
+    neededTo : ?Day;
+    manualFrom : ?Day;
+    manualTo : ?Day;
+    leadDays : Nat;
+    deadline : ?Day; // uiterste aanvraagdag = neededFrom − doorlooptijd
+    requestedOn : ?Day;
+    validFrom : ?Day;
+    validTo : ?Day;
+    reference : Text;
+    costCents : ?Int; // enkel interne rollen
+    note : Text; // enkel interne rollen
+    files : [FileView];
+    warnings : [PermitWarning];
+    updatedAt : Int;
+    updatedByName : Text;
+    canEdit : Bool;
+  };
+
+  public type PermitInput = {
+    id : ?Nat;
+    kind : Text;
+    title : Text;
+    municipalityId : ?Nat;
+    status : Types.PermitStatus;
+    location : Text;
+    taskIds : [Nat];
+    neededFrom : ?Day;
+    neededTo : ?Day;
+    leadDays : ?Nat; // null = uit de kennisbank of de soort
+    requestedOn : ?Day;
+    validFrom : ?Day;
+    validTo : ?Day;
+    reference : Text;
+    costCents : ?Int;
+    note : Text;
+  };
+
+  // "Uit de planning": een taak waarvan de titel een woord van een soort bevat, zonder vergunning van die soort.
+  public type PermitSuggestion = { taskId : Nat; taskTitle : Text; start : Day; end : Day; kind : Text; kindName : Text; leadDays : Nat; deadline : Day };
+
+  public type PermitProcedureView = {
+    municipalityId : Nat;
+    kind : Text;
+    kindName : Text;
+    how : Text;
+    portal : ?Text;
+    email : ?Text;
+    leadDays : Nat;
+    cost : Text;
+    attachments : [Text];
+    contact : Text;
+    notes : Text;
+    updatedAt : Int;
+    updatedByName : Text;
+  };
+
+  public type MunicipalityView = {
+    id : Nat;
+    name : Text;
+    zips : [Text];
+    portal : ?Text;
+    email : ?Text;
+    phone : ?Text;
+    contact : Text;
+    notes : Text;
+    procedures : [PermitProcedureView];
+    permitCount : Nat; // vergunningen in de app voor deze gemeente
+    updatedAt : Int;
+    updatedByName : Text;
+    archived : Bool;
+  };
+
+  public type MunicipalityInput = { id : ?Nat; name : Text; zips : [Text]; portal : ?Text; email : ?Text; phone : ?Text; contact : Text; notes : Text; archived : Bool };
+  public type ProcedureInput = { municipalityId : Nat; kind : Text; how : Text; portal : ?Text; email : ?Text; leadDays : Nat; cost : Text; attachments : [Text]; contact : Text; notes : Text; archived : Bool };
+
+  // De vergunningen van één werf: met de suggesties uit de planning en de gemeente die bij het werfadres past.
+  public type WorkPermitsView = {
+    workId : WorkId;
+    permits : [PermitView];
+    suggestions : [PermitSuggestion];
+    municipality : ?MunicipalityView;
+    kinds : [PermitKindView];
+    canEdit : Bool;
+  };
+
+  public type PermitChangeView = { at : Int; byName : Text; field : Text; from : Text; to : Text };
 };

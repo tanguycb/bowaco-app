@@ -28,6 +28,7 @@ import { OutboxSheet } from "../screens/Verslagen";
 import { MijnUren } from "../screens/Extern";
 import { Bell } from "../screens/Meldingen";
 import { DashboardPage } from "../screens/Dashboard";
+import { GemeentenPage, VergunningenPage } from "../screens/Vergunningen";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -149,6 +150,9 @@ function navFor(caps: Caps): NavItem[] {
   // 1.8: het dashboard voor kantoor (de admin heeft het op zijn startscherm Overzicht).
   if (caps.readOrgPlanning && caps.home !== "overzicht") items.push({ key: "dashboard", label: t.nav.dashboard, icon: "grid" });
   if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
+  // 1b.1: vergunningen over alle werven (admin, werfleider) en de kennisbank per gemeente (interne rollen).
+  if (caps.permits) items.push({ key: "vergunningen", label: t.nav.vergunningen, icon: "permit" });
+  if (caps.readMunicipalities) items.push({ key: "gemeenten", label: t.nav.gemeenten, icon: "pin" });
   if (caps.readTeam) items.push({ key: "team", label: t.nav.team, icon: "people" });
   if (caps.inviteExternal || caps.manageAccess) items.push({ key: "codes", label: t.nav.codes, icon: "key" });
   if (caps.readOa) items.push({ key: "onderaannemers", label: t.nav.onderaannemers, icon: "building" });
@@ -197,6 +201,8 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "uren": return <MijnUren />;
       case "dashboard": return <DashboardPage go={go} />;
       case "weekbord": return <Weekbord key={window.location.hash} caps={caps} go={go} />;
+      case "vergunningen": return <VergunningenPage caps={caps} go={go} />;
+      case "gemeenten": return <GemeentenPage caps={caps} />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;
       case "onderaannemers": return <Onderaannemers caps={caps} />;

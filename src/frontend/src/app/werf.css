@@ -87,3 +87,13 @@
 .d-bar { display: block; height: 6px; border-radius: 3px; background: var(--bw-sunken); overflow: hidden; }
 .d-bar > span { display: block; height: 100%; background: var(--bw-accent); }
 @media (max-width: 899px) { .d-counters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 1b.1 vergunningen: waarschuwingsregel in een lijst, taken kiezen, de vergunning tonen (bewijs bij controle) */
+.a-warnline { display: flex; align-items: center; gap: 4px; font-size: var(--bw-fs-sm); color: var(--bw-st-delayed); }
+.a-hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: var(--bw-fs-sm); color: var(--bw-ink-2); }
+.p-tasks { display: grid; gap: 2px; max-height: 260px; overflow-y: auto; border: 1px solid var(--bw-line); border-radius: var(--bw-radius); padding: 6px 10px; }
+.p-task { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-size: var(--bw-fs-sm); cursor: pointer; }
+.p-task input { margin-top: 3px; }
+.p-proof { display: grid; gap: 12px; }
+.p-proof .bw-h1 { margin: 0; }
+.p-proof__img { width: 100%; height: auto; border: 1px solid var(--bw-line); border-radius: var(--bw-radius); background: var(--bw-surface); }

@@ -54,8 +54,12 @@ async function exportAll(cid, dir) {
     }
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
+  // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts"];
+  const partOpt = async (k) => { try { return await part(k); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
+  for (const k of LATER) intern[k] = await partOpt(k);
   const vertrouwelijk = { at: intern.at, orgs: await part("orgConfidential"), persons: await part("personConfidential"), files: await part("confidentialFiles"), workConfidential: await part("workConfidential"), workConfidentialHistory: await part("workConfidentialHistory") };
   // Auditlog in stukken (nieuwste eerst) → chronologisch bewaren. De log groeit tijdens het lezen (elke
   // export-oproep schrijft een regel), dus dubbels eruit en op tijd sorteren.
@@ -163,6 +167,11 @@ async function restoreAll(cid, dir) {
   await send("robots", intern.robots);
   await send("proposals", intern.proposals, 50);
   await send("notifications", intern.notifications, 300);
+  await send("municipalities", intern.municipalities ?? []);
+  await send("procedures", intern.procedures ?? []);
+  await send("permits", intern.permits ?? []);
+  await send("permitChanges", intern.permitChanges ?? [], 300);
+  await send("permitAlerts", intern.permitAlerts ?? [], 500);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -230,6 +239,11 @@ function normalize(intern, vertrouwelijk, audit) {
     robots: byKey(intern.robots, (x) => x.principal.toText()),
     proposals: byKey(intern.proposals, id),
     notifications: byKey(intern.notifications, id),
+    permits: byKey(intern.permits ?? [], id),
+    permitChanges: byKey(intern.permitChanges ?? [], id),
+    municipalities: byKey(intern.municipalities ?? [], id),
+    procedures: byKey(intern.procedures ?? [], (x) => [x.municipalityId, x.kind]),
+    permitAlerts: byKey(intern.permitAlerts ?? [], (x) => x[0]),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),

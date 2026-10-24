@@ -39,6 +39,8 @@ module {
     // 1.6: werfverslag. #reportWriter = wie überhaupt verslagen schrijft (poort van de offline-opdrachten);
     // per werf beslist #writeReport. Voertuigen: interne rollen lezen, admin beheert. Problemen afhandelen.
     #reportWriter; #readVehicles; #manageVehicles; #handleIssues;
+    // 1b.1: vergunningen over alle werven (lijst, gsm), de kennisbank per gemeente, de vergunningssoorten.
+    #permitsOverview; #readMunicipalities; #manageMunicipalities; #managePermitKinds;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -180,6 +182,13 @@ module {
       case (#manageVehicles) admin;
       // Een gemeld probleem of een vertraging afhandelen: wie de planning van die werf beheert.
       case (#handleIssues) on(func w = admin or leaderOn(ctx, p, w));
+      // 1b.1 (R13): de lijst van alle vergunningen en "vergunning op de gsm" voor wie vergunningen beheert;
+      // per werf beslissen #readPermits/#editPermits hierboven. De kennisbank (procedures, doorlooptijden, contacten
+      // van de gemeente) is intern: interne rollen lezen, admin en werfleider vullen aan; de soorten: admin (R17).
+      case (#permitsOverview) admin or wl;
+      case (#readMunicipalities) internal(p);
+      case (#manageMunicipalities) admin or wl;
+      case (#managePermitKinds) admin;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -434,6 +443,10 @@ module {
       writeReports = may(ctx, p, #reportWriter, null);
       manageVehicles = may(ctx, p, #manageVehicles, null);
       readTrips = may(ctx, p, #readTrips, null);
+      permits = may(ctx, p, #permitsOverview, null);
+      readMunicipalities = may(ctx, p, #readMunicipalities, null);
+      manageMunicipalities = may(ctx, p, #manageMunicipalities, null);
+      managePermitKinds = may(ctx, p, #managePermitKinds, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

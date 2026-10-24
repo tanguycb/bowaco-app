@@ -24,7 +24,7 @@ const today = BigInt(Math.floor(Date.now() / 86_400_000));
 
 const [admin, wl, calc, arch, oa2, klant, vc, robot] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-architect", "proef-oa2", "proef-klant", "proef-vc", "robot-test"].map((n) => backend(n, cid)));
 const me = await admin.me();
-check("versie 1.9 of later op de canister", /^1\.(9|1\d)/.test(me.version), me.version);
+check("versie 1.9 of later op de canister", /^1\.(9|1\d)|^1b\.|^[2-9]\./.test(me.version), me.version);
 const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A")?.id;
 const B = works.find((w) => w.code === "P-B")?.id;

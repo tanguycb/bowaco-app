@@ -23,7 +23,7 @@ const big = (_, v) => (typeof v === "bigint" ? v.toString() : v);
 const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-architect", "proef-oa2", "proef-klant", "proef-vc"].map((n) => backend(n, cid)));
 const anon = await backend(null, cid);
 const me = await admin.me();
-check("versie 1.5 of later op de canister", /^1\.5/.test(me.version) || /^1\.[6-9]/.test(me.version), me.version);
+check("versie 1.5 of later op de canister", (/^1b\.|^[2-9]\./.test(me.version) || /^1\.5/.test(me.version) || /^1\.[6-9]/.test(me.version)), me.version);
 
 // Rechten
 const blk = { key: "d15-rechten", name: "Rechten", street: "", number: "", zip: "", city: "", vatBp: 600n, decision: { fresh: null }, tasks: [] };

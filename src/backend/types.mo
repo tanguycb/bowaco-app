@@ -880,6 +880,89 @@ module {
     values : Map.Map<Text, Text>; // kleine vlaggen zonder migratie (D8)
   };
 
+  // ── Vergunningen (stap 1b.1, architectuur §2.8, bouwplan §5.3) ───────────
+  // Eigen domein `permits` (nieuw stabiel veld, deelvorm, OldActor = {}). Soorten zijn keuzelijsten (D9:
+  // settings.lookups "permitKind:<sleutel>"); de kennisbank per gemeente en de procedures per soort staan hier.
+  // Records zijn onveranderlijk: wijzigen = vervangen + een PermitChange per veld (D2). "Verlopen" wordt
+  // berekend (geldig tot < vandaag), nooit bewaard.
+  public type PermitStatus = { #needed; #requested; #granted; #refused; #expired; #extended; #cancelled };
+
+  // klasse: intern (de kost is een kost van BOWACO, geen aankoopprijs van een OA: intern, externen zien ze niet)
+  public type Permit = {
+    id : Nat;
+    workId : WorkId;
+    kind : Text; // sleutel uit de vergunningssoorten
+    title : Text; // "Container voor de deur"
+    municipalityId : ?Nat;
+    status : PermitStatus;
+    location : Text; // "voor nr. 10, 2 parkeerplaatsen"
+    taskIds : [Nat]; // taken in de planning die de vergunning vragen (deadline = start − doorlooptijd)
+    neededFrom : ?Day; // zonder taken: de periode met de hand
+    neededTo : ?Day;
+    leadDays : Nat; // doorlooptijd in kalenderdagen (uit de kennisbank, aanpasbaar)
+    requestedOn : ?Day;
+    validFrom : ?Day;
+    validTo : ?Day;
+    reference : Text; // dossiernummer van de gemeente
+    costCents : ?Int;
+    fileIds : [Nat]; // de vergunning zelf (PDF of foto), de laatste is de actuele: bewijs bij controle
+    note : Text; // intern
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern, append-only (D2): wat er aan een vergunning veranderde.
+  public type PermitChange = { id : Nat; permitId : Nat; workId : WorkId; at : Int; by : PersonId; field : Text; from : Text; to : Text };
+
+  // klasse: intern. De kennisbank: één fiche per gemeente (algemene gegevens), de procedures per soort apart.
+  public type Municipality = {
+    id : Nat;
+    name : Text;
+    zips : [Text]; // postcodes van de gemeente (deelgemeenten): zo vindt een werf zijn gemeente
+    portal : ?Text; // algemeen loket of portaal (URL)
+    email : ?Text;
+    phone : ?Text;
+    contact : Text; // dienst of persoon
+    notes : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern. Sleutel "<gemeente-id>:<soort>". Groeit met elke aanvraag.
+  public type PermitProcedure = {
+    municipalityId : Nat;
+    kind : Text;
+    how : Text; // "portaal" · "e-mail" · "loket" · "andere"
+    portal : ?Text;
+    email : ?Text;
+    leadDays : Nat; // doorlooptijd in kalenderdagen
+    cost : Text; // "€ 25 + € 2/m²/dag" (vrije tekst: elke gemeente rekent anders)
+    attachments : [Text]; // "situatieschets", "signalisatieplan", …
+    contact : Text;
+    notes : Text;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  public type PermitState = {
+    permits : Map.Map<Nat, Permit>;
+    changes : Map.Map<Nat, PermitChange>;
+    municipalities : Map.Map<Nat, Municipality>;
+    procedures : Map.Map<Text, PermitProcedure>;
+    // Meldingen die al verstuurd zijn (sleutel = vergunning/taak + soort + dag): de timer meldt elk ding één keer.
+    alerts : Map.Map<Text, Int>;
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

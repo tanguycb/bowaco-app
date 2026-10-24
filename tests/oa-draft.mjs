@@ -22,7 +22,7 @@ const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin"
 const anon = await backend(null, cid);
 const f = (o = {}) => ({ text: opt(o.text), trade: opt(o.trade), kind: opt(o.kind ? { [o.kind]: null } : undefined), includeArchived: false });
 const me = await admin.me();
-check("versie 1.2 of later op de canister", /^1\.[2-9]/.test(me.version), me.version);
+check("versie 1.2 of later op de canister", (/^1b\.|^[2-9]\./.test(me.version) || /^1\.[2-9]/.test(me.version)), me.version);
 
 // Rechten
 const trd = await admin.listTrades(false);

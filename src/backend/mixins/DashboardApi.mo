@@ -18,6 +18,7 @@ import Types "../types";
 import Views "../types/views";
 import Access "../lib/Access";
 import Config "../lib/Config";
+import Permits "../lib/Permits";
 import Plan "../lib/Plan";
 import Reports "../lib/Reports";
 import Rights "../lib/Rights";
@@ -29,6 +30,7 @@ mixin (
   works : Types.WorksState,
   plan : Types.PlanState,
   reports : Types.ReportState,
+  permits : Types.PermitState,
 ) {
 
   public query ({ caller }) func dashboard(day : Nat) : async Views.DashboardView {
@@ -215,7 +217,7 @@ mixin (
     {
       day;
       monday;
-      counters = { running; delayed; confirmOpen = confOpenTotal; confirmDeclined = confDeclTotal; openIssues = issuesTotal; missingReports = missing; permitsThisMonth = null };
+      counters = { running; delayed; confirmOpen = confOpenTotal; confirmDeclined = confDeclTotal; openIssues = issuesTotal; missingReports = missing; permitsThisMonth = dbPermits(ctx, p, seen, day) };
       works = sortedCards;
       late = lateSorted.sliceToArray(0, Nat.min(200, lateSorted.size()));
       thisWeek = weekSorted.sliceToArray(0, Nat.min(200, weekSorted.size()));
@@ -231,4 +233,18 @@ mixin (
     switch (org.orgs.get(o)) { case (?x) { if (x.aliases.size() > 0) x.aliases[0] else x.name }; case null "#" # o.toText() };
   };
   func Int_abs(i : Int) : Nat { Int.abs(i) };
+
+  // 1b.1: hoeveel vergunningen op de werven van de beller aandacht vragen (deadline, verloopt, planning schoof …).
+  // null voor wie geen vergunningen leest (calculator, R13).
+  func dbPermits(ctx : Rights.Ctx, p : Types.Person, seen : Map.Map<Nat, Types.Work>, day : Nat) : ?Nat {
+    if (not Rights.may(ctx, p, #permitsOverview, null)) { return null };
+    var n = 0;
+    for (x in permits.permits.values()) {
+      if (x.archivedAt == null and seen.containsKey(x.workId) and Rights.may(ctx, p, #readPermits, ?x.workId)) {
+        let (from, to) = Permits.needed(plan, works, x);
+        if (Permits.warnings(settings, x, from, to, day).size() > 0) { n += 1 };
+      };
+    };
+    ?n;
+  };
 };

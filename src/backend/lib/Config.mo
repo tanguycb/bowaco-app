@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1.9-draft21";
-  public let schema : Nat = 7; // 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
+  public let version = "1b.1-draft22";
+  public let schema : Nat = 8; // 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -241,4 +241,37 @@ module {
       ("algemeen", "Algemene renovatie"),
     ];
   };
+
+  // ── Vergunningen (1b.1, bouwplan §5.3; VOORLOPIG tot Alexis bevestigt) ───
+  // Soorten (sleutel, naam, doorlooptijd in kalenderdagen, woorden in een taak die de vergunning vragen, openbare weg).
+  // De admin past de lijst aan in Instellingen (settings.lookups "permitKind:<sleutel>"); dan geldt die lijst (D9).
+  // De doorlooptijd hier is enkel een vangnet: de kennisbank per gemeente heeft voorrang.
+  public func defaultPermitKinds() : [(Text, Text, Nat, [Text], Bool)] {
+    [
+      ("container", "Inname openbaar domein: container", 14, ["container", "afvalcontainer", "puincontainer"], true),
+      ("werfzone", "Inname openbaar domein: werfzone of bestelwagen", 14, ["werfzone", "inname openbaar domein", "parkeerplaats"], true),
+      ("stelling", "Inname openbaar domein: stelling", 14, ["stelling", "steiger", "stellingen"], true),
+      ("kraan", "Inname openbaar domein: kraan of hoogtewerker", 21, ["kraan", "hoogtewerker", "ladderlift", "verhuislift"], true),
+      ("signalisatie", "Signalisatievergunning of parkeerverbod", 14, ["signalisatie", "parkeerverbod", "afsluiting", "omleiding"], true),
+      ("werfbord", "Werfbord", 7, ["werfbord"], false),
+      ("omgevingsvergunning", "Omgevingsvergunning (via de architect)", 0, [], false),
+    ];
+  };
+  public let maxPermitKinds : Nat = 40;
+  public let maxPermitWords : Nat = 12;
+  public let maxPermitsPerWork : Nat = 200;
+  public let maxPermitTasks : Nat = 20;
+  public let maxMunicipalities : Nat = 600;
+  public let maxZips : Nat = 20;
+  public let maxAttachments : Nat = 20;
+  public let maxPermitFiles : Nat = 20;
+  public let maxUrl : Nat = 300;
+  // Waarschuwen zoveel kalenderdagen vóór de uiterste aanvraagdag en vóór het einde van de geldigheid (instelbaar:
+  // settings.values "vergunning.dagen" en "vergunning.verloopDagen").
+  public let permitWarnDaysDefault : Nat = 7;
+  public let permitExpiryDaysDefault : Nat = 7;
+  // De timer kijkt de vergunningen hoogstens eens per uur na (T17) en meldt elk ding één keer.
+  public let permitScanEvery : Int = 3_600_000_000_000;
+  public let permitScanMax : Nat = 3_000; // vergunningen per ronde
+  public let permitAlertsPerScan : Nat = 25; // nieuwe meldingen per ronde: nooit een vloed (de rest volgt een uur later)
 };

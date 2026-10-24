@@ -60,7 +60,7 @@ export function DashCounters({ v }: { v: DashboardView }) {
       {cell(c.confirmOpen, D.confirmOpen + (c.confirmDeclined > 0n ? ` · ${D.declined(N(c.confirmDeclined))}` : ""), c.confirmDeclined > 0n ? "warn" : "accent")}
       {cell(c.openIssues, D.issues, "warn")}
       {cell(c.missingReports, D.missing, "warn")}
-      {cell(c.permitsThisMonth, D.permits, undefined, D.permitsLater)}
+      {cell(c.permitsThisMonth, D.permits, "warn", c.permitsThisMonth === undefined ? D.permitsLater : undefined)}
     </div>
   );
 }

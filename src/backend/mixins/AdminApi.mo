@@ -29,6 +29,7 @@ mixin (
   board : Types.BoardState,
   imp : Types.ImportState,
   reports : Types.ReportState,
+  permits : Types.PermitState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -209,6 +210,11 @@ mixin (
       planVersions = plan.versions.entries().toArray();
       reportKeys = reports.keys.entries().toArray();
       ops = reports.ops.values().toArray();
+      permits = permits.permits.values().toArray();
+      permitChanges = permits.changes.values().toArray();
+      municipalities = permits.municipalities.values().toArray();
+      procedures = permits.procedures.values().toArray();
+      permitAlerts = permits.alerts.entries().toArray();
     };
   };
 
@@ -281,6 +287,11 @@ mixin (
       case "personConfidential" ?#personConfidential(pg(access.personConfidential.values().map(func c = (c.personId, view(c.contact, null, c.version))).toArray()));
       case "workConfidential" ?#workConfidential(pg(dossier.confidential.values().toArray()));
       case "workConfidentialHistory" ?#workConfidentialHistory(pg(dossier.confidentialHistory.values().toArray()));
+      case "permits" ?#permits(pg(permits.permits.values().toArray()));
+      case "permitChanges" ?#permitChanges(pg(permits.changes.values().toArray()));
+      case "municipalities" ?#municipalities(pg(permits.municipalities.values().toArray()));
+      case "procedures" ?#procedures(pg(permits.procedures.values().toArray()));
+      case "permitAlerts" ?#permitAlerts(pg(permits.alerts.entries().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
