@@ -50,7 +50,25 @@ export async function freshBackend(canisterId) {
 export async function resync(...actors) {
   for (const a of actors) await Actor.agentOf(a).syncTime();
 }
-export { Principal } from "@icp-sdk/core/principal";
+import { Principal } from "@icp-sdk/core/principal";
+export { Principal };
+
+// 1b.5 (review D9): omgevingsvariabelen van een canister zetten via de beheercanister (update_settings), zoals `icp`
+// dat doet. Enkel op het EIGEN lokale net, waar tests/lokaal.sh de testbeheerder controller maakt; de `icp`-opdrachten
+// werken daar niet meer zodra de rollentest de klok verzet heeft (ingress expiry), de agent wel (syncTime).
+// `vars` vervangt de HELE lijst: geef alles mee wat moet blijven.
+export async function setCanisterEnv(identityName, canisterId, vars) {
+  const host = process.env.ICP_HOST || "";
+  if (!host.includes("localhost") && !host.includes("127.0.0.1")) throw new Error("omgevingsvariabelen zetten: enkel lokaal");
+  const agent = await HttpAgent.create({ host, identity: identity(identityName), shouldFetchRootKey: true, shouldSyncTime: true });
+  const idl = ({ IDL }) =>
+    IDL.Service({
+      update_settings: IDL.Func([IDL.Record({ canister_id: IDL.Principal, settings: IDL.Record({ environment_variables: IDL.Opt(IDL.Vec(IDL.Record({ name: IDL.Text, value: IDL.Text }))) }), sender_canister_version: IDL.Opt(IDL.Nat64) })], [], []),
+    });
+  const mgmt = Actor.createActor(idl, { agent, canisterId: "aaaaa-aa", callTransform: (_m, args) => ({ effectiveCanisterId: args[0].canister_id }) });
+  const canister_id = Principal.fromText(canisterId);
+  await mgmt.update_settings({ canister_id, settings: { environment_variables: [Object.entries(vars).map(([name, value]) => ({ name, value }))] }, sender_canister_version: [] });
+}
 
 // mail-caffeine: de nep-maildienst van het EIGEN lokale net (tests/net/nepmail.mo). Enkel lokaal; NEPMAIL = canister-id
 // (tests/lokaal.sh zet het). Op een draft is er geen nep-maildienst: daar gaat de mail naar Caffeine (testmodus).

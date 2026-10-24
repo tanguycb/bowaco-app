@@ -1405,6 +1405,7 @@ const lastMails = async (n0) => (nep ? await nep.mails(BigInt(n0)) : []);
 const ps0 = await admin.postSettings();
 check("postbode: standaard alles uit (geen mails zonder beslissing)", !ps0.weekmail && !ps0.reminders && ps0.day === 4n && ps0.hour === 14n);
 check("testmodus staat standaard AAN, zonder testadres (droog); dit is geen draft", ps0.testMode && ps0.testAddress === "" && !ps0.draft);
+check("testbouw: deze canister telt als live (1b.5: enkel dan kan de testmodus uit); cycles van de app zichtbaar", ps0.liveMail && ps0.cyclesBalance > 0n);
 check("instellingen: werfleider, calculator, OA, robot en anoniem geweigerd", (await Promise.all([wl, calc, oa2, rPost, anon].map((x) => rejects(x.postSettings())))).every(Boolean));
 check("testmodus, nu versturen, logboek, voorbeeld, taal: enkel de beheerder", (await Promise.all([wl, calc, oa2, rPost, anon].flatMap((x) => [rejects(x.setMailTest(true, "")), rejects(x.sendMailNow()), rejects(x.listMailLog(0n, 1n)), rejects(x.mailPreview("proef", [], 0n)), rejects(x.setOrgMailLang(orgY.ok.id, "fr"))]))).every(Boolean));
 check("instellingen: uur 25 geweigerd, adres zonder https geweigerd, kantooradres zonder @ geweigerd", ("err" in (await admin.setPostSettings({ weekmail: false, reminders: false, day: 4n, hour: 25n, reminderDay: 2n, appUrl: "", contact: [] }))) && ("err" in (await admin.setPostSettings({ weekmail: false, reminders: false, day: 4n, hour: 14n, reminderDay: 2n, appUrl: "http://x", contact: [] }))) && ("err" in (await admin.setPostSettings({ weekmail: false, reminders: false, day: 4n, hour: 14n, reminderDay: 2n, appUrl: "", contact: ["geen-adres"] }))));
@@ -1479,17 +1480,18 @@ if (nep) {
   check("opdrachten 'verstuurd via Caffeine'", (await admin.listJobs("alles", 0n, 50n)).filter((j) => j.id === tm.ok || (j.kind === "weekplanning" && j.ref === String(monB))).every((j) => "done" in j.state && j.state.done.result.startsWith("verstuurd via Caffeine")));
   check("nog een ronde: niets nieuws, geen tweede mail (idempotent)", (await flush()).sent === 0 && (await nMails()) === n1 + 2);
   check("klaarzetten voor dezelfde week na het versturen: 0 nieuw", ok1b(await admin.queueWeekMails(monB, [orgY.ok.id])) === 0n);
-  // Weigering van de maildienst: opnieuw met wachttijd, foutreden zonder adres
+  // De maildienst weigert de INHOUD (InvalidArgs): zeker niet verstuurd en opnieuw proberen helpt niet → meteen mislukt
+  // (1b.5 M1; de nieuwe poging met wachttijd is er enkel voor een "schone" weigering: review D9).
   await nep.zet("weiger", 0n, 0n);
   const tw = ok1b(await admin.queueTestMail("eigen@proef.invalid"));
   const n2 = await nMails();
   await flush();
   const jw = await jobOf(tw);
-  check("geweigerd: terug in de wachtrij met wachttijd (poging 1), niets verstuurd", "queued" in jw.state && jw.attempts === 1n && jw.notBefore > BigInt(Date.now()) * 1_000_000n - 60_000_000_000n && (await nMails()) === n2);
+  check("inhoud geweigerd: meteen mislukt (geen nieuwe poging), niets verstuurd", "failed" in jw.state && !jw.state.failed.why.startsWith("onzeker") && jw.attempts === 1n && (await nMails()) === n2, JSON.stringify(jw, big));
   const lw = (await admin.listMailLog(0n, 5n)).find((l) => l.jobId === tw);
   check("geweigerd: logboek met reden, het adres uit de fout weggelaten ([adres])", !!lw && "failed" in lw.outcome && lw.outcome.failed.includes("[adres]") && !lw.outcome.failed.includes("@"), JSON.stringify(lw, big));
-  check("tijdens de wachttijd niet opnieuw verstuurd", (await flush()).failed === 0 && (await jobOf(tw)).attempts === 1n);
-  check("annuleren (admin)", isOk(await admin.cancelJob(tw)) && "err" in (await admin.cancelJob(tw)));
+  check("geweigerd: melding aan de admins 'Mail mislukt' zonder adres", (await admin.myNotifications(false)).some((n) => n.kind === "postbode" && n.text.includes("Mail mislukt") && !n.text.includes("@")));
+  check("opnieuw zetten en annuleren (admin)", isOk(await admin.retryJob(tw)) && isOk(await admin.cancelJob(tw)) && "err" in (await admin.cancelJob(tw)));
   // Onzeker: de maildienst valt NA het versturen → nooit vanzelf opnieuw
   await nep.zet("val", 0n, 0n);
   const tv = ok1b(await admin.queueTestMail("eigen@proef.invalid"));
@@ -1502,7 +1504,7 @@ if (nep) {
   check("onzeker: een volgende ronde verstuurt ze NIET opnieuw", (await flush()).sent === 0 && (await nMails()) === n3 + 1);
   check("onzeker: de admin zet ze bewust opnieuw → één mail", isOk(await admin.retryJob(tv)) && (await flush()) && (await nMails()) === n3 + 2 && "done" in (await jobOf(tv)).state);
   // Twee rondes tegelijk (de klok en de knop): één slot, geen dubbele mail
-  await nep.zet("traag", 25n, 1_000_000n);
+  await nep.zet("traag", 6n, 1_000_000n); // 6 s per mail bij de maildienst
   const ta = ok1b(await admin.queueTestMail("eigen@proef.invalid"));
   const tb = ok1b(await admin.queueTestMail("eigen@proef.invalid"));
   const n4 = await nMails();

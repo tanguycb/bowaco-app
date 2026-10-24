@@ -69,9 +69,16 @@ module {
     let t = self.toText();
     Config.draftBackends().any(func x = x == t);
   };
-  // Aan, tenzij de beheerder ze uitzette; op de draft ALTIJD aan.
-  public func testMode(s : Types.SettingsState, draft : Bool) : Bool {
-    draft or s.values.get("post.testmodus") != ?"uit";
+  // 1b.5 (M2): mag deze canister echte mail versturen? Enkel de livecanister (Config.mailLiveBackends); de testbouw van
+  // tests/lokaal.sh zet Config.mailLiveAnyCanister. Een draft is nooit live.
+  public func isLive(self : Principal) : Bool {
+    if (isDraft(self)) return false;
+    let t = self.toText();
+    Config.mailLiveAnyCanister or Config.mailLiveBackends().any(func x = x == t);
+  };
+  // Aan, tenzij de beheerder ze uitzette op een livecanister; op de draft en op elke andere canister ALTIJD aan.
+  public func testMode(s : Types.SettingsState, live : Bool) : Bool {
+    not live or s.values.get("post.testmodus") != ?"uit";
   };
   public func testAddress(s : Types.SettingsState) : ?Text {
     switch (s.values.get("post.testadres")) { case (?a) { if (a.size() > 0) ?a else null }; case null null };
@@ -138,8 +145,8 @@ module {
 
   // Wat er met een mail zou gebeuren (voorbeeld en logboek), zonder adressen.
   public type Plan = { #send : { to : [Text]; test : Bool }; #dry };
-  public func deliver(s : Types.SettingsState, draft : Bool, m : Views.MailOut) : Plan {
-    if (testMode(s, draft)) {
+  public func deliver(s : Types.SettingsState, live : Bool, m : Views.MailOut) : Plan {
+    if (testMode(s, live)) {
       switch (testAddress(s)) { case (?a) #send({ to = [a]; test = true }); case null #dry };
     } else {
       #send({ to = m.to.map(func(x : Views.MailTo) : Text = x.email); test = false });
@@ -159,11 +166,19 @@ module {
   };
 
   // ── Eén mail naar de maildienst ───────────────────────────────────────────
-  public type SendResult = { #ok : Nat; #refused : Text; #unsure : Text; #noFunds };
+  // De uitkomst zegt wat de app mag doen (securityreview 1b.5, M1):
+  //   #retry    zeker niet verstuurd, later opnieuw (de oproep raakte niet bij de dienst: een "schone" weigering);
+  //   #invalid  zeker niet verstuurd en opnieuw helpt niet (de dienst weigert de inhoud): meteen mislukt;
+  //   #unsure   misschien verstuurd (geen antwoord, de dienst viel, of de dienst kon zijn leverancier niet goed bereiken):
+  //             nooit vanzelf opnieuw;
+  //   #noFunds  niets vertrokken en elke volgende mail zou hetzelfde geven (cycles): de ronde stopt.
+  public type SendResult = { #ok : Nat; #retry : Text; #invalid : Text; #unsure : Text; #noFunds : Text };
 
   public func send<system>(to : [Text], subject : Text, body : Text) : async* SendResult {
-    if (Cycles.balance() < Config.mailCyclesFloor + Config.mailCyclesMax) return #noFunds;
-    let id = switch (Prim.envVar<system>("INTEGRATIONS_CANISTER_ID")) { case (?x) x; case null return #refused("maildienst niet ingesteld (INTEGRATIONS_CANISTER_ID)") };
+    if (Cycles.balance() < Config.mailCyclesFloor + Config.mailCyclesMax) {
+      return #noFunds("de app heeft te weinig cycles om te versturen (" # (Cycles.balance() / 1_000_000_000).toText() # " miljard); laad de app op bij Caffeine");
+    };
+    let id = switch (Prim.envVar<system>("INTEGRATIONS_CANISTER_ID")) { case (?x) x; case null return #retry("maildienst niet ingesteld (INTEGRATIONS_CANISTER_ID)") };
     let svc = actor (id) : EmailService.EmailService;
     try {
       let r = await (with cycles = Config.mailCyclesMax; timeout = Config.mailTimeoutSeconds) svc.broadcast_email({
@@ -175,17 +190,20 @@ module {
       });
       switch (r.result) {
         case (#Ok _) #ok(r.cycles_charged);
-        case (#Err(#TooFewCyclesAttached _)) #noFunds;
-        case (#Err e) #refused(scrub(debug_show e));
+        // De dienst weigert de inhoud: zeker niet verstuurd, en een nieuwe poging geeft hetzelfde.
+        case (#Err(#InvalidArgs t)) #invalid("de maildienst weigert de mail: " # scrub(t));
+        // De dienst vraagt meer cycles per mail dan Config.mailCyclesMax: niets vertrokken, en dat geldt voor elke mail.
+        case (#Err(#TooFewCyclesAttached x)) #noFunds("de maildienst vraagt " # x.required.toText() # " cycles per mail en de app geeft er " # x.attached.toText() # " mee (Config.mailCyclesMax)");
+        // De dienst kon zijn mailleverancier niet (goed) bereiken, of weet het zelf niet: de leverancier kan de mail al
+        // hebben (een HTTPS-oproep zonder consensus of zonder antwoord is wél vertrokken) → onzeker.
+        case (#Err(#FailedToCallService t) or #Err(#FailedToDeserializeServiceResponse t) or #Err(#UnknownError t)) #unsure(scrub(t));
       };
     } catch (e) {
-      // Niet vertrokken (wachtrij vol, bestemming onbekend, de dienst weigerde zelf, de oproep kon niet weg): opnieuw
-      // met wachttijd. Geen antwoord binnen de tijd, of de dienst viel tijdens het werk: de mail kan weg zijn → onzeker,
-      // nooit vanzelf opnieuw (liever één mail die de admin nakijkt dan twee bij de OA).
-      switch (Error.code(e)) {
-        case (#system_transient or #destination_invalid or #canister_reject or #call_error _) #refused(scrub(e.message()));
-        case _ #unsure(scrub(e.message()));
-      };
+      // Enkel een "schone" weigering (mo:core Error.isCleanReject: de dienst heeft niets gedaan — wachtrij vol, bestemming
+      // onbekend, de oproep kon niet weg) geeft een nieuwe poging met wachttijd. Al de rest (geen antwoord binnen de tijd,
+      // de dienst viel of weigerde zelf, ook ná het versturen) → onzeker, nooit vanzelf opnieuw (liever één mail die de
+      // admin nakijkt dan twee bij de OA).
+      if (e.isCleanReject()) #retry(scrub(e.message())) else #unsure(scrub(e.message()));
     };
   };
 
@@ -197,7 +215,7 @@ module {
     audit : Types.AuditState;
     ctr : Types.Counters;
     lock : Lock;
-    draft : Bool;
+    live : Bool; // de livecanister (isLive): enkel daar kan de testmodus uit staan
   };
   public type Round = { #busy; #done : { sent : Nat; dry : Nat; skipped : Nat; failed : Nat } };
 
@@ -238,7 +256,7 @@ module {
           case (#mail m) {
             let lang = Post.lang(e.c, if (j.kind == "proef") null else j.orgId);
             let n = m.to.size();
-            switch (deliver(e.c.settings, e.draft, m)) {
+            switch (deliver(e.c.settings, e.live, m)) {
               case (#dry) {
                 Post.setState(e.ps, j, #done({ at = Time.now(); result = "droog (testmodus zonder testadres): niets verstuurd" }), j.attempts, j.notBefore);
                 addLog(e, j, j.attempts, n, true, lang, #dryRun, 0);
@@ -266,7 +284,7 @@ module {
                     Access.audit(e.audit, by, null, j.workId, "post-verstuurd", tag);
                     sent += 1;
                   };
-                  case (#refused why) {
+                  case (#retry why) {
                     if mine {
                       if (attempt < Config.jobMaxAttempts) {
                         Post.setState(e.ps, j2, #queued, attempt, at + Post.backoff(attempt));
@@ -280,6 +298,16 @@ module {
                     addLog(e, j, attempt, n, x.test, lang, #failed(why), 0);
                     failed += 1;
                   };
+                  case (#invalid why) {
+                    // Zeker niet verstuurd en opnieuw proberen helpt niet: meteen mislukt, de admin kijkt de inhoud na.
+                    if mine {
+                      Post.setState(e.ps, j2, #failed({ at; why }), attempt, j2.notBefore);
+                      Access.audit(e.audit, by, null, j.workId, "post-mislukt", tag # ": " # why);
+                      Access.notifyAdmins(e.c.access, e.audit, e.ctr, "postbode", "Mail mislukt (" # j.kind # ", opdracht #" # j.id.toText() # "): " # why);
+                    };
+                    addLog(e, j, attempt, n, x.test, lang, #failed(why), 0);
+                    failed += 1;
+                  };
                   case (#unsure why) {
                     if mine { Post.setState(e.ps, j2, #failed({ at; why = "onzeker: " # why }), attempt, j2.notBefore) };
                     addLog(e, j, attempt, n, x.test, lang, #unsure(why), 0);
@@ -287,13 +315,14 @@ module {
                     Access.notifyAdmins(e.c.access, e.audit, e.ctr, "postbode", "Mail misschien verstuurd (" # j.kind # ", opdracht #" # j.id.toText() # "): geen antwoord van de maildienst. Kijk na voor je ze opnieuw zet.");
                     failed += 1;
                   };
-                  case (#noFunds) {
-                    // Niets vertrokken: de opdracht terug zoals ze was (geen poging verbruikt) en de ronde stopt.
+                  case (#noFunds why) {
+                    // Niets vertrokken en elke volgende mail zou hetzelfde geven: de opdracht terug zoals ze was (geen
+                    // poging verbruikt), één melding per dag aan de beheerders, en de ronde stopt.
                     if mine { Post.setState(e.ps, j2, #queued, j.attempts, j.notBefore) };
                     let last = switch (e.c.settings.values.get("post.cyclesMelding")) { case (?t) (Int.fromText(t) ?? 0); case null 0 };
                     if (at - last > Config.day) {
                       e.c.settings.values.add("post.cyclesMelding", Int.toText(at));
-                      Access.notifyAdmins(e.c.access, e.audit, e.ctr, "postbode", "Mails wachten: de app heeft te weinig cycles om te versturen. Laad de app op bij Caffeine.");
+                      Access.notifyAdmins(e.c.access, e.audit, e.ctr, "postbode", "Mails wachten: " # why # ".");
                     };
                     break round;
                   };

@@ -58,7 +58,10 @@ module {
       case (?x) {
         let l = Text.toLower(x);
         let parts = l.split(#char '@').toArray();
-        if (parts.size() != 2 or parts[0].size() == 0 or not parts[1].contains(#char '.') or l.contains(#char ' ')) { #err("E-mailadres klopt niet: " # x) } else { #ok(?l) };
+        // 1b.5 (L3): geen witruimte, stuurtekens of tekens die in een mailkop een structuur hebben (<>()[],;:"\): zo'n
+        // adres komt nooit bij de maildienst terecht (geen tweede ontvanger of kopregel via een adresveld).
+        let odd = l.chars().any(func c = Char.toNat32(c) < 33 or Char.toNat32(c) == 127 or c == '<' or c == '>' or c == '(' or c == ')' or c == '[' or c == ']' or c == ',' or c == ';' or c == ':' or c == '\"' or c == '\\');
+        if (parts.size() != 2 or parts[0].size() == 0 or not parts[1].contains(#char '.') or odd) { #err("E-mailadres klopt niet: " # x) } else { #ok(?l) };
       };
     };
   };

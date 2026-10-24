@@ -40,7 +40,7 @@ mixin (
 
   func pmView(p : Types.Person, x : Types.Permit) : Views.PermitView {
     let ctx = { works; settings };
-    Permits.view(pmCtx(), x, Rights.internal(p), Rights.may(ctx, p, #editPermits, ?x.workId), Dossier.today());
+    Permits.view(pmCtx(), x, Rights.internal(p), p.orgId, Rights.may(ctx, p, #editPermits, ?x.workId), Dossier.today());
   };
 
   // ── Soorten (D9) ─────────────────────────────────────────────────────────

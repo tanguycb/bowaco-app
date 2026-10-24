@@ -5,7 +5,7 @@
 //   draft:   node tests/review.mjs <canister-id>
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { backend, freshBackend, identity, KEYDIR, ok } from "../tools/lib.mjs";
+import { backend, freshBackend, identity, KEYDIR, nepmail, ok, setCanisterEnv } from "../tools/lib.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/review.mjs <canister-id>");
@@ -253,6 +253,89 @@ else {
     if (isOk(r) && !r.ok.deliver.startsWith("testmodus")) toReal++;
   }
   check(`(D6) ${real.length} echte/geanonimiseerde firma's: geen enkele mail naar hun eigen adres (testmodus of geen mail)`, toReal === 0, String(toReal));
+}
+
+// ── (D7–D13) securityreview 1b.5: livecanister-lijst (M2), foutclassificatie van de maildienst (M1), cycles (G6),
+//    annuleren bij de maildienst (L2), taaktitels op een vergunning (L1) ──
+{
+  const ps = await admin.postSettings();
+  if (local) {
+    check("(D7) testbouw: deze canister telt als live (Config.mailLiveAnyCanister via tests/lokaal.sh), dus de testmodus kan uit", ps.liveMail === true);
+  } else {
+    check("(D7) geen livecanister (Config.mailLiveBackends): liveMail = false en de testmodus kan niet uit, met de reden", ps.liveMail === false && /livecanister|Op de draft/.test(errOf(await admin.setMailTest(false, ""))));
+  }
+  check("(D12) de beheerder ziet de cycles van de app (G6)", ps.cyclesBalance > 0n, String(ps.cyclesBalance));
+  // (D14 = L3) Een e-mailadres met witruimte, stuurtekens of kopstructuur wordt overal geweigerd (testadres, firma, kantoor).
+  const bad = ["a@b.c\n", "a@b.c;x@y.z", "\"a\"@b.c", "a@b.c,d@e.f", "a<b>@c.d"];
+  const badAll = await Promise.all(bad.flatMap((e) => [admin.setMailTest(true, e), admin.saveOrgContact(orgDak.id, { phone: [], email: [e], website: [], contactNote: "" }), admin.setPostSettings({ weekmail: false, reminders: false, day: 4n, hour: 14n, reminderDay: 2n, appUrl: "", contact: [e] })]));
+  check("(D14) e-mailadres met regeleinde, ; , aanhalingstekens of < >: geweigerd als testadres, firma-adres en kantooradres", badAll.every((r) => "err" in r && /E-mailadres klopt niet|klopt niet/.test(r.err)), JSON.stringify(badAll.filter((r) => !("err" in r)), big).slice(0, 200));
+  // (D13 = L1) Een externe ziet op een vergunning enkel de titels van de taken van zijn eigen firma.
+  const far = today + 600n;
+  const tIn13 = (title, org) => ({ id: [], title, note: "", kind: { work: null }, trade: [], responsibleOrgId: org === null ? [] : [org], status: { planned: null }, percent: 0n, start: far, workdays: 1n, leadDays: 0n, orderDay: [], reason: "" });
+  const tOwn = await admin.saveTask(B, tIn13("Review eigen taak (Dak)", orgDak.id), (await admin.getPlan(B)).version);
+  const tOther = isOk(tOwn) ? await admin.saveTask(B, tIn13("Review taak van kantoor", null), (await admin.getPlan(B)).version) : tOwn;
+  const pm = isOk(tOther) ? await admin.savePermit(B, { id: [], kind: "container", title: "Review vergunning", municipalityId: [], status: { needed: null }, location: "", taskIds: [tOwn.ok.taskId[0], tOther.ok.taskId[0]], neededFrom: [], neededTo: [], leadDays: [], requestedOn: [], validFrom: [], validTo: [], reference: "", costCents: [], note: "intern" }) : tOther;
+  check("(D13) vergunning op P-B met een taak van Proef Dak NV en een taak van kantoor", isOk(pm), errOf(pm));
+  if (isOk(pm)) {
+    const mine = (await oa2.workPermits(B)).permits.find((x) => x.id === pm.ok.id);
+    const all = (await admin.workPermits(B)).permits.find((x) => x.id === pm.ok.id);
+    check("(D13) OA ziet enkel de titel van zijn eigen taak (en geen notitie); kantoor ziet beide", !!mine && mine.taskTitles.length === 1 && mine.taskTitles[0].includes("Dak") && mine.note === "" && !!all && all.taskTitles.length === 2, JSON.stringify([mine?.taskTitles, all?.taskTitles]));
+    check("(D13) opruimen: vergunning gearchiveerd", isOk(await admin.archivePermit(pm.ok.id, "review")));
+  }
+  if (isOk(tOther)) { let v = (await admin.getPlan(B)).version; for (const id of [tOwn.ok.taskId[0], tOther.ok.taskId[0]]) v = ok(await admin.archiveTask(B, id, v)); }
+  if (local && process.env.NEPMAIL) {
+    const nep = await nepmail(process.env.NEPMAIL);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const jobOf = async (id) => (await admin.listJobs("alles", 0n, 100n)).find((j) => j.id === id);
+    // Versturen tot er geen ronde meer loopt (de klokjob kan bezig zijn); de tellers als gewone getallen (geen bigint).
+    const flush = async () => { for (let i = 0; i < 60; i++) { const r = ok(await admin.sendMailNow()); if (!r.busy) return { sent: Number(r.sent), dry: Number(r.dry), skipped: Number(r.skipped), failed: Number(r.failed) }; await sleep(1000); } throw new Error("de verstuurronde bleef bezig"); };
+    const nMails = async () => Number(await nep.aantal());
+    const notes = async (re) => (await admin.myNotifications(false)).filter((n) => n.kind === "postbode" && re.test(n.text)).length;
+    ok(await admin.setMailTest(true, "review@proef.invalid"));
+    // (D8 = M1) Het antwoord van de maildienst is onleesbaar: de leverancier heeft de mail al → onzeker, nooit vanzelf opnieuw.
+    await nep.zet("onleesbaar", 0n, 1_000_000n);
+    const t8 = ok(await admin.queueTestMail("eigen@proef.invalid"));
+    const n8 = await nMails();
+    await flush();
+    const j8 = await jobOf(t8);
+    check("(D8) antwoord van de maildienst onleesbaar: de mail is weg (1), de opdracht 'onzeker' (geen nieuwe poging)", !!j8 && "failed" in j8.state && j8.state.failed.why.startsWith("onzeker") && (await nMails()) === n8 + 1, JSON.stringify(j8?.state, big));
+    await nep.zet("", 0n, 1_000_000n);
+    check("(D8) een volgende ronde verstuurt ze niet opnieuw; logboek 'onzeker' zonder adres", (await flush()).sent === 0 && (await nMails()) === n8 + 1 && (await admin.listMailLog(0n, 10n)).some((l) => l.jobId === t8 && "unsure" in l.outcome && !l.outcome.unsure.includes("@")));
+    // (D9) De maildienst is onbereikbaar (schone weigering, Error.isCleanReject): zeker niet verstuurd → opnieuw met wachttijd.
+    // De app zoekt de dienst via INTEGRATIONS_CANISTER_ID: even naar een canister die niet bestaat (via de beheercanister;
+    // tests/lokaal.sh maakte de testbeheerder controller van dit eigen net), daarna terug.
+    const setSvc = (v) => setCanisterEnv("proef-admin", cid, { INTEGRATIONS_CANISTER_ID: v });
+    await setSvc("rrkah-fqaaa-aaaaa-aaaaq-cai");
+    const t9 = ok(await admin.queueTestMail("eigen@proef.invalid"));
+    const n9 = await nMails();
+    const r9 = await flush();
+    const j9 = await jobOf(t9);
+    await setSvc(process.env.NEPMAIL);
+    check("(D9) maildienst onbereikbaar: niets verstuurd, opnieuw met wachttijd (poging 1), reden zonder adres", !!j9 && "queued" in j9.state && j9.attempts === 1n && j9.notBefore > BigInt(Date.now()) * 1_000_000n && (await nMails()) === n9 && r9.failed === 1, JSON.stringify([r9, j9?.state, j9?.attempts], big));
+    check("(D9) tijdens de wachttijd niet opnieuw geprobeerd; daarna annuleren", (await flush()).failed === 0 && (await jobOf(t9)).attempts === 1n && isOk(await admin.cancelJob(t9)));
+    // (D10 = G6) De maildienst vraagt meer cycles per mail dan de app meegeeft: de ronde stopt, niets verbruikt, één melding met het getal.
+    await nep.zet("cycles", 0n, 0n);
+    const t10 = ok(await admin.queueTestMail("eigen@proef.invalid"));
+    const r10 = await flush();
+    const j10 = await jobOf(t10);
+    await nep.zet("", 0n, 1_000_000n);
+    check("(D10) te weinig cycles per mail volgens de maildienst: ronde gestopt, opdracht ongewijzigd in de wachtrij (geen poging verbruikt)", !!j10 && "queued" in j10.state && j10.attempts === 0n && r10.sent === 0 && r10.failed === 0, JSON.stringify([r10, j10?.state, j10?.attempts], big));
+    check("(D10) … met een melding aan de beheerders die de gevraagde cycles noemt", (await notes(/vraagt 60000000000 cycles per mail/)) >= 1);
+    check("(D10) opruimen: opdracht geannuleerd", isOk(await admin.cancelJob(t10)));
+    // (D11 = L2) Een mail die al bij de maildienst is, kan niet meer geannuleerd worden ("geannuleerd" zou liegen).
+    await nep.zet("traag", 12n, 1_000_000n); // 12 s bij de maildienst
+    const t11 = ok(await admin.queueTestMail("eigen@proef.invalid"));
+    const inflight = admin.sendMailNow();
+    let j11 = await jobOf(t11);
+    for (let i = 0; i < 20 && !(j11 && "leased" in j11.state); i++) { await sleep(500); j11 = await jobOf(t11); }
+    const c11 = await admin.cancelJob(t11);
+    check("(D11) 'bij de maildienst' kan niet meer geannuleerd worden", !!j11 && "leased" in j11.state && "err" in c11 && /bij de maildienst/.test(c11.err), JSON.stringify([j11?.state, c11], big));
+    await inflight;
+    await flush();
+    await nep.zet("", 0n, 1_000_000n);
+    check("(D11) na de ronde is ze verstuurd en staat niets meer bij de maildienst", "done" in (await jobOf(t11)).state && (await admin.postSettings()).leased === 0n);
+    ok(await admin.setMailTest(true, ""));
+  }
 }
 
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──

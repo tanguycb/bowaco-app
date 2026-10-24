@@ -254,7 +254,15 @@ module {
   };
 
   // internal = kost en notitie zichtbaar; canEdit = knoppen (de backend controleert opnieuw).
-  public func view(c : ViewCtx, x : Types.Permit, internal : Bool, canEdit : Bool, today : Day) : Views.PermitView {
+  // 1b.5 (L1): een externe (OA, architect, VC) ziet op een vergunning enkel de titels van de taken van zijn eigen firma;
+  // de rest van de planning van de werf is intern (R5, zoals getPlan).
+  func ownTask(c : ViewCtx, t : Types.Task, org : ?Types.OrgId) : Bool {
+    let o = org ?? return false;
+    t.responsibleOrgId == ?o or c.plan.assignments.values().any(func a = a.taskId == t.id and a.archivedAt == null and a.orgId == o);
+  };
+
+  // `viewerOrg`: de firma van een externe beller (null = kantoor of een externe zonder firma).
+  public func view(c : ViewCtx, x : Types.Permit, internal : Bool, viewerOrg : ?Types.OrgId, canEdit : Bool, today : Day) : Views.PermitView {
     let (from, to) = needed(c.plan, c.works, x);
     let w = c.works.works.get(x.workId);
     {
@@ -270,7 +278,7 @@ module {
       status = effectiveStatus(x, today);
       location = x.location;
       taskIds = x.taskIds;
-      taskTitles = x.taskIds.filterMap(func(id : Nat) : ?Text { switch (c.plan.tasks.get(id)) { case (?t) { if (t.archivedAt == null) ?t.title else null }; case null null } });
+      taskTitles = x.taskIds.filterMap(func(id : Nat) : ?Text { switch (c.plan.tasks.get(id)) { case (?t) { if (t.archivedAt == null and (internal or ownTask(c, t, viewerOrg))) ?t.title else null }; case null null } });
       neededFrom = from;
       neededTo = to;
       manualFrom = x.neededFrom;

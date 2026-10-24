@@ -84,6 +84,9 @@ if (testCode) {
   ok(!cfg.includes(testHash), "Config.mo draagt NIET de hash van de test-opstartcode");
 }
 ok(hits.length === 0, `geen sleutels of opstartcode in de bestanden${hits.length ? `: ${hits.join(", ")}` : ""}`);
+// 1b.5 (M2): de upload mag nooit de testvlag dragen die elke canister als live telt (tests/lokaal.sh zet ze enkel in de
+// testbouw): echte mail kan enkel vanaf Config.mailLiveBackends.
+ok(/public let mailLiveAnyCanister : Bool = false;/.test(readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8")), "Config.mo: mailLiveAnyCanister = false (echte mail enkel vanaf Config.mailLiveBackends)");
 
 console.log(bad ? `\n${bad} grens(en) overschreden` : "\nmeetlat groen");
 process.exit(bad ? 1 : 0);

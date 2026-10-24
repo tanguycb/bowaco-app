@@ -5,6 +5,7 @@
 // - De robotfuncties (leaseJobs, completeJob, failJob) blijven voor latere robotsoorten (fase 3); vandaag leaset een
 //   robot niets. Alles staat in de auditlog, nooit een e-mailadres.
 import Array "mo:core/Array";
+import Cycles "mo:core/Cycles";
 import Int "mo:core/Int";
 import Iter "mo:core/Iter";
 import List "mo:core/List";
@@ -41,6 +42,7 @@ mixin (
   ctr : Types.Counters,
   mailLock : Mail.Lock, // transient: één verstuurronde tegelijk (ook de klokjob in main.mo)
   isDraft : () -> Bool, // de draftcanister: testmodus altijd aan
+  isLive : () -> Bool, // 1b.5: enkel de livecanister (Config.mailLiveBackends) kan echte mail sturen
 ) {
 
   func pbCtx() : Post.Ctx { { settings; access; org; oa; works; plan; reports } };
@@ -137,6 +139,7 @@ mixin (
 
   func pbSettingsView() : Views.PostSettingsView {
     let draft = isDraft();
+    let live = isLive();
     var sent = 0;
     var cyclesSent = 0;
     for (l in mail.log.values()) { switch (l.outcome) { case (#sent) { sent += 1; cyclesSent += l.cycles }; case _ {} } };
@@ -158,7 +161,7 @@ mixin (
       leased;
       failed;
       lastWeek = Dossier.setting(settings, "post.laatsteWeek", 0);
-      testMode = Mail.testMode(settings, draft);
+      testMode = Mail.testMode(settings, live);
       testAddress = switch (Mail.testAddress(settings)) { case (?a) a; case null "" };
       draft;
       contact = Post.contact(settings);
@@ -166,6 +169,8 @@ mixin (
       sending = Mail.busy(mailLock);
       sent;
       cyclesSent;
+      liveMail = live;
+      cyclesBalance = Cycles.balance();
     };
   };
 
@@ -232,10 +237,12 @@ mixin (
       case (#mail m) {
         let lang = Post.lang(c, if (kind == "proef") null else orgId);
         let n = m.to.size();
-        let draft = isDraft();
-        let (note, deliver) = switch (Mail.deliver(settings, draft, m)) {
-          case (#dry) (?MailText.of(lang).testNote(if (kind == "proef") "jezelf (proefmail)" else pbOrgName(orgId), n), "testmodus zonder testadres: niets verstuurd (enkel het logboek)");
-          case (#send x) { if (x.test) (?MailText.of(lang).testNote(if (kind == "proef") "jezelf (proefmail)" else pbOrgName(orgId), n), "testmodus: enkel naar het testadres") else (null, "naar " # n.toText() # (if (n == 1) " adres" else " adressen") # " van de firma") };
+        let live = isLive();
+        // 1b.5: buiten de livecanister zegt het voorbeeld erbij dat echte mail hier niet kan.
+        let where = if live "" else " (deze canister kan geen echte mail sturen)";
+        let (note, deliver) = switch (Mail.deliver(settings, live, m)) {
+          case (#dry) (?MailText.of(lang).testNote(if (kind == "proef") "jezelf (proefmail)" else pbOrgName(orgId), n), "testmodus zonder testadres: niets verstuurd (enkel het logboek)" # where);
+          case (#send x) { if (x.test) (?MailText.of(lang).testNote(if (kind == "proef") "jezelf (proefmail)" else pbOrgName(orgId), n), "testmodus: enkel naar het testadres" # where) else (null, "naar " # n.toText() # (if (n == 1) " adres" else " adressen") # " van de firma") };
         };
         #ok({ mail = m; html = Mail.html(m, lang, note, Post.contact(settings)); lang; deliver });
       };
@@ -247,10 +254,12 @@ mixin (
   };
 
   // Testmodus (enkel de beheerder): alle mail naar één testadres; zonder testadres droog (niets verstuurd). Op de draft
-  // kan ze niet uit. Het adres komt nooit in de auditlog.
+  // kan ze niet uit, en buiten de livecanister (Config.mailLiveBackends) evenmin (1b.5, M2). Het adres komt nooit in de
+  // auditlog.
   public shared ({ caller }) func setMailTest(on : Bool, address : Text) : async Result.Result<Views.PostSettingsView, Text> {
     let p = pbAdmin(caller);
     if (not on and isDraft()) { return #err("Op de draft blijft de testmodus aan: vanaf de draft gaat nooit een mail naar een echte firma") };
+    if (not on and not isLive()) { return #err("Op deze canister blijft de testmodus aan: echte mail kan enkel vanaf de livecanister (Config.mailLiveBackends)") };
     let a = switch (Oa.normEmail(?address)) { case (#ok (?e)) e; case (#ok null) ""; case (#err e) return #err(e) };
     if (not on and a.size() > 0) { return #err("Zonder testmodus geen testadres: laat het leeg") };
     settings.values.add("post.testmodus", if on "aan" else "uit");
@@ -275,7 +284,7 @@ mixin (
   public shared ({ caller }) func sendMailNow() : async Result.Result<Views.MailRound, Text> {
     let p = pbAdmin(caller);
     Access.audit(audit, caller, ?p.id, null, "postbode-nu-versturen", "");
-    switch (await* Mail.drain<system>({ c = pbCtx(); ps = post; ms = mail; audit; ctr; lock = mailLock; draft = isDraft() }, Config.mailPerRoundNow, ?caller)) {
+    switch (await* Mail.drain<system>({ c = pbCtx(); ps = post; ms = mail; audit; ctr; lock = mailLock; live = isLive() }, Config.mailPerRoundNow, ?caller)) {
       case (#busy) #ok({ busy = true; sent = 0; dry = 0; skipped = 0; failed = 0 });
       case (#done r) #ok({ r with busy = false });
     };
@@ -320,6 +329,11 @@ mixin (
     let p = pbAdmin(caller);
     let j = post.jobs.get(id) ?? return #err("Onbekende opdracht");
     if (not Post.isOpen(j.state)) { return #err("Niet meer open") };
+    // 1b.5 (L2): een mail die al bij de maildienst is, kan niet meer tegengehouden worden; "geannuleerd" zou dan liegen.
+    switch (j.state) {
+      case (#leased l) { if (l.by == Principal.fromText(Config.appSender)) { return #err("Deze mail is al bij de maildienst: annuleren kan niet meer (de uitkomst komt in het logboek)") } };
+      case _ {};
+    };
     Post.setState(post, j, #cancelled({ by = p.id; at = Time.now() }), j.attempts, j.notBefore);
     Access.audit(audit, caller, ?p.id, null, "post-geannuleerd", "#" # id.toText());
     #ok;

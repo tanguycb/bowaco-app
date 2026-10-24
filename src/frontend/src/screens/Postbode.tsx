@@ -101,6 +101,7 @@ export function PostbodePage() {
             <div className={`a-counter${s.failed > 0n ? " a-counter--warn" : ""}`}><span className="a-counter__n">{String(s.failed)}</span><span className="a-counter__l">{S.states.failed}</span></div>
             <div className="a-counter"><span className="a-counter__n">{String(s.sent)}</span><span className="a-counter__l">{S.sentCount}</span></div>
             <div className="a-counter"><span className="a-counter__n a-counter__n--small">{s.sent > 0n ? fmtCycles(s.cyclesSent / s.sent) : "–"}</span><span className="a-counter__l">{S.cyclesPerMail}</span></div>
+            <div className="a-counter"><span className="a-counter__n a-counter__n--small">{fmtCycles(s.cyclesBalance)}</span><span className="a-counter__l">{S.cyclesBalance}</span></div>
           </div>
 
           <section className="a-section" style={{ maxWidth: 640 }}>
@@ -109,7 +110,8 @@ export function PostbodePage() {
               <Icon name="alert" size={16} /> {s.testMode ? (s.testAddress ? S.testOnTo : S.testOnDry) : S.testOff}
             </p>
             {s.draft && <p className="bw-muted">{S.testDraft}</p>}
-            <Field label={S.testMode}><Choice label={S.testMode} value={testOn ? "aan" : "uit"} onChange={(v) => setTestOn(v === "aan" || s.draft)} options={[{ value: "aan", label: S.on }, ...(s.draft ? [] : [{ value: "uit", label: S.off }])]} /></Field>
+            {!s.draft && !s.liveMail && <p className="bw-muted">{S.testNotLive}</p>}
+            <Field label={S.testMode}><Choice label={S.testMode} value={testOn ? "aan" : "uit"} onChange={(v) => setTestOn(v === "aan" || !s.liveMail)} options={[{ value: "aan", label: S.on }, ...(s.liveMail ? [{ value: "uit", label: S.off }] : [])]} /></Field>
             {testOn && <Field label={S.testAddress}><input className="bw-input" type="email" value={testAddr} placeholder={S.testAddressPh} onChange={(e) => setTestAddr(e.target.value)} /></Field>}
             <p className="bw-muted">{S.testHelp}</p>
             <div><Button variant="primary" disabled={testSaved} busy={saveTest.isPending} onClick={() => (testOn ? saveTest.mutate() : setConfirmOff(true))}>{t.common.save}</Button></div>

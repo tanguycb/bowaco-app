@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1b.3c-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "1b.5-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 11; // 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -294,7 +294,11 @@ module {
   public let mailPerRound : Nat = 25; // echte verstuurpogingen per ronde van de klok
   public let mailPerRoundNow : Nat = 10; // per druk op "Nu versturen"
   public let mailScanPerRound : Nat = 200; // opdrachten die een ronde hoogstens bekijkt (overslaan, droog)
-  public let mailCyclesMax : Nat = 50_000_000_000; // meegegeven per mail (zoals caffeineai-email); de rest komt terug
+  // Meegegeven per mail; wat de dienst niet aanrekent, komt terug. 1b.5 (G6/G7): niet de 50 miljard van caffeineai-email
+  // maar 20 miljard (28× de gemeten 0,7 miljard per mail): bij een oproep zonder antwoord (timeout, "onzeker") kan de
+  // teruggave verloren gaan, en dit begrenst dat verlies. Vraagt de dienst ooit meer, dan stopt de ronde met een melding
+  // die het gevraagde getal noemt (TooFewCyclesAttached → #noFunds), zonder dat een mail verloren gaat.
+  public let mailCyclesMax : Nat = 20_000_000_000;
   public let mailCyclesFloor : Nat = 500_000_000_000; // daaronder geen mail: de canister mag niet bevriezen
   public let mailTimeoutSeconds : Nat32 = 300; // begrensd wachten op de maildienst (anders kan een upgrade blijven hangen)
   public let mailLease : Int = 3_600_000_000_000; // 1 uur: zo lang staat een mail "bij de maildienst" zonder antwoord
@@ -304,4 +308,12 @@ module {
   public let appSender = "aaaaa-aa";
   // De draftcanister(s) van dit project: daar blijft de testmodus ALTIJD aan (geen echte mail vanaf de draft, E-0).
   public func draftBackends() : [Text] { ["w5pbr-raaaa-aaaal-qs3aq-cai"] };
+  // 1b.5 (securityreview, M2): echte mail (testmodus uit) kan ENKEL vanaf een canister in deze lijst: de livecanister van
+  // het project, in te vullen vóór de eerste echte weekmail (docs/postbode-installatie.md). Elke andere canister (een
+  // nieuwe draftcanister, een herstel op een ander project) blijft in de testmodus, wat de beheerder ook instelt. Een
+  // draftcanister hierboven is nooit live, ook niet als ze ooit in deze lijst zou staan.
+  public func mailLiveBackends() : [Text] { [] };
+  // Enkel voor de testbouw van tests/lokaal.sh (die zet dit op true, zoals de testhash): dan telt elke canister als live,
+  // zodat de rollentest het pad "testmodus uit → echte adressen" kan bewijzen. tools/meetlat.mjs weigert een upload met true.
+  public let mailLiveAnyCanister : Bool = false;
 };

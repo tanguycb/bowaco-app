@@ -55,6 +55,8 @@ persistent actor Self {
   transient let mailLock = Mail.newLock();
   // De draftcanister van dit project: daar blijft de testmodus altijd aan (Config.draftBackends).
   func isDraft() : Bool { Mail.isDraft(Principal.fromActor(Self)) };
+  // 1b.5: enkel de livecanister (Config.mailLiveBackends) kan echte mail sturen; elders blijft de testmodus aan.
+  func isLive() : Bool { Mail.isLive(Principal.fromActor(Self)) };
 
   include StorageGate(settings, access, works);
   include AccessApi(settings, access, works, robot, audit, ctr, org);
@@ -78,7 +80,7 @@ persistent actor Self {
   // 1b.2: boete-opzoeking op de ritten van het werfverslag (R14) met de vergunningen van die dag.
   include FinesApi(settings, access, org, works, plan, reports, permits, audit);
   // mail-caffeine (E-11): de app verstuurt zelf via de maildienst van Caffeine (testmodus, logboek); geen robot meer.
-  include PostApi(settings, access, org, oa, works, plan, reports, robot, post, mail, audit, ctr, mailLock, isDraft);
+  include PostApi(settings, access, org, oa, works, plan, reports, robot, post, mail, audit, ctr, mailLock, isDraft, isLive);
   // 1b.4: werfadministratie (30bis, Checkinatwork-export, inhoudingsplicht per OA).
   include WadmApi(settings, access, org, works, dossier, plan, reports, permits, wadm, audit, ctr);
 
@@ -105,7 +107,7 @@ persistent actor Self {
   transient let _mail = Timer.recurringTimer<system>(
     #seconds(Config.mailTimerSeconds),
     func() : async () {
-      ignore await* Mail.drain<system>({ c = { settings; access; org; oa; works; plan; reports }; ps = post; ms = mail; audit; ctr; lock = mailLock; draft = isDraft() }, Config.mailPerRound, null);
+      ignore await* Mail.drain<system>({ c = { settings; access; org; oa; works; plan; reports }; ps = post; ms = mail; audit; ctr; lock = mailLock; live = isLive() }, Config.mailPerRound, null);
     },
   );
 };

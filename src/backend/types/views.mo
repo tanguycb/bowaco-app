@@ -1377,6 +1377,9 @@ module {
     sending : Bool; // er loopt nu een verstuurronde
     sent : Nat; // verstuurd volgens het logboek (alles samen)
     cyclesSent : Nat; // aangerekend door de maildienst (alles samen)
+    // 1b.5 (securityreview)
+    liveMail : Bool; // deze canister staat in Config.mailLiveBackends: enkel daar kan de testmodus uit (M2)
+    cyclesBalance : Nat; // de cycles van de app nu, om "te weinig cycles" te zien aankomen (G6)
   };
   // `contact` optioneel: weglaten = ongewijzigd.
   public type PostSettingsInput = { weekmail : Bool; reminders : Bool; day : Nat; hour : Nat; reminderDay : Nat; appUrl : Text; contact : ?Text };

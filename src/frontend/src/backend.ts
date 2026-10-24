@@ -1953,11 +1953,13 @@ export interface PostSettingsView {
     appUrl: string;
     leased: bigint;
     sending: boolean;
+    liveMail: boolean;
     robots: Array<RobotSeen>;
     reminders: boolean;
     optedOut: Array<OrgId>;
     queued: bigint;
     reminderDay: bigint;
+    cyclesBalance: bigint;
     draft: boolean;
     lastWeek: bigint;
     failed: bigint;
@@ -10339,11 +10341,13 @@ function from_candid_record_n474(_uploadFile: (file: ExternalBlob) => Promise<Ui
     appUrl: string;
     leased: bigint;
     sending: boolean;
+    liveMail: boolean;
     robots: Array<_RobotSeen>;
     reminders: boolean;
     optedOut: Array<_OrgId>;
     queued: bigint;
     reminderDay: bigint;
+    cyclesBalance: bigint;
     draft: boolean;
     lastWeek: bigint;
     failed: bigint;
@@ -10360,11 +10364,13 @@ function from_candid_record_n474(_uploadFile: (file: ExternalBlob) => Promise<Ui
     appUrl: string;
     leased: bigint;
     sending: boolean;
+    liveMail: boolean;
     robots: Array<RobotSeen>;
     reminders: boolean;
     optedOut: Array<OrgId>;
     queued: bigint;
     reminderDay: bigint;
+    cyclesBalance: bigint;
     draft: boolean;
     lastWeek: bigint;
     failed: bigint;
@@ -10382,11 +10388,13 @@ function from_candid_record_n474(_uploadFile: (file: ExternalBlob) => Promise<Ui
         appUrl: value.appUrl,
         leased: value.leased,
         sending: value.sending,
+        liveMail: value.liveMail,
         robots: from_candid_vec_n475(_uploadFile, _downloadFile, value.robots),
         reminders: value.reminders,
         optedOut: value.optedOut,
         queued: value.queued,
         reminderDay: value.reminderDay,
+        cyclesBalance: value.cyclesBalance,
         draft: value.draft,
         lastWeek: value.lastWeek,
         failed: value.failed
