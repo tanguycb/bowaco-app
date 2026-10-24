@@ -156,8 +156,15 @@ const oa1 = await backend("proef-oa", cid);
 let hl = null;
 let hx = null;
 let restoreGrants = async () => {};
+// Zonder het recht "uren bevestigen" van Proef Dak op P-A (de rollentest nam het weg; ook op de draft kan het uit
+// staan) is geen enkele regel te bevestigen: even aan, achteraf hersteld. Zo wordt een vorig proefverslag hergebruikt.
+const mDak = (await admin.listMembers(A)).find((m) => m.orgId[0] === orgDak.id && "onderaannemer" in m.role);
+if (mDak && !mDak.grants.some((g) => "confirmHours" in g)) {
+  await admin.setMemberGrants(mDak.id, [...mDak.grants, { confirmHours: null }]);
+  restoreGrants = () => admin.setMemberGrants(mDak.id, mDak.grants);
+}
 for (const w of [A, B]) {
-  for (const r of await admin.listReports(w, 0n, 30n)) {
+  for (const r of await admin.listReports(w, 0n, 100n)) {
     if (hl || r.attendances === 0n || "draft" in r.status) continue;
     for (const x of [oa2, oa1]) {
       const l = (await x.myHours(r.day > 0n ? r.day - 1n : 0n, r.day + 1n).catch(() => [])).find((y) => y.reportId === r.id && y.canConfirm);
@@ -178,15 +185,9 @@ if (!hl) {
     { opId: uid(), clientKey: K2, op: { finalize: null } },
   ]);
   const rid = res[0] && "done" in res[0].outcome ? res[0].outcome.done.reportId : null;
-  // Lokaal heeft de rollentest het recht "uren bevestigen" van Proef Dak op P-A weggenomen: even terug, achteraf hersteld.
-  const mDak = (await admin.listMembers(A)).find((m) => m.orgId[0] === orgDak.id && "onderaannemer" in m.role);
-  if (mDak && !mDak.grants.some((g) => "confirmHours" in g)) {
-    await admin.setMemberGrants(mDak.id, [...mDak.grants, { confirmHours: null }]);
-    restoreGrants = () => admin.setMemberGrants(mDak.id, mDak.grants);
-  }
   if (rid !== null) hl = (await oa2.myHours(D > 0n ? D - 1n : 0n, D + 1n).catch(() => [])).find((y) => y.reportId === rid && y.canConfirm) ?? null;
   hx = oa2;
-  check("(C2) proefverslag met een uurregel van Proef Dak NV (lokaal)", !!hl, JSON.stringify(res.map((r) => r.outcome), big));
+  check("(C2) proefverslag met een uurregel van Proef Dak NV (eerste keer)", !!hl, JSON.stringify(res.map((r) => r.outcome), big));
 }
 if (hl) {
   const n0 = hl.confirmations.length;
@@ -195,8 +196,8 @@ if (hl) {
   const ok2 = await hx.confirmHours(hl.attendanceId, last ? last.ok : true, last ? last.remark : "");
   const n1 = (await hx.myHours(hl.day > 0n ? hl.day - 1n : 0n, hl.day + 1n)).find((l) => l.attendanceId === hl.attendanceId).confirmations.length;
   check("(C2) dezelfde bevestiging twee keer: hoogstens één erbij", isOk(ok1) && isOk(ok2) && (last ? n1 === n0 : n1 === 1), `${n0} → ${n1}`);
-  await restoreGrants();
 } else check("(C2) een OA heeft een uurregel om te bevestigen", false, "geen afgesloten verslag met uren van een proef-OA op P-A/P-B");
+await restoreGrants();
 // (C4) Werven bij een interne uitnodiging: werfleider = werfleider van die werf; calculator/beheerder = duidelijke weigering.
 const invWl = await admin.invitePerson({ name: "Proef WL met werf (review)", roles: [{ werfleider: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [B], validDays: 1n, tag: "review" });
 check("(C4) werfleider uitnodigen met werf P-B: lukt", isOk(invWl), errOf(invWl));
