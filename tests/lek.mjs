@@ -307,11 +307,16 @@ const table = {
   restoreFinish: [NONE, () => ["BOW-0000-0000-0000-0000"]],
 };
 
+// Waarom een oproep geweigerd werd (voor "te streng": een netwerk- of tijdfout is geen weigering van de app).
+let lastWhy = "";
 async function allowed(fn, args) {
   try {
     const r = await fn(...args);
-    return !(r && typeof r === "object" && "err" in r && /^Geen toegang/.test(r.err));
-  } catch {
+    const no = !!(r && typeof r === "object" && "err" in r && /^Geen toegang/.test(r.err));
+    lastWhy = no ? r.err : "";
+    return !no;
+  } catch (e) {
+    lastWhy = String(e?.message ?? e).split("\n")[0].slice(0, 160);
     return false;
   }
 }
@@ -335,7 +340,9 @@ for (const m of methods) {
   }
   const got = [];
   // admin als laatste: zijn oproep mag iets veranderen (archiveFile).
-  for (const role of [...ALL.filter((r) => r !== "admin"), "admin"]) {
+  // LEK_ROLLEN=admin,werfleider: enkel die rollen (nakijken van een "te streng").
+  const only = process.env.LEK_ROLLEN ? process.env.LEK_ROLLEN.split(",") : null;
+  for (const role of [...ALL.filter((r) => r !== "admin"), "admin"].filter((r) => !only || only.includes(r))) {
     calls++;
     const ok = await allowed(roles[role][m], args());
     if (ok) got.push(role);
@@ -345,7 +352,7 @@ for (const m of methods) {
       console.log(`✗ LEK ${m} door ${role}`);
     } else if (!ok && want) {
       tooStrict++;
-      console.log(`✗ te streng: ${m} voor ${role}`);
+      console.log(`✗ te streng: ${m} voor ${role}  — ${lastWhy}`);
     }
   }
   rows.push({ m, expect, got });
