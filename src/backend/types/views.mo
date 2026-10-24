@@ -51,6 +51,7 @@ module {
     readMunicipalities : Bool; // 1b.1: kennisbank per gemeente lezen (interne rollen)
     manageMunicipalities : Bool; // 1b.1: kennisbank aanvullen (admin, werfleider)
     managePermitKinds : Bool; // 1b.1: vergunningssoorten (admin)
+    wadm : Bool; // 1b.4: werfadministratie (interne rollen)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -157,8 +158,10 @@ module {
     inheritedFrom : ?WorkId; // contract van de hoofdwerf
     guarantee : ?Bool; // waarborg van toepassing
     priceRevision : ?Bool;
-    art30bis : ?Bool; // geraamde aanneemsom ≥ drempel aangifte van werken
+    art30bis : ?Bool; // aangifte van werken nodig (1b.4: bedrag, onderaannemers, asbest)
     checkinatwork : ?Bool;
+    art30bisReason : Text; // 1b.4: waarom (zonder bedragen)
+    oaCount : Nat; // 1b.4: onderaannemers op de werf (lidmaatschap of planning)
   };
 
   // Wat de beller op deze werf mag (knoppen); de backend controleert elke handeling opnieuw.
@@ -806,6 +809,8 @@ module {
     procedures : [Types.PermitProcedure];
     permitAlerts : [(Text, Int)];
     jobs : [Types.Job]; // 1b.3: de werkwachtrij van de postbode
+    withholdingChecks : [Types.WithholdingCheck]; // 1b.4: raadplegingen inhoudingsplicht
+    declarations : [Types.Declaration]; // 1b.4: aangifte van werken per werf
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -870,6 +875,8 @@ module {
     #procedures : [Types.PermitProcedure];
     #permitAlerts : [(Text, Int)];
     #jobs : [Types.Job]; // 1b.3
+    #withholdingChecks : [Types.WithholdingCheck]; // 1b.4
+    #declarations : [Types.Declaration];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -1361,4 +1368,57 @@ module {
     lastWeek : Nat; // maandag (dagnummer) van de laatst klaargezette weekmails; 0 = nog nooit
   };
   public type PostSettingsInput = { weekmail : Bool; reminders : Bool; day : Nat; hour : Nat; reminderDay : Nat; appUrl : Text };
+
+  // ── Werfadministratie (1b.4) ────────────────────────────────────────────
+  public type WithholdingCheckView = { id : Nat; orgId : OrgId; kbo : Text; result : Types.WithholdingResult; consultedOn : Day; reference : Text; note : Text; source : Text; workId : ?WorkId; at : Int; byName : Text };
+  // state: "ok" · "verouderd" · "inhoudingsplicht" · "onbekend" · "nooit" · "geen-kbo"; link = checkinhoudingsplicht.be met het KBO-nummer
+  public type OaWithholding = { orgId : OrgId; name : Text; kbo : ?Text; state : Text; last : ?WithholdingCheckView; link : ?Text };
+  public type WithholdingInput = { result : Types.WithholdingResult; consultedOn : Day; reference : Text; note : Text; workId : ?WorkId };
+  public type DeclarationView = { status : Types.DeclarationStatus; nature : Text; asbestos : Bool; note : Text; updatedAt : Int; updatedByName : Text; deadline : ?Day };
+  public type DeclarationInput = { status : Types.DeclarationStatus; nature : Text; asbestos : Bool; note : Text };
+  public type WorkAdminView = {
+    workId : WorkId;
+    art30bis : ?Bool;
+    reason : Text;
+    oaCount : Nat;
+    declaration : DeclarationView;
+    checkinatwork : ?Bool;
+    permitsTotal : Nat;
+    permitsGranted : Nat;
+    permitsAttention : Nat;
+    oas : [OaWithholding];
+    dbUpdated : Day; // laatste bijwerking van de databank inhoudingsplicht
+    start : ?Day;
+    end : ?Day;
+    canEdit : Bool;
+    canCheck : Bool;
+    canSeeAmounts : Bool;
+  };
+  // Alles wat de online aangifte van werken vraagt (socialsecurity.be, Formica); bedrag en adres van de opdrachtgever
+  // enkel voor wie het contract mag lezen (R27).
+  public type DeclarationOa = { name : Text; kbo : ?Text; vat : ?Text };
+  public type DeclarationDraft = {
+    workCode : Text;
+    workName : Text;
+    workAddress : Types.Address;
+    client : Text;
+    clientAddress : ?Types.Address;
+    amountCents : ?Int;
+    nature : Text;
+    start : ?Day;
+    end : ?Day;
+    regie : Bool;
+    oas : [DeclarationOa];
+    architect : Text;
+    safetyCoordinator : Text;
+    asbestos : Bool;
+    deadline : ?Day;
+    reason : Text;
+    portal : Text;
+  };
+  public type CiawRow = { day : Day; orgName : Text; kbo : Text; names : Text; headcount : Nat; slots : Text; minutes : Nat; regie : Bool };
+  public type CiawExport = { workCode : Text; workName : Text; address : Types.Address; declarationNumber : Text; from : Day; to : Day; required : ?Bool; rows : [CiawRow] };
+  public type WadmDeclarationLine = { workId : WorkId; workCode : Text; workName : Text; reason : Text; start : ?Day; deadline : ?Day; status : Text };
+  public type WadmOverview = { declarations : [WadmDeclarationLine]; oas : [OaWithholding]; dbUpdated : Day };
+  public type WadmRules = { threshold30bisCents : Nat; threshold30bisWithOaCents : Nat; oaCountAlways : Nat; thresholdCheckinatworkCents : Nat };
 };

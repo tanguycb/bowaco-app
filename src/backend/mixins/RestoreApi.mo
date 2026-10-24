@@ -41,6 +41,7 @@ mixin (
   reports : Types.ReportState,
   permits : Types.PermitState,
   post : Types.PostState,
+  wadm : Types.WadmState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -99,7 +100,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -233,6 +234,8 @@ mixin (
       case (#procedures xs) { for (x in xs.values()) { permits.procedures.add(x.municipalityId.toText() # ":" # x.kind, x) }; xs.size() };
       case (#permitAlerts xs) { for ((k, v) in xs.values()) { permits.alerts.add(k, v) }; xs.size() };
       case (#jobs xs) { for (j in xs.values()) { post.jobs.add(j.id, j) }; xs.size() };
+      case (#withholdingChecks xs) { for (c in xs.values()) { wadm.checks.add(c.id, c) }; xs.size() };
+      case (#declarations xs) { for (d in xs.values()) { wadm.declarations.add(d.workId, d) }; xs.size() };
     };
   };
 
@@ -336,6 +339,7 @@ mixin (
       };
     };
     rsAtLeast("job", rsMaxKey(post.jobs));
+    rsAtLeast("withholdingCheck", rsMaxKey(wadm.checks));
   };
 
   func rsSummary() : Views.RestoreSummary {

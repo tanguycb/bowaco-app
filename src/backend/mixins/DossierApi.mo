@@ -14,15 +14,19 @@ import Views "../types/views";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Dossier "../lib/Dossier";
+import Wadm "../lib/Wadm";
 import Ids "../lib/Ids";
 import Rights "../lib/Rights";
 
 mixin (
   settings : Types.SettingsState,
   access : Types.AccessState,
+  org : Types.OrgState,
   works : Types.WorksState,
   files : Types.FileState,
   dossier : Types.DossierState,
+  plan : Types.PlanState,
+  wadm : Types.WadmState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -36,10 +40,11 @@ mixin (
     let docs = Dossier.docsOf(dossier, workId).filter(func d = Rights.mayReadDoc(ctx, p, workId, Dossier.docAccess(settings, d)));
     let views = docs.map(func d = Dossier.docView(ctx, access, files, p, d));
     let kinds = Dossier.kinds(settings, false);
+    let ext = Wadm.ext(org, works, plan, wadm);
     let lines = kinds.filterMap(
       func(k : Views.DocKindView) : ?Views.ChecklistLine {
         if (not Rights.mayReadDoc(ctx, p, workId, Dossier.access(k, null))) { return null };
-        let a = Dossier.applies(settings, works, dossier, w, k.rule);
+        let a = Dossier.applies(settings, works, dossier, ext, w, k.rule);
         // De nieuwste van die soort (hoogste id) telt voor de checklist.
         var doc : ?Views.DocumentView = null;
         for (v in views.values()) {

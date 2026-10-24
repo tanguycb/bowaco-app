@@ -362,7 +362,12 @@ check("de werffiche van de werfleider bevat geen bedrag", !JSON.stringify(wA, bi
 check("OA, klant, architect en VC krijgen geen feiten en geen checklistteller", (await Promise.all([oa, klant, arch, vc].map((x) => x.getWork(A)))).every((w) => w.facts.length === 0 && w.checklistOpen.length === 0));
 check("werfcaps: werfleider bewerkt, ziet geen contract; calculator ziet contract, bewerkt niet", wA.caps.edit && !wA.caps.contract && (await calc.getWork(A)).caps.contract && !(await calc.getWork(A)).caps.edit);
 await admin.setSettings({ werfleiderZietAlles: true, inviteDays: 7n, threshold30bisCents: 5_000_000n, thresholdCheckinatworkCents: 50_000_000n });
-check("drempel 30bis instelbaar: € 50.000 → werf A (€ 45.000) valt eronder", (await wl.getWork(A)).facts[0].art30bis[0] === false);
+{
+  // 1b.4: sinds de regel "≥ € 5.000 met een onderaannemer / altijd met meer dan één" hangt het antwoord ook af van het
+  // aantal onderaannemers op de werf: zonder onderaannemer valt A (€ 45.000) onder een drempel van € 50.000.
+  const fA = (await wl.getWork(A)).facts[0];
+  check("drempel 30bis instelbaar: € 50.000 → werf A (€ 45.000) zonder OA eronder, met OA erboven (≥ € 5.000)", fA.oaCount === 0n ? fA.art30bis[0] === false : fA.art30bis[0] === true && fA.art30bisReason.length > 0, JSON.stringify(fA, big));
+}
 await admin.setSettings({ werfleiderZietAlles: true, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n });
 const hist = await admin.readContractHistory(A);
 check("contracthistoriek: elke versie bewaard", isOk(hist) && hist.ok.length === 1 && hist.ok[0].byName === "Proef Calculator");
@@ -1428,7 +1433,7 @@ check("een andere postbode kan de lease niet afsluiten", errOf(await rPost2.comp
 check("een persoon kan geen opdracht afsluiten", await rejects(wl.completeJob(j13.id, 1n, "x")));
 check("mislukt (503) → opnieuw in de wachtrij met wachttijd", isOk(await rPost.failJob(j13.id, 1n, "http 503", true)) && "queued" in (await admin.listJobs("open", 0n, 50n)).find((j) => j.id === j13.id).state);
 check("tijdens de wachttijd niet opnieuw geleaset", !(await rPost.leaseJobs(10n)).some((x) => x.id === j13.id));
-if (local) {
+if (local && !process.env.ZONDER_KLOK) {
   await advance(6n * 60_000_000_000n);
   await resync(rPost, rPost2);
   const l2 = (await rPost.leaseJobs(10n)).find((x) => x.id === j13.id);
@@ -1446,7 +1451,7 @@ if (local) {
 }
 const jDone = (await admin.listJobs("alles", 0n, 50n)).find((j) => j.id === j13.id);
 check("opdracht klaar of geannuleerd; niet meer open", !!jDone && !("queued" in jDone.state) && !("leased" in jDone.state));
-check("auditlog: post-verstuurd zonder e-mailadres", !local || (await admin.auditLog(0n, 60n)).some((e) => e.action === "post-verstuurd" && !e.detail.includes("@")));
+check("auditlog: post-verstuurd zonder e-mailadres", !(local && !process.env.ZONDER_KLOK) || (await admin.auditLog(0n, 60n)).some((e) => e.action === "post-verstuurd" && !e.detail.includes("@")));
 // Proefmail, mislukt zonder retry, opnieuw zetten, annuleren
 check("proefmail zonder adres geweigerd", "err" in (await admin.queueTestMail("geen-adres")));
 const tm = await admin.queueTestMail("eigen@proef.invalid");
@@ -1463,6 +1468,62 @@ for (const j of await admin.listJobs("open", 0n, 100n)) await admin.cancelJob(j.
 check("robots 'laatst gezien' in de instellingen", (await admin.postSettings()).robots.some((r) => r.name === "Postbode" && r.lastSeen.length === 1));
 check("postbode ingetrokken: leaset niets meer", isOk(await admin.revokeRobot(P("robot-post"))) && (await rejects(rPost.leaseJobs(1n))));
 check("export: de werkwachtrij; in stukken 'jobs'", (await admin.exportIntern()).jobs.length >= 3 && "jobs" in ok1b(await admin.exportChunk("jobs", 0n, 10n)));
+}
+
+await sec("── 1b.4 werfadministratie: 30bis (bedrag, onderaannemers, asbest), aangifte, Checkinatwork-export, inhoudingsplicht");
+{
+  // Laatste bijwerking van de databank inhoudingsplicht: vrijdag na de laatste donderdag van de maand (zoals Wadm.mo).
+  const upd = (y, m) => { const last = Date.UTC(y, m, 0); let d = new Date(last); while (d.getUTCDay() !== 4) d = new Date(d.getTime() - 86_400_000); return BigInt(Math.round(d.getTime() / 86_400_000) + 1); };
+  const tdy = BigInt(Math.floor(Date.now() / 86_400_000));
+  const nd = new Date(Number(tdy) * 86_400_000);
+  const cur = upd(nd.getUTCFullYear(), nd.getUTCMonth() + 1);
+  const expUpd = tdy >= cur ? cur : upd(nd.getUTCMonth() === 0 ? nd.getUTCFullYear() - 1 : nd.getUTCFullYear(), nd.getUTCMonth() === 0 ? 12 : nd.getUTCMonth());
+  check("werfadministratie: OA, architect, klant, VC en anoniem lezen niets", (await Promise.all([oa2, arch, klant, vc, anon].map((x) => rejects(x.workAdmin(B))))).every(Boolean));
+  const wa = await wl.workAdmin(B);
+  check("werf B: onderaannemers geteld (lidmaatschap of planning) en een reden", wa.oaCount >= 1n && wa.reason.length > 0, JSON.stringify({ n: wa.oaCount, r: wa.reason, a: wa.art30bis }, big));
+  check("databank inhoudingsplicht: laatste bijwerking = vrijdag na de laatste donderdag", wa.dbUpdated === expUpd, `${wa.dbUpdated} vs ${expUpd}`);
+  check("werfleider ziet geen bedragen, calculator wel", !wa.canSeeAmounts && (await calc.workAdmin(B)).canSeeAmounts && wa.canEdit && !(await calc.workAdmin(B)).canEdit);
+  check("regels: werfleider past ze niet aan", await rejects(wl.setWadmRules({ threshold30bisCents: 1n, threshold30bisWithOaCents: 1n, oaCountAlways: 1n, thresholdCheckinatworkCents: 1n })));
+  const r0 = await calc.wadmRules();
+  check("standaard: € 30.000 · € 5.000 met OA · altijd vanaf 2 OA's · Checkinatwork € 500.000", r0.threshold30bisCents === 3_000_000n && r0.threshold30bisWithOaCents === 500_000n && r0.oaCountAlways === 2n && r0.thresholdCheckinatworkCents === 50_000_000n);
+  check("admin: altijd vanaf 1 OA → werf B: aangifte nodig 'ongeacht het bedrag'", isOk(await admin.setWadmRules({ ...r0, oaCountAlways: 1n })) && (await wl.workAdmin(B)).art30bis[0] === true && (await wl.workAdmin(B)).reason.includes("ongeacht"));
+  check("regels terug op de standaard", isOk(await admin.setWadmRules(r0)));
+  // Asbest: altijd
+  check("calculator houdt de aangifte niet bij (#editWork)", await denied(calc.saveDeclaration(B, { status: { todo: null }, nature: "eenmalig", asbestos: true, note: "" })));
+  check("asbest → aangifte verplicht ('werken met asbest')", isOk(await wl.saveDeclaration(B, { status: { todo: null }, nature: "eenmalig", asbestos: true, note: "" })) && (await wl.workAdmin(B)).reason === "werken met asbest" && (await wl.getWork(B)).facts[0].art30bis[0] === true);
+  check("gedaan zonder nummer geweigerd; niet nodig zonder reden geweigerd; onbekende aard geweigerd", ("err" in (await wl.saveDeclaration(B, { status: { done: { on: tdy, number: "" } }, nature: "eenmalig", asbestos: true, note: "" }))) && ("err" in (await wl.saveDeclaration(B, { status: { notNeeded: { reason: " " } }, nature: "eenmalig", asbestos: true, note: "" }))) && ("err" in (await wl.saveDeclaration(B, { status: { todo: null }, nature: "soms", asbestos: false, note: "" }))));
+  const dDraftWl = ok1b(await wl.declarationDraft(B));
+  check("aangifte klaarzetten (werfleider): werfadres, onderaannemers met KBO, deadline = start − 15, GEEN bedrag of adres van de opdrachtgever", dDraftWl.workCode === "P-B" && dDraftWl.oas.length >= 1 && dDraftWl.amountCents.length === 0 && dDraftWl.clientAddress.length === 0 && dDraftWl.portal.startsWith("https://formica.socialsecurity.be") && (dDraftWl.start.length === 0 || dDraftWl.deadline[0] === dDraftWl.start[0] - 15n), JSON.stringify(dDraftWl, big).slice(0, 300));
+  await calc.declarationDraft(B);
+  check("calculator ziet het bedrag (als er een contract is); 'bekeek:aangifte-30bis' in de auditlog", (await admin.auditLog(0n, 30n)).some((e) => e.action === "bekeek:aangifte-30bis"));
+  const dn = await wl.saveDeclaration(B, { status: { done: { on: tdy, number: "AVW-2026-123456" } }, nature: "eenmalig", asbestos: true, note: "proef" });
+  check("aangifte gedaan met nummer", isOk(dn) && "done" in dn.ok.status, errOf(dn));
+  const dos = await wl.getDossier(B);
+  check("checklist: document 'aangifte-30bis' ontvangen met het nummer", dos.documents.some((d) => d.kind === "aangifte-30bis" && "received" in d.status && d.title.includes("AVW-2026-123456")));
+  check("overzicht: werf B staat niet meer bij de openstaande aangiftes", !(await calc.wadmOverview()).declarations.some((d) => d.workId === B));
+  check("overzicht: OA, klant geweigerd", (await rejects(oa2.wadmOverview())) && (await rejects(klant.wadmOverview())));
+  // Inhoudingsplicht
+  const orgsAll = await admin.listOrgs(false);
+  const withKbo = orgsAll.find((o) => o.kbo.length === 1 && "subcontractor" in o.kind);
+  const noKbo = orgsAll.find((o) => o.kbo.length === 0 && "subcontractor" in o.kind);
+  const inW = (r) => ({ result: { [r]: null }, consultedOn: tdy, reference: "REF-1", note: "", workId: [B] });
+  check("inhoudingsplicht: OA, architect, klant geweigerd", (await Promise.all([oa2, arch, klant].map((x) => denied(x.recordWithholdingCheck(withKbo.id, inW("clear")))))).every(Boolean));
+  if (noKbo) check("firma zonder KBO: geweigerd met uitleg", errOf(await wl.recordWithholdingCheck(noKbo.id, inW("clear"))).includes("KBO"));
+  const c1 = await wl.recordWithholdingCheck(withKbo.id, inW("clear"));
+  check("werfleider legt 'geen inhoudingsplicht' vast → ok; link met het KBO-nummer", isOk(c1) && c1.ok.state === "ok" && c1.ok.link[0] === `https://www.checkinhoudingsplicht.be/?identificationnumber=${withKbo.kbo[0]}`, JSON.stringify(c1, big).slice(0, 200));
+  check("een raadpleging in de toekomst of te oud geweigerd", ("err" in (await wl.recordWithholdingCheck(withKbo.id, { ...inW("clear"), consultedOn: tdy + 5n }))) && ("err" in (await wl.recordWithholdingCheck(withKbo.id, { ...inW("clear"), consultedOn: tdy - 500n }))));
+  const c2 = await calc.recordWithholdingCheck(withKbo.id, inW("social"));
+  check("calculator: sociale schulden → 'inhoudingsplicht' + melding aan de beheerders", isOk(c2) && c2.ok.state === "inhoudingsplicht" && (await admin.myNotifications(false)).some((n) => n.kind === "inhoudingsplicht" && n.text.includes(withKbo.name)));
+  check("groen van vóór de laatste bijwerking = 'opnieuw nakijken'", isOk(await wl.recordWithholdingCheck(withKbo.id, { ...inW("clear"), consultedOn: expUpd - 1n })) && (await calc.withholdingHistory(withKbo.id)).length === 3);
+  check("geschiedenis: OA geweigerd", await rejects(oa2.withholdingHistory(withKbo.id)));
+  check("auditlog: inhoudingsplicht met resultaat", (await admin.auditLog(0n, 40n)).some((e) => e.action === "inhoudingsplicht" && e.detail.includes(withKbo.name)));
+  // Checkinatwork-export (de aanwezigheden van werf A uit 1.6)
+  check("Checkinatwork-export: calculator en OA geweigerd", (await denied(calc.checkinatworkExport(A, D, D))) && (await denied(oa2.checkinatworkExport(A, D, D))));
+  const ce = await wl.checkinatworkExport(A, D - 1n, D + 1n);
+  check("export werf A: de aanwezigheden van de werfdag met firma, KBO, tijdvakken en regie", isOk(ce) && ce.ok.rows.length >= 2 && ce.ok.rows.some((r) => r.regie && r.slots.includes("07:30")) && ce.ok.rows.every((r) => r.day >= D - 1n && r.day <= D + 1n), errOf(ce));
+  check("export: periode > 400 dagen geweigerd; auditregel", ("err" in (await wl.checkinatworkExport(A, 20_000n, 20_500n))) && (await admin.auditLog(0n, 20n)).some((e) => e.action === "checkinatwork-export"));
+  const exW = await admin.exportIntern();
+  check("export: raadplegingen en aangiftes; in stukken", exW.withholdingChecks.length >= 3 && exW.declarations.length >= 1 && "declarations" in ok1b(await admin.exportChunk("declarations", 0n, 10n)));
 }
 
 await sec("── tickets en robot (§6, R28, R29)");

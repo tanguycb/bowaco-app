@@ -41,6 +41,8 @@ module {
     #reportWriter; #readVehicles; #manageVehicles; #handleIssues;
     // 1b.1: vergunningen over alle werven (lijst, gsm), de kennisbank per gemeente, de vergunningssoorten.
     #permitsOverview; #readMunicipalities; #manageMunicipalities; #managePermitKinds;
+    // 1b.4: inhoudingsplicht raadplegen en vastleggen (interne rollen); werfadministratie over alle werven.
+    #checkWithholding; #wadmOverview;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -189,6 +191,11 @@ module {
       case (#readMunicipalities) internal(p);
       case (#manageMunicipalities) admin or wl;
       case (#managePermitKinds) admin;
+      // 1b.4: de inhoudingsplicht nakijken doet kantoor (contract en betaling: admin, calculator) en de werfleider
+      // (bij de start van een OA); het overzicht van de werfadministratie is intern. Per werf: #readWorkFacts (lezen),
+      // #editWork (aangifte bijhouden, Checkinatwork-export), #readContract (bedrag en adres van de opdrachtgever).
+      case (#checkWithholding) internal(p);
+      case (#wadmOverview) internal(p);
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -447,6 +454,7 @@ module {
       readMunicipalities = may(ctx, p, #readMunicipalities, null);
       manageMunicipalities = may(ctx, p, #manageMunicipalities, null);
       managePermitKinds = may(ctx, p, #managePermitKinds, null);
+      wadm = may(ctx, p, #wadmOverview, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

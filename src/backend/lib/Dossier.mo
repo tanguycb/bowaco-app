@@ -36,8 +36,35 @@ module {
   public func threshold30bis(s : Types.SettingsState) : Nat { setting(s, "drempel30bis", Config.threshold30bisCentsDefault) };
   public func thresholdCheckinatwork(s : Types.SettingsState) : Nat { setting(s, "drempelCheckinatwork", Config.thresholdCheckinatworkCentsDefault) };
 
-  public func facts(s : Types.SettingsState, works : Types.WorksState, d : Types.DossierState, workId : Nat) : Views.WorkFacts {
-    let none : Views.WorkFacts = { contractKnown = false; inheritedFrom = null; guarantee = null; priceRevision = null; art30bis = null; checkinatwork = null };
+  // 1b.4: wat de app over een werf weet buiten het dossier (berekend door lib/Wadm.mo, om geen kringverwijzing te
+  // maken): het aantal onderaannemers (lidmaatschap of planning) en of er asbest verwijderd wordt.
+  public type Ext = { oaCount : Nat -> Nat; asbestos : Nat -> Bool };
+  public let noExt : Ext = { oaCount = func(_ : Nat) : Nat = 0; asbestos = func(_ : Nat) : Bool = false };
+
+  public func threshold30bisWithOa(s : Types.SettingsState) : Nat { setting(s, "drempel30bisMetOa", Config.threshold30bisWithOaCentsDefault) };
+  public func oaCountAlways30bis(s : Types.SettingsState) : Nat { setting(s, "30bis.aantalOa", Config.oaCountAlways30bisDefault) };
+
+  // Aangifte van werken (art. 30bis, VOORLOPIG tot de boekhouder bevestigt; regels sinds 1-1-2014 volgens
+  // socialsecurity.be): verplicht bij asbest, bij meer dan één onderaannemer (ongeacht het bedrag), vanaf € 5.000
+  // met minstens één onderaannemer, en vanaf € 30.000 (met of zonder). null = nog niet te bepalen (geen bedrag).
+  public func art30bis(s : Types.SettingsState, amount : ?Int, oaCount : Nat, asbestos : Bool) : (?Bool, Text) {
+    if asbestos { return (?true, "werken met asbest") };
+    if (oaCount >= oaCountAlways30bis(s)) { return (?true, oaCount.toText() # " onderaannemers (ongeacht het bedrag)") };
+    switch amount {
+      case (?a) {
+        if (a >= threshold30bis(s)) { (?true, "geraamde aanneemsom ≥ drempel") }
+        else if (oaCount >= 1 and a >= threshold30bisWithOa(s)) { (?true, "onderaannemer en aanneemsom ≥ drempel met onderaannemer") }
+        else { (?false, if (oaCount == 0) "onder de drempel, geen onderaannemer" else "onder de drempel met onderaannemer") };
+      };
+      case null { (null, if (oaCount == 0) "geraamde aanneemsom ontbreekt" else "1 onderaannemer: aanneemsom nodig om te beslissen") };
+    };
+  };
+
+  public func facts(s : Types.SettingsState, works : Types.WorksState, d : Types.DossierState, ext : Ext, workId : Nat) : Views.WorkFacts {
+    let n = ext.oaCount(workId);
+    let asb = ext.asbestos(workId);
+    let (a0, r0) = art30bis(s, null, n, asb);
+    let none : Views.WorkFacts = { contractKnown = false; inheritedFrom = null; guarantee = null; priceRevision = null; art30bis = a0; checkinatwork = null; art30bisReason = r0; oaCount = n };
     let (c, from) = effectiveConfidential(works, d, workId) ?? return none;
     switch (c.contract) {
       case (#sealed _) { { none with contractKnown = true; inheritedFrom = from } };
@@ -45,13 +72,16 @@ module {
         let over = func(limit : Nat) : ?Bool {
           switch (k.estimatedAmountCents) { case (?a) ?(a >= limit); case null null };
         };
+        let (a, r) = art30bis(s, k.estimatedAmountCents, n, asb);
         {
           contractKnown = true;
           inheritedFrom = from;
           guarantee = ?(k.guarantee != #none and k.guaranteeBp > 0);
           priceRevision = ?(k.priceRevision != #none);
-          art30bis = over(threshold30bis(s));
+          art30bis = a;
           checkinatwork = over(thresholdCheckinatwork(s));
+          art30bisReason = r;
+          oaCount = n;
         };
       };
     };
@@ -162,14 +192,14 @@ module {
   // ── Checklist ────────────────────────────────────────────────────────────
   public func today() : Nat { Int.abs(Time.now() / Config.day) };
 
-  public func applies(s : Types.SettingsState, works : Types.WorksState, d : Types.DossierState, w : Types.Work, rule : Text) : Views.Applies {
+  public func applies(s : Types.SettingsState, works : Types.WorksState, d : Types.DossierState, ext : Ext, w : Types.Work, rule : Text) : Views.Applies {
     func yn(b : Bool) : Views.Applies { if b #yes else #no };
     func opt(b : ?Bool) : Views.Applies { switch b { case (?x) yn(x); case null #unknown } };
     switch rule {
       case "altijd" #yes;
       case "btw6" yn(w.vatBp == 600);
-      case "30bis" opt(facts(s, works, d, w.id).art30bis);
-      case "checkinatwork" opt(facts(s, works, d, w.id).checkinatwork);
+      case "30bis" opt(facts(s, works, d, ext, w.id).art30bis);
+      case "checkinatwork" opt(facts(s, works, d, ext, w.id).checkinatwork);
       case "vc" {
         let hasVc = works.memberships.values().any(func m = m.workId == w.id and m.endedAt == null and m.role == #veiligheidscoordinator);
         if hasVc #yes else #unknown;
@@ -196,11 +226,11 @@ module {
   };
 
   // Aantal verplichte soorten zonder ontvangen/goedgekeurd/n.v.t.-document (voor lijsten, intern).
-  public func openCount(s : Types.SettingsState, works : Types.WorksState, d : Types.DossierState, w : Types.Work) : Nat {
+  public func openCount(s : Types.SettingsState, works : Types.WorksState, d : Types.DossierState, ext : Ext, w : Types.Work) : Nat {
     let docs = docsOf(d, w.id);
     var n = 0;
     for (k in kinds(s, false).values()) {
-      if (applies(s, works, d, w, k.rule) == #yes) {
+      if (applies(s, works, d, ext, w, k.rule) == #yes) {
         let ok = docs.any(func x = x.kind == k.key and done(effectiveStatus(x)));
         if (not ok) { n += 1 };
       };
@@ -209,7 +239,7 @@ module {
   };
 
   // ── Views ────────────────────────────────────────────────────────────────
-  public func workView(ctx : Ctx, d : Types.DossierState, p : Types.Person, w : Types.Work) : Views.WorkView {
+  public func workView(ctx : Ctx, d : Types.DossierState, ext : Ext, p : Types.Person, w : Types.Work) : Views.WorkView {
     let info = d.info.get(w.id);
     let internalFacts = Rights.may(ctx, p, #readWorkFacts, ?w.id);
     {
@@ -231,8 +261,8 @@ module {
       // 1.9: de analytische code (boekhouding) en de btw-grond zijn kantoorgegevens: enkel interne rollen.
       analyticCode = if internalFacts (switch info { case (?i) i.analyticCode; case null null }) else null;
       vatNote = if internalFacts (switch info { case (?i) i.vatNote; case null "" }) else "";
-      facts = if internalFacts ?facts(ctx.settings, ctx.works, d, w.id) else null;
-      checklistOpen = if internalFacts ?openCount(ctx.settings, ctx.works, d, w) else null;
+      facts = if internalFacts ?facts(ctx.settings, ctx.works, d, ext, w.id) else null;
+      checklistOpen = if internalFacts ?openCount(ctx.settings, ctx.works, d, ext, w) else null;
       caps = Rights.workCaps(ctx, p, w.id);
       extra = w.extra;
     };

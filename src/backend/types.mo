@@ -1000,6 +1000,48 @@ module {
     seen : Map.Map<Principal, Int>; // laatste lease per robot ("laatst gezien")
   };
 
+  // ── Werfadministratie (stap 1b.4, bouwplan §5.4) ─────────────────────────
+  // Eigen domein `wadm` (nieuw stabiel veld, deelvorm, OldActor = {}): de raadplegingen van de inhoudingsplicht per OA
+  // (append-only historiek) en per werf de aangifte van werken (30bis). Het bedrag van de werf blijft in het contract
+  // (vertrouwelijk); hier staat het nooit.
+  public type WithholdingResult = { #clear; #social; #fiscal; #both; #unknown }; // geen · sociale · fiscale · beide · onbekend
+
+  // klasse: intern. Eén raadpleging van checkinhoudingsplicht.be (met de hand) of later door de robot (webservice).
+  public type WithholdingCheck = {
+    id : Nat;
+    orgId : OrgId;
+    kbo : Text; // het nummer zoals geraadpleegd
+    result : WithholdingResult;
+    consultedOn : Day;
+    reference : Text; // consultatiereferentie (sociaal luik)
+    note : Text;
+    source : Text; // "hand" · "robot"
+    workId : ?WorkId; // naar aanleiding van welke werf (contract, betaling)
+    fileId : ?Nat; // schermafdruk of attest (optioneel)
+    at : Int;
+    by : ?PersonId; // null = de robot
+    extra : Extra;
+  };
+
+  public type DeclarationStatus = { #todo; #done : { on : Day; number : Text }; #notNeeded : { reason : Text } };
+
+  // klasse: intern. Aangifte van werken per werf: de status, de aard en asbest (bepaalt mee of ze nodig is).
+  public type Declaration = {
+    workId : WorkId;
+    status : DeclarationStatus;
+    nature : Text; // "eenmalig" · "doorlopend"
+    asbestos : Bool;
+    note : Text;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  public type WadmState = {
+    checks : Map.Map<Nat, WithholdingCheck>;
+    declarations : Map.Map<WorkId, Declaration>;
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

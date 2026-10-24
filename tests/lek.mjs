@@ -253,6 +253,17 @@ const table = {
   queueTestMail: [ADMIN, () => [""]],
   cancelJob: [ADMIN, () => [X]],
   retryJob: [ADMIN, () => [X]],
+  // 1b.4 werfadministratie: lezen interne rollen die de werf zien (#readWorkFacts), bijhouden en exporteren admin en
+  // werfleider (#editWork), inhoudingsplicht interne rollen, regels admin.
+  workAdmin: [INTERNAL, () => [B]],
+  declarationDraft: [INTERNAL, () => [B]],
+  saveDeclaration: [["admin", "werfleider"], () => [B, { status: { todo: null }, nature: "x", asbestos: false, note: "" }]],
+  recordWithholdingCheck: [INTERNAL, () => [X, { result: { clear: null }, consultedOn: 20_000n, reference: "", note: "", workId: [] }]],
+  withholdingHistory: [INTERNAL, () => [X]],
+  checkinatworkExport: [["admin", "werfleider"], () => [B, 20_001n, 20_000n]],
+  wadmOverview: [INTERNAL, () => []],
+  wadmRules: [INTERNAL, () => []],
+  setWadmRules: [ADMIN, () => [{ threshold30bisCents: 0n, threshold30bisWithOaCents: 0n, oaCountAlways: 0n, thresholdCheckinatworkCents: 0n }]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

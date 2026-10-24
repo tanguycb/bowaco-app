@@ -15,6 +15,7 @@ import Config "../lib/Config";
 import Ids "../lib/Ids";
 import Rights "../lib/Rights";
 import Dossier "../lib/Dossier";
+import Wadm "../lib/Wadm";
 
 mixin (
   settings : Types.SettingsState,
@@ -22,6 +23,8 @@ mixin (
   org : Types.OrgState,
   works : Types.WorksState,
   dossier : Types.DossierState,
+  plan : Types.PlanState,
+  wadm : Types.WadmState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -30,14 +33,14 @@ mixin (
   public query ({ caller }) func listWorks() : async [Views.WorkView] {
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
-    works.works.values().filter(func w = Rights.may(ctx, p, #readWork, ?w.id)).map(func w = Dossier.workView(ctx, dossier, p, w)).toArray();
+    works.works.values().filter(func w = Rights.may(ctx, p, #readWork, ?w.id)).map(func w = Dossier.workView(ctx, dossier, Wadm.ext(org, works, plan, wadm), p, w)).toArray();
   };
 
   public query ({ caller }) func getWork(id : Nat) : async Views.WorkView {
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #readWork, ?id);
-    switch (works.works.get(id)) { case (?w) Dossier.workView(ctx, dossier, p, w); case null Runtime.trap("Geen toegang") };
+    switch (works.works.get(id)) { case (?w) Dossier.workView(ctx, dossier, Wadm.ext(org, works, plan, wadm), p, w); case null Runtime.trap("Geen toegang") };
   };
 
   public shared ({ caller }) func createWork(i : Views.WorkInput) : async Result.Result<Views.WorkView, Text> {
@@ -80,7 +83,7 @@ mixin (
       case null {};
     };
     Access.audit(audit, caller, ?p.id, ?id, "werf-gemaakt", code # " " # name # (switch (i.parentId) { case (?x) " (deelwerf van " # workCode(x) # ")"; case null "" }));
-    #ok(Dossier.workView({ works; settings }, dossier, p, w));
+    #ok(Dossier.workView({ works; settings }, dossier, Wadm.ext(org, works, plan, wadm), p, w));
   };
 
   // Werffiche wijzigen (R4): het record wordt vervangen, de auditregel toont per veld oud → nieuw (D2).
@@ -148,7 +151,7 @@ mixin (
     if (old.leaderPersonId != u.leaderPersonId) add("werfleider " # optPerson(old.leaderPersonId) # " → " # optPerson(u.leaderPersonId));
     if (old.plannedStart != u.plannedStart or old.plannedEnd != u.plannedEnd) add("periode gewijzigd");
     if (oldAnalytic != analytic) add("analytische code " # (oldAnalytic ?? "–") # " → " # (analytic ?? "–"));
-    if (diff == "") { return #ok(Dossier.workView(ctx, dossier, p, old)) }; // niets veranderd: niets loggen
+    if (diff == "") { return #ok(Dossier.workView(ctx, dossier, Wadm.ext(org, works, plan, wadm), p, old)) }; // niets veranderd: niets loggen
     works.works.add(id, w);
     if (oldAnalytic != analytic or oldVatNote != u.vatNote) {
       dossier.info.add(id, { workId = id; analyticCode = analytic; vatNote = u.vatNote; updatedAt = Time.now(); updatedBy = p.id; extra = switch oldInfo { case (?i) i.extra; case null [] } });
@@ -164,7 +167,7 @@ mixin (
       case null {};
     };
     Access.audit(audit, caller, ?p.id, ?id, "werf-gewijzigd", code # ": " # diff);
-    #ok(Dossier.workView(ctx, dossier, p, w));
+    #ok(Dossier.workView(ctx, dossier, Wadm.ext(org, works, plan, wadm), p, w));
   };
 
   // ── Contractparameters (vertrouwelijk, R23, R27) ────────────────────────

@@ -458,6 +458,7 @@ type DossierState__7485337 =
     documents : Map__230067015<Nat, Document__661322582>;
     info : Map__230067015<WorkId__838834227, WorkInfo__968164740>
   };
+type Extra__268650993 = [(Text, Text)];
 type Extra__365037972 = [(Text, Text)];
 type Extra__482036894 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
@@ -649,6 +650,56 @@ type Issue__887347953 =
     taskIds : [Nat];
     text : Text;
     workId : WorkId__961598709
+  };
+type JobState__38312252 =
+  {
+    #cancelled : {at : Int; by : PersonId__967516914};
+    #done : {at : Int; result : Text};
+    #failed : {at : Int; why : Text};
+    #leased : {attempt : Nat; by : Principal; until : Int};
+    #queued
+  };
+type JobState__997026742 =
+  {
+    #cancelled : {at : Int; by : PersonId__199562452};
+    #done : {at : Int; result : Text};
+    #failed : {at : Int; why : Text};
+    #leased : {attempt : Nat; by : Principal; until : Int};
+    #queued
+  };
+type Job__666725489 =
+  {
+    attempts : Nat;
+    createdAt : Int;
+    createdBy : ?PersonId__967516914;
+    extra : Extra__945213800;
+    id : Nat;
+    key : Text;
+    kind : Text;
+    notBefore : Int;
+    orgId : ?OrgId__17031398;
+    personId : ?PersonId__967516914;
+    ref : Text;
+    state : JobState__38312252;
+    updatedAt : Int;
+    workId : ?WorkId__929594816
+  };
+type Job__800437494 =
+  {
+    attempts : Nat;
+    createdAt : Int;
+    createdBy : ?PersonId__199562452;
+    extra : Extra__268650993;
+    id : Nat;
+    key : Text;
+    kind : Text;
+    notBefore : Int;
+    orgId : ?OrgId__579572044;
+    personId : ?PersonId__199562452;
+    ref : Text;
+    state : JobState__997026742;
+    updatedAt : Int;
+    workId : ?WorkId__642659770
   };
 type Leaf__598469445<K, V> = {data : Data__44217153<K, V>};
 type LinkHistory__721080331 =
@@ -858,6 +909,7 @@ type NewActor__1057791986 =
     settings : SettingsState__180579617;
     works : WorksState__605582232
   };
+type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
 type NewActor__2917504 = {plan : PlanState__393161007};
 type NewActor__398557116 = {imp : ImportState__440367384};
@@ -896,6 +948,7 @@ type OaState__978871092 =
   };
 type OldActor__1025357807 = {};
 type OldActor__211850744 = {};
+type OldActor__285002242 = {};
 type OldActor__305186077 = {};
 type OldActor__381654595 = {};
 type OldActor__415128861 = {};
@@ -966,6 +1019,7 @@ type OrgId__17031398 = Nat;
 type OrgId__208183745 = Nat;
 type OrgId__232449879 = Nat;
 type OrgId__370186017 = Nat;
+type OrgId__579572044 = Nat;
 type OrgId__875663865 = Nat;
 type OrgId__98679714 = Nat;
 type OrgKind__867804321 =
@@ -1185,6 +1239,7 @@ type PersonId__1007515609 = Nat;
 type PersonId__1012124006 = Nat;
 type PersonId__184143711 = Nat;
 type PersonId__185004052 = Nat;
+type PersonId__199562452 = Nat;
 type PersonId__253911295 = Nat;
 type PersonId__363464289 = Nat;
 type PersonId__677245278 = Nat;
@@ -1259,6 +1314,13 @@ type PlanState__393161007 =
     tasks : Map__230067015<Nat, Task__981186964>;
     templates : Map__230067015<Text, Template__948731008>;
     versions : Map__230067015<WorkId__171501769, Nat>
+  };
+type PostState__600695864 =
+  {
+    jobs : Map__230067015<Nat, Job__800437494>;
+    keys : Map__230067015<Text, Nat>;
+    open : Map__230067015<Nat, ()>;
+    seen : Map__230067015<Principal, Int>
   };
 type PriceRevision__20189774 = {#formula : Text; #none};
 type PriceRevision__412682838 = {#formula : Text; #none};
@@ -1717,6 +1779,7 @@ type WorkDone__366546212 =
   };
 type WorkId__111716167 = Nat;
 type WorkId__171501769 = Nat;
+type WorkId__642659770 = Nat;
 type WorkId__72456761 = Nat;
 type WorkId__838834227 = Nat;
 type WorkId__872672482 = Nat;
@@ -1815,7 +1878,8 @@ type WorksState__605582232 =
   "20261023_235000" : OldActor__305186077 -> NewActor__14273466;
   "20261024_090000" : OldActor__381654595 -> NewActor__398557116;
   "20261024_120000" : OldActor__430767433 -> NewActor__542837279;
-  "20261024_150000" : OldActor__669130419 -> NewActor__918578615
+  "20261024_150000" : OldActor__669130419 -> NewActor__918578615;
+  "20261024_180000" : OldActor__285002242 -> NewActor__127410502
 }
 actor  {
   stable access :
@@ -1890,6 +1954,13 @@ actor  {
       tasks : Map__230067015<Nat, Task__226853969>;
       templates : Map__230067015<Text, Template__351132437>;
       versions : Map__230067015<WorkId__929594816, Nat>
+    };
+  stable post :
+    {
+      jobs : Map__230067015<Nat, Job__666725489>;
+      keys : Map__230067015<Text, Nat>;
+      open : Map__230067015<Nat, ()>;
+      seen : Map__230067015<Principal, Int>
     };
   stable reports :
     {

@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1b.3-draft24";
-  public let schema : Nat = 9; // 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
+  public let version = "1b.4-draft25";
+  public let schema : Nat = 10; // 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -71,6 +71,10 @@ module {
   // aangifte van werken (30bis) vanaf € 30.000 excl. btw, Checkinatwork vanaf € 500.000 (bouwplan §5.4).
   public let threshold30bisCentsDefault : Nat = 3_000_000;
   public let thresholdCheckinatworkCentsDefault : Nat = 50_000_000;
+  // 1b.4 (socialsecurity.be, sinds 1-1-2014; VOORLOPIG tot de boekhouder bevestigt): ook vanaf € 5.000 met minstens één
+  // onderaannemer, en altijd bij meer dan één onderaannemer (instelbaar: drempel30bisMetOa, 30bis.aantalOa).
+  public let threshold30bisWithOaCentsDefault : Nat = 500_000;
+  public let oaCountAlways30bisDefault : Nat = 2;
 
   // ── Documentsoorten (A5, VOORLOPIG) ─────────────────────────────────────
   // (sleutel, naam, wanneer verplicht, wie levert, zichtbaar voor OA, vertrouwelijk)

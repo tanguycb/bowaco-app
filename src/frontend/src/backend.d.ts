@@ -334,6 +334,7 @@ export interface Caps {
     importOa: boolean;
     manageOa: boolean;
     home: string;
+    wadm: boolean;
     importPlan: boolean;
     managePermitKinds: boolean;
     readOrgPlanning: boolean;
@@ -365,6 +366,26 @@ export interface ChecklistLine {
     rule: string;
     applies: Applies;
     deliverer: string;
+}
+export interface CiawExport {
+    to: Day;
+    workName: string;
+    declarationNumber: string;
+    from: Day;
+    rows: Array<CiawRow>;
+    address: Address;
+    required?: boolean;
+    workCode: string;
+}
+export interface CiawRow {
+    day: Day;
+    kbo: string;
+    orgName: string;
+    headcount: bigint;
+    minutes: bigint;
+    slots: string;
+    names: string;
+    regie: boolean;
 }
 export type CodeState = {
     __kind__: "revoked";
@@ -609,6 +630,70 @@ export interface Decision {
     note: string;
     accepted: boolean;
 }
+export interface Declaration {
+    status: DeclarationStatus;
+    nature: string;
+    note: string;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    workId: WorkId;
+    asbestos: boolean;
+}
+export interface DeclarationDraft {
+    safetyCoordinator: string;
+    end?: Day;
+    oas: Array<DeclarationOa>;
+    workName: string;
+    client: string;
+    nature: string;
+    deadline?: Day;
+    amountCents?: bigint;
+    clientAddress?: Address;
+    start?: Day;
+    workAddress: Address;
+    architect: string;
+    regie: boolean;
+    workCode: string;
+    reason: string;
+    asbestos: boolean;
+    portal: string;
+}
+export interface DeclarationInput {
+    status: DeclarationStatus;
+    nature: string;
+    note: string;
+    asbestos: boolean;
+}
+export interface DeclarationOa {
+    kbo?: string;
+    vat?: string;
+    name: string;
+}
+export type DeclarationStatus = {
+    __kind__: "done";
+    done: {
+        on: Day;
+        number: string;
+    };
+} | {
+    __kind__: "todo";
+    todo: null;
+} | {
+    __kind__: "notNeeded";
+    notNeeded: {
+        reason: string;
+    };
+};
+export interface DeclarationView {
+    status: DeclarationStatus;
+    nature: string;
+    note: string;
+    deadline?: Day;
+    updatedByName: string;
+    updatedAt: bigint;
+    asbestos: boolean;
+}
 export interface Dependency {
     id: bigint;
     kind: DependencyKind;
@@ -736,6 +821,7 @@ export interface ExportIntern {
     procedures: Array<PermitProcedure>;
     reportChanges: Array<ReportChange>;
     absenceChanges: Array<AbsenceChange>;
+    withholdingChecks: Array<WithholdingCheck>;
     invites: Array<InviteView>;
     schema: bigint;
     trades: Array<TradeView>;
@@ -771,6 +857,7 @@ export interface ExportIntern {
     personContacts: Array<PersonContact>;
     sequences: Array<[string, bigint]>;
     auditCount: bigint;
+    declarations: Array<Declaration>;
     memberships: Array<MembershipView>;
     photos: Array<Photo>;
     linkHistory: Array<LinkHistory>;
@@ -1361,6 +1448,14 @@ export interface OaView {
     org: OrgView;
     contact?: OrgContactView;
     persons: Array<OaPersonView>;
+}
+export interface OaWithholding {
+    kbo?: string;
+    orgId: OrgId;
+    last?: WithholdingCheckView;
+    link?: string;
+    name: string;
+    state: string;
 }
 export type OpOutcome = {
     __kind__: "err";
@@ -1999,6 +2094,9 @@ export type RestorePart = {
     __kind__: "absenceChanges";
     absenceChanges: Array<AbsenceChange>;
 } | {
+    __kind__: "withholdingChecks";
+    withholdingChecks: Array<WithholdingCheck>;
+} | {
     __kind__: "invites";
     invites: Array<InviteView>;
 } | {
@@ -2101,6 +2199,9 @@ export type RestorePart = {
     __kind__: "sequences";
     sequences: Array<[string, bigint]>;
 } | {
+    __kind__: "declarations";
+    declarations: Array<Declaration>;
+} | {
     __kind__: "memberships";
     memberships: Array<MembershipView>;
 } | {
@@ -2148,63 +2249,63 @@ export type Result_10 = {
 };
 export type Result_11 = {
     __kind__: "ok";
-    ok: RollbackReport;
+    ok: DeclarationView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_12 = {
     __kind__: "ok";
-    ok: RestoreSummary;
+    ok: RollbackReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_13 = {
     __kind__: "ok";
-    ok: MeView;
+    ok: RestoreSummary;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_14 = {
     __kind__: "ok";
-    ok: ContactConfidentialView;
+    ok: MeView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_15 = {
     __kind__: "ok";
-    ok: Array<ContractVersionView>;
+    ok: OaWithholding;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_16 = {
     __kind__: "ok";
-    ok: ContractView;
+    ok: ContactConfidentialView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_17 = {
     __kind__: "ok";
-    ok: FileView;
+    ok: Array<ContractVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_18 = {
     __kind__: "ok";
-    ok: PlanPreview;
+    ok: ContractView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_19 = {
     __kind__: "ok";
-    ok: MailOut;
+    ok: FileView;
 } | {
     __kind__: "err";
     err: string;
@@ -2218,56 +2319,70 @@ export type Result_2 = {
 };
 export type Result_20 = {
     __kind__: "ok";
-    ok: FineResult;
+    ok: PlanPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_21 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: MailOut;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_22 = {
     __kind__: "ok";
-    ok: PlanImportReport;
+    ok: FineResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_23 = {
     __kind__: "ok";
-    ok: ImportReport;
+    ok: NewCode;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_24 = {
     __kind__: "ok";
-    ok: OaView;
+    ok: PlanImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_25 = {
     __kind__: "ok";
-    ok: RestorePart;
+    ok: ImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_26 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: OaView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_27 = {
     __kind__: "ok";
-    ok: TicketInfo;
+    ok: RestorePart;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_28 = {
+    __kind__: "ok";
+    ok: DeclarationDraft;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_29 = {
+    __kind__: "ok";
+    ok: NewTicket;
 } | {
     __kind__: "err";
     err: string;
@@ -2275,6 +2390,20 @@ export type Result_27 = {
 export type Result_3 = {
     __kind__: "ok";
     ok: bigint;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_30 = {
+    __kind__: "ok";
+    ok: CiawExport;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_31 = {
+    __kind__: "ok";
+    ok: TicketInfo;
 } | {
     __kind__: "err";
     err: string;
@@ -2566,6 +2695,79 @@ export interface VehicleView {
     plate: string;
     archived: boolean;
 }
+export interface WadmDeclarationLine {
+    workName: string;
+    status: string;
+    deadline?: Day;
+    start?: Day;
+    workId: WorkId;
+    workCode: string;
+    reason: string;
+}
+export interface WadmOverview {
+    oas: Array<OaWithholding>;
+    dbUpdated: Day;
+    declarations: Array<WadmDeclarationLine>;
+}
+export interface WadmRules {
+    threshold30bisWithOaCents: bigint;
+    oaCountAlways: bigint;
+    threshold30bisCents: bigint;
+    thresholdCheckinatworkCents: bigint;
+}
+export interface WithholdingCheck {
+    at: bigint;
+    by?: PersonId;
+    id: bigint;
+    kbo: string;
+    result: WithholdingResult;
+    source: string;
+    orgId: OrgId;
+    note: string;
+    reference: string;
+    extra: Extra;
+    fileId?: bigint;
+    consultedOn: Day;
+    workId?: WorkId;
+}
+export interface WithholdingCheckView {
+    at: bigint;
+    id: bigint;
+    kbo: string;
+    result: WithholdingResult;
+    byName: string;
+    source: string;
+    orgId: OrgId;
+    note: string;
+    reference: string;
+    consultedOn: Day;
+    workId?: WorkId;
+}
+export interface WithholdingInput {
+    result: WithholdingResult;
+    note: string;
+    reference: string;
+    consultedOn: Day;
+    workId?: WorkId;
+}
+export interface WorkAdminView {
+    end?: Day;
+    oas: Array<OaWithholding>;
+    art30bis?: boolean;
+    permitsGranted: bigint;
+    checkinatwork?: boolean;
+    canEdit: boolean;
+    permitsAttention: bigint;
+    declaration: DeclarationView;
+    start?: Day;
+    oaCount: bigint;
+    canCheck: boolean;
+    dbUpdated: Day;
+    canSeeAmounts: boolean;
+    workId: WorkId;
+    reason: string;
+    permitsTotal: bigint;
+}
 export interface WorkCaps {
     manageMembers: boolean;
     contract: boolean;
@@ -2619,9 +2821,11 @@ export interface WorkDoneView {
 export interface WorkFacts {
     art30bis?: boolean;
     checkinatwork?: boolean;
+    art30bisReason: string;
     inheritedFrom?: WorkId;
     guarantee?: boolean;
     contractKnown: boolean;
+    oaCount: bigint;
     priceRevision?: boolean;
 }
 export type WorkId = bigint;
@@ -2815,6 +3019,13 @@ export enum Variant_active_pending_anonymous_unlinked {
     anonymous = "anonymous",
     unlinked = "unlinked"
 }
+export enum WithholdingResult {
+    social = "social",
+    both = "both",
+    clear = "clear",
+    fiscal = "fiscal",
+    unknown = "unknown"
+}
 export enum WorkStatus {
     cancelled = "cancelled",
     request = "request",
@@ -2849,35 +3060,37 @@ export interface backendInterface {
     boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
     boardRules(): Promise<BoardRulesView>;
     cancelJob(id: bigint): Promise<Result_4>;
-    checkTicket(ticket: string): Promise<Result_27>;
+    checkTicket(ticket: string): Promise<Result_31>;
+    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_30>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
     completeJob(id: bigint, attempt: bigint, result: string): Promise<Result_4>;
     confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_4>;
     confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_4>;
     confirmLink(p: Principal): Promise<Result_4>;
     createOrg(input: OrgInput): Promise<Result_2>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_21>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_26>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_23>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_29>;
     createWork(i: WorkInput): Promise<Result>;
     dashboard(day: bigint): Promise<DashboardView>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
+    declarationDraft(workId: bigint): Promise<Result_28>;
     endMembership(id: bigint): Promise<Result_4>;
-    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_25>;
+    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_27>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
     failJob(id: bigint, attempt: bigint, why: string, retry: boolean): Promise<Result_4>;
     getDossier(workId: bigint): Promise<DossierView>;
-    getOa(id: bigint): Promise<Result_24>;
+    getOa(id: bigint): Promise<Result_26>;
     getPlan(workId: bigint): Promise<PlanView>;
     getReport(reportId: bigint): Promise<ReportView>;
     getReportDay(workId: bigint, day: bigint): Promise<Array<ReportView>>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
     handleIssue(issueId: bigint, note: string): Promise<Result_4>;
-    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_23>;
-    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_22>;
-    inviteExistingPerson(i: ExistingInvite): Promise<Result_21>;
-    invitePerson(req: InviteRequest): Promise<Result_21>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_25>;
+    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_24>;
+    inviteExistingPerson(i: ExistingInvite): Promise<Result_23>;
+    invitePerson(req: InviteRequest): Promise<Result_23>;
     leaseJobs(max: bigint): Promise<Array<JobLease>>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
@@ -2903,7 +3116,7 @@ export interface backendInterface {
     listTrips(fromDay: bigint, toDay: bigint): Promise<Array<TripView>>;
     listVehicles(withArchived: boolean): Promise<Array<VehicleView>>;
     listWorks(): Promise<Array<WorkView>>;
-    lookupFine(q: FineQuery): Promise<Result_20>;
+    lookupFine(q: FineQuery): Promise<Result_22>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     me(): Promise<MeView>;
     myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;
@@ -2920,31 +3133,33 @@ export interface backendInterface {
     }>;
     permitsOnSite(day: bigint): Promise<Array<PermitView>>;
     postSettings(): Promise<PostSettingsView>;
-    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_18>;
-    previewMail(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_19>;
-    previewPlan(workId: bigint, change: PlanChange): Promise<Result_18>;
+    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_20>;
+    previewMail(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_21>;
+    previewPlan(workId: bigint, change: PlanChange): Promise<Result_20>;
     queueReminders(monday: bigint): Promise<Result_3>;
     queueTestMail(email: string): Promise<Result_3>;
     queueWeekMails(monday: bigint, orgId: bigint | null): Promise<Result_3>;
-    readConfidentialFile(id: bigint): Promise<Result_17>;
-    readContract(workId: bigint): Promise<Result_16>;
-    readContractHistory(workId: bigint): Promise<Result_15>;
-    readOrgConfidential(id: bigint): Promise<Result_14>;
-    redeemCode(code: string): Promise<Result_13>;
+    readConfidentialFile(id: bigint): Promise<Result_19>;
+    readContract(workId: bigint): Promise<Result_18>;
+    readContractHistory(workId: bigint): Promise<Result_17>;
+    readOrgConfidential(id: bigint): Promise<Result_16>;
+    recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_15>;
+    redeemCode(code: string): Promise<Result_14>;
     removeDependency(workId: bigint, depId: bigint, expectedVersion: bigint): Promise<Result_3>;
     reportSync(ops: Array<ReportOpInput>): Promise<Array<OpResult>>;
     restoreBegin(code: string): Promise<Result_4>;
     restoreChunk(code: string, part: RestorePart): Promise<Result_3>;
-    restoreFinish(code: string): Promise<Result_12>;
+    restoreFinish(code: string): Promise<Result_13>;
     restorePerson(id: bigint): Promise<Result_4>;
     retryJob(id: bigint): Promise<Result_4>;
     revokeInvite(inviteId: bigint): Promise<Result_4>;
     revokeLink(p: Principal): Promise<Result_4>;
     revokeRobot(principal: Principal): Promise<Result_4>;
-    rollbackImport(batchId: string, dryRun: boolean): Promise<Result_11>;
+    rollbackImport(batchId: string, dryRun: boolean): Promise<Result_12>;
     saveAbsence(i: AbsenceInput): Promise<Result_3>;
     saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_3>;
     saveCalendarBlock(i: BlockInput): Promise<Result_3>;
+    saveDeclaration(workId: bigint, x: DeclarationInput): Promise<Result_11>;
     saveDocument(workId: bigint, i: DocumentInput): Promise<Result_3>;
     saveMunicipality(m: MunicipalityInput): Promise<Result_7>;
     saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_10>;
@@ -2973,13 +3188,18 @@ export interface backendInterface {
     setSettings(s: SettingsView): Promise<Result_4>;
     setTaskOrder(workId: bigint, taskIds: Array<bigint>, expectedVersion: bigint): Promise<Result_3>;
     setTrade(t: TradeInput): Promise<Result_4>;
+    setWadmRules(r: WadmRules): Promise<Result_4>;
     setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_4>;
     submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_3>;
     taskHistory(workId: bigint, taskId: bigint | null, from: bigint, limit: bigint): Promise<Array<TaskChangeView>>;
     updateOrg(id: bigint, input: OrgInput): Promise<Result_2>;
     updatePerson(id: bigint, u: PersonUpdate): Promise<Result_1>;
     updateWork(id: bigint, u: WorkUpdate): Promise<Result>;
+    wadmOverview(): Promise<WadmOverview>;
+    wadmRules(): Promise<WadmRules>;
     weekBoard(q: BoardQuery): Promise<BoardView>;
+    withholdingHistory(orgId: bigint): Promise<Array<WithholdingCheckView>>;
+    workAdmin(workId: bigint): Promise<WorkAdminView>;
     workConflicts(workId: bigint, fromDay: bigint, weeks: bigint): Promise<ConflictList>;
     workPermits(workId: bigint): Promise<WorkPermitsView>;
 }

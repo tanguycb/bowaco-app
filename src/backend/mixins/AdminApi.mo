@@ -15,6 +15,7 @@ import Access "../lib/Access";
 import Config "../lib/Config";
 import Rights "../lib/Rights";
 import Dossier "../lib/Dossier";
+import Wadm "../lib/Wadm";
 import Oa "../lib/Oa";
 
 mixin (
@@ -31,6 +32,7 @@ mixin (
   reports : Types.ReportState,
   permits : Types.PermitState,
   post : Types.PostState,
+  wadm : Types.WadmState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -170,7 +172,7 @@ mixin (
       linkHistory = access.linkHistory.values().toArray();
       invites = access.invites.values().map(func i = Access.inviteView(access, i)).toArray();
       orgs = org.orgs.values().map(func o = { id = o.id; kind = o.kind; name = o.name; kbo = o.kbo; vat = o.vat; aliases = o.aliases; trades = o.trades; address = o.address; notes = o.notes; createdAt = o.createdAt; createdBy = o.createdBy; archivedAt = o.archivedAt }).toArray();
-      works = works.works.values().map(func w = Dossier.workView({ works; settings }, dossier, p, w)).toArray();
+      works = works.works.values().map(func w = Dossier.workView({ works; settings }, dossier, Wadm.ext(org, works, plan, wadm), p, w)).toArray();
       memberships = works.memberships.values().map(func m = { id = m.id; workId = m.workId; personId = m.personId; orgId = m.orgId; name = ""; archived = false; role = m.role; grants = m.grants; grantedAt = m.grantedAt; grantedBy = m.grantedBy; endedAt = m.endedAt; endedBy = m.endedBy }).toArray();
       files = files.files.values().map(Dossier.fileView).toArray();
       workInfo = dossier.info.values().toArray();
@@ -219,6 +221,8 @@ mixin (
       procedures = permits.procedures.values().toArray();
       permitAlerts = permits.alerts.entries().toArray();
       jobs = post.jobs.values().toArray();
+      withholdingChecks = wadm.checks.values().toArray();
+      declarations = wadm.declarations.values().toArray();
     };
   };
 
@@ -246,7 +250,7 @@ mixin (
       case "linkHistory" ?#linkHistory(pg(access.linkHistory.values().toArray()));
       case "invites" ?#invites(pg(access.invites.values().map(func i = Access.inviteView(access, i)).toArray()));
       case "orgs" ?#orgs(pg(org.orgs.values().map(Oa.orgView).toArray()));
-      case "works" ?#works(pg(works.works.values().map(func w = Dossier.workView(ctx, dossier, p, w)).toArray()));
+      case "works" ?#works(pg(works.works.values().map(func w = Dossier.workView(ctx, dossier, Wadm.ext(org, works, plan, wadm), p, w)).toArray()));
       case "memberships" ?#memberships(pg(works.memberships.values().map(func m = { id = m.id; workId = m.workId; personId = m.personId; orgId = m.orgId; name = ""; archived = false; role = m.role; grants = m.grants; grantedAt = m.grantedAt; grantedBy = m.grantedBy; endedAt = m.endedAt; endedBy = m.endedBy }).toArray()));
       case "files" ?#files(pg(files.files.values().map(Dossier.fileView).toArray()));
       case "confidentialFiles" ?#files(pg(files.files.values().filter(func f = f.confidential).map(func f = { Dossier.fileView(f) with blob = ?f.blob }).toArray()));
@@ -297,6 +301,8 @@ mixin (
       case "procedures" ?#procedures(pg(permits.procedures.values().toArray()));
       case "permitAlerts" ?#permitAlerts(pg(permits.alerts.entries().toArray()));
       case "jobs" ?#jobs(pg(post.jobs.values().toArray()));
+      case "withholdingChecks" ?#withholdingChecks(pg(wadm.checks.values().toArray()));
+      case "declarations" ?#declarations(pg(wadm.declarations.values().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
