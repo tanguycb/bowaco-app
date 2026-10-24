@@ -806,6 +806,48 @@ export interface FileView {
     workId?: WorkId;
     archivedAt?: bigint;
 }
+export interface FineMatch {
+    day: Day;
+    workName: string;
+    vehicleName: string;
+    backTime?: string;
+    crew: Array<string>;
+    tripId: bigint;
+    score: bigint;
+    sameDay: boolean;
+    permits: Array<FinePermit>;
+    driverOut: string;
+    plateMatch: boolean;
+    guess: string;
+    address: Address;
+    plate: string;
+    workId: WorkId;
+    outTime?: string;
+    placeMatch: boolean;
+    reportId: bigint;
+    driverBack: string;
+    workCode: string;
+}
+export interface FinePermit {
+    id: bigint;
+    validFrom?: Day;
+    reference: string;
+    validTo?: Day;
+    kindName: string;
+    location: string;
+}
+export interface FineQuery {
+    day: Day;
+    time?: bigint;
+    place: string;
+    plate: string;
+    widen: boolean;
+}
+export interface FineResult {
+    vehicleKnown: boolean;
+    matches: Array<FineMatch>;
+    ownTripsOnly: boolean;
+}
 export interface HoursConfirmation {
     at: bigint;
     by: PersonId;
@@ -1673,6 +1715,7 @@ export type ReportOp = {
 } | {
     __kind__: "trip";
     trip: {
+        outMin?: bigint;
         driverOutPersonId?: PersonId;
         driverBackText: string;
         note: string;
@@ -1680,6 +1723,7 @@ export type ReportOp = {
         driverBackPersonId?: PersonId;
         plate: string;
         vehicleId?: bigint;
+        backMin?: bigint;
     };
 } | {
     __kind__: "attendance";
@@ -2040,14 +2084,14 @@ export type Result_17 = {
 };
 export type Result_18 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: FineResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_19 = {
     __kind__: "ok";
-    ok: PlanImportReport;
+    ok: NewCode;
 } | {
     __kind__: "err";
     err: string;
@@ -2061,33 +2105,40 @@ export type Result_2 = {
 };
 export type Result_20 = {
     __kind__: "ok";
-    ok: ImportReport;
+    ok: PlanImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_21 = {
     __kind__: "ok";
-    ok: OaView;
+    ok: ImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_22 = {
     __kind__: "ok";
-    ok: RestorePart;
+    ok: OaView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_23 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: RestorePart;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_24 = {
+    __kind__: "ok";
+    ok: NewTicket;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_25 = {
     __kind__: "ok";
     ok: TicketInfo;
 } | {
@@ -2355,6 +2406,7 @@ export interface TripView {
     id: bigint;
     day: Day;
     vehicleName: string;
+    backTime?: string;
     driverOutPersonId?: PersonId;
     blockKey: string;
     driverBackName: string;
@@ -2365,6 +2417,7 @@ export interface TripView {
     createdByName: string;
     plate: string;
     workId: WorkId;
+    outTime?: string;
     reportId: bigint;
     vehicleId?: bigint;
     workCode: string;
@@ -2663,33 +2716,33 @@ export interface backendInterface {
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
     boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
     boardRules(): Promise<BoardRulesView>;
-    checkTicket(ticket: string): Promise<Result_24>;
+    checkTicket(ticket: string): Promise<Result_25>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
     confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_4>;
     confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_4>;
     confirmLink(p: Principal): Promise<Result_4>;
     createOrg(input: OrgInput): Promise<Result_2>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_18>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_23>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_19>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_24>;
     createWork(i: WorkInput): Promise<Result>;
     dashboard(day: bigint): Promise<DashboardView>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
     endMembership(id: bigint): Promise<Result_4>;
-    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_22>;
+    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_23>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
     getDossier(workId: bigint): Promise<DossierView>;
-    getOa(id: bigint): Promise<Result_21>;
+    getOa(id: bigint): Promise<Result_22>;
     getPlan(workId: bigint): Promise<PlanView>;
     getReport(reportId: bigint): Promise<ReportView>;
     getReportDay(workId: bigint, day: bigint): Promise<Array<ReportView>>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
     handleIssue(issueId: bigint, note: string): Promise<Result_4>;
-    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_20>;
-    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_19>;
-    inviteExistingPerson(i: ExistingInvite): Promise<Result_18>;
-    invitePerson(req: InviteRequest): Promise<Result_18>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_21>;
+    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_20>;
+    inviteExistingPerson(i: ExistingInvite): Promise<Result_19>;
+    invitePerson(req: InviteRequest): Promise<Result_19>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
     listCalendarBlocks(workId: bigint | null): Promise<Array<BlockView>>;
@@ -2713,6 +2766,7 @@ export interface backendInterface {
     listTrips(fromDay: bigint, toDay: bigint): Promise<Array<TripView>>;
     listVehicles(withArchived: boolean): Promise<Array<VehicleView>>;
     listWorks(): Promise<Array<WorkView>>;
+    lookupFine(q: FineQuery): Promise<Result_18>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     me(): Promise<MeView>;
     myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;

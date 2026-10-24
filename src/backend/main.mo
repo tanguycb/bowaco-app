@@ -24,6 +24,7 @@ import ExternApi "mixins/ExternApi";
 import DashboardApi "mixins/DashboardApi";
 import RestoreApi "mixins/RestoreApi";
 import PermitsApi "mixins/PermitsApi";
+import FinesApi "mixins/FinesApi";
 
 persistent actor {
   let settings : Types.SettingsState;
@@ -61,6 +62,8 @@ persistent actor {
   include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, robot, audit, ctr);
   // 1b.1: vergunningenregister (R13), kennisbank per gemeente.
   include PermitsApi(settings, access, works, files, plan, permits, audit, ctr);
+  // 1b.2: boete-opzoeking op de ritten van het werfverslag (R14) met de vergunningen van die dag.
+  include FinesApi(settings, access, org, works, plan, reports, permits, audit);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

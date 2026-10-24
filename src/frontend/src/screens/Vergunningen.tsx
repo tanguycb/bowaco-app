@@ -229,7 +229,7 @@ export function PermitSheet({ workId, permit, preset, kinds, canEdit, onClose }:
       <div className="a-row">
         <Field label={G.name}>
           <select className="bw-input" value={muni} onChange={(e) => setMuni(e.target.value)}>
-            <option value="">{cur?.municipalityId === undefined ? P.noMunicipality : "–"}</option>
+            <option value="">{cur ? (cur.municipalityId === undefined ? P.noMunicipality : "–") : P.autoMunicipality}</option>
             {(munis.data ?? []).map((m) => <option key={String(m.id)} value={String(m.id)}>{m.name}</option>)}
           </select>
         </Field>

@@ -1085,11 +1085,11 @@ const veh = await admin.saveVehicle({ id: [], plate: "1-abc-123", name: "Camione
 check("admin voegt een voertuig toe (plaat in hoofdletters)", isOk(veh) && (await wl.listVehicles(false)).some((v) => v.plate === "1-ABC-123"));
 check("dezelfde nummerplaat nog eens geweigerd", errOf(await admin.saveVehicle({ id: [], plate: "1-ABC-123", name: "", archived: false })).includes("bestaat al"));
 check("OA leest geen voertuigen", await rejects(oa.listVehicles(false)));
-const trip = await sync1(wl, { opId: uid(), clientKey: K1, op: { trip: { vehicleId: [veh.ok], plate: "", driverOutPersonId: [wlId], driverBackPersonId: [wlId], driverOutText: "", driverBackText: "", note: "" } } });
+const trip = await sync1(wl, { opId: uid(), clientKey: K1, op: { trip: { vehicleId: [veh.ok], plate: "", driverOutPersonId: [wlId], driverBackPersonId: [wlId], driverOutText: "", driverBackText: "", note: "", outMin: [], backMin: [] } } });
 check("rit met voertuig en chauffeur heen/terug", done(trip), outErr(trip));
-check("een OA als chauffeur geweigerd", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { trip: { vehicleId: [], plate: "2-XYZ-999", driverOutPersonId: [oaDakId], driverBackPersonId: [], driverOutText: "", driverBackText: "", note: "" } } })).includes("BOWACO"));
+check("een OA als chauffeur geweigerd", outErr(await sync1(wl, { opId: uid(), clientKey: K1, op: { trip: { vehicleId: [], plate: "2-XYZ-999", driverOutPersonId: [oaDakId], driverBackPersonId: [], driverOutText: "", driverBackText: "", note: "", outMin: [], backMin: [] } } })).includes("BOWACO"));
 check("ritten: admin ziet ze, de werfleider de zijne, calculator niet (R14)", (await admin.listTrips(D, D)).length >= 1 && (await wl.listTrips(D, D)).length >= 1 && (await rejects(calc.listTrips(D, D))));
-check("rit van admin zonder werfleider als chauffeur: werfleider ziet ze niet", done(await sync1(admin, { opId: uid(), clientKey: K3, op: { trip: { vehicleId: [], plate: "9-ADM-001", driverOutPersonId: [adminId], driverBackPersonId: [], driverOutText: "", driverBackText: "", note: "" } } })) && (await wl.listTrips(D, D)).every((x) => x.plate !== "9-ADM-001") && (await admin.listTrips(D, D)).some((x) => x.plate === "9-ADM-001"));
+check("rit van admin zonder werfleider als chauffeur: werfleider ziet ze niet", done(await sync1(admin, { opId: uid(), clientKey: K3, op: { trip: { vehicleId: [], plate: "9-ADM-001", driverOutPersonId: [adminId], driverBackPersonId: [], driverOutText: "", driverBackText: "", note: "", outMin: [], backMin: [] } } })) && (await wl.listTrips(D, D)).every((x) => x.plate !== "9-ADM-001") && (await admin.listTrips(D, D)).some((x) => x.plate === "9-ADM-001"));
 // Samenvatting: laatste schrijver wint, de vorige waarde blijft zichtbaar
 await sync1(wl, { opId: uid(), clientKey: K1, op: { text: { field: "summary", value: "Proef: voeg gezet" } } });
 await sync1(admin, { opId: uid(), clientKey: K3, op: { text: { field: "summary", value: "Proef: voeg gezet, regen vanaf 14u" } } });
@@ -1356,6 +1356,40 @@ check("regels: werfleider past ze niet aan; admin wel (7/7)", (await rejects(wl.
 const ex1b = await admin.exportIntern();
 check("export: vergunningen, wijzigingen, gemeenten, procedures, meldingen", ex1b.permits.length >= 3 && ex1b.permitChanges.length >= 3 && ex1b.municipalities.length === 1 && ex1b.procedures.length === 1 && ex1b.permitAlerts.length >= 2);
 check("export in stukken: 'permits'", "permits" in ok1b(await admin.exportChunk("permits", 0n, 10n)));
+
+await sec("── 1b.2 boete-opzoeking: dag, uur, plaat, plaats → rit, chauffeur, werf, ploeg, vergunning (R14)");
+const fqb2 = (o) => ({ day: o.day ?? D, time: opt(o.time), plate: o.plate ?? "", place: o.place ?? "", widen: o.widen ?? false });
+check("calculator, OA, architect, klant en anoniem zoeken geen boetes", (await Promise.all([calc, oa2, arch, klant, anon].map((x) => rejects(x.lookupFine(fqb2({ plate: "1-ABC-123" })))))).every(Boolean));
+const f1b2 = ok1b(await admin.lookupFine(fqb2({ plate: "1abc123", time: 420n })));
+const m1b2 = f1b2.matches.find((m) => m.plate === "1-ABC-123");
+check("plaat zonder streepjes gevonden: werf A, chauffeur heen = Proef Werfleider", !!m1b2 && m1b2.plateMatch && m1b2.workId === A && m1b2.driverOut === "Proef Werfleider" && f1b2.vehicleKnown, JSON.stringify(f1b2, big).slice(0, 300));
+check("om 07:00 (vóór de ploeg om 07:30): heenrit", m1b2.guess.startsWith("heenrit") && m1b2.guess.includes("07:30"), m1b2.guess);
+check("de ploeg van BOWACO met haar tijdvakken", m1b2.crew.some((c) => c.includes("07:30–12:00")), JSON.stringify(m1b2.crew));
+check("om 13:00: tijdens de werkuren (voertuig aan de werf)", ok1b(await admin.lookupFine(fqb2({ plate: "1-ABC-123", time: 780n }))).matches[0].guess.startsWith("tijdens de werkuren"));
+check("om 17:00: terugrit", ok1b(await admin.lookupFine(fqb2({ plate: "1-ABC-123", time: 1020n }))).matches[0].guess.startsWith("terugrit"));
+const wA2b2 = await admin.getWork(A);
+if (wA2b2.address.city) check("plaats (gemeente van werf A) klopt", ok1b(await admin.lookupFine(fqb2({ plate: "1-ABC-123", place: wA2b2.address.city }))).matches[0].placeMatch);
+check("zonder plaat: alle ritten van die dag (admin ziet ook de rit 9-ADM-001)", ok1b(await admin.lookupFine(fqb2({}))).matches.some((m) => m.plate === "9-ADM-001"));
+const fWb2 = ok1b(await wl.lookupFine(fqb2({ plate: "9-ADM-001" })));
+check("werfleider: de rit van de admin (andere chauffeur) niet (R14), en 'enkel je eigen ritten'", fWb2.matches.length === 0 && fWb2.ownTripsOnly);
+const fUb2 = ok1b(await admin.lookupFine(fqb2({ plate: "0-XXX-000" })));
+check("onbekende plaat: geen rit, voertuig niet gekend", fUb2.matches.length === 0 && !fUb2.vehicleKnown);
+check("andere dag zonder 'ruimer': niets; met 'ruimer' (dag erna): de rit", ok1b(await admin.lookupFine(fqb2({ day: D + 1n, plate: "1-ABC-123" }))).matches.length === 0 && ok1b(await admin.lookupFine(fqb2({ day: D + 1n, plate: "1-ABC-123", widen: true }))).matches.some((m) => !m.sameDay));
+check("onmogelijk uur geweigerd", "err" in (await admin.lookupFine(fqb2({ time: 1500n }))));
+const pmDb2 = await admin.savePermit(A, pmIn({ kind: "werfzone", status: "granted", from: D, to: D, vFrom: D, vTo: D, location: "camionette voor de deur", ref: "PARK-1" }));
+check("met een vergunning (werfzone) op die dag: ze staat bij de rit", isOk(pmDb2) && ok1b(await admin.lookupFine(fqb2({ plate: "1-ABC-123" }))).matches[0].permits.some((x) => x.reference === "PARK-1"));
+// Rit met uren (1b.2): vertrek heen 07:00, terug 16:30
+const K1b2b2 = uid();
+check("admin opent het verslag van vandaag op B", done(await sync1(admin, ens(K1b2b2, B, nowDay))));
+const tr2b2 = await sync1(admin, { opId: uid(), clientKey: K1b2b2, op: { trip: { vehicleId: [], plate: "2-BOE-002", driverOutPersonId: [adminId], driverBackPersonId: [wlId], driverOutText: "", driverBackText: "", note: "", outMin: [420n], backMin: [990n] } } });
+check("rit met uren van vertrek heen en terug", done(tr2b2), outErr(tr2b2));
+check("onmogelijk uur in een rit geweigerd", outErr(await sync1(admin, { opId: uid(), clientKey: K1b2b2, op: { trip: { vehicleId: [], plate: "2-BOE-003", driverOutPersonId: [], driverBackPersonId: [], driverOutText: "", driverBackText: "", note: "", outMin: [2000n], backMin: [] } } })).includes("Uur"));
+const lt2b2 = (await admin.listTrips(nowDay, nowDay)).find((x) => x.plate === "2-BOE-002");
+check("ritten tonen de uren (07:00 / 16:30)", lt2b2?.outTime[0] === "07:00" && lt2b2?.backTime[0] === "16:30");
+const f2b2 = ok1b(await admin.lookupFine(fqb2({ day: nowDay, plate: "2-BOE-002", time: 1000n })));
+check("om 16:40 na vertrek terug 16:30: terugrit met de chauffeur terug (Proef Werfleider)", f2b2.matches[0]?.guess.startsWith("terugrit") && f2b2.matches[0]?.guess.includes("Proef Werfleider") && f2b2.matches[0]?.backTime[0] === "16:30", f2b2.matches[0]?.guess);
+check("werfleider (chauffeur terug) vindt deze rit wel", ok1b(await wl.lookupFine(fqb2({ day: nowDay, plate: "2-BOE-002" }))).matches.length === 1);
+check("auditlog: 'boete-opgezocht' met dag en plaat, zonder namen", (await admin.auditLog(0n, 50n)).some((e) => e.action === "boete-opgezocht" && e.detail.includes("2-BOE-002") && !e.detail.includes("Proef")));
 
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));

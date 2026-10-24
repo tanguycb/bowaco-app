@@ -371,6 +371,7 @@ type DayReport__682189017 =
 type Day__1060919207 = Nat;
 type Day__162369424 = Nat;
 type Day__672613163 = Nat;
+type Day__728056481 = Nat;
 type Day__786034210 = Nat;
 type Day__821488089 = Nat;
 type Day__923906744 = Nat;
@@ -464,6 +465,7 @@ type Extra__550678138 = [(Text, Text)];
 type Extra__594079308 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
 type Extra__911541576 = [(Text, Text)];
+type Extra__931464864 = [(Text, Text)];
 type Extra__945213800 = [(Text, Text)];
 type FileRef__312567383 =
   {
@@ -808,6 +810,40 @@ type Membership__509533854 =
     role : Role__1042359284;
     workId : WorkId__111716167
   };
+type Municipality__239731005 =
+  {
+    archivedAt : ?Int;
+    contact : Text;
+    createdAt : Int;
+    createdBy : PersonId__184143711;
+    email : ?Text;
+    extra : Extra__931464864;
+    id : Nat;
+    name : Text;
+    notes : Text;
+    phone : ?Text;
+    portal : ?Text;
+    updatedAt : Int;
+    updatedBy : PersonId__184143711;
+    zips : [Text]
+  };
+type Municipality__61977761 =
+  {
+    archivedAt : ?Int;
+    contact : Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    email : ?Text;
+    extra : Extra__945213800;
+    id : Nat;
+    name : Text;
+    notes : Text;
+    phone : ?Text;
+    portal : ?Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    zips : [Text]
+  };
 type Nat__227979830 = Nat__920180692;
 type Nat__920180692 = Nat;
 type NewActor__1036484427 = {dossier : DossierState__7485337};
@@ -827,6 +863,7 @@ type NewActor__2917504 = {plan : PlanState__393161007};
 type NewActor__398557116 = {imp : ImportState__440367384};
 type NewActor__542837279 = {reports : ReportState__211051397};
 type NewActor__914032600 = {oa : OaState__978871092};
+type NewActor__918578615 = {permits : PermitState__160097102};
 type Node__204828119<K, V> =
   {#internal : Internal__283199666<K, V>; #leaf : Leaf__598469445<K, V>};
 type Notification__1016009815 =
@@ -864,6 +901,7 @@ type OldActor__381654595 = {};
 type OldActor__415128861 = {};
 type OldActor__430767433 = {};
 type OldActor__574962007 = {};
+type OldActor__669130419 = {};
 type OpRecord__50968246 =
   {
     at : Int;
@@ -989,6 +1027,128 @@ type Org__502686149 =
     trades : [Text];
     vat : ?Text
   };
+type PermitChange__1026309781 =
+  {
+    at : Int;
+    by : PersonId__184143711;
+    field : Text;
+    from : Text;
+    id : Nat;
+    permitId : Nat;
+    to : Text;
+    workId : WorkId__72456761
+  };
+type PermitChange__822488064 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    field : Text;
+    from : Text;
+    id : Nat;
+    permitId : Nat;
+    to : Text;
+    workId : WorkId__929594816
+  };
+type PermitProcedure__72566599 =
+  {
+    archivedAt : ?Int;
+    attachments : [Text];
+    contact : Text;
+    cost : Text;
+    email : ?Text;
+    extra : Extra__945213800;
+    how : Text;
+    kind : Text;
+    leadDays : Nat;
+    municipalityId : Nat;
+    notes : Text;
+    portal : ?Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914
+  };
+type PermitProcedure__842106574 =
+  {
+    archivedAt : ?Int;
+    attachments : [Text];
+    contact : Text;
+    cost : Text;
+    email : ?Text;
+    extra : Extra__931464864;
+    how : Text;
+    kind : Text;
+    leadDays : Nat;
+    municipalityId : Nat;
+    notes : Text;
+    portal : ?Text;
+    updatedAt : Int;
+    updatedBy : PersonId__184143711
+  };
+type PermitState__160097102 =
+  {
+    alerts : Map__230067015<Text, Int>;
+    changes : Map__230067015<Nat, PermitChange__1026309781>;
+    municipalities : Map__230067015<Nat, Municipality__239731005>;
+    permits : Map__230067015<Nat, Permit__1012268749>;
+    procedures : Map__230067015<Text, PermitProcedure__842106574>
+  };
+type PermitStatus__406959456 =
+  {#cancelled; #expired; #extended; #granted; #needed; #refused; #requested};
+type PermitStatus__962829833 =
+  {#cancelled; #expired; #extended; #granted; #needed; #refused; #requested};
+type Permit__1012268749 =
+  {
+    archivedAt : ?Int;
+    costCents : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__184143711;
+    extra : Extra__931464864;
+    fileIds : [Nat];
+    id : Nat;
+    kind : Text;
+    leadDays : Nat;
+    location : Text;
+    municipalityId : ?Nat;
+    neededFrom : ?Day__728056481;
+    neededTo : ?Day__728056481;
+    note : Text;
+    reference : Text;
+    requestedOn : ?Day__728056481;
+    status : PermitStatus__962829833;
+    taskIds : [Nat];
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__184143711;
+    validFrom : ?Day__728056481;
+    validTo : ?Day__728056481;
+    workId : WorkId__72456761
+  };
+type Permit__31424242 =
+  {
+    archivedAt : ?Int;
+    costCents : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    fileIds : [Nat];
+    id : Nat;
+    kind : Text;
+    leadDays : Nat;
+    location : Text;
+    municipalityId : ?Nat;
+    neededFrom : ?Day__162369424;
+    neededTo : ?Day__162369424;
+    note : Text;
+    reference : Text;
+    requestedOn : ?Day__162369424;
+    status : PermitStatus__406959456;
+    taskIds : [Nat];
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    validFrom : ?Day__162369424;
+    validTo : ?Day__162369424;
+    workId : WorkId__929594816
+  };
 type PersonConfidential__175362094 =
   {
     var contact : Confidential__580817374<Contact__278450601>;
@@ -1023,6 +1183,7 @@ type PersonContact__279373132 =
   };
 type PersonId__1007515609 = Nat;
 type PersonId__1012124006 = Nat;
+type PersonId__184143711 = Nat;
 type PersonId__185004052 = Nat;
 type PersonId__253911295 = Nat;
 type PersonId__363464289 = Nat;
@@ -1556,6 +1717,7 @@ type WorkDone__366546212 =
   };
 type WorkId__111716167 = Nat;
 type WorkId__171501769 = Nat;
+type WorkId__72456761 = Nat;
 type WorkId__838834227 = Nat;
 type WorkId__872672482 = Nat;
 type WorkId__929594816 = Nat;
@@ -1652,7 +1814,8 @@ type WorksState__605582232 =
   "20261023_210000" : OldActor__1025357807 -> NewActor__2917504;
   "20261023_235000" : OldActor__305186077 -> NewActor__14273466;
   "20261024_090000" : OldActor__381654595 -> NewActor__398557116;
-  "20261024_120000" : OldActor__430767433 -> NewActor__542837279
+  "20261024_120000" : OldActor__430767433 -> NewActor__542837279;
+  "20261024_150000" : OldActor__669130419 -> NewActor__918578615
 }
 actor  {
   stable access :
@@ -1709,6 +1872,14 @@ actor  {
         Map__230067015<OrgId__17031398, OrgConfidential__581272438>;
       orgs : Map__230067015<OrgId__17031398, Org__502686149>;
       vehicles : Map__230067015<Nat, Vehicle__269030069>
+    };
+  stable permits :
+    {
+      alerts : Map__230067015<Text, Int>;
+      changes : Map__230067015<Nat, PermitChange__822488064>;
+      municipalities : Map__230067015<Nat, Municipality__61977761>;
+      permits : Map__230067015<Nat, Permit__31424242>;
+      procedures : Map__230067015<Text, PermitProcedure__72566599>
     };
   stable plan :
     {

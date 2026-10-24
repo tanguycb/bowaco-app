@@ -641,6 +641,10 @@ function TripForm({ myDay, onSave }: { myDay?: MyDayView; onSave: (op: ReportOp,
   const [plate, setPlate] = useState("");
   const [out, setOut] = useState<string>(last.out ?? "");
   const [back, setBack] = useState<string>(last.back ?? last.out ?? "");
+  // 1b.2: uur van vertrek heen en terug (optioneel): helpt bij een boete ("wie reed er om 07:40?").
+  const [outAt, setOutAt] = useState("");
+  const [backAt, setBackAt] = useState("");
+  const mins = (s: string) => (/^\d{2}:\d{2}$/.test(s) ? BigInt(Number(s.slice(0, 2)) * 60 + Number(s.slice(3))) : undefined);
   const veh = vehicles.find((x) => String(x.id) === v);
   const ok = !!veh || plate.trim() !== "";
   const name = (id: string) => drivers.find((d) => String(d.id) === id)?.name ?? "";
@@ -663,6 +667,10 @@ function TripForm({ myDay, onSave }: { myDay?: MyDayView; onSave: (op: ReportOp,
         <span className="bw-label">{T.driverBack}</span>
         <Choice label={T.driverBack} value={back} onChange={setBack} options={drivers.map((d) => ({ value: String(d.id), label: label(d.name) }))} />
       </div>
+      <div className="a-row">
+        <label className="bw-field"><span className="bw-label">{T.outAt}</span><input className="bw-input" type="time" value={outAt} onChange={(e) => setOutAt(e.target.value)} /></label>
+        <label className="bw-field"><span className="bw-label">{T.backAt}</span><input className="bw-input" type="time" value={backAt} onChange={(e) => setBackAt(e.target.value)} /></label>
+      </div>
       <Button block icon="truck" disabled={!ok} onClick={() => {
         try {
           localStorage.setItem(LAST_TRIP, JSON.stringify({ v, out, back }));
@@ -670,8 +678,8 @@ function TripForm({ myDay, onSave }: { myDay?: MyDayView; onSave: (op: ReportOp,
           /* enkel gemak */
         }
         onSave(
-          { __kind__: "trip", trip: { vehicleId: veh?.id, plate: veh ? "" : plate.trim(), driverOutPersonId: out ? BigInt(out) : undefined, driverBackPersonId: back ? BigInt(back) : undefined, driverOutText: "", driverBackText: "", note: "" } },
-          `${T.trip}: ${veh?.plate ?? plate.trim()} · ${name(out) || "–"} / ${name(back) || "–"}`,
+          { __kind__: "trip", trip: { vehicleId: veh?.id, plate: veh ? "" : plate.trim(), driverOutPersonId: out ? BigInt(out) : undefined, driverBackPersonId: back ? BigInt(back) : undefined, driverOutText: "", driverBackText: "", note: "", outMin: mins(outAt), backMin: mins(backAt) } },
+          `${T.trip}: ${veh?.plate ?? plate.trim()} · ${name(out) || "–"}${outAt ? ` ${outAt}` : ""} / ${name(back) || "–"}${backAt ? ` ${backAt}` : ""}`,
         );
       }}>{T.tripSave}</Button>
     </>

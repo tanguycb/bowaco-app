@@ -236,6 +236,8 @@ const table = {
   listMunicipalities: [INTERNAL, () => [false]],
   saveMunicipality: [["admin", "werfleider"], () => [{ id: [], name: "", zips: [], portal: [], email: [], phone: [], contact: "", notes: "", archived: false }]],
   saveProcedure: [["admin", "werfleider"], () => [{ municipalityId: X, kind: "", how: "", portal: [], email: [], leadDays: 0n, cost: "", attachments: [], contact: "", notes: "", archived: false }]],
+  // 1b.2 boete-opzoeking (R14): admin alle ritten, werfleider de zijne; onmogelijke dag → daarna een invoerfout
+  lookupFine: [["admin", "werfleider"], () => [{ day: 5n, time: [], plate: "", place: "", widen: false }]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

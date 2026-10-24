@@ -627,7 +627,7 @@ mixin (
     #ok((r.id, ?id, rpNote(moved)));
   };
 
-  func rpTrip(p : Types.Person, clientKey : Text, opId : Text, x : { vehicleId : ?Nat; plate : Text; driverOutPersonId : ?Nat; driverBackPersonId : ?Nat; driverOutText : Text; driverBackText : Text; note : Text }) : Result.Result<RpOk, Text> {
+  func rpTrip(p : Types.Person, clientKey : Text, opId : Text, x : { vehicleId : ?Nat; plate : Text; driverOutPersonId : ?Nat; driverBackPersonId : ?Nat; driverOutText : Text; driverBackText : Text; note : Text; outMin : ?Nat; backMin : ?Nat }) : Result.Result<RpOk, Text> {
     let (r, moved) = switch (rpTarget(p, clientKey)) { case (#ok y) y; case (#err e) return #err(e) };
     let plate = switch (x.vehicleId) {
       case (?v) {
@@ -651,10 +651,15 @@ mixin (
     let backT = x.driverBackText.trim(#char ' ');
     let note = x.note.trim(#char ' ');
     if (outT.size() > Config.maxName or backT.size() > Config.maxName or note.size() > Config.maxNote) { return #err("Te lange tekst") };
+    // 1b.2: uren van vertrek (optioneel) in `extra` (D8: geen migratie): "heen" en "terug" als "07:15".
+    var times : Types.Extra = [];
+    for ((k, m) in [("heen", x.outMin), ("terug", x.backMin)].values()) {
+      switch m { case (?v) { if (v >= 24 * 60) { return #err("Uur klopt niet") }; times := times.concat([(k, Reports.hhmm(v))]) }; case null {} };
+    };
     let b = rpBlocks(r.id);
     if (b.trips.size() >= Config.maxTripsPerReport) { return #err("Te veel ritten in dit verslag") };
     let id = Ids.next(ctr, "trip");
-    reports.trips.add(id, { id; reportId = r.id; workId = r.workId; day = r.day; vehicleId = x.vehicleId; plate; driverOutPersonId = x.driverOutPersonId; driverBackPersonId = x.driverBackPersonId; driverOutText = outT; driverBackText = backT; note; blockKey = opId; createdAt = Time.now(); createdBy = p.id; archivedAt = null; extra = [] });
+    reports.trips.add(id, { id; reportId = r.id; workId = r.workId; day = r.day; vehicleId = x.vehicleId; plate; driverOutPersonId = x.driverOutPersonId; driverBackPersonId = x.driverBackPersonId; driverOutText = outT; driverBackText = backT; note; blockKey = opId; createdAt = Time.now(); createdBy = p.id; archivedAt = null; extra = times });
     reports.blocks.add(r.id, { b with trips = Reports.append(b.trips, id) });
     rpTouch(r, p);
     #ok((r.id, ?id, rpNote(moved)));
@@ -788,6 +793,10 @@ mixin (
     };
   };
 
+  func rpExtra(x : Types.Extra, k : Text) : ?Text {
+    switch (x.find(func(p : (Text, Text)) : Bool = p.0 == k)) { case (?(_, v)) ?v; case null null };
+  };
+
   func rpTripView(t : Types.Trip) : Views.TripView {
     {
       id = t.id;
@@ -803,6 +812,8 @@ mixin (
       driverBackPersonId = t.driverBackPersonId;
       driverBackName = if (t.driverBackText.size() > 0) t.driverBackText else rpOptName(t.driverBackPersonId);
       note = t.note;
+      outTime = rpExtra(t.extra, "heen");
+      backTime = rpExtra(t.extra, "terug");
       blockKey = t.blockKey;
       createdAt = t.createdAt;
       createdByName = rpName(t.createdBy);

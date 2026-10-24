@@ -940,7 +940,8 @@ module {
     #material : { kind : Types.MaterialKind; text : Text; quantity : Text; supplier : Text; file : ?FileIn };
     #photo : { file : FileIn; thumb : ?FileIn; taskId : ?Nat; caption : Text; takenAt : ?Int };
     #issue : { kind : Types.IssueKind; text : Text; taskIds : [Nat]; delayDays : ?Nat };
-    #trip : { vehicleId : ?Nat; plate : Text; driverOutPersonId : ?PersonId; driverBackPersonId : ?PersonId; driverOutText : Text; driverBackText : Text; note : Text };
+    // 1b.2: outMin/backMin = uur van vertrek heen en terug (minuten sinds middernacht), optioneel: helpt de boete-opzoeking
+    #trip : { vehicleId : ?Nat; plate : Text; driverOutPersonId : ?PersonId; driverBackPersonId : ?PersonId; driverOutText : Text; driverBackText : Text; note : Text; outMin : ?Nat; backMin : ?Nat };
     #remove : { blockKey : Text }; // het blok dat met die opId gemaakt werd, archiveren (enkel in een open verslag)
     #finalize;
   };
@@ -1003,6 +1004,8 @@ module {
     driverBackPersonId : ?PersonId;
     driverBackName : Text;
     note : Text;
+    outTime : ?Text; // 1b.2: "07:15" (vertrek heen), uit `extra`
+    backTime : ?Text;
     blockKey : Text;
     createdAt : Int;
     createdByName : Text;
@@ -1303,4 +1306,32 @@ module {
   };
 
   public type PermitChangeView = { at : Int; byName : Text; field : Text; from : Text; to : Text };
+
+  // ── Boete-opzoeking (1b.2) ──────────────────────────────────────────────
+  // dag (+ uur) + nummerplaat en/of plaats → ritten uit het werfverslag. widen = ook de dag ervoor en erna.
+  public type FineQuery = { day : Day; time : ?Nat; plate : Text; place : Text; widen : Bool };
+  public type FinePermit = { id : Nat; kindName : Text; location : Text; reference : Text; validFrom : ?Day; validTo : ?Day };
+  public type FineMatch = {
+    tripId : Nat;
+    reportId : Nat;
+    day : Day;
+    workId : WorkId;
+    workCode : Text;
+    workName : Text;
+    address : Types.Address;
+    plate : Text;
+    vehicleName : Text;
+    driverOut : Text;
+    driverBack : Text;
+    outTime : ?Text;
+    backTime : ?Text;
+    crew : [Text]; // ploeg van BOWACO op die werf die dag: "Jan 07:30–12:00, 12:30–16:00"
+    permits : [FinePermit]; // vergunningen die die dag op die werf golden
+    plateMatch : Bool;
+    placeMatch : Bool;
+    sameDay : Bool;
+    guess : Text; // wie reed er waarschijnlijk op dat uur, met de reden
+    score : Nat;
+  };
+  public type FineResult = { matches : [FineMatch]; vehicleKnown : Bool; ownTripsOnly : Bool };
 };

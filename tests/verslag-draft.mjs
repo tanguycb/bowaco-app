@@ -84,7 +84,7 @@ const batch = await wl.reportSync([
   { opId: uid(), clientKey: K1, op: { photo: { file: fileIn, thumb: [], taskId: [task.id], caption: "Proefbeeld", takenAt: [] } } },
   { opId: uid(), clientKey: K1, op: { material: { kind: { receipt: null }, text: "Proef: 2 rollen tape", quantity: "2", supplier: "", file: [] } } },
   { opId: uid(), clientKey: K1, op: { issue: { kind: { delay: null }, text: "Proef: vertraging", taskIds: [task.id], delayDays: [1n] } } },
-  { opId: uid(), clientKey: K1, op: { trip: { vehicleId: [], plate: "1-PRF-016", driverOutPersonId: [wlId], driverBackPersonId: [wlId], driverOutText: "", driverBackText: "", note: "" } } },
+  { opId: uid(), clientKey: K1, op: { trip: { vehicleId: [], plate: "1-PRF-016", driverOutPersonId: [wlId], driverBackPersonId: [wlId], driverOutText: "", driverBackText: "", note: "", outMin: [], backMin: [] } } },
   { opId: uid(), clientKey: K1, op: { text: { field: "summary", value: "Proefverslag stap 1.6 (geen echte werf)" } } },
 ]);
 check("pakje van 8 opdrachten: alles uitgevoerd", batch.every(done), batch.filter((r) => !done(r)).map(outErr).join(" | "));

@@ -774,6 +774,48 @@ export interface FileView {
   'workId' : [] | [WorkId],
   'archivedAt' : [] | [bigint],
 }
+export interface FineMatch {
+  'day' : Day,
+  'workName' : string,
+  'vehicleName' : string,
+  'backTime' : [] | [string],
+  'crew' : Array<string>,
+  'tripId' : bigint,
+  'score' : bigint,
+  'sameDay' : boolean,
+  'permits' : Array<FinePermit>,
+  'driverOut' : string,
+  'plateMatch' : boolean,
+  'guess' : string,
+  'address' : Address,
+  'plate' : string,
+  'workId' : WorkId,
+  'outTime' : [] | [string],
+  'placeMatch' : boolean,
+  'reportId' : bigint,
+  'driverBack' : string,
+  'workCode' : string,
+}
+export interface FinePermit {
+  'id' : bigint,
+  'validFrom' : [] | [Day],
+  'reference' : string,
+  'validTo' : [] | [Day],
+  'kindName' : string,
+  'location' : string,
+}
+export interface FineQuery {
+  'day' : Day,
+  'time' : [] | [bigint],
+  'place' : string,
+  'plate' : string,
+  'widen' : boolean,
+}
+export interface FineResult {
+  'vehicleKnown' : boolean,
+  'matches' : Array<FineMatch>,
+  'ownTripsOnly' : boolean,
+}
 export type Grant = { 'readReports' : null } |
   { 'confirmHours' : null } |
   { 'confirmPlanning' : null } |
@@ -1604,6 +1646,7 @@ export type ReportOp = { 'ensure' : { 'day' : Day, 'workId' : WorkId } } |
   { 'text' : { 'field' : string, 'value' : string } } |
   {
     'trip' : {
+      'outMin' : [] | [bigint],
       'driverOutPersonId' : [] | [PersonId],
       'driverBackText' : string,
       'note' : string,
@@ -1611,6 +1654,7 @@ export type ReportOp = { 'ensure' : { 'day' : Day, 'workId' : WorkId } } |
       'driverBackPersonId' : [] | [PersonId],
       'plate' : string,
       'vehicleId' : [] | [bigint],
+      'backMin' : [] | [bigint],
     }
   } |
   {
@@ -1793,21 +1837,23 @@ export type Result_16 = { 'ok' : FileView } |
   { 'err' : string };
 export type Result_17 = { 'ok' : PlanPreview } |
   { 'err' : string };
-export type Result_18 = { 'ok' : NewCode } |
+export type Result_18 = { 'ok' : FineResult } |
   { 'err' : string };
-export type Result_19 = { 'ok' : PlanImportReport } |
+export type Result_19 = { 'ok' : NewCode } |
   { 'err' : string };
 export type Result_2 = { 'ok' : OrgView } |
   { 'err' : string };
-export type Result_20 = { 'ok' : ImportReport } |
+export type Result_20 = { 'ok' : PlanImportReport } |
   { 'err' : string };
-export type Result_21 = { 'ok' : OaView } |
+export type Result_21 = { 'ok' : ImportReport } |
   { 'err' : string };
-export type Result_22 = { 'ok' : RestorePart } |
+export type Result_22 = { 'ok' : OaView } |
   { 'err' : string };
-export type Result_23 = { 'ok' : NewTicket } |
+export type Result_23 = { 'ok' : RestorePart } |
   { 'err' : string };
-export type Result_24 = { 'ok' : TicketInfo } |
+export type Result_24 = { 'ok' : NewTicket } |
+  { 'err' : string };
+export type Result_25 = { 'ok' : TicketInfo } |
   { 'err' : string };
 export type Result_3 = { 'ok' : bigint } |
   { 'err' : string };
@@ -2047,6 +2093,7 @@ export interface TripView {
   'id' : bigint,
   'day' : Day,
   'vehicleName' : string,
+  'backTime' : [] | [string],
   'driverOutPersonId' : [] | [PersonId],
   'blockKey' : string,
   'driverBackName' : string,
@@ -2057,6 +2104,7 @@ export interface TripView {
   'createdByName' : string,
   'plate' : string,
   'workId' : WorkId,
+  'outTime' : [] | [string],
   'reportId' : bigint,
   'vehicleId' : [] | [bigint],
   'workCode' : string,
@@ -2271,36 +2319,36 @@ export interface _SERVICE {
   'auditLog' : ActorMethod<[bigint, bigint], Array<AuditEntry>>,
   'boardConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
   'boardRules' : ActorMethod<[], BoardRulesView>,
-  'checkTicket' : ActorMethod<[string], Result_24>,
+  'checkTicket' : ActorMethod<[string], Result_25>,
   'claimBootstrap' : ActorMethod<[string, string], Result_1>,
   'confirmAssignment' : ActorMethod<[bigint, boolean, string], Result_4>,
   'confirmHours' : ActorMethod<[bigint, boolean, string], Result_4>,
   'confirmLink' : ActorMethod<[Principal], Result_4>,
   'createOrg' : ActorMethod<[OrgInput], Result_2>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_18>,
-  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_23>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_19>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_24>,
   'createWork' : ActorMethod<[WorkInput], Result>,
   'dashboard' : ActorMethod<[bigint], DashboardView>,
   'decideProposal' : ActorMethod<[bigint, boolean, string], Result_4>,
   'endMembership' : ActorMethod<[bigint], Result_4>,
-  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_22>,
+  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_23>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
-  'getOa' : ActorMethod<[bigint], Result_21>,
+  'getOa' : ActorMethod<[bigint], Result_22>,
   'getPlan' : ActorMethod<[bigint], PlanView>,
   'getReport' : ActorMethod<[bigint], ReportView>,
   'getReportDay' : ActorMethod<[bigint, bigint], Array<ReportView>>,
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
   'handleIssue' : ActorMethod<[bigint, string], Result_4>,
-  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_20>,
+  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_21>,
   'importPlanning' : ActorMethod<
     [boolean, string, string, Array<string>, ImportBlock],
-    Result_19
+    Result_20
   >,
-  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_18>,
-  'invitePerson' : ActorMethod<[InviteRequest], Result_18>,
+  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_19>,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_19>,
   'listAbsences' : ActorMethod<
     [[] | [bigint], bigint, bigint],
     Array<AbsenceView>
@@ -2330,6 +2378,7 @@ export interface _SERVICE {
   'listTrips' : ActorMethod<[bigint, bigint], Array<TripView>>,
   'listVehicles' : ActorMethod<[boolean], Array<VehicleView>>,
   'listWorks' : ActorMethod<[], Array<WorkView>>,
+  'lookupFine' : ActorMethod<[FineQuery], Result_18>,
   'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'me' : ActorMethod<[], MeView>,
   'myBoard' : ActorMethod<[bigint, bigint], MyBoardView>,
