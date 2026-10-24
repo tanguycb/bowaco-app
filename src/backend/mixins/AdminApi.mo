@@ -30,6 +30,7 @@ mixin (
   imp : Types.ImportState,
   reports : Types.ReportState,
   permits : Types.PermitState,
+  post : Types.PostState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -81,6 +82,8 @@ mixin (
     if (access.links.containsKey(principal)) { return #err("Deze principal is een persoon") };
     let n = Access.cleanText(name, Config.maxName) ?? return #err("Naam ontbreekt");
     if (kinds.size() > 10) { return #err("Te veel soorten") };
+    // 1b.3: enkel gekende soorten (R28: een robot krijgt nooit meer dan nodig).
+    if (not kinds.all(func k = Config.robotKinds().any(func x = x == k))) { return #err("Onbekende soort: kies uit " # Config.robotKinds().values().join(", ")) };
     switch (robot.robots.get(principal)) {
       case (?r) { if (r.revokedAt == null) { return #err("Robot bestaat al") } };
       case null {};
@@ -215,6 +218,7 @@ mixin (
       municipalities = permits.municipalities.values().toArray();
       procedures = permits.procedures.values().toArray();
       permitAlerts = permits.alerts.entries().toArray();
+      jobs = post.jobs.values().toArray();
     };
   };
 
@@ -292,6 +296,7 @@ mixin (
       case "municipalities" ?#municipalities(pg(permits.municipalities.values().toArray()));
       case "procedures" ?#procedures(pg(permits.procedures.values().toArray()));
       case "permitAlerts" ?#permitAlerts(pg(permits.alerts.entries().toArray()));
+      case "jobs" ?#jobs(pg(post.jobs.values().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };

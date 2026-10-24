@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1b.2-draft23";
-  public let schema : Nat = 8; // 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
+  public let version = "1b.3-draft24";
+  public let schema : Nat = 9; // 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -274,4 +274,10 @@ module {
   public let permitScanEvery : Int = 3_600_000_000_000;
   public let permitScanMax : Nat = 3_000; // vergunningen per ronde
   public let permitAlertsPerScan : Nat = 25; // nieuwe meldingen per ronde: nooit een vloed (de rest volgt een uur later)
+
+  // ── Postbode (1b.3, architectuur §6.2) ──────────────────────────────────
+  public let jobLease : Int = 600_000_000_000; // 10 min
+  public let jobMaxAttempts : Nat = 5;
+  // Soorten die een robot kan krijgen: "mail" (postbode), "proef" (ticketproef), "inhoudingsplicht" (later, met aansluiting).
+  public func robotKinds() : [Text] { ["mail", "proef", "inhoudingsplicht"] };
 };

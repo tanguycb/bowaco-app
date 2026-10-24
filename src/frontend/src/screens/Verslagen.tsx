@@ -148,7 +148,7 @@ export function ReportBody({ r }: { r: ReportView }) {
         <>
           <h3 className="bw-h3">{R.trips}</h3>
           <ul className="a-list">
-            {r.trips.map((x) => <li key={String(x.id)}><span className="a-tag">{x.plate}</span><span className="a-list__main"><span>{V.driverOut}: {x.driverOutName || "–"} · {V.driverBack}: {x.driverBackName || "–"}</span>{x.vehicleName && <span className="bw-muted">{x.vehicleName}</span>}</span></li>)}
+            {r.trips.map((x) => <li key={String(x.id)}><span className="a-tag">{x.plate}</span><span className="a-list__main"><span>{V.driverOut}: {x.driverOutName || "–"}{x.outTime ? ` (${x.outTime})` : ""} · {V.driverBack}: {x.driverBackName || "–"}{x.backTime ? ` (${x.backTime})` : ""}</span>{x.vehicleName && <span className="bw-muted">{x.vehicleName}</span>}</span></li>)}
           </ul>
         </>
       )}

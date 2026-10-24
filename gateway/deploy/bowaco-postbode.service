@@ -1,0 +1,32 @@
+# systemd-dienst van de BOWACO-postbode (stap 1b.3). Geïnstalleerd door deploy.sh in /etc/systemd/system/.
+[Unit]
+Description=BOWACO postbode (gateway-lite: mail uit de werkwachtrij van de app)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=postbode
+Group=postbode
+WorkingDirectory=/opt/bowaco-postbode
+EnvironmentFile=/etc/bowaco-postbode/postbode.env
+ExecStart=/opt/node/bin/node /opt/bowaco-postbode/src/main.ts
+Restart=always
+RestartSec=10
+# Verharding: enkel lezen behalve de eigen staatmap; geen nieuwe rechten; eigen /tmp.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadWritePaths=/var/lib/bowaco-postbode
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

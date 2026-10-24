@@ -30,6 +30,7 @@ import { Bell } from "../screens/Meldingen";
 import { DashboardPage } from "../screens/Dashboard";
 import { GemeentenPage, VergunningenPage } from "../screens/Vergunningen";
 import { BoetesPage } from "../screens/Boetes";
+import { PostbodePage } from "../screens/Postbode";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -161,6 +162,8 @@ function navFor(caps: Caps): NavItem[] {
   if (caps.readOa) items.push({ key: "onderaannemers", label: t.nav.onderaannemers, icon: "building" });
   if (caps.readTeam) items.push({ key: "organisaties", label: t.nav.organisaties, icon: "list" });
   if (caps.readAudit) items.push({ key: "audit", label: t.nav.audit, icon: "receipt" });
+  // 1b.3: de postbode (mails, wachtrij, robots): enkel de admin.
+  if (caps.manageRobots) items.push({ key: "postbode", label: t.nav.postbode, icon: "share" });
   if (caps.manageSettings) items.push({ key: "instellingen", label: t.nav.instellingen, icon: "settings" });
   items.push({ key: "login", label: t.nav.login, icon: "permit" });
   return items;
@@ -207,6 +210,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "vergunningen": return <VergunningenPage caps={caps} go={go} />;
       case "gemeenten": return <GemeentenPage caps={caps} />;
       case "boetes": return <BoetesPage go={go} />;
+      case "postbode": return <PostbodePage />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;
       case "onderaannemers": return <Onderaannemers caps={caps} />;

@@ -49,7 +49,7 @@ export function BoetesPage({ go }: { go: (to: string) => void }) {
           {r.ownTripsOnly && <p className="a-note">{B.ownOnly}</p>}
           {plate.trim() !== "" && !r.vehicleKnown && <p className="a-note">{B.plateUnknown}</p>}
           {r.matches.length === 0 && <p className="a-empty">{B.none}</p>}
-          <ul className="a-list f-list">
+          <ul className="f-list">
             {r.matches.map((m) => <MatchCard key={String(m.tripId)} m={m} onReport={setReport} onWork={() => go(`werven/${m.workId}`)} />)}
           </ul>
         </section>

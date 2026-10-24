@@ -55,7 +55,7 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs"];
   const partOpt = async (k) => { try { return await part(k); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
@@ -172,6 +172,7 @@ async function restoreAll(cid, dir) {
   await send("permits", intern.permits ?? []);
   await send("permitChanges", intern.permitChanges ?? [], 300);
   await send("permitAlerts", intern.permitAlerts ?? [], 500);
+  await send("jobs", intern.jobs ?? [], 300);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -244,6 +245,8 @@ function normalize(intern, vertrouwelijk, audit) {
     municipalities: byKey(intern.municipalities ?? [], id),
     procedures: byKey(intern.procedures ?? [], (x) => [x.municipalityId, x.kind]),
     permitAlerts: byKey(intern.permitAlerts ?? [], (x) => x[0]),
+    // 1b.3: een geleasete opdracht komt na een herstel terug in de wachtrij (de lease hoort bij de oude canister).
+    jobs: byKey(intern.jobs ?? [], id).map((j) => ("leased" in j.state ? { ...j, state: { queued: null } } : j)),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),

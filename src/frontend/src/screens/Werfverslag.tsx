@@ -247,7 +247,7 @@ export function Werfverslag({ workId, day, go }: { workId: bigint; day: bigint; 
     }),
   ];
   const trips = [
-    ...reports.flatMap((r) => r.trips.filter((x) => !removed.has(x.blockKey)).map((x) => ({ key: x.blockKey, text: `${x.plate}${x.vehicleName ? ` (${x.vehicleName})` : ""} · ${x.driverOutName || "–"} / ${x.driverBackName || "–"}`, pending: false, final: r.status.__kind__ !== "draft" }))),
+    ...reports.flatMap((r) => r.trips.filter((x) => !removed.has(x.blockKey)).map((x) => ({ key: x.blockKey, text: `${x.plate}${x.vehicleName ? ` (${x.vehicleName})` : ""} · ${x.driverOutName || "–"}${x.outTime ? ` ${x.outTime}` : ""} / ${x.driverBackName || "–"}${x.backTime ? ` ${x.backTime}` : ""}`, pending: false, final: r.status.__kind__ !== "draft" }))),
     ...pendingOps.filter((o) => o.payload.__kind__ === "trip").map((o) => ({ key: o.opId, text: o.label, pending: true, final: false })),
   ];
   const removeBlock = async (b: { key: string; pending: boolean; final: boolean }, lbl: string) => {

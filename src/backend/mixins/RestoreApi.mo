@@ -40,6 +40,7 @@ mixin (
   imp : Types.ImportState,
   reports : Types.ReportState,
   permits : Types.PermitState,
+  post : Types.PostState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -98,7 +99,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -231,6 +232,7 @@ mixin (
       case (#municipalities xs) { for (m in xs.values()) { permits.municipalities.add(m.id, m) }; xs.size() };
       case (#procedures xs) { for (x in xs.values()) { permits.procedures.add(x.municipalityId.toText() # ":" # x.kind, x) }; xs.size() };
       case (#permitAlerts xs) { for ((k, v) in xs.values()) { permits.alerts.add(k, v) }; xs.size() };
+      case (#jobs xs) { for (j in xs.values()) { post.jobs.add(j.id, j) }; xs.size() };
     };
   };
 
@@ -324,6 +326,16 @@ mixin (
     rsAtLeast("permit", rsMaxKey(permits.permits));
     rsAtLeast("permitChange", rsMaxKey(permits.changes));
     rsAtLeast("municipality", rsMaxKey(permits.municipalities));
+    // 1b.3: index van de sleutels en van de open opdrachten herrekenen; een geleasete opdracht komt terug in de wachtrij.
+    for (j in post.jobs.values()) {
+      post.keys.add(j.key, j.id);
+      switch (j.state) {
+        case (#queued) post.open.add(j.id, ());
+        case (#leased _) { post.jobs.add(j.id, { j with state = #queued }); post.open.add(j.id, ()) };
+        case _ {};
+      };
+    };
+    rsAtLeast("job", rsMaxKey(post.jobs));
   };
 
   func rsSummary() : Views.RestoreSummary {

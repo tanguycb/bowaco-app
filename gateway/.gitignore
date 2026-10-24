@@ -1,0 +1,7 @@
+node_modules
+# Geheimen en technische logs van de gateway: nooit in git (enkel op de server, /etc/bowaco-postbode en /var/lib/bowaco-postbode)
+*.env
+!deploy/postbode.env.voorbeeld
+robot*.json
+journaal*.jsonl
+mails/

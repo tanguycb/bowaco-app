@@ -805,6 +805,7 @@ module {
     municipalities : [Types.Municipality];
     procedures : [Types.PermitProcedure];
     permitAlerts : [(Text, Int)];
+    jobs : [Types.Job]; // 1b.3: de werkwachtrij van de postbode
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -868,6 +869,7 @@ module {
     #municipalities : [Types.Municipality];
     #procedures : [Types.PermitProcedure];
     #permitAlerts : [(Text, Int)];
+    #jobs : [Types.Job]; // 1b.3
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -1334,4 +1336,29 @@ module {
     score : Nat;
   };
   public type FineResult = { matches : [FineMatch]; vehicleKnown : Bool; ownTripsOnly : Bool };
+
+  // ── Postbode (1b.3) ──────────────────────────────────────────────────────
+  public type MailTo = { name : Text; email : Text };
+  public type MailSection = { title : Text; subtitle : Text; lines : [Text] };
+  // Een mail zoals de app ze samenstelt; de gateway zet ze enkel in een HTML-sjabloon (alles ontsnapt).
+  public type MailOut = { to : [MailTo]; subject : Text; preheader : Text; heading : Text; intro : Text; sections : [MailSection]; outro : Text; link : ?Text; tag : Text };
+  // Wat de robot krijgt bij een lease: de opdracht en ENKEL de mail die erbij hoort (R28).
+  public type JobLease = { id : Nat; kind : Text; key : Text; attempt : Nat; leaseUntil : Int; mail : MailOut };
+  public type JobView = { id : Nat; kind : Text; key : Text; orgId : ?OrgId; orgName : Text; ref : Text; state : Types.JobState; attempts : Nat; notBefore : Int; createdAt : Int; createdByName : Text; updatedAt : Int };
+  public type RobotSeen = { name : Text; kinds : [Text]; lastSeen : ?Int };
+  public type PostSettingsView = {
+    weekmail : Bool;
+    reminders : Bool;
+    day : Nat; // 0 = maandag … 6 = zondag
+    hour : Nat;
+    reminderDay : Nat;
+    appUrl : Text;
+    optedOut : [OrgId];
+    robots : [RobotSeen];
+    queued : Nat;
+    leased : Nat;
+    failed : Nat;
+    lastWeek : Nat; // maandag (dagnummer) van de laatst klaargezette weekmails; 0 = nog nooit
+  };
+  public type PostSettingsInput = { weekmail : Bool; reminders : Bool; day : Nat; hour : Nat; reminderDay : Nat; appUrl : Text };
 };

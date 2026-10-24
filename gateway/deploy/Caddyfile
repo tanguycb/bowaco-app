@@ -1,0 +1,18 @@
+# Caddy voor de postbode: HTTPS (Let's Encrypt, automatisch) voor /health en /task; al de rest 404.
+# deploy.sh vervangt POSTBODE_DOMEIN door de naam die de eigenaar koos (bv. postbode.bowaco.eu).
+POSTBODE_DOMEIN {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	@toegelaten path /health /task
+	handle @toegelaten {
+		reverse_proxy 127.0.0.1:8787
+	}
+	handle {
+		respond 404
+	}
+}

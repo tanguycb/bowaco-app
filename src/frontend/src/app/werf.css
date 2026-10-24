@@ -100,6 +100,15 @@
 .p-proof__img { width: 100%; height: auto; border: 1px solid var(--bw-line); border-radius: var(--bw-radius); background: var(--bw-surface); }
 
 /* 1b.2 boete opzoeken: één kaart per rit */
-.f-list { gap: 12px; }
-.f-card { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); list-style: none; }
+.f-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.f-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 14px 16px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); list-style: none; }
 .f-guess { margin: 0; padding: 8px 10px; border-left: 3px solid var(--bw-accent); background: var(--bw-bg); }
+.f-card .a-dl { margin: 0; }
+.f-card > .bw-btn { justify-self: start; }
+
+/* 1b.3 postbode: voorbeeld van een mail */
+.p-mail { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); }
+.p-mail p { margin: 0; }
+.p-mail__sec { padding-top: 8px; border-top: 1px solid var(--bw-line); }
+.p-mail__sec ul { margin: 4px 0 0; padding-left: 18px; }
+.a-counter__n--small { font-size: var(--bw-fs-md); }

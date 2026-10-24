@@ -37,3 +37,6 @@ node tests/rollen.mjs "$cid"
 node tests/lek.mjs "$cid"
 # 1.9: de aanvallen uit de securityreview (externen, bestanden, robot, grenzen, herstelpoort, opruiming van tellers).
 node tests/review.mjs "$cid"
+# 1b.3: de postbode — eenheidstesten van de gateway en de echte gateway tegen deze canister (nagebootste Brevo).
+( cd gateway && node --test test/*.test.ts )
+node tests/postbode-proef.mjs "$cid"

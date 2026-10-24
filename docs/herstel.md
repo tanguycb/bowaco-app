@@ -8,7 +8,7 @@ Drie JSON-bestanden, gemaakt door een **beheerder** van de app (update-calls, du
 
 | Bestand | Backend-functie | Inhoud |
 |---|---|---|
-| `intern.json` | `exportIntern()` | personen, logins (principals), codes (enkel de hint), organisaties, werven, team, documenten, OA-database, planning, weekbord, import, verslagen, voertuigen, robots, voorstellen, meldingen, keuzelijsten, vlaggen, **tellers** (de laatst uitgegeven ids), planversies, toestelsleutels, offline-opdrachten; **sinds 1b.1** vergunningen, hun wijzigingen, de kennisbank per gemeente (gemeenten, procedures) en de al verstuurde vergunningsmeldingen (zodat niemand na een herstel opnieuw gemeld wordt) |
+| `intern.json` | `exportIntern()` | personen, logins (principals), codes (enkel de hint), organisaties, werven, team, documenten, OA-database, planning, weekbord, import, verslagen, voertuigen, robots, voorstellen, meldingen, keuzelijsten, vlaggen, **tellers** (de laatst uitgegeven ids), planversies, toestelsleutels, offline-opdrachten; **sinds 1b.1** vergunningen, hun wijzigingen, de kennisbank per gemeente (gemeenten, procedures) en de al verstuurde vergunningsmeldingen (zodat niemand na een herstel opnieuw gemeld wordt); **sinds 1b.3** de werkwachtrij van de postbode (opdrachten met hun idempotentiesleutel: een herstelde app zet geen weekmail opnieuw klaar die al verstuurd was; een geleasete opdracht komt terug in de wachtrij) |
 | `vertrouwelijk.json` | `exportConfidential()` | klantcontacten (organisaties en personen), contractparameters met hun historiek, de **opslag-URL's van vertrouwelijke bestanden** |
 | `audit.json` | `auditLog(from, 500)` in stukken | alle auditregels, chronologisch |
 

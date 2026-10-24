@@ -1,0 +1,16 @@
+{
+  "name": "bowaco-postbode",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gateway-lite 'postbode' van de BOWACO-app: leest de werkwachtrij als robot en verstuurt mails (stap 1b.3).",
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node src/main.ts",
+    "sleutel": "node src/sleutel.ts",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@icp-sdk/core": "5.4.0"
+  }
+}

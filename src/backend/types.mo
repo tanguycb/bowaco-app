@@ -963,6 +963,43 @@ module {
     alerts : Map.Map<Text, Int>;
   };
 
+  // ── Postbode: werkwachtrij (stap 1b.3, architectuur §6.2) ────────────────
+  // Eigen domein `post` (nieuw stabiel veld, deelvorm, OldActor = {}). Een opdracht (job) heeft een idempotentiesleutel
+  // (`key`, uniek: "weekplanning:org42:2026-W45"); de gateway leaset ze (10 min), verstuurt en meldt klaar of mislukt.
+  // De inhoud van de mail wordt bij de lease samengesteld, niet bewaard. Records onveranderlijk (vervangen).
+  public type JobState = {
+    #queued;
+    #leased : { by : Principal; until : Int; attempt : Nat };
+    #done : { at : Int; result : Text };
+    #failed : { at : Int; why : Text };
+    #cancelled : { by : PersonId; at : Int };
+  };
+
+  // klasse: intern (enkel ids, de week en de soort; geen adressen behalve het adres van een proefmail in `extra`)
+  public type Job = {
+    id : Nat;
+    kind : Text; // "weekplanning" · "herinnering-planning" · "herinnering-uren" · "proef"
+    key : Text;
+    orgId : ?OrgId;
+    personId : ?PersonId;
+    workId : ?WorkId;
+    ref : Text; // de maandag van de week (dagnummer) als tekst
+    notBefore : Int;
+    attempts : Nat;
+    state : JobState;
+    createdAt : Int;
+    createdBy : ?PersonId; // null = de timer
+    updatedAt : Int;
+    extra : Extra;
+  };
+
+  public type PostState = {
+    jobs : Map.Map<Nat, Job>;
+    keys : Map.Map<Text, Nat>; // idempotentiesleutel → opdracht
+    open : Map.Map<Nat, ()>; // index: opdrachten in de wachtrij of geleaset (de rest wordt nooit meer doorlopen)
+    seen : Map.Map<Principal, Int>; // laatste lease per robot ("laatst gezien")
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

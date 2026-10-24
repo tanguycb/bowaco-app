@@ -1391,6 +1391,80 @@ check("om 16:40 na vertrek terug 16:30: terugrit met de chauffeur terug (Proef W
 check("werfleider (chauffeur terug) vindt deze rit wel", ok1b(await wl.lookupFine(fqb2({ day: nowDay, plate: "2-BOE-002" }))).matches.length === 1);
 check("auditlog: 'boete-opgezocht' met dag en plaat, zonder namen", (await admin.auditLog(0n, 50n)).some((e) => e.action === "boete-opgezocht" && e.detail.includes("2-BOE-002") && !e.detail.includes("Proef")));
 
+await sec("── 1b.3 postbode: instellingen, voorbeeld, wachtrij met lease en idempotentiesleutel, robot (R28)");
+{
+const rPost = await as("robot-post");
+const rPost2 = await as("robot-post2");
+const ps0 = await admin.postSettings();
+check("postbode: standaard alles uit (geen mails zonder beslissing)", !ps0.weekmail && !ps0.reminders && ps0.day === 4n && ps0.hour === 14n);
+check("instellingen: werfleider, calculator, OA, robot en anoniem geweigerd", (await Promise.all([wl, calc, oa2, rPost, anon].map((x) => rejects(x.postSettings())))).every(Boolean));
+check("instellingen: uur 25 geweigerd, adres zonder https geweigerd", ("err" in (await admin.setPostSettings({ weekmail: false, reminders: false, day: 4n, hour: 25n, reminderDay: 2n, appUrl: "" }))) && ("err" in (await admin.setPostSettings({ weekmail: false, reminders: false, day: 4n, hour: 14n, reminderDay: 2n, appUrl: "http://x" }))));
+check("instellingen bewaard (weekmail uit, adres van de app)", isOk(await admin.setPostSettings({ weekmail: false, reminders: false, day: 4n, hour: 14n, reminderDay: 2n, appUrl: "https://app.proef.invalid/" })));
+check("e-mailadres van Proef Dak NV (algemeen)", isOk(await admin.saveOrgContact(orgY.ok.id, { phone: [], email: ["planning@proef-dak.invalid"], website: [], contactNote: "" })));
+const pB13 = await admin.getPlan(B);
+const tDak = pB13.tasks.find((t) => t.assignments.some((a) => a.orgId === orgY.ok.id) && !("done" in t.status));
+const mon13 = tDak.start - BigInt(wd(tDak.start));
+const pv = await admin.previewMail("weekplanning", [orgY.ok.id], mon13);
+check("voorbeeld weekplanning: aan het adres van de firma, werf P-B met de taak, link naar Mijn week", isOk(pv) && pv.ok.to[0].email === "planning@proef-dak.invalid" && pv.ok.sections.some((x) => x.title.startsWith("P-B") && x.lines.some((l) => l.includes(tDak.title))) && pv.ok.link[0] === "https://app.proef.invalid/#/week", JSON.stringify(pv, big).slice(0, 300));
+check("voorbeeld: geen bedragen of interne notities in de mail", !JSON.stringify(pv, big).includes("€"));
+check("voorbeeld voor een firma zonder adres: 'geen e-mailadres'", errOf(await admin.previewMail("weekplanning", [orgX.ok.id], mon13)).includes("geen e-mailadres") || errOf(await admin.previewMail("weekplanning", [orgX.ok.id], mon13)).includes("niets gepland"));
+check("geen maandag geweigerd", "err" in (await admin.queueWeekMails(mon13 + 1n, [])));
+check("werfleider zet geen mails klaar", await rejects(wl.queueWeekMails(mon13, [])));
+const q1 = await admin.queueWeekMails(mon13, [orgY.ok.id]);
+check("weekmail voor Proef Dak NV klaargezet", isOk(q1) && q1.ok === 1n, errOf(q1));
+check("nog eens: 0 nieuw (idempotentiesleutel)", ok1b(await admin.queueWeekMails(mon13, [orgY.ok.id])) === 0n);
+const jobs13 = await admin.listJobs("open", 0n, 50n);
+const j13 = jobs13.find((j) => j.kind === "weekplanning" && j.orgId[0] === orgY.ok.id);
+check("wachtrij: de opdracht staat open met sleutel weekplanning:org…:jjjj-Www", !!j13 && /^weekplanning:org\d+:\d{4}-W\d{2}$/.test(j13.key) && "queued" in j13.state, JSON.stringify(j13, big));
+check("een niet-geregistreerde robot leaset niets", await rejects(rPost.leaseJobs(10n)));
+check("een persoon (werfleider, admin) leaset niets", (await rejects(wl.leaseJobs(10n))) && (await rejects(admin.leaseJobs(10n))));
+check("robot met een onbekende soort geweigerd", errOf(await admin.addRobot(P("robot-post"), "Postbode", ["alles"])).includes("Onbekende soort"));
+check("admin registreert de postbode (soort mail) en een tweede postbode", isOk(await admin.addRobot(P("robot-post"), "Postbode", ["mail"])) && isOk(await admin.addRobot(P("robot-post2"), "Postbode reserve", ["mail"])));
+const l1 = await rPost.leaseJobs(10n);
+const lj = l1.find((x) => x.id === j13.id);
+check("lease: de robot krijgt de opdracht met ENKEL de mail (ontvanger, onderwerp, werven)", !!lj && lj.attempt === 1n && lj.mail.to[0].email === "planning@proef-dak.invalid" && lj.mail.subject.includes("BOWACO planning"), JSON.stringify(l1, big).slice(0, 200));
+check("tweede postbode krijgt dezelfde (geleasete) opdracht niet", !(await rPost2.leaseJobs(10n)).some((x) => x.id === j13.id));
+check("een andere postbode kan de lease niet afsluiten", errOf(await rPost2.completeJob(j13.id, 1n, "x")).includes("Niet jouw lease"));
+check("een persoon kan geen opdracht afsluiten", await rejects(wl.completeJob(j13.id, 1n, "x")));
+check("mislukt (503) → opnieuw in de wachtrij met wachttijd", isOk(await rPost.failJob(j13.id, 1n, "http 503", true)) && "queued" in (await admin.listJobs("open", 0n, 50n)).find((j) => j.id === j13.id).state);
+check("tijdens de wachttijd niet opnieuw geleaset", !(await rPost.leaseJobs(10n)).some((x) => x.id === j13.id));
+if (local) {
+  await advance(6n * 60_000_000_000n);
+  await resync(rPost, rPost2);
+  const l2 = (await rPost.leaseJobs(10n)).find((x) => x.id === j13.id);
+  check("na 6 min (klok): opnieuw geleaset, poging 2", !!l2 && l2.attempt === 2n);
+  await advance(11n * 60_000_000_000n);
+  await resync(rPost, rPost2);
+  const l3 = (await rPost2.leaseJobs(10n)).find((x) => x.id === j13.id);
+  check("lease verlopen (gateway weg) na 10 min: de reservepostbode neemt over, poging 3", !!l3 && l3.attempt === 3n);
+  check("de eerste postbode kan haar verlopen lease niet meer afsluiten", "err" in (await rPost.completeJob(j13.id, 2n, "x")));
+  check("de reservepostbode meldt verstuurd", isOk(await rPost2.completeJob(j13.id, 3n, "<msg-1@brevo>")));
+} else {
+  const l2 = await rPost.leaseJobs(10n);
+  check("(draft, zonder klok) geen tweede lease vóór de wachttijd", !l2.some((x) => x.id === j13.id));
+  await admin.cancelJob(j13.id);
+}
+const jDone = (await admin.listJobs("alles", 0n, 50n)).find((j) => j.id === j13.id);
+check("opdracht klaar of geannuleerd; niet meer open", !!jDone && !("queued" in jDone.state) && !("leased" in jDone.state));
+check("auditlog: post-verstuurd zonder e-mailadres", !local || (await admin.auditLog(0n, 60n)).some((e) => e.action === "post-verstuurd" && !e.detail.includes("@")));
+// Proefmail, mislukt zonder retry, opnieuw zetten, annuleren
+check("proefmail zonder adres geweigerd", "err" in (await admin.queueTestMail("geen-adres")));
+const tm = await admin.queueTestMail("eigen@proef.invalid");
+check("proefmail naar één adres klaargezet", isOk(tm), errOf(tm));
+const lt = (await rPost.leaseJobs(10n)).find((x) => x.id === tm.ok);
+check("proefmail: enkel dat adres, geen werfgegevens", !!lt && lt.mail.to.length === 1 && lt.mail.to[0].email === "eigen@proef.invalid" && lt.mail.sections.length === 0);
+check("definitief mislukt (401) → mislukt + melding aan de admins", isOk(await rPost.failJob(tm.ok, 1n, "http 401 unauthorized", false)) && (await admin.myNotifications(false)).some((n) => n.kind === "postbode" && n.text.includes("401")));
+check("mislukte opdracht opnieuw zetten (admin) en dan annuleren", isOk(await admin.retryJob(tm.ok)) && isOk(await admin.cancelJob(tm.ok)) && "err" in (await admin.cancelJob(tm.ok)));
+// Firma afmelden
+check("firma afmelden: voorbeeld 'ontvangt geen mails'", isOk(await admin.setOrgMail(orgY.ok.id, false)) && errOf(await admin.previewMail("weekplanning", [orgY.ok.id], mon13)).includes("geen mails"));
+check("firma weer aanmelden", isOk(await admin.setOrgMail(orgY.ok.id, true)) && (await admin.postSettings()).optedOut.length === 0);
+check("herinneringen klaarzetten (admin): idempotent", isOk(await admin.queueReminders(mon13)) && ok1b(await admin.queueReminders(mon13)) === 0n);
+for (const j of await admin.listJobs("open", 0n, 100n)) await admin.cancelJob(j.id);
+check("robots 'laatst gezien' in de instellingen", (await admin.postSettings()).robots.some((r) => r.name === "Postbode" && r.lastSeen.length === 1));
+check("postbode ingetrokken: leaset niets meer", isOk(await admin.revokeRobot(P("robot-post"))) && (await rejects(rPost.leaseJobs(1n))));
+check("export: de werkwachtrij; in stukken 'jobs'", (await admin.exportIntern()).jobs.length >= 3 && "jobs" in ok1b(await admin.exportChunk("jobs", 0n, 10n)));
+}
+
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));
 check("werfleider kan geen robot toevoegen", await rejects(wl.addRobot(P("robot-test"), "Proefrobot", [])));

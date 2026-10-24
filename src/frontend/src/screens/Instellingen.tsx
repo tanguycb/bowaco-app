@@ -17,13 +17,10 @@ export function Instellingen() {
   const qc = useQueryClient();
   const toast = useToast();
   const settings = useQuery({ queryKey: ["settings"], queryFn: () => actor!.getSettings(), enabled: on });
-  const robots = useQuery({ queryKey: ["robots"], queryFn: () => actor!.listRobots(), enabled: on });
   const [all, setAll] = useState(true);
   const [days, setDays] = useState("7");
   const [t30, setT30] = useState("");
   const [tCi, setTCi] = useState("");
-  const [rp, setRp] = useState("");
-  const [rn, setRn] = useState("");
   useEffect(() => {
     if (settings.data) {
       setAll(settings.data.werfleiderZietAlles);
@@ -44,12 +41,6 @@ export function Instellingen() {
     onSuccess: ok,
     onError: fail,
   });
-  const add = useMutation({
-    mutationFn: async () => unwrap(await actor!.addRobot(Principal.fromText(rp.trim()), rn, ["proef"])),
-    onSuccess: () => { setRp(""); setRn(""); ok(); },
-    onError: fail,
-  });
-  const revoke = useMutation({ mutationFn: async (p: Principal) => unwrap(await actor!.revokeRobot(p)), onSuccess: ok, onError: fail });
   return (
     <Page title={t.settings.title}>
       <Loading q={settings} />
@@ -76,24 +67,7 @@ export function Instellingen() {
       <Vehicles />
       <section className="a-section" style={{ maxWidth: 720 }}>
         <h2 className="bw-h2">{t.settings.robots}</h2>
-        <p className="bw-muted">{t.settings.robotsLead}</p>
-        <Loading q={robots} />
-        {robots.data && robots.data.length === 0 && <p className="a-empty">{t.settings.noRobots}</p>}
-        {robots.data && robots.data.length > 0 && (
-          <ul className="a-list">
-            {robots.data.map((r) => (
-              <li key={r.principal.toText()}>
-                <span className="a-list__main"><b>{r.name}</b><span className="a-mono">{r.principal.toText()}</span><span className="bw-muted">{fmtTime(r.addedAt)}{r.revokedAt !== undefined ? ` · ingetrokken ${fmtTime(r.revokedAt)}` : ""}</span></span>
-                {r.revokedAt === undefined && <Button variant="quiet" onClick={() => revoke.mutate(r.principal)}>{t.settings.revoke}</Button>}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="a-grid2">
-          <Field label={t.settings.principal}><input className="bw-input bw-mono" value={rp} onChange={(e) => setRp(e.target.value)} /></Field>
-          <Field label={t.team.name}><input className="bw-input" value={rn} onChange={(e) => setRn(e.target.value)} /></Field>
-        </div>
-        <div><Button icon="plus" disabled={!rp || !rn} busy={add.isPending} onClick={() => add.mutate()}>{t.settings.addRobot}</Button></div>
+        <p className="bw-muted">{t.settings.robotsMoved} <a className="wb-link" href="#/postbode">{t.nav.postbode}</a></p>
       </section>
     </Page>
   );

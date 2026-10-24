@@ -1,0 +1,2 @@
+# 1b.3: de gateway (postbode) draait op een eigen EU-server, nooit in de Caffeine-upload (tools/push.sh = git archive).
+gateway/ export-ignore

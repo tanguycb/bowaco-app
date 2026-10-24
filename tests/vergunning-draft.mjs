@@ -74,7 +74,8 @@ if (!pm) {
   check("werfleider maakt de vergunning", isOk(r), errOf(r));
   pm = r.ok;
 }
-check("deadline = start − 10 en waarschuwing 'aanvragen binnen'", pm.deadline[0] === start - 10n && pm.warnings.some((w) => "deadlineSoon" in w || "deadlinePassed" in w), JSON.stringify(pm.warnings, big));
+// Bij een tweede run is de vergunning al toegekend (geen deadline-waarschuwing meer): enkel de deadline nakijken.
+check("deadline = start − 10 (en 'aanvragen binnen' zolang ze nodig is)", pm.deadline[0] === start - 10n && ("needed" in pm.status ? pm.warnings.some((w) => "deadlineSoon" in w || "deadlinePassed" in w) : true), JSON.stringify(pm.warnings, big));
 check("calculator, OA en klant wijzigen niets", (await denied(calc.archivePermit(pm.id, ""))) && (await denied(oa2.archivePermit(pm.id, ""))) && (await denied(klant.archivePermit(pm.id, ""))));
 check("meldronde: enkel admin; de admin start ze", (await rejects(wl.scanPermits())) && (await admin.scanPermits()) >= 0n);
 check("Proef Werfleider kreeg een melding 'vergunning' voor P-B", (await wl.myNotifications(false)).some((n) => n.kind === "vergunning" && n.text.includes("P-B")));
