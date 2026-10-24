@@ -64,7 +64,8 @@ export default function App() {
 
 /** me() met vangnet: zonder bereik de laatste bewaarde stand van deze principal (enkel naam, rollen en caps). */
 async function meWithCache(actor: { me: () => Promise<MeView> }, principal: string): Promise<MeView> {
-  await openDb(principal);
+  // Zonder lokale opslag (geblokkeerd, privévenster) gaat de app online verder.
+  await openDb(principal).catch(() => undefined);
   try {
     const m = await actor.me();
     if (m.person) void cachePut("me", { ...m, principal: principal });

@@ -18,19 +18,38 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
   });
 }
 
-/** Open (of maak) de databank van deze principal. */
+/** Open (of maak) de databank van deze principal. Chrome-test 2.2: een open verbinding in een ander venster (een tweede
+ *  tab, het voorbeeldvenster van Caffeine) hield een verwijdering (§8.5, wissel van login) tegen, waarna elk volgend openen
+ *  bleef wachten en de app op "Even laden…" bleef staan. Nu sluit een verbinding zichzelf zodra een ander venster de
+ *  databank wil verwijderen of upgraden, en geeft openen na 5 s op: de app werkt dan online, zonder lokale opslag. */
 export function openDb(principal: string): Promise<IDBDatabase> {
   const name = PREFIX + principal;
   if (current?.name === name) return current.db;
   const db = new Promise<IDBDatabase>((ok, err) => {
+    const timer = setTimeout(() => err(new Error("Lokale opslag geblokkeerd: sluit andere vensters van de app en herlaad")), 5000);
     const r = indexedDB.open(name, 1);
     r.onupgradeneeded = () => {
       for (const s of STORES) if (!r.result.objectStoreNames.contains(s)) r.result.createObjectStore(s);
     };
-    r.onsuccess = () => ok(r.result);
-    r.onerror = () => err(r.error);
+    r.onsuccess = () => {
+      clearTimeout(timer);
+      const d = r.result;
+      d.onversionchange = () => {
+        d.close();
+        if (current?.name === name) current = null;
+      };
+      ok(d);
+    };
+    r.onerror = () => {
+      clearTimeout(timer);
+      err(r.error);
+    };
   });
   current = { name, db };
+  // Mislukt openen: de volgende oproep probeert opnieuw.
+  db.catch(() => {
+    if (current?.db === db) current = null;
+  });
   return db;
 }
 

@@ -118,24 +118,24 @@ export function Posten({ caps }: { caps: Caps }) {
       {list.data && <span className="bw-label" role="status">{P.count(shown, total)}</span>}
       {list.data && total === 0 && !noChapters && <p className="a-empty">{filtered ? P.noMatch : caps.editLibrary ? P.empty : P.emptyRead}</p>}
       {groups.map((g) => (
-        <section key={g.key} className="a-section">
+        <section key={g.key} className="a-section a-lib">
           <h2 className="bw-h2">{g.head}</h2>
           <Table
             rows={g.rows}
             rowKey={(r) => String(r.id)}
             onRow={(r) => setOpen(r.id)}
             columns={[
-              { key: "c", label: P.code, width: "72px", render: (r) => <span className="bw-mono">{r.code || "—"}</span> },
+              { key: "c", label: P.code, width: "92px", render: (r) => <span className="bw-mono">{r.code || "—"}</span> },
               { key: "t", label: P.item, render: (r) => <ItemCell r={r} /> },
-              { key: "u", label: P.unit, width: "70px", render: (r) => <span className="bw-mono">{r.unit}</span> },
-              { key: "f", label: P.form, render: (r) => <span className="a-tag">{P.formsShort[r.form] ?? r.form}</span> },
-              { key: "o", label: P.oaTrade, render: (r) => <span>{r.orgName || <span className="bw-muted">{tradeName(r.trade) || "—"}</span>}</span> },
-              { key: "d", label: P.duration, right: true, render: (r) => <span className="bw-mono">{r.durationDays !== undefined ? `${r.durationDays} d` : r.perDayMilli !== undefined ? `${fmtMilli(r.perDayMilli)}/${r.unit}·d` : "—"}</span> },
+              { key: "u", label: P.unit, width: "76px", render: (r) => <span className="bw-mono">{r.unit}</span> },
+              { key: "f", label: P.form, width: "112px", render: (r) => <span className="a-tag">{P.formsShort[r.form] ?? r.form}</span> },
+              { key: "o", label: P.oaTrade, width: "190px", render: (r) => <span>{r.orgName || <span className="bw-muted">{tradeName(r.trade) || "—"}</span>}</span> },
+              { key: "d", label: P.duration, width: "92px", right: true, render: (r) => <span className="bw-mono">{r.durationDays !== undefined ? `${r.durationDays} d` : r.perDayMilli !== undefined ? `${fmtMilli(r.perDayMilli)}/${r.unit}·d` : "—"}</span> },
               ...(prices
                 ? [
-                    { key: "pc", label: P.cost, right: true, render: (r: LibItemView) => <CostCell p={priceOf.get(String(r.id))} /> },
-                    { key: "pm", label: P.margin, right: true, render: (r: LibItemView) => <MarginCell p={priceOf.get(String(r.id))} /> },
-                    { key: "ps", label: P.sell, right: true, render: (r: LibItemView) => <span className="bw-mono">{priceOf.get(String(r.id))?.sellCents !== undefined ? fmtEuro(priceOf.get(String(r.id))!.sellCents) : "—"}</span> },
+                    { key: "pc", label: P.cost, width: "120px", right: true, render: (r: LibItemView) => <CostCell p={priceOf.get(String(r.id))} /> },
+                    { key: "pm", label: P.margin, width: "116px", right: true, render: (r: LibItemView) => <MarginCell p={priceOf.get(String(r.id))} /> },
+                    { key: "ps", label: P.sell, width: "104px", right: true, render: (r: LibItemView) => <span className="bw-mono">{priceOf.get(String(r.id))?.sellCents !== undefined ? fmtEuro(priceOf.get(String(r.id))!.sellCents) : "—"}</span> },
                   ]
                 : []),
             ]}
@@ -166,7 +166,8 @@ function ItemCell({ r }: { r: LibItemView }) {
 
 function CostCell({ p }: { p?: LibPriceView }) {
   if (!p) return <span className="bw-muted">—</span>;
-  if (!p.cost) return <span className="a-tag a-tag--warn">{P.noCost}</span>;
+  // Zonder aankoopprijs is enkel een post met een marge onvolledig (geen verkoopprijs); een vaste prijs heeft er geen nodig.
+  if (!p.cost) return p.rule?.__kind__ === "price" ? <span className="bw-muted">—</span> : <span className="a-tag a-tag--warn">{P.noCost}</span>;
   return (
     <span className="bw-mono">
       {fmtEuro(p.cost.costCents)}
@@ -207,7 +208,7 @@ function ItemSheet({ id, caps, chapters, units, defaultChapter, onClose, onCreat
   const one = useQuery({ queryKey: ["libItem", String(id)], queryFn: async () => unwrap(await actor!.getLibraryItem(id as bigint)), enabled: !!actor && !isFetching && id !== "new" });
   const it = id === "new" ? null : one.data ?? null;
   return (
-    <Sheet title={it ? it.title : P.newItem} open onClose={onClose} side wide>
+    <Sheet title={id === "new" ? P.newItem : it ? it.title : t.common.loading} open onClose={onClose} side wide>
       {id !== "new" && <Loading q={one} />}
       {(id === "new" || it) && (
         <div className="a-form">
@@ -578,8 +579,10 @@ function SellForm({ it, p, std }: { it: LibItemView; p: LibPriceView; std: bigin
   const cents = parseEuro(price);
   const rule: LibSellRule | undefined = kind === "margin" && bp !== null ? { __kind__: "margin", margin: bp } : kind === "price" && typeof cents === "bigint" ? { __kind__: "price", price: cents } : undefined;
   const valid = kind === "standard" || rule !== undefined;
+  const sendReason = kind === "standard" ? "" : reason.trim();
+  const same = JSON.stringify(rule ?? null, (_k, v) => (typeof v === "bigint" ? String(v) : v)) === JSON.stringify(p.rule ?? null, (_k, v) => (typeof v === "bigint" ? String(v) : v)) && sendReason === p.reason;
   const m = useMutation({
-    mutationFn: async () => unwrap(await actor!.setLibrarySell(it.id, { rule, reason }, p.sellVersion)),
+    mutationFn: async () => unwrap(await actor!.setLibrarySell(it.id, { rule, reason: sendReason }, p.sellVersion)),
     onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); invalidatePrices(qc, it.id); },
   });
   return (
@@ -591,7 +594,7 @@ function SellForm({ it, p, std }: { it: LibItemView; p: LibPriceView; std: bigin
       {kind === "price" && <Field label={`${P.priceCents} · ${it.unit}`}><input className="bw-input bw-mono" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} /></Field>}
       {kind !== "standard" && <Field label={P.ruleReason}><input className="bw-input" value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} /></Field>}
       {m.error && <p className="a-err" role="alert">{errText(m.error)}</p>}
-      <div><Button variant="primary" busy={m.isPending} disabled={!valid} onClick={() => m.mutate()}>{P.saveRule}</Button></div>
+      <div><Button variant="primary" busy={m.isPending} disabled={!valid || same} onClick={() => m.mutate()}>{P.saveRule}</Button></div>
     </div>
   );
 }

@@ -234,3 +234,5 @@ span.wb-absent.wb-chip--mini { display: inline-block; padding: 0; cursor: defaul
 .a-list > li.wb-task { flex-direction: column; align-items: stretch; gap: 6px; }
 .wb-mitem.wb-chip--clash { background: repeating-linear-gradient(-45deg, var(--bw-hatch) 0 8px, transparent 8px 16px), var(--bw-st-blocked-bg); border: 1.5px solid var(--bw-st-blocked); }
 .wb-stale { opacity: 0.45; transition: opacity 0.15s; pointer-events: none; }
+/* 2.2 postenbibliotheek: elke hoofdstuktabel dezelfde kolommen (vaste breedtes, de post krijgt de rest) */
+@media (min-width: 641px) { .a-lib .bw-table { table-layout: fixed; } }

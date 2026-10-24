@@ -388,7 +388,8 @@ mixin (
     if (it.archivedAt != null) { return #err("Deze post is gearchiveerd") };
     switch (i.rule) { case (?r) { switch (Library.ruleError(r)) { case (?e) return #err(e); case null {} } }; case null {} };
     if (i.reason.size() > Config.maxText) { return #err("Reden te lang") };
-    let reason = i.reason.trim(#char ' ');
+    // Chrome-test 2.2: de reden hoort bij een afwijking; terug naar de standaardmarge = geen reden meer.
+    let reason = if (i.rule == null) "" else i.reason.trim(#char ' ');
     let std = Library.standardMargin(settings);
     let deviates = switch (i.rule) { case (?#margin m) m != std; case (?#price _) true; case null false };
     if (deviates and reason == "") { return #err("Geef een reden voor een andere marge of een vaste prijs (bv. eigen prestatie, verzekering)") };

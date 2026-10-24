@@ -1715,7 +1715,7 @@ await sec("── postenbibliotheek (2.2): hoofdstukken, posten, versies; prijze
   const s3 = await calc.setLibrarySell(it3.ok.id, { rule: [{ price: 130_000n }], reason: "eigen prestatie" }, 0n);
   const pr3 = (await calc.readLibraryPrices([it3.ok.id])).ok.prices[0];
   check("vaste verkoopprijs zonder aankoopprijs (eigen prestatie): € 1.300, geen marge", isOk(s3) && pr3.sellCents[0] === 130_000n && pr3.marginBp.length === 0 && pr3.deviates === true);
-  check("terug naar de standaardmarge (versie 2)", (await calc.setLibrarySell(id1, { rule: [], reason: "" }, 1n)).ok === 2n && (await calc.readLibraryPrices([id1])).ok.prices[0].sellCents[0] === 4000n);
+  check("terug naar de standaardmarge (versie 2); een meegestuurde reden valt weg", (await calc.setLibrarySell(id1, { rule: [], reason: "oude reden" }, 1n)).ok === 2n && (await calc.readLibraryPrices([id1])).ok.prices[0].sellCents[0] === 4000n && (await calc.readLibraryPrices([id1])).ok.prices[0].reason === "");
   check("prijs archiveren zonder reden geweigerd", "err" in (await calc.archiveLibraryCost(c2.ok, "")));
   check("prijs archiveren met reden: telt niet meer mee, de andere OA wordt de geldende prijs", isOk(await calc.archiveLibraryCost(c2.ok, "tikfout (proef)")) && (await calc.readLibraryPrices([id1])).ok.prices[0].cost[0].costCents[0] === 2900n);
   const ph = await calc.readLibraryPriceHistory(id1);

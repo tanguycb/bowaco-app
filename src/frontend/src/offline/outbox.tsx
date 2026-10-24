@@ -130,7 +130,11 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
     if (!isAuthenticated || !principal || identity?.getPrincipal().isAnonymous()) return;
     let live = true;
     void (async () => {
-      await idb.openDb(principal);
+      try {
+        await idb.openDb(principal);
+      } catch {
+        return; // geen lokale opslag: geen wachtrij (de app werkt online); een volgende login probeert opnieuw
+      }
       await idb.wipeOthers(principal);
       if (!live) return;
       await reload();

@@ -311,7 +311,7 @@ module {
       rule;
       marginBp;
       sellCents;
-      reason = switch sell { case (?s) (plainOf(s.reason) ?? ""); case null "" };
+      reason = switch (sell, rule) { case (?s, ?_) (plainOf(s.reason) ?? ""); case _ "" };
       deviates = switch rule { case (?#margin m) m != standardBp; case (?#price _) true; case null false };
       sellVersion = switch sell { case (?s) s.version; case null 0 };
       costCount = cs.filter(func c = c.archivedAt == null).size();
