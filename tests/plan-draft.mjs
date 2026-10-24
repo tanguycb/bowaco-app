@@ -48,7 +48,8 @@ check("P-A: ≥ 27 taken, alles op werkdagen", pA.tasks.length >= 27 && pA.tasks
 check("calculator, architect, klant, veiligheid en OA plannen niet", (await Promise.all([calc, arch, klant, vc, oa2].map((x) => denied(x.saveTask(A, tIn({ start: day() }), pA.version))))).every(Boolean));
 check("anoniem leest geen planning", await rejects(anon.getPlan(A)));
 // Verschuiven met voorvertoning, en terug
-const first = pA.tasks.reduce((a, b) => (a.start <= b.start ? a : b));
+// De eerste taak van het sjabloon (losse proeftaken van latere stappen, zoals «Proef verslag 1.6», tellen niet).
+const first = pA.tasks.filter((t) => t.templateKey.length === 1).reduce((a, b) => (a.start <= b.start ? a : b));
 const pv = await wl.previewPlan(A, { move: { taskId: first.id, start: first.start + 7n, workdays: first.workdays, mode: { follow: null } } });
 check("voorvertoning: eerste taak +1 week → de hele keten schuift mee", isOk(pv) && pv.ok.changes.length >= 20, errOf(pv) || `${pv.ok?.changes.length}`);
 const mv = await wl.applyPlan(A, { move: { taskId: first.id, start: first.start + 7n, workdays: first.workdays, mode: { follow: null } } }, pA.version, "proef: week later");
@@ -84,7 +85,7 @@ if (dak && orgDak && dak.responsibleOrgId.length === 0) {
   pA = await wl.getPlan(A);
 }
 const pOa = await oa2.getPlan(A);
-check("OA Dak ziet op P-A enkel zijn eigen taak", pOa.scope === "ownOrg" && pOa.tasks.length >= 1 && pOa.tasks.every((t) => t.title === "Dakwerken" && t.note === ""), JSON.stringify(pOa.tasks.map((t) => t.title)));
+check("OA Dak ziet op P-A enkel zijn eigen taak", pOa.scope === "ownOrg" && pOa.tasks.length >= 1 && pOa.tasks.filter((t) => !t.title.startsWith("Proef verslag")).every((t) => t.title === "Dakwerken" && t.note === "") && pOa.tasks.every((t) => t.note === ""), JSON.stringify(pOa.tasks.map((t) => t.title)));
 const pKl = await klant.getPlan(A);
 check("klant: samenvatting zonder firma's", pKl.scope === "summary" && pKl.tasks.every((t) => t.responsibleName === "" && t.assignments.length === 0));
 check("architect en veiligheid: alles behalve notities", (await arch.getPlan(A)).scope === "external" && (await vc.getPlan(A)).scope === "external");

@@ -4,10 +4,9 @@
 // een afgesloten proefverslag + correctie op de eerste werkdag zonder verslag, een afgehandelde proefvertraging en
 // het proefvoertuig 1-PRF-016. Opnieuw draaien mag: elke run kiest een andere werkdag (hoogstens 60 dagen terug).
 //   node tests/verslag-draft.mjs <canister-id> <project-id>
-import { HttpAgent } from "@icp-sdk/core/agent";
-import { StorageClient } from "@caffeineai/object-storage";
 import { deflateSync } from "node:zlib";
-import { backend, identity } from "../tools/lib.mjs";
+import { backend } from "../tools/lib.mjs";
+import { storageClient } from "../tools/opslag.mjs";
 
 const [cid, projectId] = process.argv.slice(2);
 if (!cid || !projectId) throw new Error("gebruik: node tests/verslag-draft.mjs <canister-id> <project-id>");
@@ -63,7 +62,7 @@ function png(w, h, seed) {
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
   return new Uint8Array(Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]));
 }
-const store = new StorageClient("default-bucket", "https://blob.caffeine.ai", cid, projectId, await HttpAgent.create({ host: "https://icp-api.io", identity: identity("proef-werfleider") }));
+const store = await storageClient(cid, projectId, "proef-werfleider");
 const bytes = png(160, 120, Date.now() & 255);
 const { hash } = await store.putFile(bytes, () => {}, "image/png", "proef-verslag.png");
 check("echte upload van het proefbeeld", !!hash, hash);

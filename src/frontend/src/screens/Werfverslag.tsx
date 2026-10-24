@@ -74,6 +74,17 @@ export function Werfverslag({ workId, day, go }: { workId: bigint; day: bigint; 
   const closedOnly = reports.length > 0 && !open;
   const finalQueued = mine.some((o) => o.kind === "finalize");
   const label = `${dw?.code ?? wv?.code ?? ""} ${fmtDayNum(day)}`;
+  // Zodra de wachtrij iets van dit verslag verzond: het verslag van de backend opnieuw lezen (geen oude stand tonen).
+  const waitingHere = mine.length;
+  const [lastWaiting, setLastWaiting] = useState(0);
+  useEffect(() => {
+    if (waitingHere < lastWaiting) void reportDay.refetch();
+    setLastWaiting(waitingHere);
+  }, [waitingHere]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Een verslag dat al bestaat: alle stappen meteen open (enkel een nieuw verslag gaat stap voor stap).
+  useEffect(() => {
+    if (reports.length > 0 || mine.length > 0) setSeen(3);
+  }, [reports.length, mine.length]);
 
   /** Een opdracht in de wachtrij zetten (eerst één keer "verslag openen"). */
   const send = async (op: ReportOp, lbl: string, file?: { blob: Blob; name: string; mime: string }, thumb?: { blob: Blob; name: string; mime: string }) => {
