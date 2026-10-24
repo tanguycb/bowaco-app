@@ -1639,6 +1639,110 @@ await sec("── 1b.4 werfadministratie: 30bis (bedrag, onderaannemers, asbest)
   check("export: raadplegingen en aangiftes; in stukken", exW.withholdingChecks.length >= 3 && exW.declarations.length >= 1 && "declarations" in ok1b(await admin.exportChunk("declarations", 0n, 10n)));
 }
 
+await sec("── postenbibliotheek (2.2): hoofdstukken, posten, versies; prijzen enkel admin en calculator (R20–R23)");
+{
+  const vandaag = BigInt(Math.floor(Date.now() / 86_400_000));
+  const noPrice = (x) => !/cost|sell|marg|price|prijs/i.test(JSON.stringify(x, big));
+  check("werfleider laadt geen startlijst (enkel admin en calculator)", await denied(wl.loadLibraryStartChapters()));
+  const ls = await calc.loadLibraryStartChapters();
+  check("calculator laadt de startlijst: 19 hoofdstukken (VOORLOPIG)", isOk(ls) && ls.ok === 19n, errOf(ls));
+  check("startlijst een tweede keer: geweigerd, niets dubbel", "err" in (await calc.loadLibraryStartChapters()) && (await calc.libraryChapters(true)).length === 19);
+  const chs = await wl.libraryChapters(false);
+  check("werfleider leest de hoofdstukken (intern); 09 en 10 herhalen als groep", chs.length === 19 && chs.filter((c) => c.code === "10").length === 6);
+  for (const [n, x] of [["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc]]) {
+    check(`${n} ziet de bibliotheek niet`, (await rejects(x.libraryChapters(false))) && (await rejects(x.listLibrary({ text: "", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: false, offset: 0n, limit: 10n }))));
+  }
+  const tegels = chs.find((c) => c.title.endsWith("Tegels"));
+  const units = await wl.libraryUnits(false);
+  check("eenheden: de 12 voorlopige uit de offerte (sog, st, m2, lm …)", units.length === 12 && ["sog", "st", "m2", "lm", "dlm"].every((k) => units.some((u) => u.key === k)));
+  check("calculator beheert de eenheden niet (keuzelijst = admin, R17)", await denied(calc.setLibraryUnit({ key: "ton", name: "ton", order: 200n, archived: false })));
+  check("admin voegt een eenheid toe", isOk(await admin.setLibraryUnit({ key: "ton", name: "ton", order: 200n, archived: false })) && (await calc.libraryUnits(false)).some((u) => u.key === "ton"));
+  check("rare sleutel voor een eenheid geweigerd", "err" in (await admin.setLibraryUnit({ key: "M 2!", name: "x", order: 1n, archived: false })));
+  const base = { id: [], chapterId: tegels.id, code: "10.4.01", title: "Proef vloertegels 60x60 leveren en plaatsen", text: "Leveren en plaatsen van keramische vloertegels 60x60 cm, gelijmd.\nInclusief voegen.", unit: "m2", form: { vh: null }, trade: ["tegels"], orgId: [orgX.ok.id], durationDays: [5n], perDayMilli: [], planStepKey: ["tegels"], keywords: ["vloer", "keramiek"], importKey: ["rollen:t1"] };
+  check("werfleider maakt geen post", await denied(wl.saveLibraryItem(base, 0n)));
+  check("onbekende eenheid geweigerd", "err" in (await calc.saveLibraryItem({ ...base, unit: "vat" }, 0n)));
+  check("een klant als standaard-OA geweigerd", "err" in (await calc.saveLibraryItem({ ...base, orgId: [orgKlant.ok.id] }, 0n)));
+  check("onbekende planningsstap geweigerd", "err" in (await calc.saveLibraryItem({ ...base, planStepKey: ["bestaat-niet"] }, 0n)));
+  check("titel leeg geweigerd", "err" in (await calc.saveLibraryItem({ ...base, title: "  " }, 0n)));
+  const it1 = await calc.saveLibraryItem(base, 0n);
+  check("calculator maakt een post (VH, m2, standaard-OA, 5 werkdagen, planningsstap)", isOk(it1) && it1.ok.version === 1n && it1.ok.orgName === "Proef Tegels BV" && it1.ok.unitName === "m²", errOf(it1));
+  const id1 = it1.ok.id;
+  check("dezelfde importsleutel nog eens: geweigerd (geen dubbel)", "err" in (await calc.saveLibraryItem(base, 0n)));
+  const it2 = await wlcalc.saveLibraryItem({ ...base, code: "10.4.02", title: "Proef wandtegels 30x60", text: "Wandtegels in de badkamer.", importKey: [], keywords: [], form: { fixed: null }, durationDays: [], perDayMilli: [20_000n] }, 0n);
+  check("werfleider die ook calculator is: mag via die rol (som van rollen)", isOk(it2), errOf(it2));
+  const it3 = await calc.saveLibraryItem({ ...base, chapterId: chs[0].id, code: "", title: "Proef werfvoorbereiding (eigen prestatie)", text: "", unit: "sog", form: { fixed: null }, trade: [], orgId: [], durationDays: [], planStepKey: [], keywords: [], importKey: [] }, 0n);
+  check("post zonder OA in hoofdstuk 00", isOk(it3), errOf(it3));
+  // Versies
+  check("verouderde versie bewaren: geweigerd", "err" in (await calc.saveLibraryItem({ ...base, id: [id1], text: "andere tekst" }, 0n)));
+  const v2 = await calc.saveLibraryItem({ ...base, id: [id1], text: base.text + "\nVoegkleur naar keuze." }, 1n);
+  check("nieuwe versie (2) met de tekst erbij", isOk(v2) && v2.ok.version === 2n, errOf(v2));
+  const hist = await wl.libraryItemHistory(id1);
+  check("werfleider ziet de versies (tekst), nieuwste eerst, met wat veranderde", isOk(hist) && hist.ok.length === 2 && hist.ok[0].fields === "tekst" && hist.ok[1].item.text === base.text);
+  check("niets gewijzigd = geen nieuwe versie", (await calc.saveLibraryItem({ ...base, id: [id1], text: base.text + "\nVoegkleur naar keuze." }, 2n)).ok?.version === 2n);
+  // Zoeken en filteren
+  const find = async (f) => (await wl.listLibrary({ text: "", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: false, offset: 0n, limit: 50n, ...f })).items.map((x) => x.title);
+  check("zoeken: 'tegel 60' vindt beide tegelposten", (await find({ text: "tegel 60" })).length === 2);
+  check("zoeken in de lastenboektekst ('badkamer')", (await find({ text: "badkamer" })).join() === "Proef wandtegels 30x60");
+  check("zoeken op code en zoekwoord", (await find({ text: "10.4.01" })).length === 1 && (await find({ text: "keramiek" })).length === 1);
+  check("filter op contractvorm VH en op hoofdstuk", (await find({ form: [{ vh: null }] })).join() === "Proef vloertegels 60x60 leveren en plaatsen" && (await find({ chapterId: [chs[0].id] })).length === 1);
+  check("filter op standaard-OA en eenheid", (await find({ orgId: [orgX.ok.id] })).length === 2 && (await find({ unit: ["sog"] })).length === 1);
+  check("volgorde: hoofdstuk, dan code (10.4.01 vóór 10.4.02)", (await find({})).join("|") === "Proef werfvoorbereiding (eigen prestatie)|Proef vloertegels 60x60 leveren en plaatsen|Proef wandtegels 30x60");
+  const pageWl = await wl.listLibrary({ text: "", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: false, offset: 0n, limit: 50n });
+  check("de views van de werfleider dragen geen enkele prijs of marge", noPrice(pageWl) && noPrice(await wl.getLibraryItem(id1)) && noPrice(hist));
+  // Prijzen: enkel admin en calculator, via update-calls met een auditregel
+  check("werfleider: geen prijzen, geen historiek, geen prijs toevoegen, geen verkoopregel", (await denied(wl.readLibraryPrices([id1]))) && (await denied(wl.readLibraryPriceHistory(id1))) && (await denied(wl.addLibraryCost(id1, { orgId: [], day: vandaag, costCents: 100n, source: "eigen", ref: "", note: "" }))) && (await denied(wl.setLibrarySell(id1, { rule: [], reason: "" }, 0n))));
+  for (const [n, x] of [["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc]]) {
+    check(`${n}: geen prijzen`, (await denied(x.readLibraryPrices([id1]))) && (await denied(x.readLibraryPriceHistory(id1))));
+  }
+  check("prijs met een klant als OA geweigerd", "err" in (await calc.addLibraryCost(id1, { orgId: [orgKlant.ok.id], day: vandaag, costCents: 3200n, source: "oa-offerte", ref: "", note: "" })));
+  check("onbekende herkomst geweigerd", "err" in (await calc.addLibraryCost(id1, { orgId: [], day: vandaag, costCents: 3200n, source: "vrij", ref: "", note: "" })));
+  const c1 = await calc.addLibraryCost(id1, { orgId: [orgY.ok.id], day: vandaag - 3n, costCents: 2900n, source: "oa-offerte", ref: "PROEF-DAK-1", note: "" });
+  const c2 = await calc.addLibraryCost(id1, { orgId: [orgX.ok.id], day: vandaag - 30n, costCents: 3200n, source: "oa-offerte", ref: "PROEF-OFF-7", note: "" });
+  check("calculator voegt twee aankoopprijzen toe (twee OA's)", isOk(c1) && isOk(c2));
+  const pr = await calc.readLibraryPrices([id1, it3.ok.id]);
+  const p1 = pr.ok?.prices[0];
+  check("geldende aankoopprijs = de jongste van de STANDAARD-OA (ook al is een andere OA jonger)", p1?.cost[0]?.costCents[0] === 3200n && p1.cost[0].orgName === "Proef Tegels BV" && p1.perOrg.length === 2, JSON.stringify(p1?.cost, big));
+  check("standaardmarge 20 %: verkoop = 32,00 / 0,8 = 40,00", pr.ok.standardMarginBp === 2000n && p1.sellCents[0] === 4000n && p1.marginBp[0] === 2000n && p1.deviates === false);
+  check("post zonder aankoopprijs: geen verkoopprijs, markering mogelijk", pr.ok.prices[1].cost.length === 0 && pr.ok.prices[1].sellCents.length === 0);
+  const wlc = await wlcalc.readLibraryPrices([id1]);
+  check("werfleider die ook calculator is leest de prijzen", isOk(wlc));
+  check("eigen marge zonder reden geweigerd", "err" in (await calc.setLibrarySell(id1, { rule: [{ margin: 2500n }], reason: "" }, 0n)));
+  check("marge boven 90 % geweigerd", "err" in (await calc.setLibrarySell(id1, { rule: [{ margin: 9500n }], reason: "x" }, 0n)));
+  const s1 = await calc.setLibrarySell(id1, { rule: [{ margin: 2500n }], reason: "kleine oppervlakte" }, 0n);
+  const pr2 = (await calc.readLibraryPrices([id1])).ok.prices[0];
+  check("eigen marge 25 %: verkoop = 32,00 / 0,75 = 42,67, gemarkeerd als afwijkend", isOk(s1) && pr2.sellCents[0] === 4267n && pr2.deviates === true && pr2.reason === "kleine oppervlakte", JSON.stringify(pr2.sellCents, big));
+  check("verouderde versie van de verkoopregel: geweigerd", "err" in (await calc.setLibrarySell(id1, { rule: [], reason: "" }, 0n)));
+  const s3 = await calc.setLibrarySell(it3.ok.id, { rule: [{ price: 130_000n }], reason: "eigen prestatie" }, 0n);
+  const pr3 = (await calc.readLibraryPrices([it3.ok.id])).ok.prices[0];
+  check("vaste verkoopprijs zonder aankoopprijs (eigen prestatie): € 1.300, geen marge", isOk(s3) && pr3.sellCents[0] === 130_000n && pr3.marginBp.length === 0 && pr3.deviates === true);
+  check("terug naar de standaardmarge (versie 2)", (await calc.setLibrarySell(id1, { rule: [], reason: "" }, 1n)).ok === 2n && (await calc.readLibraryPrices([id1])).ok.prices[0].sellCents[0] === 4000n);
+  check("prijs archiveren zonder reden geweigerd", "err" in (await calc.archiveLibraryCost(c2.ok, "")));
+  check("prijs archiveren met reden: telt niet meer mee, de andere OA wordt de geldende prijs", isOk(await calc.archiveLibraryCost(c2.ok, "tikfout (proef)")) && (await calc.readLibraryPrices([id1])).ok.prices[0].cost[0].costCents[0] === 2900n);
+  const ph = await calc.readLibraryPriceHistory(id1);
+  check("historiek: beide prijzen (één gearchiveerd met reden) en de versies van de verkoopregel", isOk(ph) && ph.ok.costs.length === 2 && ph.ok.costs.some((c) => c.archived && c.archiveReason === "tikfout (proef)") && ph.ok.sells.length === 2);
+  check("standaardmarge: calculator niet, admin wel", (await denied(calc.setLibraryMargin(2000n))) && isOk(await admin.setLibraryMargin(2000n)) && "err" in (await admin.setLibraryMargin(9999n)));
+  const log = await admin.auditLog(0n, 300n);
+  const libLog = log.filter((e) => /prijs|verkoopregel|bekeek:prijs|standaardmarge/.test(e.action));
+  check("auditlog: 'bekeek:prijzen' en 'bekeek:prijshistoriek' bij elk lezen van prijzen", log.some((e) => e.action === "bekeek:prijzen") && log.some((e) => e.action === "bekeek:prijshistoriek"));
+  check("auditlog: nooit een bedrag, marge of OA bij de prijzen", libLog.length >= 6 && !libLog.some((e) => /3200|32,00|2900|4267|1300|25 %|2500|Proef Tegels|Proef Dak/.test(e.detail)), libLog.map((e) => `${e.action}:${e.detail}`).slice(0, 4).join(" | "));
+  // Archiveren (nooit wissen)
+  check("hoofdstuk met actieve posten archiveren: geweigerd", "err" in (await calc.setLibraryChapterArchived(tegels.id, true)));
+  check("post archiveren (met reden)", isOk(await calc.setLibraryItemArchived(it2.ok.id, true, "proef")));
+  check("gearchiveerde post: weg uit de lijst, wel met 'gearchiveerde tonen', versies blijven", (await find({ text: "wandtegels" })).length === 0 && (await find({ text: "wandtegels", includeArchived: true })).length === 1 && (await wl.libraryItemHistory(it2.ok.id)).ok.length === 1);
+  check("gearchiveerde post wijzigen of een prijs geven: geweigerd", "err" in (await calc.saveLibraryItem({ ...base, id: [it2.ok.id], importKey: [], title: "x" }, 1n)) && "err" in (await calc.addLibraryCost(it2.ok.id, { orgId: [], day: vandaag, costCents: 1n, source: "eigen", ref: "", note: "" })));
+  check("post terugzetten", isOk(await calc.setLibraryItemArchived(it2.ok.id, false, "")) && (await find({ text: "wandtegels" })).length === 1);
+  check("eenheid in gebruik archiveren: geweigerd", "err" in (await admin.setLibraryUnit({ key: "m2", name: "m²", order: 30n, archived: true })));
+  // Export: het interne deel zonder prijzen, de prijzen in de vertrouwelijke export
+  const exI = await admin.exportIntern();
+  const exC = await admin.exportConfidential();
+  check("interne export: hoofdstukken, posten en versies, zonder prijzen", exI.libChapters.length === 19 && exI.libItems.length === 3 && exI.libItemVersions.length === 4 && noPrice(exI.libItems));
+  check("vertrouwelijke export: de aankoopprijzen en verkoopregels", exC.libCosts.length === 2 && exC.libSells.length === 2 && exC.libSellVersions.length === 3);
+  check("export in stukken: libCosts enkel voor wie ook de prijzen mag (admin)", isOk(await admin.exportChunk("libCosts", 0n, 10n)) && (await rejects(calc.exportChunk("libCosts", 0n, 10n))));
+  const meC = await calc.me();
+  const meW = await wl.me();
+  check("caps: calculator leest, bewerkt en ziet prijzen; werfleider leest enkel", meC.caps[0].readLibrary && meC.caps[0].editLibrary && meC.caps[0].libraryPrices && meW.caps[0].readLibrary && !meW.caps[0].editLibrary && !meW.caps[0].libraryPrices);
+}
+
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));
 check("werfleider kan geen robot toevoegen", await rejects(wl.addRobot(P("robot-test"), "Proefrobot", [])));

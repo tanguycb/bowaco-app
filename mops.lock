@@ -1,9 +1,8 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "aace4c9d56c7a4e4c41afaffe6b15da4000e0e9bbe304a8a02171db5dac4e998",
+  "mopsTomlDepsHash": "c8cd09816e88b0247a7907242a1f76fa8342d8c8150251f382973757999a76d9",
   "deps": {
     "core": "2.6.2",
-    "ic-vetkeys": "0.6.0",
     "sha2": "0.1.14",
     "caffeineai-object-storage": "1.1.1",
     "caffeineai-email": "0.1.1"
@@ -67,18 +66,6 @@
       "core@2.6.2/src/pure/Map.mo": "3537759bd39ae188430b69610f1f2b22baa4dd85b2b2a0f50f26262551d3e95f",
       "core@2.6.2/src/pure/Set.mo": "a5317cfdf0b4aeaa19008d4d5dc3dc744cb631fc4de0d43f2d18360e56707e0a",
       "core@2.6.2/src/pure/RealTimeQueue.mo": "1a80e071b0282c608ebaa26544dea6bd747915c8023d86b7da7614febf23c7a5"
-    },
-    "ic-vetkeys@0.6.0": {
-      "ic-vetkeys@0.6.0/LICENSE": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9",
-      "ic-vetkeys@0.6.0/mops.toml": "6ebf46353e9ecc5c624f6a4d7151da0b807fae6597799037f57d8bdeeca5c804",
-      "ic-vetkeys@0.6.0/src/lib.mo": "ec087d82cc47dbd4ab75670e26cdf93ddbb932d3d990bfa4de24fbb5c0f1bdd9",
-      "ic-vetkeys@0.6.0/src/Types.mo": "dc41da19ba8df04028df590064e0daca0573054f6913108341e69ced61cc045c",
-      "ic-vetkeys@0.6.0/README.md": "1c890a00b7f4b42ddcfc4aa5fc877148dad9ddd669da03afb53858198d7f882b",
-      "ic-vetkeys@0.6.0/src/encrypted_maps/Canister.mo": "134d2898f684c27fbf59ef00489ac239ba8592a85ddfab288202ed5e46798b84",
-      "ic-vetkeys@0.6.0/src/ManagementCanister.mo": "7deb2b90f0e2905863469305ccda2e06db538b4b283729743cebc40c62fb4580",
-      "ic-vetkeys@0.6.0/src/encrypted_maps/EncryptedMaps.mo": "3d1ce37af878c587ef74d017e8cf6a6a30a28008e979c2a45ed8ed440da63383",
-      "ic-vetkeys@0.6.0/src/key_manager/KeyManager.mo": "8c5690d53c1b2525ed7db02cc60bf878675ef7f9265ca038c94c7e6c20e3482b",
-      "ic-vetkeys@0.6.0/src/encrypted_maps/ControlPlaneCanister.mo": "eb68565ab2a97c67b4e04a62550b25d185d6df25a56e80591e5d6e3cdbb3df81"
     },
     "sha2@0.1.14": {
       "sha2@0.1.14/mops.toml": "ba73b13715683357925fb004b66e43a0f3fabb5fdce3028f13d12d4a297b3170",

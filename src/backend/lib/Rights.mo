@@ -43,6 +43,9 @@ module {
     #permitsOverview; #readMunicipalities; #manageMunicipalities; #managePermitKinds;
     // 1b.4: inhoudingsplicht raadplegen en vastleggen (interne rollen); werfadministratie over alle werven.
     #checkWithholding; #wadmOverview;
+    // 2.2: postenbibliotheek. Lezen (hoofdstukken, posten, teksten, eenheden: GEEN prijzen) en bewerken; de prijzen zelf
+    // volgen #readCosts (aankoopprijzen, R20) en #readSellPrices (verkoopregel, R21).
+    #readLibrary; #editLibrary;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -198,6 +201,11 @@ module {
       // #editWork (aangifte bijhouden, Checkinatwork-export), #readContract (bedrag en adres van de opdrachtgever).
       case (#checkWithholding) internal(p);
       case (#wadmOverview) internal(p);
+      // 2.2: de bibliotheek (tekst, eenheid, contractvorm, standaard-OA, duur) is intern: interne rollen lezen (de werfleider
+      // gebruikt de teksten bij de opmeting, 2.9). Bewerken doen zij die offertes maken (R22: admin, calculator). Een
+      // werfleider die ook calculator is, mag het via die rol (rechten = som van rollen); de werfleiderrol zelf nooit.
+      case (#readLibrary) internal(p);
+      case (#editLibrary) admin or calc;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -457,6 +465,9 @@ module {
       manageMunicipalities = may(ctx, p, #manageMunicipalities, null);
       managePermitKinds = may(ctx, p, #managePermitKinds, null);
       wadm = may(ctx, p, #wadmOverview, null);
+      readLibrary = may(ctx, p, #readLibrary, null);
+      editLibrary = may(ctx, p, #editLibrary, null);
+      libraryPrices = may(ctx, p, #readCosts, null) and may(ctx, p, #readSellPrices, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

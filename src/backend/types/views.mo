@@ -52,6 +52,9 @@ module {
     manageMunicipalities : Bool; // 1b.1: kennisbank aanvullen (admin, werfleider)
     managePermitKinds : Bool; // 1b.1: vergunningssoorten (admin)
     wadm : Bool; // 1b.4: werfadministratie (interne rollen)
+    readLibrary : Bool; // 2.2: postenbibliotheek lezen (interne rollen; zonder prijzen)
+    editLibrary : Bool; // 2.2: hoofdstukken en posten bewerken (admin, calculator)
+    libraryPrices : Bool; // 2.2: aankoopprijzen, marges en verkoopprijzen (admin, calculator; R20, R21)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -812,6 +815,10 @@ module {
     mailLog : [Types.MailLog]; // mail-caffeine: het logboek van de verstuurpogingen (geen adressen, geen inhoud)
     withholdingChecks : [Types.WithholdingCheck]; // 1b.4: raadplegingen inhoudingsplicht
     declarations : [Types.Declaration]; // 1b.4: aangifte van werken per werf
+    // 2.2: postenbibliotheek, het INTERNE deel (hoofdstukken, posten, versies). De prijzen staan in ExportConfidential.
+    libChapters : [Types.LibChapter];
+    libItems : [Types.LibItem];
+    libItemVersions : [Types.LibItemVersion];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -879,6 +886,12 @@ module {
     #mailLog : [Types.MailLog]; // mail-caffeine
     #withholdingChecks : [Types.WithholdingCheck]; // 1b.4
     #declarations : [Types.Declaration];
+    #libChapters : [Types.LibChapter]; // 2.2 (intern)
+    #libItems : [Types.LibItem];
+    #libItemVersions : [Types.LibItemVersion];
+    #libCosts : [Types.LibCost]; // 2.2 (vertrouwelijk)
+    #libSells : [Types.LibSell];
+    #libSellVersions : [Types.LibSellVersion];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -889,6 +902,10 @@ module {
     files : [FileView];
     workConfidential : [Types.WorkConfidential]; // 1.1
     workConfidentialHistory : [Types.WorkConfidentialVersion];
+    // 2.2: aankoopprijzen per OA en de verkoopregels (met hun versies) van de postenbibliotheek.
+    libCosts : [Types.LibCost];
+    libSells : [Types.LibSell];
+    libSellVersions : [Types.LibSellVersion];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────
@@ -1441,4 +1458,74 @@ module {
   public type WadmDeclarationLine = { workId : WorkId; workCode : Text; workName : Text; reason : Text; start : ?Day; deadline : ?Day; status : Text };
   public type WadmOverview = { declarations : [WadmDeclarationLine]; oas : [OaWithholding]; dbUpdated : Day };
   public type WadmRules = { threshold30bisCents : Nat; threshold30bisWithOaCents : Nat; oaCountAlways : Nat; thresholdCheckinatworkCents : Nat };
+
+  // ── Postenbibliotheek (2.2) ─────────────────────────────────────────────
+  // Intern: hoofdstukken, posten, eenheden, versies. GEEN enkele prijs in deze vormen; die komen uit LibPrices en
+  // LibPriceHistory, en enkel via update-calls met een auditregel (R20, R21, R23).
+  public type LibChapterView = { id : Nat; code : Text; title : Text; order : Nat; note : Text; archived : Bool; items : Nat };
+  public type LibChapterInput = { id : ?Nat; code : Text; title : Text; order : Nat; note : Text };
+  public type UnitView = { key : Text; name : Text; order : Nat; archived : Bool };
+  public type LibItemView = {
+    id : Nat;
+    chapterId : Nat;
+    chapterCode : Text;
+    chapterTitle : Text;
+    code : Text;
+    title : Text;
+    text : Text;
+    unit : Text;
+    unitName : Text;
+    form : Types.ContractForm;
+    trade : ?Text;
+    orgId : ?OrgId;
+    orgName : Text;
+    durationDays : ?Nat;
+    perDayMilli : ?Int;
+    planStepKey : ?Text;
+    keywords : [Text];
+    importKey : ?Text;
+    version : Nat;
+    updatedAt : Int;
+    updatedByName : Text;
+    archived : Bool;
+    archiveReason : Text;
+  };
+  public type LibItemInput = {
+    id : ?Nat;
+    chapterId : Nat;
+    code : Text;
+    title : Text;
+    text : Text;
+    unit : Text;
+    form : Types.ContractForm;
+    trade : ?Text;
+    orgId : ?OrgId;
+    durationDays : ?Nat;
+    perDayMilli : ?Int;
+    planStepKey : ?Text;
+    keywords : [Text];
+    importKey : ?Text;
+  };
+  public type LibFilter = { text : Text; chapterId : ?Nat; trade : ?Text; unit : ?Text; form : ?Types.ContractForm; orgId : ?OrgId; includeArchived : Bool; offset : Nat; limit : Nat };
+  public type LibPage = { items : [LibItemView]; total : Nat };
+  public type LibItemVersionView = { version : Nat; at : Int; byName : Text; fields : Text; item : LibItemView };
+  // Vertrouwelijk (admin, calculator).
+  public type LibCostView = { id : Nat; itemId : Nat; orgId : ?OrgId; orgName : Text; day : Day; costCents : ?Int; source : Text; ref : Text; note : Text; at : Int; byName : Text; archived : Bool; archiveReason : Text };
+  public type LibCostInput = { orgId : ?OrgId; day : Day; costCents : Int; source : Text; ref : Text; note : Text };
+  public type LibPriceView = {
+    itemId : Nat;
+    cost : ?LibCostView; // geldende aankoopprijs: de jongste van de standaard-OA, anders de jongste van allemaal
+    perOrg : [LibCostView]; // de jongste per OA (en één zonder OA)
+    rule : ?Types.LibSellRule; // null = standaardmarge
+    marginBp : ?Int; // de marge die geldt (bij een vaste prijs berekend uit de aankoopprijs: kan negatief zijn)
+    sellCents : ?Int; // verkoopprijs per eenheid (null = geen aankoopprijs bij een marge)
+    reason : Text;
+    deviates : Bool; // andere marge of vaste prijs: markering voor de calculator (bouwplan §8.5)
+    sellVersion : Nat;
+    costCount : Nat; // niet-gearchiveerde aankoopprijzen
+  };
+  public type LibPrices = { standardMarginBp : Nat; prices : [LibPriceView] };
+  public type LibSellInput = { rule : ?Types.LibSellRule; reason : Text };
+  public type LibSellVersionView = { version : Nat; at : Int; byName : Text; rule : ?Types.LibSellRule; reason : Text };
+  public type LibPriceHistory = { costs : [LibCostView]; sells : [LibSellVersionView] };
 };

@@ -335,6 +335,7 @@ export interface Caps {
   'importOa' : boolean,
   'manageOa' : boolean,
   'home' : string,
+  'libraryPrices' : boolean,
   'wadm' : boolean,
   'importPlan' : boolean,
   'managePermitKinds' : boolean,
@@ -342,11 +343,13 @@ export interface Caps {
   'manageBoardRules' : boolean,
   'createWork' : boolean,
   'manageSettings' : boolean,
+  'editLibrary' : boolean,
   'writeReports' : boolean,
   'readTeam' : boolean,
   'permits' : boolean,
   'manageTemplates' : boolean,
   'upload' : boolean,
+  'readLibrary' : boolean,
   'readMunicipalities' : boolean,
   'manageOrgs' : boolean,
   'manageCompanyCalendar' : boolean,
@@ -397,11 +400,15 @@ export type CodeState = { 'revoked' : { 'at' : bigint, 'by' : PersonId } } |
   { 'open' : null } |
   { 'used' : { 'at' : bigint, 'by' : Principal } };
 export type Confidential = { 'sealed' : Sealed } |
-  { 'plain' : Contact };
+  { 'plain' : bigint };
 export type Confidential_1 = { 'sealed' : Sealed } |
-  { 'plain' : ContractParams };
-export type Confidential_2 = { 'sealed' : Sealed } |
   { 'plain' : string };
+export type Confidential_2 = { 'sealed' : Sealed } |
+  { 'plain' : LibSellRule };
+export type Confidential_3 = { 'sealed' : Sealed } |
+  { 'plain' : Contact };
+export type Confidential_4 = { 'sealed' : Sealed } |
+  { 'plain' : ContractParams };
 export type Confirmation = { 'open' : null } |
   { 'confirmed' : { 'at' : bigint, 'by' : PersonId } } |
   { 'declined' : { 'at' : bigint, 'by' : PersonId, 'reason' : string } };
@@ -439,6 +446,12 @@ export interface ContactConfidentialView {
   'version' : bigint,
   'notes' : [] | [string],
 }
+export type ContractForm = { 'vh' : null } |
+  { 'fixed' : null } |
+  { 'estimate' : null } |
+  { 'perAttachment' : null } |
+  { 'budget' : null } |
+  { 'regie' : null };
 export interface ContractInput {
   'contract' : ContractParams,
   'notes' : string,
@@ -754,7 +767,10 @@ export interface ExistingInvite {
 export interface ExportConfidential {
   'at' : bigint,
   'files' : Array<FileView>,
+  'libCosts' : Array<LibCost>,
   'orgs' : Array<[OrgId, ContactConfidentialView]>,
+  'libSellVersions' : Array<LibSellVersion>,
+  'libSells' : Array<LibSell>,
   'workConfidentialHistory' : Array<WorkConfidentialVersion>,
   'persons' : Array<[PersonId, ContactConfidentialView]>,
   'workConfidential' : Array<WorkConfidential>,
@@ -789,6 +805,7 @@ export interface ExportIntern {
   'calendarBlocks' : Array<CalendarBlock>,
   'hoursConfirmations' : Array<HoursConfirmation>,
   'orgContacts' : Array<OrgContact>,
+  'libChapters' : Array<LibChapter>,
   'links' : Array<LinkView>,
   'reportKeys' : Array<[string, bigint]>,
   'municipalities' : Array<Municipality>,
@@ -803,6 +820,7 @@ export interface ExportIntern {
   'appointments' : Array<Appointment>,
   'materials' : Array<MaterialNote>,
   'dependencies' : Array<Dependency>,
+  'libItems' : Array<LibItem>,
   'robots' : Array<RobotView>,
   'permitChanges' : Array<PermitChange>,
   'capacity' : Array<CapacityRule>,
@@ -813,6 +831,7 @@ export interface ExportIntern {
   'personContacts' : Array<PersonContact>,
   'sequences' : Array<[string, bigint]>,
   'auditCount' : bigint,
+  'libItemVersions' : Array<LibItemVersion>,
   'declarations' : Array<Declaration>,
   'memberships' : Array<MembershipView>,
   'photos' : Array<Photo>,
@@ -1148,6 +1167,216 @@ export interface JobView {
   'updatedAt' : bigint,
   'state' : JobState,
   'createdByName' : string,
+}
+export interface LibChapter {
+  'id' : bigint,
+  'title' : string,
+  'order' : bigint,
+  'code' : string,
+  'note' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'extra' : Extra,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'archivedAt' : [] | [bigint],
+}
+export interface LibChapterInput {
+  'id' : [] | [bigint],
+  'title' : string,
+  'order' : bigint,
+  'code' : string,
+  'note' : string,
+}
+export interface LibChapterView {
+  'id' : bigint,
+  'title' : string,
+  'order' : bigint,
+  'code' : string,
+  'note' : string,
+  'items' : bigint,
+  'archived' : boolean,
+}
+export interface LibCost {
+  'id' : bigint,
+  'day' : Day,
+  'ref' : string,
+  'itemId' : bigint,
+  'archiveReason' : string,
+  'source' : string,
+  'orgId' : [] | [OrgId],
+  'cost' : Confidential,
+  'note' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'extra' : Extra,
+  'archivedAt' : [] | [bigint],
+  'archivedBy' : [] | [PersonId],
+}
+export interface LibCostInput {
+  'day' : Day,
+  'ref' : string,
+  'source' : string,
+  'orgId' : [] | [OrgId],
+  'costCents' : bigint,
+  'note' : string,
+}
+export interface LibCostView {
+  'at' : bigint,
+  'id' : bigint,
+  'day' : Day,
+  'ref' : string,
+  'itemId' : bigint,
+  'byName' : string,
+  'orgName' : string,
+  'archiveReason' : string,
+  'source' : string,
+  'orgId' : [] | [OrgId],
+  'costCents' : [] | [bigint],
+  'note' : string,
+  'archived' : boolean,
+}
+export interface LibFilter {
+  'trade' : [] | [string],
+  'orgId' : [] | [OrgId],
+  'form' : [] | [ContractForm],
+  'text' : string,
+  'unit' : [] | [string],
+  'offset' : bigint,
+  'chapterId' : [] | [bigint],
+  'limit' : bigint,
+  'includeArchived' : boolean,
+}
+export interface LibItem {
+  'id' : bigint,
+  'durationDays' : [] | [bigint],
+  'title' : string,
+  'trade' : [] | [string],
+  'perDayMilli' : [] | [bigint],
+  'archiveReason' : string,
+  'orgId' : [] | [OrgId],
+  'code' : string,
+  'form' : ContractForm,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'text' : string,
+  'unit' : string,
+  'planStepKey' : [] | [string],
+  'importKey' : [] | [string],
+  'chapterId' : bigint,
+  'extra' : Extra,
+  'version' : bigint,
+  'keywords' : Array<string>,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'archivedAt' : [] | [bigint],
+  'archivedBy' : [] | [PersonId],
+}
+export interface LibItemInput {
+  'id' : [] | [bigint],
+  'durationDays' : [] | [bigint],
+  'title' : string,
+  'trade' : [] | [string],
+  'perDayMilli' : [] | [bigint],
+  'orgId' : [] | [OrgId],
+  'code' : string,
+  'form' : ContractForm,
+  'text' : string,
+  'unit' : string,
+  'planStepKey' : [] | [string],
+  'importKey' : [] | [string],
+  'chapterId' : bigint,
+  'keywords' : Array<string>,
+}
+export interface LibItemVersion {
+  'at' : bigint,
+  'by' : PersonId,
+  'id' : bigint,
+  'itemId' : bigint,
+  'item' : LibItem,
+  'version' : bigint,
+  'fields' : string,
+}
+export interface LibItemVersionView {
+  'at' : bigint,
+  'byName' : string,
+  'item' : LibItemView,
+  'version' : bigint,
+  'fields' : string,
+}
+export interface LibItemView {
+  'id' : bigint,
+  'durationDays' : [] | [bigint],
+  'title' : string,
+  'trade' : [] | [string],
+  'perDayMilli' : [] | [bigint],
+  'orgName' : string,
+  'archiveReason' : string,
+  'orgId' : [] | [OrgId],
+  'code' : string,
+  'form' : ContractForm,
+  'text' : string,
+  'unit' : string,
+  'planStepKey' : [] | [string],
+  'importKey' : [] | [string],
+  'chapterId' : bigint,
+  'chapterTitle' : string,
+  'version' : bigint,
+  'updatedByName' : string,
+  'keywords' : Array<string>,
+  'updatedAt' : bigint,
+  'archived' : boolean,
+  'chapterCode' : string,
+  'unitName' : string,
+}
+export interface LibPage { 'total' : bigint, 'items' : Array<LibItemView> }
+export interface LibPriceHistory {
+  'costs' : Array<LibCostView>,
+  'sells' : Array<LibSellVersionView>,
+}
+export interface LibPriceView {
+  'itemId' : bigint,
+  'sellVersion' : bigint,
+  'perOrg' : Array<LibCostView>,
+  'cost' : [] | [LibCostView],
+  'marginBp' : [] | [bigint],
+  'rule' : [] | [LibSellRule],
+  'costCount' : bigint,
+  'deviates' : boolean,
+  'sellCents' : [] | [bigint],
+  'reason' : string,
+}
+export interface LibPrices {
+  'standardMarginBp' : bigint,
+  'prices' : Array<LibPriceView>,
+}
+export interface LibSell {
+  'itemId' : bigint,
+  'rule' : [] | [Confidential_2],
+  'extra' : Extra,
+  'version' : bigint,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'reason' : Confidential_1,
+}
+export interface LibSellInput { 'rule' : [] | [LibSellRule], 'reason' : string }
+export type LibSellRule = { 'margin' : bigint } |
+  { 'price' : bigint };
+export interface LibSellVersion {
+  'at' : bigint,
+  'by' : PersonId,
+  'id' : bigint,
+  'itemId' : bigint,
+  'rule' : [] | [Confidential_2],
+  'version' : bigint,
+  'reason' : Confidential_1,
+}
+export interface LibSellVersionView {
+  'at' : bigint,
+  'byName' : string,
+  'rule' : [] | [LibSellRule],
+  'version' : bigint,
+  'reason' : string,
 }
 export interface LinkHistory {
   'id' : bigint,
@@ -1995,6 +2224,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'reportChanges' : Array<ReportChange> } |
   { 'absenceChanges' : Array<AbsenceChange> } |
   { 'mailLog' : Array<MailLog> } |
+  { 'libCosts' : Array<LibCost> } |
   { 'withholdingChecks' : Array<WithholdingCheck> } |
   { 'invites' : Array<InviteView> } |
   { 'jobs' : Array<Job> } |
@@ -2002,9 +2232,12 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'importKeys' : Array<ImportKey> } |
   { 'values' : Array<[string, string]> } |
   { 'planVersions' : Array<[WorkId, bigint]> } |
+  { 'libSellVersions' : Array<LibSellVersion> } |
   { 'calendarBlocks' : Array<CalendarBlock> } |
   { 'hoursConfirmations' : Array<HoursConfirmation> } |
   { 'orgContacts' : Array<OrgContact> } |
+  { 'libSells' : Array<LibSell> } |
+  { 'libChapters' : Array<LibChapter> } |
   { 'links' : Array<LinkView> } |
   { 'reportKeys' : Array<[string, bigint]> } |
   { 'municipalities' : Array<Municipality> } |
@@ -2020,6 +2253,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'appointments' : Array<Appointment> } |
   { 'materials' : Array<MaterialNote> } |
   { 'dependencies' : Array<Dependency> } |
+  { 'libItems' : Array<LibItem> } |
   { 'robots' : Array<RobotView> } |
   { 'permitChanges' : Array<PermitChange> } |
   { 'capacity' : Array<CapacityRule> } |
@@ -2030,6 +2264,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'orgConfidential' : Array<[OrgId, ContactConfidentialView]> } |
   { 'personContacts' : Array<PersonContact> } |
   { 'sequences' : Array<[string, bigint]> } |
+  { 'libItemVersions' : Array<LibItemVersion> } |
   { 'declarations' : Array<Declaration> } |
   { 'memberships' : Array<MembershipView> } |
   { 'photos' : Array<Photo> } |
@@ -2053,53 +2288,61 @@ export type Result_10 = { 'ok' : OrgContactView } |
   { 'err' : string };
 export type Result_11 = { 'ok' : OaPersonView } |
   { 'err' : string };
-export type Result_12 = { 'ok' : DeclarationView } |
+export type Result_12 = { 'ok' : LibItemView } |
   { 'err' : string };
-export type Result_13 = { 'ok' : RollbackReport } |
+export type Result_13 = { 'ok' : DeclarationView } |
   { 'err' : string };
-export type Result_14 = { 'ok' : RestoreSummary } |
+export type Result_14 = { 'ok' : RollbackReport } |
   { 'err' : string };
-export type Result_15 = { 'ok' : MeView } |
+export type Result_15 = { 'ok' : RestoreSummary } |
   { 'err' : string };
-export type Result_16 = { 'ok' : OaWithholding } |
+export type Result_16 = { 'ok' : MeView } |
   { 'err' : string };
-export type Result_17 = { 'ok' : ContactConfidentialView } |
+export type Result_17 = { 'ok' : OaWithholding } |
   { 'err' : string };
-export type Result_18 = { 'ok' : Array<ContractVersionView> } |
+export type Result_18 = { 'ok' : ContactConfidentialView } |
   { 'err' : string };
-export type Result_19 = { 'ok' : ContractView } |
+export type Result_19 = { 'ok' : LibPrices } |
   { 'err' : string };
 export type Result_2 = { 'ok' : OrgView } |
   { 'err' : string };
-export type Result_20 = { 'ok' : FileView } |
+export type Result_20 = { 'ok' : LibPriceHistory } |
   { 'err' : string };
-export type Result_21 = { 'ok' : PlanPreview } |
+export type Result_21 = { 'ok' : Array<ContractVersionView> } |
   { 'err' : string };
-export type Result_22 = { 'ok' : MailOut } |
+export type Result_22 = { 'ok' : ContractView } |
   { 'err' : string };
-export type Result_23 = { 'ok' : MailPreview } |
+export type Result_23 = { 'ok' : FileView } |
   { 'err' : string };
-export type Result_24 = { 'ok' : FineResult } |
+export type Result_24 = { 'ok' : PlanPreview } |
   { 'err' : string };
-export type Result_25 = { 'ok' : NewCode } |
+export type Result_25 = { 'ok' : MailOut } |
   { 'err' : string };
-export type Result_26 = { 'ok' : PlanImportReport } |
+export type Result_26 = { 'ok' : MailPreview } |
   { 'err' : string };
-export type Result_27 = { 'ok' : ImportReport } |
+export type Result_27 = { 'ok' : FineResult } |
   { 'err' : string };
-export type Result_28 = { 'ok' : OaView } |
+export type Result_28 = { 'ok' : Array<LibItemVersionView> } |
   { 'err' : string };
-export type Result_29 = { 'ok' : RestorePart } |
+export type Result_29 = { 'ok' : NewCode } |
   { 'err' : string };
 export type Result_3 = { 'ok' : bigint } |
   { 'err' : string };
-export type Result_30 = { 'ok' : DeclarationDraft } |
+export type Result_30 = { 'ok' : PlanImportReport } |
   { 'err' : string };
-export type Result_31 = { 'ok' : NewTicket } |
+export type Result_31 = { 'ok' : ImportReport } |
   { 'err' : string };
-export type Result_32 = { 'ok' : CiawExport } |
+export type Result_32 = { 'ok' : OaView } |
   { 'err' : string };
-export type Result_33 = { 'ok' : TicketInfo } |
+export type Result_33 = { 'ok' : RestorePart } |
+  { 'err' : string };
+export type Result_34 = { 'ok' : DeclarationDraft } |
+  { 'err' : string };
+export type Result_35 = { 'ok' : NewTicket } |
+  { 'err' : string };
+export type Result_36 = { 'ok' : CiawExport } |
+  { 'err' : string };
+export type Result_37 = { 'ok' : TicketInfo } |
   { 'err' : string };
 export type Result_4 = { 'ok' : null } |
   { 'err' : string };
@@ -2358,6 +2601,12 @@ export interface TripView {
   'vehicleId' : [] | [bigint],
   'workCode' : string,
 }
+export interface UnitView {
+  'key' : string,
+  'order' : bigint,
+  'name' : string,
+  'archived' : boolean,
+}
 export interface VehicleInput {
   'id' : [] | [bigint],
   'name' : string,
@@ -2456,24 +2705,24 @@ export interface WorkCaps {
   'setLeader' : boolean,
 }
 export interface WorkConfidential {
-  'contract' : Confidential_1,
+  'contract' : Confidential_4,
   'extra' : Extra,
   'version' : bigint,
   'updatedAt' : bigint,
   'updatedBy' : PersonId,
-  'notes' : Confidential_2,
+  'notes' : Confidential_1,
   'workId' : WorkId,
-  'clientContact' : Confidential,
+  'clientContact' : Confidential_3,
 }
 export interface WorkConfidentialVersion {
   'at' : bigint,
   'by' : PersonId,
   'id' : bigint,
-  'contract' : Confidential_1,
+  'contract' : Confidential_4,
   'version' : bigint,
-  'notes' : Confidential_2,
+  'notes' : Confidential_1,
   'workId' : WorkId,
-  'clientContact' : Confidential,
+  'clientContact' : Confidential_3,
 }
 export interface WorkDone {
   'id' : bigint,
@@ -2620,6 +2869,7 @@ export interface _SERVICE {
     [string, string, bigint, ExternalBlob, [] | [bigint], boolean],
     Result_3
   >,
+  'addLibraryCost' : ActorMethod<[bigint, LibCostInput], Result_3>,
   'addMembership' : ActorMethod<
     [bigint, [] | [bigint], [] | [bigint], Role, Array<Grant>],
     Result_3
@@ -2635,6 +2885,7 @@ export interface _SERVICE {
   'archiveCalendarBlock' : ActorMethod<[bigint], Result_4>,
   'archiveDocument' : ActorMethod<[bigint], Result_4>,
   'archiveFile' : ActorMethod<[bigint], Result_4>,
+  'archiveLibraryCost' : ActorMethod<[bigint, string], Result_4>,
   'archiveOrg' : ActorMethod<[bigint], Result_4>,
   'archivePermit' : ActorMethod<[bigint, string], Result_4>,
   'archivePerson' : ActorMethod<[bigint], Result_4>,
@@ -2649,41 +2900,45 @@ export interface _SERVICE {
   'boardConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
   'boardRules' : ActorMethod<[], BoardRulesView>,
   'cancelJob' : ActorMethod<[bigint], Result_4>,
-  'checkTicket' : ActorMethod<[string], Result_33>,
-  'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_32>,
+  'checkTicket' : ActorMethod<[string], Result_37>,
+  'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_36>,
   'claimBootstrap' : ActorMethod<[string, string], Result_1>,
   'completeJob' : ActorMethod<[bigint, bigint, string], Result_4>,
   'confirmAssignment' : ActorMethod<[bigint, boolean, string], Result_4>,
   'confirmHours' : ActorMethod<[bigint, boolean, string], Result_4>,
   'confirmLink' : ActorMethod<[Principal], Result_4>,
   'createOrg' : ActorMethod<[OrgInput], Result_2>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_25>,
-  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_31>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_29>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_35>,
   'createWork' : ActorMethod<[WorkInput], Result>,
   'dashboard' : ActorMethod<[bigint], DashboardView>,
   'decideProposal' : ActorMethod<[bigint, boolean, string], Result_4>,
-  'declarationDraft' : ActorMethod<[bigint], Result_30>,
+  'declarationDraft' : ActorMethod<[bigint], Result_34>,
   'endMembership' : ActorMethod<[bigint], Result_4>,
-  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_29>,
+  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_33>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
   'failJob' : ActorMethod<[bigint, bigint, string, boolean], Result_4>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
-  'getOa' : ActorMethod<[bigint], Result_28>,
+  'getLibraryItem' : ActorMethod<[bigint], Result_12>,
+  'getOa' : ActorMethod<[bigint], Result_32>,
   'getPlan' : ActorMethod<[bigint], PlanView>,
   'getReport' : ActorMethod<[bigint], ReportView>,
   'getReportDay' : ActorMethod<[bigint, bigint], Array<ReportView>>,
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
   'handleIssue' : ActorMethod<[bigint, string], Result_4>,
-  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_27>,
+  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_31>,
   'importPlanning' : ActorMethod<
     [boolean, string, string, Array<string>, ImportBlock],
-    Result_26
+    Result_30
   >,
-  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_25>,
-  'invitePerson' : ActorMethod<[InviteRequest], Result_25>,
+  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_29>,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_29>,
   'leaseJobs' : ActorMethod<[bigint], Array<JobLease>>,
+  'libraryChapters' : ActorMethod<[boolean], Array<LibChapterView>>,
+  'libraryItemHistory' : ActorMethod<[bigint], Result_28>,
+  'libraryUnits' : ActorMethod<[boolean], Array<UnitView>>,
   'listAbsences' : ActorMethod<
     [[] | [bigint], bigint, bigint],
     Array<AbsenceView>
@@ -2699,6 +2954,7 @@ export interface _SERVICE {
     Array<IssueView>
   >,
   'listJobs' : ActorMethod<[string, bigint, bigint], Array<JobView>>,
+  'listLibrary' : ActorMethod<[LibFilter], LibPage>,
   'listLinks' : ActorMethod<[], Array<LinkView>>,
   'listMailLog' : ActorMethod<[bigint, bigint], Array<MailLogView>>,
   'listMembers' : ActorMethod<[bigint], Array<MembershipView>>,
@@ -2715,8 +2971,9 @@ export interface _SERVICE {
   'listTrips' : ActorMethod<[bigint, bigint], Array<TripView>>,
   'listVehicles' : ActorMethod<[boolean], Array<VehicleView>>,
   'listWorks' : ActorMethod<[], Array<WorkView>>,
-  'lookupFine' : ActorMethod<[FineQuery], Result_24>,
-  'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_23>,
+  'loadLibraryStartChapters' : ActorMethod<[], Result_3>,
+  'lookupFine' : ActorMethod<[FineQuery], Result_27>,
+  'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_26>,
   'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'me' : ActorMethod<[], MeView>,
   'myBoard' : ActorMethod<[bigint, bigint], MyBoardView>,
@@ -2736,34 +2993,38 @@ export interface _SERVICE {
   >,
   'permitsOnSite' : ActorMethod<[bigint], Array<PermitView>>,
   'postSettings' : ActorMethod<[], PostSettingsView>,
-  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_21>,
-  'previewMail' : ActorMethod<[string, [] | [bigint], bigint], Result_22>,
-  'previewPlan' : ActorMethod<[bigint, PlanChange], Result_21>,
+  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_24>,
+  'previewMail' : ActorMethod<[string, [] | [bigint], bigint], Result_25>,
+  'previewPlan' : ActorMethod<[bigint, PlanChange], Result_24>,
   'queueReminders' : ActorMethod<[bigint], Result_3>,
   'queueTestMail' : ActorMethod<[string], Result_3>,
   'queueWeekMails' : ActorMethod<[bigint, [] | [bigint]], Result_3>,
-  'readConfidentialFile' : ActorMethod<[bigint], Result_20>,
-  'readContract' : ActorMethod<[bigint], Result_19>,
-  'readContractHistory' : ActorMethod<[bigint], Result_18>,
-  'readOrgConfidential' : ActorMethod<[bigint], Result_17>,
-  'recordWithholdingCheck' : ActorMethod<[bigint, WithholdingInput], Result_16>,
-  'redeemCode' : ActorMethod<[string], Result_15>,
+  'readConfidentialFile' : ActorMethod<[bigint], Result_23>,
+  'readContract' : ActorMethod<[bigint], Result_22>,
+  'readContractHistory' : ActorMethod<[bigint], Result_21>,
+  'readLibraryPriceHistory' : ActorMethod<[bigint], Result_20>,
+  'readLibraryPrices' : ActorMethod<[Array<bigint>], Result_19>,
+  'readOrgConfidential' : ActorMethod<[bigint], Result_18>,
+  'recordWithholdingCheck' : ActorMethod<[bigint, WithholdingInput], Result_17>,
+  'redeemCode' : ActorMethod<[string], Result_16>,
   'removeDependency' : ActorMethod<[bigint, bigint, bigint], Result_3>,
   'reportSync' : ActorMethod<[Array<ReportOpInput>], Array<OpResult>>,
   'restoreBegin' : ActorMethod<[string], Result_4>,
   'restoreChunk' : ActorMethod<[string, RestorePart], Result_3>,
-  'restoreFinish' : ActorMethod<[string], Result_14>,
+  'restoreFinish' : ActorMethod<[string], Result_15>,
   'restorePerson' : ActorMethod<[bigint], Result_4>,
   'retryJob' : ActorMethod<[bigint], Result_4>,
   'revokeInvite' : ActorMethod<[bigint], Result_4>,
   'revokeLink' : ActorMethod<[Principal], Result_4>,
   'revokeRobot' : ActorMethod<[Principal], Result_4>,
-  'rollbackImport' : ActorMethod<[string, boolean], Result_13>,
+  'rollbackImport' : ActorMethod<[string, boolean], Result_14>,
   'saveAbsence' : ActorMethod<[AbsenceInput], Result_3>,
   'saveAssignment' : ActorMethod<[bigint, AssignmentInput, bigint], Result_3>,
   'saveCalendarBlock' : ActorMethod<[BlockInput], Result_3>,
-  'saveDeclaration' : ActorMethod<[bigint, DeclarationInput], Result_12>,
+  'saveDeclaration' : ActorMethod<[bigint, DeclarationInput], Result_13>,
   'saveDocument' : ActorMethod<[bigint, DocumentInput], Result_3>,
+  'saveLibraryChapter' : ActorMethod<[LibChapterInput], Result_3>,
+  'saveLibraryItem' : ActorMethod<[LibItemInput, bigint], Result_12>,
   'saveMunicipality' : ActorMethod<[MunicipalityInput], Result_8>,
   'saveOaPerson' : ActorMethod<[bigint, OaPersonInput], Result_11>,
   'saveOrgContact' : ActorMethod<[bigint, OrgContactInput], Result_10>,
@@ -2779,6 +3040,11 @@ export interface _SERVICE {
   'setContract' : ActorMethod<[bigint, ContractInput, bigint], Result_3>,
   'setDocKind' : ActorMethod<[DocKindInput], Result_4>,
   'setDocumentStatus' : ActorMethod<[bigint, DocStatus, string], Result_4>,
+  'setLibraryChapterArchived' : ActorMethod<[bigint, boolean], Result_4>,
+  'setLibraryItemArchived' : ActorMethod<[bigint, boolean, string], Result_4>,
+  'setLibraryMargin' : ActorMethod<[bigint], Result_4>,
+  'setLibrarySell' : ActorMethod<[bigint, LibSellInput, bigint], Result_3>,
+  'setLibraryUnit' : ActorMethod<[UnitView], Result_4>,
   'setLinkLabel' : ActorMethod<[Principal, string], Result_4>,
   'setMailTest' : ActorMethod<[boolean, string], Result_5>,
   'setMemberGrants' : ActorMethod<[bigint, Array<Grant>], Result_4>,

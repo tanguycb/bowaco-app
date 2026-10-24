@@ -32,6 +32,7 @@ import { GemeentenPage, VergunningenPage } from "../screens/Vergunningen";
 import { BoetesPage } from "../screens/Boetes";
 import { PostbodePage } from "../screens/Postbode";
 import { WadmPage } from "../screens/Werfadministratie";
+import { Posten } from "../screens/Posten";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -173,6 +174,8 @@ function navFor(caps: Caps): NavItem[] {
   // 1.8: het dashboard voor kantoor (de admin heeft het op zijn startscherm Overzicht).
   if (caps.readOrgPlanning && caps.home !== "overzicht") items.push({ key: "dashboard", label: t.nav.dashboard, icon: "grid" });
   if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
+  // 2.2: de postenbibliotheek (interne rollen lezen zonder prijzen; beheerder en calculator bewerken en zien de prijzen).
+  if (caps.readLibrary) items.push({ key: "posten", label: t.nav.posten, icon: "doc" });
   // 1b.1: vergunningen over alle werven (admin, werfleider) en de kennisbank per gemeente (interne rollen).
   if (caps.permits) items.push({ key: "vergunningen", label: t.nav.vergunningen, icon: "permit" });
   if (caps.readMunicipalities) items.push({ key: "gemeenten", label: t.nav.gemeenten, icon: "pin" });
@@ -235,6 +238,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "boetes": return <BoetesPage go={go} />;
       case "postbode": return <PostbodePage />;
       case "werfadministratie": return <WadmPage go={go} canRules={caps.manageSettings} />;
+      case "posten": return <Posten caps={caps} />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;
       case "onderaannemers": return <Onderaannemers caps={caps} />;

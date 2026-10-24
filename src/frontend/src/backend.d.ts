@@ -334,6 +334,7 @@ export interface Caps {
     importOa: boolean;
     manageOa: boolean;
     home: string;
+    libraryPrices: boolean;
     wadm: boolean;
     importPlan: boolean;
     managePermitKinds: boolean;
@@ -341,11 +342,13 @@ export interface Caps {
     manageBoardRules: boolean;
     createWork: boolean;
     manageSettings: boolean;
+    editLibrary: boolean;
     writeReports: boolean;
     readTeam: boolean;
     permits: boolean;
     manageTemplates: boolean;
     upload: boolean;
+    readLibrary: boolean;
     readMunicipalities: boolean;
     manageOrgs: boolean;
     manageCompanyCalendar: boolean;
@@ -413,21 +416,35 @@ export type Confidential = {
     sealed: Sealed;
 } | {
     __kind__: "plain";
-    plain: Contact;
+    plain: bigint;
 };
 export type Confidential_1 = {
     __kind__: "sealed";
     sealed: Sealed;
 } | {
     __kind__: "plain";
-    plain: ContractParams;
+    plain: string;
 };
 export type Confidential_2 = {
     __kind__: "sealed";
     sealed: Sealed;
 } | {
     __kind__: "plain";
-    plain: string;
+    plain: LibSellRule;
+};
+export type Confidential_3 = {
+    __kind__: "sealed";
+    sealed: Sealed;
+} | {
+    __kind__: "plain";
+    plain: Contact;
+};
+export type Confidential_4 = {
+    __kind__: "sealed";
+    sealed: Sealed;
+} | {
+    __kind__: "plain";
+    plain: ContractParams;
 };
 export type Confirmation = {
     __kind__: "open";
@@ -799,7 +816,10 @@ export interface ExistingInvite {
 export interface ExportConfidential {
     at: bigint;
     files: Array<FileView>;
+    libCosts: Array<LibCost>;
     orgs: Array<[OrgId, ContactConfidentialView]>;
+    libSellVersions: Array<LibSellVersion>;
+    libSells: Array<LibSell>;
     workConfidentialHistory: Array<WorkConfidentialVersion>;
     persons: Array<[PersonId, ContactConfidentialView]>;
     workConfidential: Array<WorkConfidential>;
@@ -834,6 +854,7 @@ export interface ExportIntern {
     calendarBlocks: Array<CalendarBlock>;
     hoursConfirmations: Array<HoursConfirmation>;
     orgContacts: Array<OrgContact>;
+    libChapters: Array<LibChapter>;
     links: Array<LinkView>;
     reportKeys: Array<[string, bigint]>;
     municipalities: Array<Municipality>;
@@ -848,6 +869,7 @@ export interface ExportIntern {
     appointments: Array<Appointment>;
     materials: Array<MaterialNote>;
     dependencies: Array<Dependency>;
+    libItems: Array<LibItem>;
     robots: Array<RobotView>;
     permitChanges: Array<PermitChange>;
     capacity: Array<CapacityRule>;
@@ -858,6 +880,7 @@ export interface ExportIntern {
     personContacts: Array<PersonContact>;
     sequences: Array<[string, bigint]>;
     auditCount: bigint;
+    libItemVersions: Array<LibItemVersion>;
     declarations: Array<Declaration>;
     memberships: Array<MembershipView>;
     photos: Array<Photo>;
@@ -1231,6 +1254,227 @@ export interface JobView {
     updatedAt: bigint;
     state: JobState;
     createdByName: string;
+}
+export interface LibChapter {
+    id: bigint;
+    title: string;
+    order: bigint;
+    code: string;
+    note: string;
+    createdAt: bigint;
+    createdBy: PersonId;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    archivedAt?: bigint;
+}
+export interface LibChapterInput {
+    id?: bigint;
+    title: string;
+    order: bigint;
+    code: string;
+    note: string;
+}
+export interface LibChapterView {
+    id: bigint;
+    title: string;
+    order: bigint;
+    code: string;
+    note: string;
+    items: bigint;
+    archived: boolean;
+}
+export interface LibCost {
+    id: bigint;
+    day: Day;
+    ref: string;
+    itemId: bigint;
+    archiveReason: string;
+    source: string;
+    orgId?: OrgId;
+    cost: Confidential;
+    note: string;
+    createdAt: bigint;
+    createdBy: PersonId;
+    extra: Extra;
+    archivedAt?: bigint;
+    archivedBy?: PersonId;
+}
+export interface LibCostInput {
+    day: Day;
+    ref: string;
+    source: string;
+    orgId?: OrgId;
+    costCents: bigint;
+    note: string;
+}
+export interface LibCostView {
+    at: bigint;
+    id: bigint;
+    day: Day;
+    ref: string;
+    itemId: bigint;
+    byName: string;
+    orgName: string;
+    archiveReason: string;
+    source: string;
+    orgId?: OrgId;
+    costCents?: bigint;
+    note: string;
+    archived: boolean;
+}
+export interface LibFilter {
+    trade?: string;
+    orgId?: OrgId;
+    form?: ContractForm;
+    text: string;
+    unit?: string;
+    offset: bigint;
+    chapterId?: bigint;
+    limit: bigint;
+    includeArchived: boolean;
+}
+export interface LibItem {
+    id: bigint;
+    durationDays?: bigint;
+    title: string;
+    trade?: string;
+    perDayMilli?: bigint;
+    archiveReason: string;
+    orgId?: OrgId;
+    code: string;
+    form: ContractForm;
+    createdAt: bigint;
+    createdBy: PersonId;
+    text: string;
+    unit: string;
+    planStepKey?: string;
+    importKey?: string;
+    chapterId: bigint;
+    extra: Extra;
+    version: bigint;
+    keywords: Array<string>;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    archivedAt?: bigint;
+    archivedBy?: PersonId;
+}
+export interface LibItemInput {
+    id?: bigint;
+    durationDays?: bigint;
+    title: string;
+    trade?: string;
+    perDayMilli?: bigint;
+    orgId?: OrgId;
+    code: string;
+    form: ContractForm;
+    text: string;
+    unit: string;
+    planStepKey?: string;
+    importKey?: string;
+    chapterId: bigint;
+    keywords: Array<string>;
+}
+export interface LibItemVersion {
+    at: bigint;
+    by: PersonId;
+    id: bigint;
+    itemId: bigint;
+    item: LibItem;
+    version: bigint;
+    fields: string;
+}
+export interface LibItemVersionView {
+    at: bigint;
+    byName: string;
+    item: LibItemView;
+    version: bigint;
+    fields: string;
+}
+export interface LibItemView {
+    id: bigint;
+    durationDays?: bigint;
+    title: string;
+    trade?: string;
+    perDayMilli?: bigint;
+    orgName: string;
+    archiveReason: string;
+    orgId?: OrgId;
+    code: string;
+    form: ContractForm;
+    text: string;
+    unit: string;
+    planStepKey?: string;
+    importKey?: string;
+    chapterId: bigint;
+    chapterTitle: string;
+    version: bigint;
+    updatedByName: string;
+    keywords: Array<string>;
+    updatedAt: bigint;
+    archived: boolean;
+    chapterCode: string;
+    unitName: string;
+}
+export interface LibPage {
+    total: bigint;
+    items: Array<LibItemView>;
+}
+export interface LibPriceHistory {
+    costs: Array<LibCostView>;
+    sells: Array<LibSellVersionView>;
+}
+export interface LibPriceView {
+    itemId: bigint;
+    sellVersion: bigint;
+    perOrg: Array<LibCostView>;
+    cost?: LibCostView;
+    marginBp?: bigint;
+    rule?: LibSellRule;
+    costCount: bigint;
+    deviates: boolean;
+    sellCents?: bigint;
+    reason: string;
+}
+export interface LibPrices {
+    standardMarginBp: bigint;
+    prices: Array<LibPriceView>;
+}
+export interface LibSell {
+    itemId: bigint;
+    rule?: Confidential_2;
+    extra: Extra;
+    version: bigint;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    reason: Confidential_1;
+}
+export interface LibSellInput {
+    rule?: LibSellRule;
+    reason: string;
+}
+export type LibSellRule = {
+    __kind__: "margin";
+    margin: bigint;
+} | {
+    __kind__: "price";
+    price: bigint;
+};
+export interface LibSellVersion {
+    at: bigint;
+    by: PersonId;
+    id: bigint;
+    itemId: bigint;
+    rule?: Confidential_2;
+    version: bigint;
+    reason: Confidential_1;
+}
+export interface LibSellVersionView {
+    at: bigint;
+    byName: string;
+    rule?: LibSellRule;
+    version: bigint;
+    reason: string;
 }
 export interface LinkHistory {
     id: bigint;
@@ -2164,6 +2408,9 @@ export type RestorePart = {
     __kind__: "mailLog";
     mailLog: Array<MailLog>;
 } | {
+    __kind__: "libCosts";
+    libCosts: Array<LibCost>;
+} | {
     __kind__: "withholdingChecks";
     withholdingChecks: Array<WithholdingCheck>;
 } | {
@@ -2185,6 +2432,9 @@ export type RestorePart = {
     __kind__: "planVersions";
     planVersions: Array<[WorkId, bigint]>;
 } | {
+    __kind__: "libSellVersions";
+    libSellVersions: Array<LibSellVersion>;
+} | {
     __kind__: "calendarBlocks";
     calendarBlocks: Array<CalendarBlock>;
 } | {
@@ -2193,6 +2443,12 @@ export type RestorePart = {
 } | {
     __kind__: "orgContacts";
     orgContacts: Array<OrgContact>;
+} | {
+    __kind__: "libSells";
+    libSells: Array<LibSell>;
+} | {
+    __kind__: "libChapters";
+    libChapters: Array<LibChapter>;
 } | {
     __kind__: "links";
     links: Array<LinkView>;
@@ -2239,6 +2495,9 @@ export type RestorePart = {
     __kind__: "dependencies";
     dependencies: Array<Dependency>;
 } | {
+    __kind__: "libItems";
+    libItems: Array<LibItem>;
+} | {
     __kind__: "robots";
     robots: Array<RobotView>;
 } | {
@@ -2268,6 +2527,9 @@ export type RestorePart = {
 } | {
     __kind__: "sequences";
     sequences: Array<[string, bigint]>;
+} | {
+    __kind__: "libItemVersions";
+    libItemVersions: Array<LibItemVersion>;
 } | {
     __kind__: "declarations";
     declarations: Array<Declaration>;
@@ -2326,56 +2588,56 @@ export type Result_11 = {
 };
 export type Result_12 = {
     __kind__: "ok";
-    ok: DeclarationView;
+    ok: LibItemView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_13 = {
     __kind__: "ok";
-    ok: RollbackReport;
+    ok: DeclarationView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_14 = {
     __kind__: "ok";
-    ok: RestoreSummary;
+    ok: RollbackReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_15 = {
     __kind__: "ok";
-    ok: MeView;
+    ok: RestoreSummary;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_16 = {
     __kind__: "ok";
-    ok: OaWithholding;
+    ok: MeView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_17 = {
     __kind__: "ok";
-    ok: ContactConfidentialView;
+    ok: OaWithholding;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_18 = {
     __kind__: "ok";
-    ok: Array<ContractVersionView>;
+    ok: ContactConfidentialView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_19 = {
     __kind__: "ok";
-    ok: ContractView;
+    ok: LibPrices;
 } | {
     __kind__: "err";
     err: string;
@@ -2389,70 +2651,70 @@ export type Result_2 = {
 };
 export type Result_20 = {
     __kind__: "ok";
-    ok: FileView;
+    ok: LibPriceHistory;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_21 = {
     __kind__: "ok";
-    ok: PlanPreview;
+    ok: Array<ContractVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_22 = {
     __kind__: "ok";
-    ok: MailOut;
+    ok: ContractView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_23 = {
     __kind__: "ok";
-    ok: MailPreview;
+    ok: FileView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_24 = {
     __kind__: "ok";
-    ok: FineResult;
+    ok: PlanPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_25 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: MailOut;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_26 = {
     __kind__: "ok";
-    ok: PlanImportReport;
+    ok: MailPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_27 = {
     __kind__: "ok";
-    ok: ImportReport;
+    ok: FineResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_28 = {
     __kind__: "ok";
-    ok: OaView;
+    ok: Array<LibItemVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_29 = {
     __kind__: "ok";
-    ok: RestorePart;
+    ok: NewCode;
 } | {
     __kind__: "err";
     err: string;
@@ -2466,26 +2728,54 @@ export type Result_3 = {
 };
 export type Result_30 = {
     __kind__: "ok";
-    ok: DeclarationDraft;
+    ok: PlanImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_31 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: ImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_32 = {
     __kind__: "ok";
-    ok: CiawExport;
+    ok: OaView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_33 = {
+    __kind__: "ok";
+    ok: RestorePart;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_34 = {
+    __kind__: "ok";
+    ok: DeclarationDraft;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_35 = {
+    __kind__: "ok";
+    ok: NewTicket;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_36 = {
+    __kind__: "ok";
+    ok: CiawExport;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_37 = {
     __kind__: "ok";
     ok: TicketInfo;
 } | {
@@ -2767,6 +3057,12 @@ export interface TripView {
     vehicleId?: bigint;
     workCode: string;
 }
+export interface UnitView {
+    key: string;
+    order: bigint;
+    name: string;
+    archived: boolean;
+}
 export interface VehicleInput {
     id?: bigint;
     name: string;
@@ -2860,24 +3156,24 @@ export interface WorkCaps {
     setLeader: boolean;
 }
 export interface WorkConfidential {
-    contract: Confidential_1;
+    contract: Confidential_4;
     extra: Extra;
     version: bigint;
     updatedAt: bigint;
     updatedBy: PersonId;
-    notes: Confidential_2;
+    notes: Confidential_1;
     workId: WorkId;
-    clientContact: Confidential;
+    clientContact: Confidential_3;
 }
 export interface WorkConfidentialVersion {
     at: bigint;
     by: PersonId;
     id: bigint;
-    contract: Confidential_1;
+    contract: Confidential_4;
     version: bigint;
-    notes: Confidential_2;
+    notes: Confidential_1;
     workId: WorkId;
-    clientContact: Confidential;
+    clientContact: Confidential_3;
 }
 export interface WorkDone {
     id: bigint;
@@ -3005,6 +3301,14 @@ export enum CodeKind {
     invite = "invite",
     recovery = "recovery"
 }
+export enum ContractForm {
+    vh = "vh",
+    fixed = "fixed",
+    estimate = "estimate",
+    perAttachment = "perAttachment",
+    budget = "budget",
+    regie = "regie"
+}
 export enum DependencyKind {
     finishToStart = "finishToStart",
     startToStart = "startToStart"
@@ -3124,6 +3428,7 @@ export interface backendInterface {
     accessStats(): Promise<AccessStats>;
     addDependency(workId: bigint, i: DependencyInput, expectedVersion: bigint): Promise<Result_7>;
     addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_3>;
+    addLibraryCost(itemId: bigint, i: LibCostInput): Promise<Result_3>;
     addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_3>;
     addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_4>;
     applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_7>;
@@ -3133,6 +3438,7 @@ export interface backendInterface {
     archiveCalendarBlock(id: bigint): Promise<Result_4>;
     archiveDocument(docId: bigint): Promise<Result_4>;
     archiveFile(id: bigint): Promise<Result_4>;
+    archiveLibraryCost(costId: bigint, reason: string): Promise<Result_4>;
     archiveOrg(id: bigint): Promise<Result_4>;
     archivePermit(permitId: bigint, reason: string): Promise<Result_4>;
     archivePerson(id: bigint): Promise<Result_4>;
@@ -3144,38 +3450,42 @@ export interface backendInterface {
     boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
     boardRules(): Promise<BoardRulesView>;
     cancelJob(id: bigint): Promise<Result_4>;
-    checkTicket(ticket: string): Promise<Result_33>;
-    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_32>;
+    checkTicket(ticket: string): Promise<Result_37>;
+    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_36>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
     completeJob(id: bigint, attempt: bigint, result: string): Promise<Result_4>;
     confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_4>;
     confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_4>;
     confirmLink(p: Principal): Promise<Result_4>;
     createOrg(input: OrgInput): Promise<Result_2>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_25>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_31>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_29>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_35>;
     createWork(i: WorkInput): Promise<Result>;
     dashboard(day: bigint): Promise<DashboardView>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
-    declarationDraft(workId: bigint): Promise<Result_30>;
+    declarationDraft(workId: bigint): Promise<Result_34>;
     endMembership(id: bigint): Promise<Result_4>;
-    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_29>;
+    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_33>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
     failJob(id: bigint, attempt: bigint, why: string, retry: boolean): Promise<Result_4>;
     getDossier(workId: bigint): Promise<DossierView>;
-    getOa(id: bigint): Promise<Result_28>;
+    getLibraryItem(id: bigint): Promise<Result_12>;
+    getOa(id: bigint): Promise<Result_32>;
     getPlan(workId: bigint): Promise<PlanView>;
     getReport(reportId: bigint): Promise<ReportView>;
     getReportDay(workId: bigint, day: bigint): Promise<Array<ReportView>>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
     handleIssue(issueId: bigint, note: string): Promise<Result_4>;
-    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_27>;
-    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_26>;
-    inviteExistingPerson(i: ExistingInvite): Promise<Result_25>;
-    invitePerson(req: InviteRequest): Promise<Result_25>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_31>;
+    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_30>;
+    inviteExistingPerson(i: ExistingInvite): Promise<Result_29>;
+    invitePerson(req: InviteRequest): Promise<Result_29>;
     leaseJobs(max: bigint): Promise<Array<JobLease>>;
+    libraryChapters(includeArchived: boolean): Promise<Array<LibChapterView>>;
+    libraryItemHistory(id: bigint): Promise<Result_28>;
+    libraryUnits(includeArchived: boolean): Promise<Array<UnitView>>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
     listCalendarBlocks(workId: bigint | null): Promise<Array<BlockView>>;
@@ -3185,6 +3495,7 @@ export interface backendInterface {
     listInvites(from: bigint, limit: bigint): Promise<Array<InviteView>>;
     listIssues(workId: bigint | null, openOnly: boolean, limit: bigint): Promise<Array<IssueView>>;
     listJobs(filter: string, from: bigint, limit: bigint): Promise<Array<JobView>>;
+    listLibrary(f: LibFilter): Promise<LibPage>;
     listLinks(): Promise<Array<LinkView>>;
     listMailLog(from: bigint, limit: bigint): Promise<Array<MailLogView>>;
     listMembers(workId: bigint): Promise<Array<MembershipView>>;
@@ -3201,8 +3512,9 @@ export interface backendInterface {
     listTrips(fromDay: bigint, toDay: bigint): Promise<Array<TripView>>;
     listVehicles(withArchived: boolean): Promise<Array<VehicleView>>;
     listWorks(): Promise<Array<WorkView>>;
-    lookupFine(q: FineQuery): Promise<Result_24>;
-    mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_23>;
+    loadLibraryStartChapters(): Promise<Result_3>;
+    lookupFine(q: FineQuery): Promise<Result_27>;
+    mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_26>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     me(): Promise<MeView>;
     myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;
@@ -3219,34 +3531,38 @@ export interface backendInterface {
     }>;
     permitsOnSite(day: bigint): Promise<Array<PermitView>>;
     postSettings(): Promise<PostSettingsView>;
-    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_21>;
-    previewMail(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_22>;
-    previewPlan(workId: bigint, change: PlanChange): Promise<Result_21>;
+    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_24>;
+    previewMail(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_25>;
+    previewPlan(workId: bigint, change: PlanChange): Promise<Result_24>;
     queueReminders(monday: bigint): Promise<Result_3>;
     queueTestMail(email: string): Promise<Result_3>;
     queueWeekMails(monday: bigint, orgId: bigint | null): Promise<Result_3>;
-    readConfidentialFile(id: bigint): Promise<Result_20>;
-    readContract(workId: bigint): Promise<Result_19>;
-    readContractHistory(workId: bigint): Promise<Result_18>;
-    readOrgConfidential(id: bigint): Promise<Result_17>;
-    recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_16>;
-    redeemCode(code: string): Promise<Result_15>;
+    readConfidentialFile(id: bigint): Promise<Result_23>;
+    readContract(workId: bigint): Promise<Result_22>;
+    readContractHistory(workId: bigint): Promise<Result_21>;
+    readLibraryPriceHistory(itemId: bigint): Promise<Result_20>;
+    readLibraryPrices(ids: Array<bigint>): Promise<Result_19>;
+    readOrgConfidential(id: bigint): Promise<Result_18>;
+    recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_17>;
+    redeemCode(code: string): Promise<Result_16>;
     removeDependency(workId: bigint, depId: bigint, expectedVersion: bigint): Promise<Result_3>;
     reportSync(ops: Array<ReportOpInput>): Promise<Array<OpResult>>;
     restoreBegin(code: string): Promise<Result_4>;
     restoreChunk(code: string, part: RestorePart): Promise<Result_3>;
-    restoreFinish(code: string): Promise<Result_14>;
+    restoreFinish(code: string): Promise<Result_15>;
     restorePerson(id: bigint): Promise<Result_4>;
     retryJob(id: bigint): Promise<Result_4>;
     revokeInvite(inviteId: bigint): Promise<Result_4>;
     revokeLink(p: Principal): Promise<Result_4>;
     revokeRobot(principal: Principal): Promise<Result_4>;
-    rollbackImport(batchId: string, dryRun: boolean): Promise<Result_13>;
+    rollbackImport(batchId: string, dryRun: boolean): Promise<Result_14>;
     saveAbsence(i: AbsenceInput): Promise<Result_3>;
     saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_3>;
     saveCalendarBlock(i: BlockInput): Promise<Result_3>;
-    saveDeclaration(workId: bigint, x: DeclarationInput): Promise<Result_12>;
+    saveDeclaration(workId: bigint, x: DeclarationInput): Promise<Result_13>;
     saveDocument(workId: bigint, i: DocumentInput): Promise<Result_3>;
+    saveLibraryChapter(i: LibChapterInput): Promise<Result_3>;
+    saveLibraryItem(i: LibItemInput, expectedVersion: bigint): Promise<Result_12>;
     saveMunicipality(m: MunicipalityInput): Promise<Result_8>;
     saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_11>;
     saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_10>;
@@ -3262,6 +3578,11 @@ export interface backendInterface {
     setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_3>;
     setDocKind(k: DocKindInput): Promise<Result_4>;
     setDocumentStatus(docId: bigint, status: DocStatus, note: string): Promise<Result_4>;
+    setLibraryChapterArchived(id: bigint, archived: boolean): Promise<Result_4>;
+    setLibraryItemArchived(id: bigint, archived: boolean, reason: string): Promise<Result_4>;
+    setLibraryMargin(bp: bigint): Promise<Result_4>;
+    setLibrarySell(itemId: bigint, i: LibSellInput, expectedVersion: bigint): Promise<Result_3>;
+    setLibraryUnit(u: UnitView): Promise<Result_4>;
     setLinkLabel(p: Principal, tag: string): Promise<Result_4>;
     setMailTest(on: boolean, address: string): Promise<Result_5>;
     setMemberGrants(membershipId: bigint, grants: Array<Grant>): Promise<Result_4>;

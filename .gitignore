@@ -18,3 +18,8 @@ plan*.json
 mapping*.json
 BOWACO_mapping_*
 BOWACO_validatie_*
+# Stap 2.2: de postenanalyse van een echte offerte bevat aankoopprijzen, marges en de klant: nooit in git
+# (ze staat in ~/.bowaco/posten). Enkel verzonnen testposten (tests/posten-draft.mjs) mogen naar een draft.
+posten*.json
+posten-*.md
+BOWACO_posten_*

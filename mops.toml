@@ -14,7 +14,6 @@ path = "src/backend/.most/backend.most"
 
 [dependencies]
 core = "2.6.2"
-ic-vetkeys = "0.6.0"
 sha2 = "0.1.14"
 caffeineai-object-storage = "1.1.1"
 caffeineai-email = "0.1.1"

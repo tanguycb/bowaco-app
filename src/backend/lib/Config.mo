@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1b.5-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
-  public let schema : Nat = 11; // 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
+  public let version = "2.2-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -243,6 +243,71 @@ module {
       ("injecteren", "Injecteren (vocht)"),
       ("studies", "Studies, EPB en veiligheid"),
       ("algemeen", "Algemene renovatie"),
+    ];
+  };
+
+  // ── Postenbibliotheek (2.2, architectuur §2.9; VOORLOPIG tot 0.3) ────────
+  public let maxLibChapters : Nat = 200;
+  public let maxLibItems : Nat = 5_000; // posten in totaal (ook gearchiveerde): zoeken blijft een korte query
+  public let maxLibTitle : Nat = 160;
+  public let maxLibText : Nat = 4_000; // lastenboektekst
+  public let maxLibCode : Nat = 20;
+  public let maxLibKeywords : Nat = 12;
+  public let maxLibKeyword : Nat = 40;
+  public let maxLibPage : Nat = 200; // posten per bladzijde
+  public let maxLibPriceIds : Nat = 300; // posten per oproep van readLibraryPrices (offerte-editor 2.4)
+  public let maxLibCostsPerItem : Nat = 300; // aankoopprijzen per post (ook gearchiveerde)
+  public let maxLibPerDayMilli : Int = 1_000_000_000; // hoeveelheid per werkdag: tikfoutgrens
+  public let maxUnits : Nat = 60;
+  // Standaardmarge op de verkoopprijs (B5: `/0.8` in 133 van de 158 prijslijnen van offerte 2026/231 = 20 %). Instelbaar
+  // door de admin (settings.values "bib.margeBp"); een post met een andere marge of een vaste prijs vraagt een reden.
+  public let libMarginBpDefault : Nat = 2_000;
+  public let maxLibMarginBp : Nat = 9_000; // 90 %: daarboven is het een tikfout (verkoop = aankoop / (1 − marge))
+  // Herkomst van een aankoopprijs (sleutel, naam).
+  public func libCostSources() : [(Text, Text)] {
+    [("oa-offerte", "Offerte van de OA"), ("factuur", "Factuur van de OA"), ("offerte", "Uit een offerte van BOWACO"), ("eigen", "Eigen raming"), ("import", "Import")];
+  };
+  // Eenheden (VOORLOPIG tot 0.3, B4; uit offerte 2026/231). (sleutel, naam). "d/lm" in de offerte = "dlm" (te bevestigen).
+  // De admin past de lijst aan in de postenbibliotheek (settings.lookups "unit:<sleutel>"); dan geldt die lijst (D9).
+  public func defaultUnits() : [(Text, Text)] {
+    [
+      ("sog", "som of geheel (forfait)"),
+      ("st", "stuk"),
+      ("m2", "m²"),
+      ("lm", "lopende meter"),
+      ("m3", "m³"),
+      ("kg", "kilogram"),
+      ("u", "uur"),
+      ("set", "set"),
+      ("post", "post"),
+      ("maand", "maand"),
+      ("punt", "punt"),
+      ("dlm", "dubbele lopende meter"),
+    ];
+  };
+  // Hoofdstukken (VOORLOPIG tot 0.3, B1; de 19 hoofdstukken van offerte 2026/231 zonder werfgegevens). (code, titel).
+  // Een startlijst die de calculator met één knop laadt; daarna past hij ze aan.
+  public func defaultLibChapters() : [(Text, Text)] {
+    [
+      ("00", "Algemene kosten en studies"),
+      ("01", "Werfinrichting en voorbereiding"),
+      ("02", "Afbraak en bescherming"),
+      ("03", "Grond- en funderingswerken"),
+      ("04", "Riolering en waterhuishouding"),
+      ("05", "Bovenbouw en gevel"),
+      ("06", "Stabiliteit"),
+      ("07", "Dakwerken"),
+      ("08", "Buitenschrijnwerk"),
+      ("09", "Technieken – Elektriciteit"),
+      ("09", "Technieken – Sanitair en chauffage"),
+      ("09", "Technieken – Ventilatie"),
+      ("10", "Binnenafwerking – Pleisterwerk"),
+      ("10", "Binnenafwerking – Vloerisolatie"),
+      ("10", "Binnenafwerking – Chape"),
+      ("10", "Binnenafwerking – Parket"),
+      ("10", "Binnenafwerking – Tegels"),
+      ("10", "Binnenafwerking – Binnenschrijnwerk"),
+      ("11", "Buitenaanleg en tuin"),
     ];
   };
 

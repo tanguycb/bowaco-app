@@ -1,0 +1,81 @@
+// Back-up in stukken vanuit de app (1.9 V-02): dezelfde bestanden als `tests/herstel.mjs export` (intern.json,
+// vertrouwelijk.json), per collectie via exportChunk zodat geen enkel antwoord op de berichtgrens van het IC botst (één
+// exportIntern wordt bij ± 100 werven groter dan 2 MiB). Zelfde JSON-vorm ($n = bigint, $b = bytes, $p = principal), dus
+// `node tests/herstel.mjs herstel <lege-canister> <map>` leest ook een back-up uit de browser. De lijsten hieronder
+// volgen tests/herstel.mjs: een collectie erbij = op beide plaatsen (en in RestoreApi.mo, docs/herstel.md).
+import type { Backend } from "./backend";
+
+export const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
+export const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions"];
+export const CONFIDENTIAL: [string, string][] = [["orgs", "orgConfidential"], ["persons", "personConfidential"], ["files", "confidentialFiles"], ["workConfidential", "workConfidential"], ["workConfidentialHistory", "workConfidentialHistory"], ["libCosts", "libCosts"], ["libSells", "libSells"], ["libSellVersions", "libSellVersions"]];
+
+type Raw = { exportChunk: (kind: string, from: bigint, limit: bigint) => Promise<unknown> };
+
+// De ruwe actor (zonder de omzetting van bindgen): zo komen de Candid-waarden ongewijzigd in het bestand, net als in het
+// script. `actor.actor` is de agent-actor achter de Backend-klasse.
+function raw(b: Backend): Raw {
+  return (b as unknown as { actor: Raw }).actor;
+}
+
+async function part(b: Backend, kind: string, n = 500): Promise<unknown> {
+  const out: unknown[] = [];
+  for (let from = 0; ; from += n) {
+    const r = (await raw(b).exportChunk(kind, BigInt(from), BigInt(n))) as { ok?: Record<string, unknown>; err?: string };
+    if (r.err !== undefined) throw new Error(r.err);
+    const xs = Object.values(r.ok!)[0];
+    if (!Array.isArray(xs)) return xs; // settings: één record
+    out.push(...xs);
+    if (xs.length < n) return out;
+  }
+}
+
+async function partOpt(b: Backend, kind: string): Promise<unknown> {
+  try {
+    return await part(b, kind);
+  } catch (e) {
+    if (/Onbekende collectie/.test(String(e))) return [];
+    throw e;
+  }
+}
+
+export async function backupIntern(b: Backend, onStep?: (k: string) => void): Promise<Record<string, unknown>> {
+  const me = await b.me();
+  const r = raw(b) as unknown as { listTrades: (a: boolean) => Promise<unknown>; auditCount: () => Promise<bigint> };
+  const intern: Record<string, unknown> = { version: me.version, at: BigInt(Date.now()) * 1_000_000n, trades: await r.listTrades(true), settings: await part(b, "settings"), auditCount: await r.auditCount() };
+  for (const k of INTERN) { onStep?.(k); intern[k] = await part(b, k); }
+  for (const k of LATER) { onStep?.(k); intern[k] = await partOpt(b, k); }
+  return intern;
+}
+
+export async function backupConfidential(b: Backend, onStep?: (k: string) => void): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { at: BigInt(Date.now()) * 1_000_000n };
+  for (const [name, kind] of CONFIDENTIAL) { onStep?.(kind); out[name] = await partOpt(b, kind); }
+  return out;
+}
+
+// De auditlog in stukken (nieuwste eerst) → chronologisch, zonder dubbels (elke exportoproep schrijft zelf een regel).
+export async function backupAudit(b: Backend): Promise<unknown[]> {
+  const r = raw(b) as unknown as { auditLog: (from: bigint, n: bigint) => Promise<{ at: bigint; action: string; who: { toText: () => string }; detail: string }[]> };
+  const seen = new Set<string>();
+  const out: unknown[] = [];
+  for (let from = 0; ; from += 500) {
+    const page = await r.auditLog(BigInt(from), 500n);
+    for (const e of page) {
+      const k = `${e.at}|${e.action}|${e.who.toText()}|${e.detail}`;
+      if (!seen.has(k)) { seen.add(k); out.push(e); }
+    }
+    if (page.length < 500) break;
+  }
+  return out.reverse();
+}
+
+// Zelfde vorm als tests/herstel.mjs (replacer): bigint, bytes en principals blijven herkenbaar.
+export function toJson(data: unknown): string {
+  return JSON.stringify(data, (_k, v) => {
+    if (typeof v === "bigint") return { $n: v.toString() };
+    if (v instanceof Uint8Array) return { $b: btoa(String.fromCharCode(...v)) };
+    if (v && typeof v === "object" && typeof (v as { toText?: unknown }).toText === "function" && typeof (v as { _isPrincipal?: unknown })._isPrincipal === "boolean") return { $p: (v as { toText: () => string }).toText() };
+    if (v && typeof v === "object" && typeof (v as { __principal__?: unknown }).__principal__ === "string") return { $p: (v as { __principal__: string }).__principal__ };
+    return v;
+  });
+}

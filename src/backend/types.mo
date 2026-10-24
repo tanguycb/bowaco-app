@@ -1074,6 +1074,113 @@ module {
     declarations : Map.Map<WorkId, Declaration>;
   };
 
+  // ── Postenbibliotheek (stap 2.2, architectuur §2.9; VOORLOPIG tot 0.3) ────
+  // Eigen domein `library` (nieuw stabiel veld, deelvorm, OldActor = {}). Hoofdstukken en posten zijn INTERN (tekst,
+  // eenheid, contractvorm, standaard-OA, duur); de aankoopprijzen per OA en de verkoopregel (marge of vaste prijs) zijn
+  // VERTROUWELIJK en staan in eigen Maps (D6): enkel admin en calculator, lezen via update-calls met een auditregel (R20,
+  // R21, R23). Beslissing eigenaar 24-10: geen versleuteling (2.1 vervalt); de waarden blijven `#plain`.
+  // Records zijn onveranderlijk: wijzigen = vervangen + een versie bewaren (D2); "weg" = archiveren, nooit wissen.
+  // vaste prijs · regie · vermoedelijke hoeveelheid (VH) · raming/richtprijs · budget/stelpost · volgens bijlage (B3, VOORLOPIG).
+  // Volledig vanaf het begin (D1a): een tag erbij is later een migratie. "Optie" is een lijnsoort van de offerte (2.4).
+  public type ContractForm = { #fixed; #regie; #vh; #estimate; #budget; #perAttachment };
+
+  // klasse: intern. De code is een groep ("09") en mag herhalen (09 Technieken – Elektriciteit, 09 Technieken – Sanitair);
+  // de titel is het hoofdstuk (B1). De volgorde is een getal (10, 20 …), zodat invoegen geen hernummering vraagt.
+  public type LibChapter = {
+    id : Nat;
+    code : Text;
+    title : Text;
+    order : Nat;
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern (GEEN prijzen: die staan in LibCost en LibSell). Een post; de offerte-editor (2.4) neemt tekst, eenheid
+  // en contractvorm over, samen met het id en de versie (zo weet een offertelijn uit welke versie ze kwam).
+  public type LibItem = {
+    id : Nat;
+    chapterId : Nat;
+    code : Text; // "7.06" (leeg = geen); vrij, voor de volgorde en het zoeken
+    title : Text; // korte titel
+    text : Text; // lastenboektekst (meerdere regels)
+    unit : Text; // sleutel uit de eenheden (D9: settings.lookups "unit:<sleutel>")
+    form : ContractForm;
+    trade : ?Text; // vakgebied (sleutel uit 1.2)
+    orgId : ?OrgId; // standaard-OA of leverancier
+    durationDays : ?Nat; // standaardduur in werkdagen voor de planning (2.8)
+    perDayMilli : ?Int; // of: hoeveelheid per werkdag in duizendsten (duur = hoeveelheid / dit), VOORLOPIG (B13)
+    planStepKey : ?Text; // stap van het planningsjabloon (1.3) waar deze post bij hoort
+    keywords : [Text]; // extra zoekwoorden
+    importKey : ?Text; // idempotentie van een import (2.3): uniek over de bibliotheek
+    version : Nat;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId;
+    archiveReason : Text;
+    extra : Extra;
+  };
+
+  // klasse: intern, append-only (D2): elke versie van een post, ook versie 1; `fields` = de namen van wat veranderde.
+  public type LibItemVersion = { id : Nat; itemId : Nat; version : Nat; item : LibItem; at : Int; by : PersonId; fields : Text };
+
+  // klasse: vertrouwelijk. Eén aankoopprijs per eenheid voor een post, van één OA of leverancier (of zonder: eigen raming),
+  // op een datum (de offerte of factuur van de OA). Append-only: een fout wordt gearchiveerd met een reden en blijft in de
+  // historiek; nooit gewist of overschreven.
+  public type LibCost = {
+    id : Nat;
+    itemId : Nat;
+    orgId : ?OrgId;
+    day : Day;
+    cost : Confidential<Int>; // eurocent per eenheid
+    source : Text; // "oa-offerte" · "factuur" · "offerte" · "eigen" · "import" (Config.libCostSources)
+    ref : Text; // "OA-offerte 2026-045", "offerte 2026/231"
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId;
+    archiveReason : Text;
+    extra : Extra;
+  };
+
+  // Marge in basispunten op de VERKOOPprijs (2000 = 20 %: verkoop = aankoop / 0,8, zoals `/0.8` in offerte 2026/231, B5),
+  // of een vaste verkoopprijs per eenheid in eurocent (eigen prestatie, verzekering, budget).
+  public type LibSellRule = { #margin : Nat; #price : Int };
+
+  // klasse: vertrouwelijk. De verkoopregel van één post; zonder record of met `rule = null` geldt de standaardmarge
+  // (instelbaar, 20 %). Terug naar de standaard = een nieuwe versie met null, nooit het record weghalen.
+  public type LibSell = {
+    itemId : Nat;
+    rule : ?Confidential<LibSellRule>;
+    reason : Confidential<Text>; // waarom niet de standaardmarge (controle vóór verzending, 2.6)
+    version : Nat;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk, append-only: elke versie van de verkoopregel (rule = null: terug naar de standaardmarge).
+  public type LibSellVersion = { id : Nat; itemId : Nat; version : Nat; rule : ?Confidential<LibSellRule>; reason : Confidential<Text>; at : Int; by : PersonId };
+
+  public type LibraryState = {
+    chapters : Map.Map<Nat, LibChapter>;
+    items : Map.Map<Nat, LibItem>;
+    itemVersions : Map.Map<Nat, LibItemVersion>;
+    importKeys : Map.Map<Text, Nat>; // importsleutel → post (herrekend bij een herstel)
+    costs : Map.Map<Nat, LibCost>; // vertrouwelijk
+    costsByItem : Map.Map<Nat, [Nat]>; // post → aankoopprijzen (index, herrekend bij een herstel)
+    sells : Map.Map<Nat, LibSell>; // vertrouwelijk; sleutel = post
+    sellVersions : Map.Map<Nat, LibSellVersion>; // vertrouwelijk
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

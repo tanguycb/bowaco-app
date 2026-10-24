@@ -338,6 +338,78 @@ else {
   }
 }
 
+// ── (E1–E10) stap 2.2: postenbibliotheek. Aankoopprijzen en marges gaan NOOIT naar werfleider, OA, architect, klant,
+// VC of robot, en nooit via een query of de interne export (R20–R23). Beslissing eigenaar 24-10: geen versleuteling.
+{
+  // (E1) Mechanisch op de .did: welke typen dragen (rechtstreeks of via een ander type) een prijs? Geen enkele query mag
+  // zo'n type teruggeven, en de interne vormen (post, hoofdstuk, interne export) mogen er geen bevatten.
+  const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.did"), "utf8");
+  const types = new Map([...did.matchAll(/^type (\w+) =([\s\S]*?);\n(?=type |service|$)/gm)].map((m) => [m[1], m[2]]));
+  const tainted = new Set(["LibCost", "LibSell", "LibSellVersion", "LibSellRule", "LibCostView", "LibPriceView", "LibPrices", "LibPriceHistory", "LibSellVersionView"]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [n, body] of types) if (!tainted.has(n) && [...tainted].some((t) => new RegExp(`\\b${t}\\b`).test(body))) { tainted.add(n); grew = true; }
+  }
+  const service = did.slice(did.indexOf("service"));
+  const queries = [...service.matchAll(/^ {2}"?(\w+)"?\s*:\s*\(([^)]*)\)\s*->\s*\(([^)]*)\)\s*query/gm)];
+  const bad = queries.filter((m) => [...tainted].some((t) => new RegExp(`\\b${t}\\b`).test(m[3]))).map((m) => m[1]);
+  check("(E1) geen enkele query geeft een prijs of marge terug (enkel update-calls met auditregel)", queries.length > 50 && bad.length === 0, bad.join(", ") || `${queries.length} queries nagekeken, ${tainted.size} prijstypen`);
+  check("(E1) de interne vormen dragen geen prijs: post, hoofdstuk, bladzijde, versie, interne export", ["LibItemView", "LibChapterView", "LibPage", "LibItemVersionView", "ExportIntern", "LibItem", "LibItemVersion"].every((n) => types.has(n) && !tainted.has(n)), ["LibItemView", "ExportIntern"].filter((n) => tainted.has(n)).join());
+  // Een eigen proefpost (idempotent via de importsleutel), met een proefprijs.
+  if ((await calc.libraryChapters(false)).length === 0) await calc.loadLibraryStartChapters();
+  const ch = (await calc.libraryChapters(false))[0];
+  const findRev = async () => (await calc.listLibrary({ text: "Proef reviewpost", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: false, offset: 0n, limit: 5n })).items.find((x) => x.importKey[0] === "review:e");
+  let rp = await findRev();
+  if (!rp) rp = ok(await calc.saveLibraryItem({ id: [], chapterId: ch.id, code: "", title: "Proef reviewpost", text: "Testpost van tests/review.mjs (verzonnen).", unit: "st", form: { fixed: null }, trade: [], orgId: [], durationDays: [], perDayMilli: [], planStepKey: [], keywords: [], importKey: ["review:e"] }, 0n));
+  const prices = ok(await calc.readLibraryPrices([rp.id]));
+  if (prices.prices[0].costCount === 0n) ok(await calc.addLibraryCost(rp.id, { orgId: [], day: today, costCents: 1234n, source: "eigen", ref: "review", note: "verzonnen" }));
+  // (E2) Elke rol zonder prijsrecht, ook de robot en een onbekende login, op elke prijsfunctie en de vertrouwelijke export.
+  const anon = await backend(null, cid);
+  const vreemd = await freshBackend(cid);
+  const nope = [["werfleider", wl], ["architect", arch], ["OA", oa2], ["klant", klant], ["VC", vc], ["robot", robot], ["anoniem", anon], ["onbekend", vreemd]];
+  const priceCalls = (x) => [x.readLibraryPrices([rp.id]), x.readLibraryPriceHistory(rp.id), x.addLibraryCost(rp.id, { orgId: [], day: today, costCents: 1n, source: "eigen", ref: "", note: "" }), x.setLibrarySell(rp.id, { rule: [{ margin: 2000n }], reason: "x" }, 99n), x.archiveLibraryCost(1n, "x"), x.setLibraryMargin(2000n), x.exportChunk("libCosts", 0n, 1n), x.exportChunk("libSells", 0n, 1n), x.exportConfidential()];
+  for (const [n, x] of nope) {
+    const rs = await Promise.all(priceCalls(x).map((c) => denied(c)));
+    check(`(E2) ${n}: elke prijsfunctie geweigerd (9 oproepen)`, rs.every(Boolean), rs.map((v) => (v ? "·" : "✗")).join(""));
+  }
+  // (E3) De interne lijst van de werfleider draagt geen bedrag (ook niet in de tekst van een veld).
+  const wlPage = await wl.listLibrary({ text: "Proef reviewpost", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: false, offset: 0n, limit: 5n });
+  check("(E3) werfleider: de post zonder enig prijsveld en zonder het bedrag 12,34", wlPage.items.length === 1 && !/12,34|cost|sell|marg/i.test(JSON.stringify(wlPage, (k, v) => (typeof v === "bigint" ? "" : v))));
+  // (E4) Grenzen
+  const big1 = { id: [], chapterId: ch.id, code: "", title: "x".repeat(161), text: "", unit: "st", form: { fixed: null }, trade: [], orgId: [], durationDays: [], perDayMilli: [], planStepKey: [], keywords: [], importKey: [] };
+  check("(E4) titel > 160, tekst > 4.000, > 12 zoekwoorden, importsleutel > 200 tekens: geweigerd", "err" in (await calc.saveLibraryItem(big1, 0n)) && "err" in (await calc.saveLibraryItem({ ...big1, title: "x", text: "y".repeat(4001) }, 0n)) && "err" in (await calc.saveLibraryItem({ ...big1, title: "x", keywords: Array.from({ length: 13 }, (_, i) => `k${i}`) }, 0n)) && "err" in (await calc.saveLibraryItem({ ...big1, title: "x", importKey: ["k".repeat(201)] }, 0n)));
+  check("(E4) prijzen: negatief, boven € 1 miljard en een datum buiten bereik geweigerd; > 300 posten per oproep geweigerd", "err" in (await calc.addLibraryCost(rp.id, { orgId: [], day: today, costCents: -1n, source: "eigen", ref: "", note: "" })) && "err" in (await calc.addLibraryCost(rp.id, { orgId: [], day: today, costCents: 100_000_000_001n, source: "eigen", ref: "", note: "" })) && "err" in (await calc.addLibraryCost(rp.id, { orgId: [], day: 5n, costCents: 1n, source: "eigen", ref: "", note: "" })) && "err" in (await calc.readLibraryPrices(Array.from({ length: 301 }, () => rp.id))));
+  check("(E4) zoekvraag langer dan 80 tekens: geweigerd", await rejects(wl.listLibrary({ text: "z".repeat(81), chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: false, offset: 0n, limit: 5n })));
+  check("(E4) bladzijde begrensd op 200", (await wl.listLibrary({ text: "", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: true, offset: 0n, limit: 100_000n })).items.length <= 200);
+  // (E5) Lezen van prijzen staat in de auditlog, zonder bedrag; een onbekend id lekt niets (zelfde fout als geen post).
+  const before = await admin.auditCount();
+  ok(await calc.readLibraryPrices([rp.id]));
+  const after = await admin.auditCount();
+  const last = (await admin.auditLog(0n, 3n)).find((e) => e.action === "bekeek:prijzen");
+  check("(E5) elke oproep van readLibraryPrices = één auditregel 'bekeek:prijzen' zonder bedrag", after === before + 1n && last && !/1234|12,34/.test(last.detail), last?.detail);
+  check("(E5) onbekende post: een gewone fout, geen auditregel", errOf(await calc.readLibraryPrices([999_999n])).startsWith("Onbekende post") && (await admin.auditCount()) === after);
+  // (E6) Archiveren is nooit wissen: een gearchiveerde prijs blijft in de historiek, de post blijft met zijn versies.
+  const h = ok(await calc.readLibraryPriceHistory(rp.id));
+  check("(E6) de historiek bevat elke ooit ingegeven prijs (geen wis-functie in de .did)", h.costs.length >= 1 && !/delete|remove|wis/i.test(service.split("\n").filter((l) => /Library|library/.test(l)).join("\n")));
+  // (E7) Een standaard-OA koppelen geeft die OA geen zicht: hij heeft geen #readLibrary.
+  check("(E7) de OA van een post (Proef Dak NV) ziet de bibliotheek niet", await rejects(oa2.listLibrary({ text: "", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: false, offset: 0n, limit: 5n })));
+  // (E8) caps: enkel kantoor ziet de knop en de kolommen met prijzen.
+  const capsOf = async (x) => (await x.me()).caps[0];
+  check("(E8) caps.libraryPrices: admin en calculator ja; werfleider nee", (await capsOf(admin)).libraryPrices && (await capsOf(calc)).libraryPrices && !(await capsOf(wl)).libraryPrices);
+  // (E9) Een afgezette calculator leest geen prijzen meer (enkel lokaal: op een draft maakt dit een persoon en een melding).
+  if (local) {
+    const inv = ok(await admin.invitePerson({ name: "Proef Calc Afgezet (review)", roles: [{ calculator: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [], validDays: 1n, tag: "review" }));
+    const c2 = await freshBackend(cid);
+    ok(await c2.redeemCode(inv.code));
+    ok(await admin.confirmLink((await c2.me()).principal));
+    check("(E9) nieuwe calculator leest de prijzen", isOk(await c2.readLibraryPrices([rp.id])));
+    ok(await admin.archivePerson(inv.personId));
+    check("(E9) na afzetten: meteen geweigerd", await denied(c2.readLibraryPrices([rp.id])));
+  }
+  // (E10) Verkoopregel: een afwijking zonder reden wordt geweigerd (controle vóór verzending, 2.6).
+  check("(E10) eigen marge of vaste prijs zonder reden: geweigerd", "err" in (await calc.setLibrarySell(rp.id, { rule: [{ price: 5000n }], reason: " " }, ok(await calc.readLibraryPrices([rp.id])).prices[0].sellVersion)));
+}
+
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──
 if (local && !process.env.ZONDER_KLOK) {
   const before = (await admin.accessStats()).attemptsTracked;

@@ -34,6 +34,7 @@ mixin (
   post : Types.PostState,
   mail : Types.MailState,
   wadm : Types.WadmState,
+  library : Types.LibraryState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -225,6 +226,9 @@ mixin (
       mailLog = mail.log.values().toArray();
       withholdingChecks = wadm.checks.values().toArray();
       declarations = wadm.declarations.values().toArray();
+      libChapters = library.chapters.values().toArray();
+      libItems = library.items.values().toArray();
+      libItemVersions = library.itemVersions.values().toArray();
     };
   };
 
@@ -236,7 +240,9 @@ mixin (
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #export, null);
-    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory";
+    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions";
+    // 2.2: de prijzen van de bibliotheek vragen daarbovenop #readCosts (aankoopprijzen, R20).
+    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions") { Rights.require(ctx, p, #readCosts, null) };
     if (confidentialKind) { Rights.require(ctx, p, #readConfidentialContact, null) };
     if (from == 0) { Access.audit(audit, caller, ?p.id, null, if confidentialKind "bekeek:export-vertrouwelijk-deel" else "export-deel", kind) };
     func pg<T>(xs : [T]) : [T] { Access.page(xs, from, limit) };
@@ -306,6 +312,12 @@ mixin (
       case "mailLog" ?#mailLog(pg(mail.log.values().toArray()));
       case "withholdingChecks" ?#withholdingChecks(pg(wadm.checks.values().toArray()));
       case "declarations" ?#declarations(pg(wadm.declarations.values().toArray()));
+      case "libChapters" ?#libChapters(pg(library.chapters.values().toArray()));
+      case "libItems" ?#libItems(pg(library.items.values().toArray()));
+      case "libItemVersions" ?#libItemVersions(pg(library.itemVersions.values().toArray()));
+      case "libCosts" ?#libCosts(pg(library.costs.values().toArray()));
+      case "libSells" ?#libSells(pg(library.sells.values().toArray()));
+      case "libSellVersions" ?#libSellVersions(pg(library.sellVersions.values().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
@@ -329,6 +341,9 @@ mixin (
       files = files.files.values().filter(func f = f.confidential).map(func f = { id = f.id; name = f.name; mime = f.mime; size = f.size; blob = ?f.blob; workId = f.workId; confidential = true; personId = f.personId; at = f.at; archivedAt = f.archivedAt }).toArray();
       workConfidential = dossier.confidential.values().toArray();
       workConfidentialHistory = dossier.confidentialHistory.values().toArray();
+      libCosts = library.costs.values().toArray();
+      libSells = library.sells.values().toArray();
+      libSellVersions = library.sellVersions.values().toArray();
     };
   };
 

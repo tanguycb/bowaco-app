@@ -25,6 +25,7 @@ import Views "../types/views";
 import Access "../lib/Access";
 import Codes "../lib/Codes";
 import Config "../lib/Config";
+import Library "../lib/Library";
 import Reports "../lib/Reports";
 
 mixin (
@@ -43,6 +44,7 @@ mixin (
   post : Types.PostState,
   mail : Types.MailState,
   wadm : Types.WadmState,
+  library : Types.LibraryState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -101,7 +103,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -238,6 +240,12 @@ mixin (
       case (#mailLog xs) { for (l in xs.values()) { mail.log.add(l.id, l) }; xs.size() };
       case (#withholdingChecks xs) { for (c in xs.values()) { wadm.checks.add(c.id, c) }; xs.size() };
       case (#declarations xs) { for (d in xs.values()) { wadm.declarations.add(d.workId, d) }; xs.size() };
+      case (#libChapters xs) { for (c in xs.values()) { library.chapters.add(c.id, c) }; xs.size() };
+      case (#libItems xs) { for (it in xs.values()) { library.items.add(it.id, it) }; xs.size() };
+      case (#libItemVersions xs) { for (v in xs.values()) { library.itemVersions.add(v.id, v) }; xs.size() };
+      case (#libCosts xs) { for (c in xs.values()) { library.costs.add(c.id, c) }; xs.size() };
+      case (#libSells xs) { for (x in xs.values()) { library.sells.add(x.itemId, x) }; xs.size() };
+      case (#libSellVersions xs) { for (v in xs.values()) { library.sellVersions.add(v.id, v) }; xs.size() };
     };
   };
 
@@ -350,6 +358,16 @@ mixin (
     rsAtLeast("job", rsMaxKey(post.jobs));
     rsAtLeast("mail", rsMaxKey(mail.log));
     rsAtLeast("withholdingCheck", rsMaxKey(wadm.checks));
+    // 2.2: de indexen van de bibliotheek (importsleutels, prijzen per post) uit de records zelf.
+    rsClearText(library.importKeys);
+    rsClearNat(library.costsByItem);
+    for (it in library.items.values()) { switch (it.importKey) { case (?k) library.importKeys.add(k, it.id); case null {} } };
+    for (c in library.costs.values()) { Library.addCostIndex(library, c.itemId, c.id) };
+    rsAtLeast("libChapter", rsMaxKey(library.chapters));
+    rsAtLeast("libItem", rsMaxKey(library.items));
+    rsAtLeast("libItemVersion", rsMaxKey(library.itemVersions));
+    rsAtLeast("libCost", rsMaxKey(library.costs));
+    rsAtLeast("libSellVersion", rsMaxKey(library.sellVersions));
   };
 
   func rsSummary() : Views.RestoreSummary {

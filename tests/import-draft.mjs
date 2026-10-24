@@ -43,19 +43,26 @@ check("testfirma's TOA01… staan in de OA-database (of waren er al)", orgsAfter
 const importer = (...a) => { try { return execFileSync("node", [join(import.meta.dirname, "../tools/plan-import.mjs"), "--plan", planPath, "--canister", cid, "--identity", "proef-admin", ...a], { encoding: "utf8" }); } catch (e) { return String(e.stdout ?? "") + String(e.stderr ?? ""); } };
 const n = (s, rx) => Number((rx.exec(s) ?? [])[1] ?? NaN);
 const worksBefore = (await admin.exportIntern()).works.length;
+// V-11 (1.9): op een draft die deze geanonimiseerde batch al draagt (niet teruggedraaid), is een herhaling de normale
+// toestand: dan bewijst de proef dat er niets nieuw bijkomt, en rekent ze verder met de aantallen van de batch.
+const earlier = (await admin.listImportBatches()).find((b) => b.id === plan.batch && b.rolledBackAt.length === 0);
+if (earlier) console.log(`· batch ${plan.batch} staat al op deze canister (${earlier.works} werven, ${earlier.tasks} taken): herhaling`);
 const r1 = importer();
-check("proefronde: tellingen, niets bewaard", r1.includes("PROEFRONDE") && n(r1, /taken nieuw (\d+)/) > 400 && (await admin.exportIntern()).works.length === worksBefore, r1.split("\n").filter((l) => /werven|taken/.test(l)).join(" | "));
+const proefNieuw = n(r1, /taken nieuw (\d+)/);
+check(earlier ? "proefronde (herhaling): niets nieuw, niets bewaard" : "proefronde: tellingen, niets bewaard", r1.includes("PROEFRONDE") && (earlier ? proefNieuw === 0 : proefNieuw > 400) && (await admin.exportIntern()).works.length === worksBefore, r1.split("\n").filter((l) => /werven|taken/.test(l)).join(" | "));
 const r2 = importer("--echt");
-const tasksNew = n(r2, /taken nieuw (\d+)/);
 const worksNew = n(r2, /werven nieuw (\d+)/);
+const tasksNew = earlier ? Number(earlier.tasks) : n(r2, /taken nieuw (\d+)/);
+const worksTotal = earlier ? Number(earlier.works) : worksNew;
 const ex = await admin.exportIntern();
-check("echt: werven, taken, uitvoerders en afspraken aangemaakt", r2.includes("ECHT BEWAARD") && worksNew > 30 && tasksNew > 400 && ex.works.length === worksBefore + worksNew, r2.split("\n").filter((l) => /werven|taken|uitvoer|afspraken|namen/.test(l)).join(" | "));
+if (earlier) check("echt (herhaling): geen werven of taken nieuw", r2.includes("ECHT BEWAARD") && worksNew === 0 && n(r2, /taken nieuw (\d+)/) === 0 && ex.works.length === worksBefore, r2.split("\n").filter((l) => /nieuw/.test(l)).join(" | "));
+else check("echt: werven, taken, uitvoerders en afspraken aangemaakt", r2.includes("ECHT BEWAARD") && worksNew > 30 && tasksNew > 400 && ex.works.length === worksBefore + worksNew, r2.split("\n").filter((l) => /werven|taken|uitvoer|afspraken|namen/.test(l)).join(" | "));
 check("geen nieuwe firma's door de import (enkel de testfirma's van hierboven)", ex.orgs.length === orgsAfter);
 check("de aantallen kloppen met de export (taken met import-batch)", ex.tasks.filter((t) => t.extra.some(([k, v]) => k === "import" && v === plan.batch)).length === tasksNew);
 const r3 = importer("--echt");
 check("tweede keer: niets nieuw (geen dubbels)", /werven nieuw 0 /.test(r3) && /taken nieuw 0 /.test(r3) && /uitvoerreeksen nieuw 0 /.test(r3) && /afspraken nieuw 0 /.test(r3) && (await admin.exportIntern()).tasks.length === ex.tasks.length, r3.split("\n").filter((l) => /nieuw/.test(l)).join(" | "));
 const batches = await admin.listImportBatches();
-check("batch staat in de lijst met de juiste aantallen", batches.some((b) => b.id === plan.batch && Number(b.tasks) === tasksNew && Number(b.works) === worksNew && b.rolledBackAt.length === 0));
+check("batch staat in de lijst met de juiste aantallen", batches.some((b) => b.id === plan.batch && Number(b.tasks) === tasksNew && Number(b.works) === worksTotal && b.rolledBackAt.length === 0));
 
 // Zicht
 const imported = ex.works.filter((w) => w.code.startsWith("PL-") && w.name.startsWith("Werf "));
@@ -72,19 +79,23 @@ check("weekbord toont de testfirma's op de geïmporteerde werven", wb.rows.some(
 // Terugdraaien (kleine eigen batch)
 if (!process.argv.includes("--zonder-terug")) {
   const D = BigInt(Math.floor(Date.UTC(2028, 0, 3) / 86_400_000));
-  const tk = (k, t, w0, w1) => ({ key: k, title: t, note: "", responsible: [], status: { planned: null }, percent: 0n, start: D + BigInt(w0 * 7), workdays: BigInt((w1 - w0 + 1) * 5), order: 1n, runs: [{ key: k + "/a", name: "TOA01", from: D + BigInt(w0 * 7), to: D + BigInt(w1 * 7 + 4), note: "" }], appointments: [], extra: [] });
-  const b = { key: "d15-terug", name: "Terugdraaiproef", street: "Teststraat", number: "9", zip: "9000", city: "Teststad", vatBp: 600n, decision: { fresh: null }, tasks: [tk("d15-t1", "Terugtaak een", 0, 1), tk("d15-t2", "Terugtaak twee", 2, 2)] };
-  const a1 = await admin.importPlanning(false, "proef-terug", "Terugdraaiproef", [], b);
+  // V-11: elke ronde een eigen batch en eigen sleutels (een teruggedraaide batch blijft als historiek staan).
+  const run = `${Date.now().toString(36)}`;
+  const bid = `proef-terug-${run}`;
+  const wname = `Terugdraaiproef ${run}`;
+  const tk = (k0, t, w0, w1) => { const k = `${k0}-${run}`; return { key: k, title: t, note: "", responsible: [], status: { planned: null }, percent: 0n, start: D + BigInt(w0 * 7), workdays: BigInt((w1 - w0 + 1) * 5), order: 1n, runs: [{ key: k + "/a", name: "TOA01", from: D + BigInt(w0 * 7), to: D + BigInt(w1 * 7 + 4), note: "" }], appointments: [], extra: [] }; };
+  const b = { key: `d15-terug-${run}`, name: wname, street: "Teststraat", number: "9", zip: "9000", city: "Teststad", vatBp: 600n, decision: { fresh: null }, tasks: [tk("d15-t1", "Terugtaak een", 0, 1), tk("d15-t2", "Terugtaak twee", 2, 2)] };
+  const a1 = await admin.importPlanning(false, bid, wname, [], b);
   check("kleine proefbatch: 1 werf, 2 taken, 2 uitvoerders", isOk(a1) && a1.ok.workCreated === 1n && a1.ok.tasksCreated === 2n && a1.ok.assignmentsCreated === 2n, JSON.stringify(a1, big));
-  const a2 = await admin.importPlanning(false, "proef-terug", "Terugdraaiproef", [], b);
+  const a2 = await admin.importPlanning(false, bid, wname, [], b);
   check("dezelfde proefbatch nog eens: niets nieuw", isOk(a2) && a2.ok.workCreated === 0n && a2.ok.tasksCreated === 0n && a2.ok.assignmentsCreated === 0n);
-  const t0 = await admin.rollbackImport("proef-terug", true);
+  const t0 = await admin.rollbackImport(bid, true);
   check("terugdraaien, proef: 1 werf, 2 taken, 2 uitvoerders", isOk(t0) && t0.ok.works === 1n && t0.ok.tasks === 2n && t0.ok.assignments === 2n, JSON.stringify(t0, big));
-  const t1 = await admin.rollbackImport("proef-terug", false);
+  const t1 = await admin.rollbackImport(bid, false);
   const ex2 = await admin.exportIntern();
-  const w = ex2.works.find((x) => x.name === "Terugdraaiproef");
+  const w = ex2.works.find((x) => x.name === wname);
   check("terugdraaien: werf en taken gearchiveerd, niets gewist; de grote batch blijft", isOk(t1) && w.archivedAt.length === 1 && ex2.tasks.filter((x) => x.workId === w.id).every((x) => x.archivedAt.length === 1) && ex2.tasks.filter((x) => x.workId === w.id).length === 2 && ex2.tasks.filter((x) => x.extra.some(([k, v]) => k === "import" && v === plan.batch) && x.archivedAt.length === 0).length === tasksNew);
-  const t2 = await admin.rollbackImport("proef-terug", false);
+  const t2 = await admin.rollbackImport(bid, false);
   check("nog eens terugdraaien geweigerd", !isOk(t2));
 }
 const log = await admin.auditLog(0n, 400n);

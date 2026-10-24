@@ -55,12 +55,14 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions"];
   const partOpt = async (k) => { try { return await part(k); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
   for (const k of LATER) intern[k] = await partOpt(k);
   const vertrouwelijk = { at: intern.at, orgs: await part("orgConfidential"), persons: await part("personConfidential"), files: await part("confidentialFiles"), workConfidential: await part("workConfidential"), workConfidentialHistory: await part("workConfidentialHistory") };
+  // 2.2: de prijzen van de postenbibliotheek (vertrouwelijk; een oudere canister kent ze niet → leeg).
+  for (const k of ["libCosts", "libSells", "libSellVersions"]) vertrouwelijk[k] = await partOpt(k);
   // Auditlog in stukken (nieuwste eerst) → chronologisch bewaren. De log groeit tijdens het lezen (elke
   // export-oproep schrijft een regel), dus dubbels eruit en op tijd sorteren.
   const seen = new Set();
@@ -176,6 +178,13 @@ async function restoreAll(cid, dir) {
   await send("mailLog", intern.mailLog ?? [], 500);
   await send("withholdingChecks", intern.withholdingChecks ?? [], 300);
   await send("declarations", intern.declarations ?? [], 300);
+  // 2.2: postenbibliotheek (de indexen herrekent restoreFinish).
+  await send("libChapters", intern.libChapters ?? []);
+  await send("libItems", intern.libItems ?? [], 100);
+  await send("libItemVersions", intern.libItemVersions ?? [], 100);
+  await send("libCosts", vertrouwelijk.libCosts ?? [], 300);
+  await send("libSells", vertrouwelijk.libSells ?? [], 300);
+  await send("libSellVersions", vertrouwelijk.libSellVersions ?? [], 300);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -258,12 +267,18 @@ function normalize(intern, vertrouwelijk, audit) {
       return app || onz ? { ...j, state: { onzeker: null } } : "leased" in j.state ? { ...j, state: { queued: null } } : j;
     }),
     mailLog: byKey(intern.mailLog ?? [], id),
+    libChapters: byKey(intern.libChapters ?? [], id),
+    libItems: byKey(intern.libItems ?? [], id),
+    libItemVersions: byKey(intern.libItemVersions ?? [], id),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),
     "vertrouwelijk.files": byKey(vertrouwelijk.files, id),
     "vertrouwelijk.workConfidential": byKey(vertrouwelijk.workConfidential, (x) => x.workId),
     "vertrouwelijk.workConfidentialHistory": byKey(vertrouwelijk.workConfidentialHistory, id),
+    "vertrouwelijk.libCosts": byKey(vertrouwelijk.libCosts ?? [], id),
+    "vertrouwelijk.libSells": byKey(vertrouwelijk.libSells ?? [], (x) => x.itemId),
+    "vertrouwelijk.libSellVersions": byKey(vertrouwelijk.libSellVersions ?? [], id),
     audit,
   };
   return out;

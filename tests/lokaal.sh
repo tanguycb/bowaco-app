@@ -50,6 +50,15 @@ node tests/rollen.mjs "$cid"
 node tests/lek.mjs "$cid"
 # 1.9: de aanvallen uit de securityreview (externen, bestanden, robot, grenzen, herstelpoort, opruiming van tellers).
 node tests/review.mjs "$cid"
+# 2.2: de draftproef van de postenbibliotheek (verzonnen proefposten), en de ENIGE echte offerte enkel hier op het eigen
+# net (als tools/posten-analyse.py ze al las): proefronde, echt, nog eens (geen dubbels). Nooit naar een draft.
+node tests/posten-draft.mjs "$cid"
+posten=$HOME/.bowaco/posten/posten-2026-231.json
+if [[ -f "$posten" ]]; then
+  node tools/posten-import.mjs --plan "$posten" --canister "$cid"
+  node tools/posten-import.mjs --plan "$posten" --canister "$cid" --echt
+  node tools/posten-import.mjs --plan "$posten" --canister "$cid" --echt
+fi
 # mail-caffeine: de app verstuurt zelf (nep-maildienst); de gateway (fase 3) enkel nog eenheidstesten.
 node tests/mail-proef.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

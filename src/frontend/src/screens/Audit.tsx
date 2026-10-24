@@ -3,7 +3,8 @@ import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import type { Caps } from "../backend";
 import { Button, Table, useToast } from "../design";
 import { t } from "../texts/nl";
-import { downloadJson, errText, fmtTime, useBackend } from "../util";
+import { backupAudit, backupConfidential, backupIntern, toJson } from "../backup";
+import { errText, fmtTime, useBackend } from "../util";
 import { Loading, Page } from "./common";
 
 const PAGE = 100n;
@@ -22,19 +23,19 @@ export function Audit({ caps }: { caps: Caps }) {
   const nameOf = (id: bigint) => persons.data?.find((p) => p.id === id)?.name;
   const stamp = () => new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
-  const exIntern = useMutation({ mutationFn: () => actor!.exportIntern(), onSuccess: (d) => downloadJson(`bowaco-intern-${stamp()}.json`, d), onError: fail });
-  const exConf = useMutation({ mutationFn: () => actor!.exportConfidential(), onSuccess: (d) => downloadJson(`bowaco-vertrouwelijk-${stamp()}.json`, d), onError: fail });
-  // De volledige auditlog in stukken van 500 (berichtgrens), daarna één bestand.
-  const exLog = useMutation({
-    mutationFn: async () => {
-      const total = Number(await actor!.auditCount());
-      const all = [];
-      for (let from = 0; from < total; from += 500) all.push(...(await actor!.auditLog(BigInt(from), 500n)));
-      return all;
-    },
-    onSuccess: (d) => downloadJson(`bowaco-auditlog-${stamp()}.json`, d),
-    onError: fail,
-  });
+  // 1.9 V-02: de back-up in stukken (exportChunk), in dezelfde vorm als tests/herstel.mjs: zo kan het script een
+  // back-up uit de browser terugzetten (docs/herstel.md §1). Elke collectie staat als "export-deel" in de auditlog.
+  const download = (name: string, data: unknown) => {
+    const url = URL.createObjectURL(new Blob([toJson(data)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const exIntern = useMutation({ mutationFn: () => backupIntern(actor!), onSuccess: (d) => download(`intern-${stamp()}.json`, d), onError: fail });
+  const exConf = useMutation({ mutationFn: () => backupConfidential(actor!), onSuccess: (d) => download(`vertrouwelijk-${stamp()}.json`, d), onError: fail });
+  const exLog = useMutation({ mutationFn: () => backupAudit(actor!), onSuccess: (d) => download(`audit-${stamp()}.json`, d), onError: fail });
   const rows = (log.data?.pages.flat() ?? []).map((e, i) => ({ ...e, i }));
   return (
     <Page
