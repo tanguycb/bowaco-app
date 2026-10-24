@@ -32,6 +32,7 @@ mixin (
   reports : Types.ReportState,
   permits : Types.PermitState,
   post : Types.PostState,
+  mail : Types.MailState,
   wadm : Types.WadmState,
   robot : Types.RobotState,
   audit : Types.AuditState,
@@ -221,6 +222,7 @@ mixin (
       procedures = permits.procedures.values().toArray();
       permitAlerts = permits.alerts.entries().toArray();
       jobs = post.jobs.values().toArray();
+      mailLog = mail.log.values().toArray();
       withholdingChecks = wadm.checks.values().toArray();
       declarations = wadm.declarations.values().toArray();
     };
@@ -301,6 +303,7 @@ mixin (
       case "procedures" ?#procedures(pg(permits.procedures.values().toArray()));
       case "permitAlerts" ?#permitAlerts(pg(permits.alerts.entries().toArray()));
       case "jobs" ?#jobs(pg(post.jobs.values().toArray()));
+      case "mailLog" ?#mailLog(pg(mail.log.values().toArray()));
       case "withholdingChecks" ?#withholdingChecks(pg(wadm.checks.values().toArray()));
       case "declarations" ?#declarations(pg(wadm.declarations.values().toArray()));
       case _ null;

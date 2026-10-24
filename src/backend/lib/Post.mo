@@ -1,7 +1,8 @@
-// Postbode (stap 1b.3, architectuur §6.2–§6.3): de werkwachtrij voor de gateway. De app maakt opdrachten (jobs) met
-// een idempotentiesleutel; de gateway (robotprincipal) leaset ze, verstuurt en bevestigt. De inhoud van een mail wordt
-// pas bij de lease samengesteld uit de gegevens van dat moment (een verschoven taak staat er dus juist in) en de robot
-// krijgt enkel wat die ene mail nodig heeft (R28: nooit vrij lezen). Geen rechten hier; dit bestand rekent alleen.
+// Postbode (stap 1b.3, architectuur §6.2–§6.3): de werkwachtrij van de mails. De app maakt opdrachten (jobs) met een
+// idempotentiesleutel. Sinds mail-caffeine (E-11) verstuurt de APP ze zelf via de maildienst van Caffeine (lib/Mail.mo);
+// de gateway krijgt geen mailopdrachten meer. De inhoud van een mail wordt pas bij het versturen samengesteld uit de
+// gegevens van dat moment (een verschoven taak staat er dus juist in), in de taal van de firma. Geen rechten hier; dit
+// bestand rekent alleen.
 import Array "mo:core/Array";
 import Int "mo:core/Int";
 import Iter "mo:core/Iter";
@@ -17,6 +18,7 @@ import Views "../types/views";
 import Access "Access";
 import Config "Config";
 import Dossier "Dossier";
+import MailText "MailText";
 import Ids "Ids";
 import Plan "Plan";
 import Reports "Reports";
@@ -86,13 +88,28 @@ module {
   public func reminderDay(s : Types.SettingsState) : Nat { Dossier.setting(s, "post.herinneringDag", 2) }; // woensdag
   public func appUrl(s : Types.SettingsState) : Text { switch (s.values.get("post.appUrl")) { case (?u) u; case null "" } };
   public func optedOut(s : Types.SettingsState, orgId : Nat) : Bool { s.values.get("post.uit:" # orgId.toText()) == ?"ja" };
+  // Het adres van het kantoor in de voet van elke mail (antwoorden op de mail kan niet bij Caffeine).
+  public func contact(s : Types.SettingsState) : Text { switch (s.values.get("post.contact")) { case (?c) c; case null "" } };
 
-  // Welke robotsoort mag een opdracht leasen: alle mails = "mail".
-  public func capability(kind : Text) : Text {
-    switch kind {
-      case ("weekplanning" or "herinnering-planning" or "herinnering-uren" or "proef") "mail";
-      case _ kind;
+  // De mails verstuurt de app zelf (lib/Mail.mo); geen robot mag ze leasen.
+  public func isMail(kind : Text) : Bool {
+    kind == "weekplanning" or kind == "herinnering-planning" or kind == "herinnering-uren" or kind == "proef";
+  };
+
+  // Welke robotsoort mag een opdracht leasen. Mail: "app" (die soort kan geen robot krijgen, Config.robotKinds).
+  public func capability(kind : Text) : Text { if (isMail(kind)) "app" else kind };
+
+  // De taal van de mail aan een firma: de instelling in Postbode, anders de taal van haar eerste contactpersoon met een
+  // taal, anders Nederlands. Een proefmail (geen firma) is Nederlands.
+  public func lang(c : Ctx, orgId : ?Nat) : Text {
+    let o = orgId ?? return "nl";
+    switch (c.settings.values.get("post.taal:" # o.toText())) { case (?l) return l; case null {} };
+    for (p in c.access.persons.values()) {
+      if (p.orgId == ?o and p.archivedAt == null) {
+        switch (p.lang) { case (?l) { if (MailText.langs().any(func x = x == l)) return l }; case null {} };
+      };
     };
+    "nl";
   };
 
   public func isOpen(st : Types.JobState) : Bool { switch st { case (#queued or #leased _) true; case _ false } };
@@ -153,14 +170,13 @@ module {
     reports : Types.ReportState;
   };
 
-  let days = ["ma", "di", "wo", "do", "vr", "za", "zo"];
-  func dayShort(d : Day) : Text { days[Plan.weekday(d)] # " " # Text.fromIter(Plan.fmtDay(d).chars().take(5)) };
+  func dayShort(tx : MailText.T, d : Day) : Text { tx.days[Plan.weekday(d)] # " " # Text.fromIter(Plan.fmtDay(d).chars().take(5)) };
 
-  func workLine(c : Ctx, w : Types.Work) : (Text, Text) {
+  func workLine(c : Ctx, tx : MailText.T, w : Types.Work) : (Text, Text) {
     let a = w.address;
     let addr = (a.street # " " # a.number).trim(#char ' ') # (if (a.city.size() > 0) ", " # a.city else "");
     let leader = switch (w.leaderPersonId) {
-      case (?id) { switch (c.access.persons.get(id)) { case (?p) { "werfleider " # p.name # (switch (p.phone) { case (?ph) " (" # ph # ")"; case null "" }) }; case null "" } };
+      case (?id) { switch (c.access.persons.get(id)) { case (?p) { tx.leader # " " # p.name # (switch (p.phone) { case (?ph) " (" # ph # ")"; case null "" }) }; case null "" } };
       case null "";
     };
     (w.code # " · " # w.name, addr # (if (leader.size() > 0) " · " # leader else ""));
@@ -172,7 +188,7 @@ module {
   };
 
   // De taken van een firma in een periode, per werf (enkel werven die bestaan en niet geannuleerd zijn).
-  func orgWeek(c : Ctx, orgId : Nat, from : Day, to : Day, onlyOpen : Bool) : [Views.MailSection] {
+  func orgWeek(c : Ctx, tx : MailText.T, orgId : Nat, from : Day, to : Day, onlyOpen : Bool) : [Views.MailSection] {
     let byWork = Map.empty<Nat, List.List<(Day, Text)>>();
     let cals = Map.empty<Nat, Plan.Cal>();
     for (a in c.plan.assignments.values()) {
@@ -185,8 +201,8 @@ module {
               let (s, e) = Plan.assignmentDays(a, t.start, end);
               if (s <= to and e >= from) {
                 let l = switch (byWork.get(w.id)) { case (?l) l; case null { let l = List.empty<(Day, Text)>(); byWork.add(w.id, l); l } };
-                let open = if (a.confirmation == #open) " · nog te bevestigen" else switch (a.confirmation) { case (#declined _) " · jullie meldden: kan niet"; case _ "" };
-                l.add((s, dayShort(s) # (if (e != s) " – " # dayShort(e) else "") # " · " # t.title # open));
+                let open = if (a.confirmation == #open) " · " # tx.toConfirm else switch (a.confirmation) { case (#declined _) " · " # tx.declined; case _ "" };
+                l.add((s, dayShort(tx, s) # (if (e != s) " – " # dayShort(tx, e) else "") # " · " # t.title # open));
               };
             };
           };
@@ -198,7 +214,7 @@ module {
     for ((wid, l) in byWork.entries()) {
       switch (c.works.works.get(wid)) {
         case (?w) {
-          let (title, subtitle) = workLine(c, w);
+          let (title, subtitle) = workLine(c, tx, w);
           let lines = l.toArray().sort(func(a : (Day, Text), b : (Day, Text)) : Order.Order = Nat.compare(a.0, b.0)).map(func(x : (Day, Text)) : Text = x.1);
           out.add({ title; subtitle; lines });
         };
@@ -209,7 +225,7 @@ module {
   };
 
   // Niet-bevestigde uren van een firma uit afgesloten verslagen, ouder dan 2 dagen, de laatste 60 dagen.
-  func openHours(c : Ctx, orgId : Nat, today : Day) : [Views.MailSection] {
+  func openHours(c : Ctx, tx : MailText.T, orgId : Nat, today : Day) : [Views.MailSection] {
     let byWork = Map.empty<Nat, List.List<Text>>();
     let ctx = { works = c.works; settings = c.settings };
     for (a in c.reports.attendances.values()) {
@@ -220,7 +236,7 @@ module {
             let canConfirm = c.access.persons.values().any(func p = p.archivedAt == null and p.orgId == ?orgId and Rights.grant(ctx, p, a.workId, #confirmHours));
             if (Reports.isFinal(r) and canConfirm) {
               let l = switch (byWork.get(a.workId)) { case (?l) l; case null { let l = List.empty<Text>(); byWork.add(a.workId, l); l } };
-              l.add(dayShort(a.day) # " · " # (if (a.names.size() > 0) a.names # " · " else "") # Reports.duration(a.minutesTotal));
+              l.add(dayShort(tx, a.day) # " · " # (if (a.names.size() > 0) a.names # " · " else "") # Reports.duration(a.minutesTotal));
             };
           };
           case null {};
@@ -229,24 +245,25 @@ module {
     };
     let out = List.empty<Views.MailSection>();
     for ((wid, l) in byWork.entries()) {
-      switch (c.works.works.get(wid)) { case (?w) { let (title, subtitle) = workLine(c, w); out.add({ title; subtitle; lines = l.toArray() }) }; case null {} };
+      switch (c.works.works.get(wid)) { case (?w) { let (title, subtitle) = workLine(c, tx, w); out.add({ title; subtitle; lines = l.toArray() }) }; case null {} };
     };
     out.toArray();
   };
 
-  // De mail van een opdracht, zoals ze NU verstuurd zou worden. null = niets te versturen (geen adres, niets gepland,
-  // firma afgemeld): de opdracht wordt dan afgesloten zonder mail.
+  // De mail van een opdracht, zoals ze NU verstuurd zou worden, in de taal van de firma. #skip = niets te versturen
+  // (geen adres, niets gepland, firma afgemeld): de opdracht wordt dan afgesloten zonder mail.
   public func render(c : Ctx, j : Types.Job, today : Day) : { #mail : Views.MailOut; #skip : Text } {
+    let tx = MailText.of(lang(c, if (j.kind == "proef") null else j.orgId));
     if (j.kind == "proef") {
       let to = switch (j.extra.find(func(x : (Text, Text)) : Bool = x.0 == "aan")) { case (?(_, e)) e; case null return #skip("geen adres") };
       return #mail({
         to = [{ name = ""; email = to }];
-        subject = "BOWACO werven: proefmail van de postbode";
-        preheader = "Proef: de postbode werkt.";
-        heading = "Proefmail";
-        intro = "Deze mail komt van de postbode van de BOWACO-app (opdracht #" # j.id.toText() # "). Ze bevat geen gegevens van werven.";
+        subject = tx.testSubject;
+        preheader = tx.testPre;
+        heading = tx.testHeading;
+        intro = tx.testIntro(j.id.toText());
         sections = [];
-        outro = "Werkt dit? Dan zijn de maildienst en de DNS-instellingen in orde.";
+        outro = tx.testOutro;
         link = link(c, "");
         tag = "proef";
       });
@@ -257,48 +274,51 @@ module {
     if (to.size() == 0) { return #skip("geen e-mailadres bij de firma") };
     let name = switch (c.org.orgs.get(orgId)) { case (?o) o.name; case null "" };
     let monday = Nat.fromText(j.ref) ?? return #skip("geen week");
+    // Nooit een verouderde mail (na een lange onderbreking of een herstel): de week is voorbij of de herinnering te oud.
+    if (j.kind == "weekplanning" and monday + 5 <= today) { return #skip("de week is voorbij") };
+    if (j.kind != "weekplanning" and monday + 7 <= today) { return #skip("herinnering van een vorige week") };
     switch (j.kind) {
       case "weekplanning" {
-        let secs = orgWeek(c, orgId, monday, monday + 4, false);
+        let secs = orgWeek(c, tx, orgId, monday, monday + 4, false);
         if (secs.size() == 0) { return #skip("niets gepland in die week") };
         #mail({
           to;
-          subject = "BOWACO planning " # isoWeek(monday) # " (" # Text.fromIter(Plan.fmtDay(monday).chars().take(5)) # " – " # Plan.fmtDay(monday + 4) # ")";
-          preheader = "Jullie werven en taken bij BOWACO volgende week.";
-          heading = "Planning week " # isoWeek(monday);
-          intro = "Hallo " # name # ", dit is jullie planning bij BOWACO voor " # Plan.fmtDay(monday) # " – " # Plan.fmtDay(monday + 4) # ".";
+          subject = tx.weekSubject(isoWeek(monday), Text.fromIter(Plan.fmtDay(monday).chars().take(5)), Plan.fmtDay(monday + 4));
+          preheader = tx.weekPre;
+          heading = tx.weekHeading(isoWeek(monday));
+          intro = tx.weekIntro(name, Plan.fmtDay(monday), Plan.fmtDay(monday + 4));
           sections = secs;
-          outro = "Klopt iets niet of kan het niet doorgaan? Bevestig of meld het in de app, of bel de werfleider.";
+          outro = tx.weekOutro;
           link = link(c, "#/week");
           tag = "weekplanning";
         });
       };
       case "herinnering-planning" {
-        let secs = orgWeek(c, orgId, today, today + 14, true);
+        let secs = orgWeek(c, tx, orgId, today, today + 14, true);
         if (secs.size() == 0) { return #skip("niets meer te bevestigen") };
         #mail({
           to;
-          subject = "BOWACO: planning nog te bevestigen";
-          preheader = "Enkele taken wachten op jullie bevestiging.";
-          heading = "Nog te bevestigen";
-          intro = "Hallo " # name # ", deze taken in de komende twee weken wachten nog op jullie bevestiging.";
+          subject = tx.remPlanSubject;
+          preheader = tx.remPlanPre;
+          heading = tx.remPlanHeading;
+          intro = tx.remPlanIntro(name);
           sections = secs;
-          outro = "Bevestigen of \"kan niet\" melden gaat in de app, onder Mijn week.";
+          outro = tx.remPlanOutro;
           link = link(c, "#/week");
           tag = "herinnering";
         });
       };
       case "herinnering-uren" {
-        let secs = openHours(c, orgId, today);
+        let secs = openHours(c, tx, orgId, today);
         if (secs.size() == 0) { return #skip("geen uren meer te bevestigen") };
         #mail({
           to;
-          subject = "BOWACO: uren nog te bevestigen";
-          preheader = "Uren uit de werfverslagen wachten op jullie bevestiging.";
-          heading = "Uren nog te bevestigen";
-          intro = "Hallo " # name # ", deze uren uit de werfverslagen wachten nog op jullie bevestiging.";
+          subject = tx.remHoursSubject;
+          preheader = tx.remHoursPre;
+          heading = tx.remHoursHeading;
+          intro = tx.remHoursIntro(name);
           sections = secs;
-          outro = "Bevestigen of betwisten gaat in de app, onder Mijn uren.";
+          outro = tx.remHoursOutro;
           link = link(c, "#/uren");
           tag = "herinnering";
         });
@@ -384,7 +404,7 @@ module {
     n;
   };
 
-  // Timer (main.mo, elke 10 min): verlopen leases terug, en op het ingestelde moment de weekmails (planning van
+  // Timer (main.mo, elke 10 min): verlopen leases terug (een lease van de app zelf: "onzeker"), en op het ingestelde moment de weekmails (planning van
   // VOLGENDE week) en de herinneringen (één keer per week). Begrensd: enkel de open opdrachten.
   public func tick(c : Ctx, ps : Types.PostState, audit : Types.AuditState, ctr : Types.Counters) {
     let now = Time.now();
@@ -395,7 +415,12 @@ module {
         case (?j) {
           switch (j.state) {
             case (#leased le) {
-              if (le.until < now) {
+              if (le.until < now and le.by == Principal.fromText(Config.appSender)) {
+                // De app gaf de mail aan de maildienst en kreeg binnen het uur geen antwoord (bv. een val na het
+                // versturen): misschien is ze weg. Nooit vanzelf opnieuw (geen dubbele mail); de admin kijkt na.
+                setState(ps, j, #failed({ at = now; why = "onzeker: geen antwoord van de maildienst; misschien verstuurd" }), j.attempts, j.notBefore);
+                Access.notifyAdmins(c.access, audit, ctr, "postbode", "Mail misschien verstuurd (" # j.kind # ", opdracht #" # id.toText() # "): de maildienst antwoordde niet. Kijk na voor je ze opnieuw zet.");
+              } else if (le.until < now) {
                 if (j.attempts >= Config.jobMaxAttempts) {
                   setState(ps, j, #failed({ at = now; why = "lease verlopen na " # j.attempts.toText() # " pogingen" }), j.attempts, j.notBefore);
                   Access.notifyAdmins(c.access, audit, ctr, "postbode", "Mail mislukt (" # j.kind # ", opdracht #" # id.toText() # "): de gateway bevestigde niet");

@@ -55,7 +55,7 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "withholdingChecks", "declarations"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations"];
   const partOpt = async (k) => { try { return await part(k); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
@@ -173,6 +173,7 @@ async function restoreAll(cid, dir) {
   await send("permitChanges", intern.permitChanges ?? [], 300);
   await send("permitAlerts", intern.permitAlerts ?? [], 500);
   await send("jobs", intern.jobs ?? [], 300);
+  await send("mailLog", intern.mailLog ?? [], 500);
   await send("withholdingChecks", intern.withholdingChecks ?? [], 300);
   await send("declarations", intern.declarations ?? [], 300);
   await send("audit", audit, 500);
@@ -250,7 +251,13 @@ function normalize(intern, vertrouwelijk, audit) {
     // 1b.3: een geleasete opdracht komt na een herstel terug in de wachtrij (de lease hoort bij de oude canister).
     withholdingChecks: byKey(intern.withholdingChecks ?? [], id),
     declarations: byKey(intern.declarations ?? [], (x) => x.workId),
-    jobs: byKey(intern.jobs ?? [], id).map((j) => ("leased" in j.state ? { ...j, state: { queued: null } } : j)),
+    // mail-caffeine: een mail die "bij de maildienst" stond (lease van de app, aaaaa-aa) komt terug als onzeker.
+    jobs: byKey(intern.jobs ?? [], id).map((j) => {
+      const app = "leased" in j.state && j.state.leased.by.toText() === "aaaaa-aa";
+      const onz = "failed" in j.state && j.state.failed.why.startsWith("onzeker: stond bij de maildienst tijdens de export");
+      return app || onz ? { ...j, state: { onzeker: null } } : "leased" in j.state ? { ...j, state: { queued: null } } : j;
+    }),
+    mailLog: byKey(intern.mailLog ?? [], id),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),

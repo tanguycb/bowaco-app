@@ -1000,6 +1000,38 @@ module {
     seen : Map.Map<Principal, Int>; // laatste lease per robot ("laatst gezien")
   };
 
+  // ── Mail via de maildienst van Caffeine (stap mail-caffeine, E-11) ────────
+  // Eigen domein `mail` (nieuw stabiel veld, deelvorm, OldActor = {}): het logboek van elke verstuurpoging. Nooit een
+  // e-mailadres of de inhoud van de mail: enkel de opdracht, de soort, de firma, het aantal adressen, de uitkomst en wat
+  // de maildienst aanrekende. Records onveranderlijk (append-only).
+  public type MailOutcome = {
+    #sent; // de maildienst aanvaardde de mail
+    #dryRun; // testmodus zonder testadres: niets verstuurd
+    #failed : Text; // geweigerd of niet bereikt (opnieuw met wachttijd, of definitief na 5 pogingen)
+    #unsure : Text; // geen antwoord binnen de tijd: misschien verstuurd, nooit vanzelf opnieuw
+  };
+
+  // klasse: technisch (geen persoonsgegevens behalve de firma-id)
+  public type MailLog = {
+    id : Nat;
+    jobId : Nat;
+    key : Text; // idempotentiesleutel van de opdracht ("weekplanning:org42:2026-W45")
+    kind : Text;
+    orgId : ?OrgId;
+    attempt : Nat;
+    at : Int;
+    recipients : Nat; // aantal adressen waarvoor de mail bedoeld was
+    test : Bool; // testmodus: omgeleid naar het testadres (of droog)
+    lang : Text; // "nl" · "fr" · "en"
+    outcome : MailOutcome;
+    cycles : Nat; // aangerekend door de maildienst (cycles_charged)
+    extra : Extra;
+  };
+
+  public type MailState = {
+    log : Map.Map<Nat, MailLog>;
+  };
+
   // ── Werfadministratie (stap 1b.4, bouwplan §5.4) ─────────────────────────
   // Eigen domein `wadm` (nieuw stabiel veld, deelvorm, OldActor = {}): de raadplegingen van de inhoudingsplicht per OA
   // (append-only historiek) en per werf de aangifte van werken (30bis). Het bedrag van de werf blijft in het contract

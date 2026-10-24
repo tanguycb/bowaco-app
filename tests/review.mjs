@@ -215,6 +215,46 @@ else {
   check(`(C5) draft: versielabel noemt draft ${n}`, me.version.includes(`-draft${n} `), me.version);
 }
 
+// ── (D1–D6) mail-caffeine: de app verstuurt zelf via de maildienst van Caffeine ──
+{
+  const ps = await admin.postSettings();
+  const draftCid = cid === "w5pbr-raaaa-aaaal-qs3aq-cai";
+  check("(D1) de testmodus staat aan; de canister weet of hij de draft is", ps.testMode && ps.draft === draftCid, JSON.stringify({ testMode: ps.testMode, draft: ps.draft }));
+  if (ps.draft) {
+    check("(D1) op de draft kan de testmodus NIET uit (ook niet door de beheerder)", errOf(await admin.setMailTest(false, "")).includes("Op de draft blijft de testmodus aan") && (await admin.postSettings()).testMode);
+  } else {
+    check("(D1) buiten de draft: testmodus uit met een testadres geweigerd (adres hoort bij de testmodus)", "err" in (await admin.setMailTest(false, "x@proef.invalid")));
+  }
+  const ext = [["werfleider", wl], ["calculator", calc], ["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["robot", robot]];
+  for (const [who, x] of ext) {
+    const all = await Promise.all([denied(x.setMailTest(true, "")), denied(x.setPostSettings({ weekmail: true, reminders: true, day: 4n, hour: 14n, reminderDay: 2n, appUrl: "", contact: [] })), denied(x.mailPreview("proef", [], 0n)), denied(x.previewMail("proef", [], 0n)), denied(x.sendMailNow()), denied(x.listMailLog(0n, 1n)), denied(x.setOrgMail(orgDak.id, true)), denied(x.setOrgMailLang(orgDak.id, "fr")), denied(x.queueTestMail("x@proef.invalid"))]);
+    check(`(D2) ${who}: postbode aan/uit, testmodus, voorbeeld, versturen, logboek, taal: geweigerd`, all.every(Boolean), JSON.stringify(all));
+  }
+  check("(D2) anoniem: testmodus en versturen geweigerd", (await denied((await backend(null, cid)).setMailTest(false, ""))) && (await denied((await backend(null, cid)).sendMailNow())));
+  check("(D3) robot met de soort 'mail' kan niet meer bestaan; de robot leaset geen mail", errOf(await admin.addRobot(identity("robot-review-mail").getPrincipal(), "Mail?", ["mail"])).includes("Onbekende soort") && (await robot.leaseJobs(10n)).every((j) => !["weekplanning", "herinnering-planning", "herinnering-uren", "proef"].includes(j.kind)));
+  // (D4) Geen mail naar een afgemelde firma (voorbeeld zegt het; klaarzetten = 0)
+  const nextMon = (() => { const d = today; return d + BigInt(7 - ((Number(d) + 3) % 7)); })();
+  const optedBefore = ps.optedOut.some((o) => o === orgDak.id);
+  await admin.setOrgMail(orgDak.id, false);
+  const pvOff = await admin.mailPreview("weekplanning", [orgDak.id], nextMon);
+  const qOff = await admin.queueWeekMails(nextMon + 70n, [orgDak.id]);
+  check("(D4) afgemelde firma: voorbeeld 'ontvangt geen mails', klaarzetten 0", (errOf(pvOff).includes("geen mails") || errOf(pvOff).includes("geen e-mailadres") || errOf(pvOff).includes("niets gepland")) && isOk(qOff) && qOff.ok === 0n, errOf(pvOff));
+  if (!optedBefore) await admin.setOrgMail(orgDak.id, true);
+  // (D5) Geen adressen in het logboek en de auditlog
+  const log = await admin.listMailLog(0n, 500n);
+  check("(D5) logboek zonder e-mailadres (n = " + log.length + ")", !JSON.stringify(log, big).includes("@"));
+  check("(D5) auditlog: post-*/postbode-* zonder e-mailadres", (await admin.auditLog(0n, 500n)).filter((e) => e.action.startsWith("post")).every((e) => !e.detail.includes("@")));
+  // (D6) Echte firma's (alles wat niet "Proef …" heet, o.a. de 13 met KBO van E-0): op de draft kan geen mail naar hen
+  // vertrekken. Elk voorbeeld is "geen mail" of gaat in de testmodus enkel naar het testadres.
+  const real = (await admin.listOas({ text: [], trade: [], kind: [], includeArchived: false })).filter((o) => o.org.kind && "subcontractor" in o.org.kind && !o.org.name.startsWith("Proef"));
+  let toReal = 0;
+  for (const o of real) {
+    const r = await admin.mailPreview("weekplanning", [o.org.id], nextMon);
+    if (isOk(r) && !r.ok.deliver.startsWith("testmodus")) toReal++;
+  }
+  check(`(D6) ${real.length} echte/geanonimiseerde firma's: geen enkele mail naar hun eigen adres (testmodus of geen mail)`, toReal === 0, String(toReal));
+}
+
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──
 if (local && !process.env.ZONDER_KLOK) {
   const before = (await admin.accessStats()).attemptsTracked;

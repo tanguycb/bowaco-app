@@ -41,6 +41,7 @@ mixin (
   reports : Types.ReportState,
   permits : Types.PermitState,
   post : Types.PostState,
+  mail : Types.MailState,
   wadm : Types.WadmState,
   robot : Types.RobotState,
   audit : Types.AuditState,
@@ -100,7 +101,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -234,6 +235,7 @@ mixin (
       case (#procedures xs) { for (x in xs.values()) { permits.procedures.add(x.municipalityId.toText() # ":" # x.kind, x) }; xs.size() };
       case (#permitAlerts xs) { for ((k, v) in xs.values()) { permits.alerts.add(k, v) }; xs.size() };
       case (#jobs xs) { for (j in xs.values()) { post.jobs.add(j.id, j) }; xs.size() };
+      case (#mailLog xs) { for (l in xs.values()) { mail.log.add(l.id, l) }; xs.size() };
       case (#withholdingChecks xs) { for (c in xs.values()) { wadm.checks.add(c.id, c) }; xs.size() };
       case (#declarations xs) { for (d in xs.values()) { wadm.declarations.add(d.workId, d) }; xs.size() };
     };
@@ -330,15 +332,23 @@ mixin (
     rsAtLeast("permitChange", rsMaxKey(permits.changes));
     rsAtLeast("municipality", rsMaxKey(permits.municipalities));
     // 1b.3: index van de sleutels en van de open opdrachten herrekenen; een geleasete opdracht komt terug in de wachtrij.
+    // mail-caffeine: een mail die bij de export "bij de maildienst" stond, is misschien weg: onzeker, nooit vanzelf opnieuw.
+    let app = Principal.fromText(Config.appSender);
     for (j in post.jobs.values()) {
       post.keys.add(j.key, j.id);
       switch (j.state) {
         case (#queued) post.open.add(j.id, ());
-        case (#leased _) { post.jobs.add(j.id, { j with state = #queued }); post.open.add(j.id, ()) };
+        case (#leased l) {
+          if (l.by == app) { post.jobs.add(j.id, { j with state = #failed({ at = Time.now(); why = "onzeker: stond bij de maildienst tijdens de export" }) }) } else {
+            post.jobs.add(j.id, { j with state = #queued });
+            post.open.add(j.id, ());
+          };
+        };
         case _ {};
       };
     };
     rsAtLeast("job", rsMaxKey(post.jobs));
+    rsAtLeast("mail", rsMaxKey(mail.log));
     rsAtLeast("withholdingCheck", rsMaxKey(wadm.checks));
   };
 

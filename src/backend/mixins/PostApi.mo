@@ -1,9 +1,9 @@
-// Postbode (stap 1b.3, architectuur §6.2–§6.3, R28): werkwachtrij met lease en idempotentiesleutel.
+// Postbode (stap 1b.3, architectuur §6.2–§6.3, R28): werkwachtrij met idempotentiesleutel.
 // - De app (timer of admin) maakt opdrachten: weekplanning per OA, herinneringen (planning, uren), een proefmail.
-// - De gateway (een robotprincipal met de soort "mail") leaset ze (10 min), krijgt per opdracht ENKEL de mail die
-//   ze moet versturen (samengesteld op dat moment), verstuurt met de idempotentiesleutel, en meldt done/fail.
-// - Een verlopen lease valt terug in de wachtrij; na 5 mislukte pogingen: mislukt + melding aan de admins.
-// De robot leest niets anders: geen vrije query's op personen, werven of planning (R28). Alles staat in de auditlog.
+// - Sinds mail-caffeine (E-11) verstuurt de APP de mails zelf via de maildienst van Caffeine (lib/Mail.mo: eigen
+//   klokjob, één ronde tegelijk, testmodus, logboek). Geen robot krijgt nog een mailopdracht (soort "app").
+// - De robotfuncties (leaseJobs, completeJob, failJob) blijven voor latere robotsoorten (fase 3); vandaag leaset een
+//   robot niets. Alles staat in de auditlog, nooit een e-mailadres.
 import Array "mo:core/Array";
 import Int "mo:core/Int";
 import Iter "mo:core/Iter";
@@ -19,6 +19,8 @@ import Views "../types/views";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Dossier "../lib/Dossier";
+import Mail "../lib/Mail";
+import MailText "../lib/MailText";
 import Oa "../lib/Oa";
 import Plan "../lib/Plan";
 import Post "../lib/Post";
@@ -34,8 +36,11 @@ mixin (
   reports : Types.ReportState,
   robot : Types.RobotState,
   post : Types.PostState,
+  mail : Types.MailState,
   audit : Types.AuditState,
   ctr : Types.Counters,
+  mailLock : Mail.Lock, // transient: één verstuurronde tegelijk (ook de klokjob in main.mo)
+  isDraft : () -> Bool, // de draftcanister: testmodus altijd aan
 ) {
 
   func pbCtx() : Post.Ctx { { settings; access; org; oa; works; plan; reports } };
@@ -131,6 +136,10 @@ mixin (
   };
 
   func pbSettingsView() : Views.PostSettingsView {
+    let draft = isDraft();
+    var sent = 0;
+    var cyclesSent = 0;
+    for (l in mail.log.values()) { switch (l.outcome) { case (#sent) { sent += 1; cyclesSent += l.cycles }; case _ {} } };
     var queued = 0;
     var leased = 0;
     for (id in post.open.keys()) { switch (post.jobs.get(id)) { case (?j) { switch (j.state) { case (#queued) queued += 1; case (#leased _) leased += 1; case _ {} } }; case null {} } };
@@ -149,6 +158,14 @@ mixin (
       leased;
       failed;
       lastWeek = Dossier.setting(settings, "post.laatsteWeek", 0);
+      testMode = Mail.testMode(settings, draft);
+      testAddress = switch (Mail.testAddress(settings)) { case (?a) a; case null "" };
+      draft;
+      contact = Post.contact(settings);
+      langs = settings.values.entries().filter(func((k, _) : (Text, Text)) : Bool = k.startsWith(#text "post.taal:")).filterMap(func((k, v) : (Text, Text)) : ?(Nat, Text) = switch (Nat.fromText(Text.fromIter(k.chars().drop(10)))) { case (?o) ?(o, v); case null null }).toArray();
+      sending = Mail.busy(mailLock);
+      sent;
+      cyclesSent;
     };
   };
 
@@ -156,13 +173,21 @@ mixin (
     let p = pbAdmin(caller);
     if (x.day > 6 or x.reminderDay > 6 or x.hour > 23) { return #err("Dag 0–6 (maandag = 0), uur 0–23") };
     let url = x.appUrl.trim(#char ' ');
-    if (url.size() > Config.maxUrl or (url.size() > 0 and not url.startsWith(#text "https://"))) { return #err("Adres van de app: https://… (hoogstens 300 tekens)") };
+    if (url.size() > Config.maxUrl or (url.size() > 0 and Mail.safeLink(?url) == null)) { return #err("Adres van de app: https://… (hoogstens 300 tekens)") };
+    switch (x.contact) { case (?c) { switch (Oa.normEmail(?c)) { case (#err e) return #err("Adres van het kantoor: " # e); case _ {} } }; case null {} };
     settings.values.add("post.weekmail", if (x.weekmail) "aan" else "uit");
     settings.values.add("post.herinneringen", if (x.reminders) "aan" else "uit");
     settings.values.add("post.dag", x.day.toText());
     settings.values.add("post.uur", x.hour.toText());
     settings.values.add("post.herinneringDag", x.reminderDay.toText());
     settings.values.add("post.appUrl", url);
+    switch (x.contact) {
+      case (?c) {
+        let e = switch (Oa.normEmail(?c)) { case (#ok (?e)) e; case (#ok null) ""; case (#err e) return #err("Adres van het kantoor: " # e) };
+        settings.values.add("post.contact", e);
+      };
+      case null {};
+    };
     Access.audit(audit, caller, ?p.id, null, "postbode-instellingen", "weekmail " # (if (x.weekmail) "aan" else "uit") # ", herinneringen " # (if (x.reminders) "aan" else "uit") # ", dag " # x.day.toText() # " " # x.hour.toText() # " u");
     #ok(pbSettingsView());
   };
@@ -196,6 +221,73 @@ mixin (
     switch (Post.render(pbCtx(), j, Post.local(now).day)) { case (#mail m) #ok(m); case (#skip why) #err("Geen mail: " # why) };
   };
 
+  // Hetzelfde voorbeeld, nu met de HTML zoals ze vertrekt, de taal, en waar ze heen zou gaan (testmodus, droog).
+  public query ({ caller }) func mailPreview(kind : Text, orgId : ?Nat, monday : Nat) : async Result.Result<Views.MailPreview, Text> {
+    ignore pbAdmin(caller);
+    let now = Time.now();
+    let j : Types.Job = { id = 0; kind; key = ""; orgId; personId = null; workId = null; ref = monday.toText(); notBefore = now; attempts = 0; state = #queued; createdAt = now; createdBy = null; updatedAt = now; extra = [("aan", "voorbeeld@bowaco.invalid")] };
+    let c = pbCtx();
+    switch (Post.render(c, j, Post.local(now).day)) {
+      case (#skip why) #err("Geen mail: " # why);
+      case (#mail m) {
+        let lang = Post.lang(c, if (kind == "proef") null else orgId);
+        let n = m.to.size();
+        let draft = isDraft();
+        let (note, deliver) = switch (Mail.deliver(settings, draft, m)) {
+          case (#dry) (?MailText.of(lang).testNote(if (kind == "proef") "jezelf (proefmail)" else pbOrgName(orgId), n), "testmodus zonder testadres: niets verstuurd (enkel het logboek)");
+          case (#send x) { if (x.test) (?MailText.of(lang).testNote(if (kind == "proef") "jezelf (proefmail)" else pbOrgName(orgId), n), "testmodus: enkel naar het testadres") else (null, "naar " # n.toText() # (if (n == 1) " adres" else " adressen") # " van de firma") };
+        };
+        #ok({ mail = m; html = Mail.html(m, lang, note, Post.contact(settings)); lang; deliver });
+      };
+    };
+  };
+
+  func pbOrgName(orgId : ?Nat) : Text {
+    switch orgId { case (?o) { switch (org.orgs.get(o)) { case (?x) x.name; case null "" } }; case null "" };
+  };
+
+  // Testmodus (enkel de beheerder): alle mail naar één testadres; zonder testadres droog (niets verstuurd). Op de draft
+  // kan ze niet uit. Het adres komt nooit in de auditlog.
+  public shared ({ caller }) func setMailTest(on : Bool, address : Text) : async Result.Result<Views.PostSettingsView, Text> {
+    let p = pbAdmin(caller);
+    if (not on and isDraft()) { return #err("Op de draft blijft de testmodus aan: vanaf de draft gaat nooit een mail naar een echte firma") };
+    let a = switch (Oa.normEmail(?address)) { case (#ok (?e)) e; case (#ok null) ""; case (#err e) return #err(e) };
+    if (not on and a.size() > 0) { return #err("Zonder testmodus geen testadres: laat het leeg") };
+    settings.values.add("post.testmodus", if on "aan" else "uit");
+    settings.values.add("post.testadres", a);
+    Access.audit(audit, caller, ?p.id, null, "postbode-testmodus", if (not on) "uit: echte mails naar de firma's" else if (a.size() > 0) "aan, met testadres" else "aan, droog (zonder testadres)");
+    #ok(pbSettingsView());
+  };
+
+  // Taal van de mails aan een firma ("" = automatisch: de taal van de contactpersoon, anders Nederlands).
+  public shared ({ caller }) func setOrgMailLang(orgId : Nat, lang : Text) : async Result.Result<(), Text> {
+    let p = pbAdmin(caller);
+    if (not org.orgs.containsKey(orgId)) { return #err("Onbekende firma") };
+    if (lang == "") { settings.values.remove("post.taal:" # orgId.toText()) } else {
+      if (not MailText.langs().any(func l = l == lang)) { return #err("Taal: nl, fr of en") };
+      settings.values.add("post.taal:" # orgId.toText(), lang);
+    };
+    Access.audit(audit, caller, ?p.id, null, "postbode-taal", "firma " # orgId.toText() # ": " # (if (lang == "") "automatisch" else lang));
+    #ok;
+  };
+
+  // De wachtrij nu versturen (zoals de klok elke 5 min doet), begrensd. Een ronde die al loopt: "bezig".
+  public shared ({ caller }) func sendMailNow() : async Result.Result<Views.MailRound, Text> {
+    let p = pbAdmin(caller);
+    Access.audit(audit, caller, ?p.id, null, "postbode-nu-versturen", "");
+    switch (await* Mail.drain<system>({ c = pbCtx(); ps = post; ms = mail; audit; ctr; lock = mailLock; draft = isDraft() }, Config.mailPerRoundNow, ?caller)) {
+      case (#busy) #ok({ busy = true; sent = 0; dry = 0; skipped = 0; failed = 0 });
+      case (#done r) #ok({ r with busy = false });
+    };
+  };
+
+  // Het logboek: per verstuurpoging de soort, de firma, het aantal adressen, de uitkomst en de cycles. Nooit een adres.
+  public query ({ caller }) func listMailLog(from : Nat, limit : Nat) : async [Views.MailLogView] {
+    ignore pbAdmin(caller);
+    let xs = mail.log.reverseEntries().take(2_000).map(func((_, l) : (Nat, Types.MailLog)) : Views.MailLogView = Mail.logView(org, l)).toArray();
+    Access.page(xs, from, limit);
+  };
+
   // De weekmails voor een week nu klaarzetten (zoals de timer op vrijdag doet), voor alle firma's of voor één firma.
   // Idempotent: een tweede keer = 0 nieuw.
   public shared ({ caller }) func queueWeekMails(monday : Nat, orgId : ?Nat) : async Result.Result<Nat, Text> {
@@ -215,7 +307,7 @@ mixin (
     #ok(n);
   };
 
-  // Een proefmail naar één adres (de eigenaar zelf, na het instellen van de maildienst en de DNS).
+  // Een proefmail naar één adres (de eigenaar zelf). In de testmodus gaat ze, zoals alle mail, naar het testadres.
   public shared ({ caller }) func queueTestMail(email : Text) : async Result.Result<Nat, Text> {
     let p = pbAdmin(caller);
     let e = switch (Oa.normEmail(?email)) { case (#ok (?e)) e; case (#ok null) return #err("Geef een e-mailadres"); case (#err e) return #err(e) };

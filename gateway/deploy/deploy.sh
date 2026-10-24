@@ -1,11 +1,12 @@
 #!/bin/zsh
-# Deploy van de BOWACO-postbode naar de EU-server van de eigenaar (stap 1b.3). Draai dit op je EIGEN Mac, in de repo:
+# Deploy van de BOWACO-gateway naar de EU-server van de eigenaar (stap 1b.3; PAS NODIG IN FASE 3 — de mail gaat sinds
+# 24-10 via de maildienst van Caffeine, zie docs/postbode-installatie.md). Draai dit op je EIGEN Mac, in de repo:
 #   zsh gateway/deploy/deploy.sh eerste-keer <ssh-host> <domein>   # éénmalig: gebruiker, mappen, Node, Caddy, firewall, sleutel
 #   zsh gateway/deploy/deploy.sh update <ssh-host>                  # nieuwe code + herstart + gezondheidscontrole
 #   zsh gateway/deploy/deploy.sh status <ssh-host>                  # dienst, laatste logregels, /health
 # <ssh-host> = wat je in `ssh <ssh-host>` typt (bv. root@1.2.3.4 of een naam uit ~/.ssh/config).
-# Het script kopieert ENKEL de code (geen geheimen) en vraagt nooit een sleutel: de API-sleutel van de maildienst
-# zet je zelf op de server in /etc/bowaco-postbode/postbode.env (zie docs/postbode-installatie.md).
+# Het script kopieert ENKEL de code (geen geheimen) en vraagt nooit een sleutel: sleutels (fase 3) zet je zelf op de
+# server in /etc/bowaco-postbode/postbode.env.
 set -euo pipefail
 cmd=${1:-}
 host=${2:-}
@@ -22,7 +23,7 @@ copy_code() {
   echo "→ code kopiëren naar /opt/bowaco-postbode (zonder node_modules, geheimen of logboeken)"
   remote "mkdir -p /opt/bowaco-postbode"
   rsync -az --delete \
-    --exclude node_modules --exclude '*.env' --exclude 'robot*.json' --exclude 'journaal*.jsonl' --exclude mails --exclude test \
+    --exclude node_modules --exclude '*.env' --exclude 'robot*.json' --exclude test \
     "$here/package.json" "$here/package-lock.json" "$here/src" "$here/deploy" "$host:/opt/bowaco-postbode/"
   remote "cd /opt/bowaco-postbode && /opt/node/bin/npm ci --omit=dev --no-audit --no-fund >/dev/null && chown -R root:root /opt/bowaco-postbode && chmod -R go-w /opt/bowaco-postbode"
 }
@@ -54,8 +55,8 @@ case "$cmd" in
     cat <<EOF
 
 Klaar met de eerste installatie. Nog te doen (docs/postbode-installatie.md, stap 5–7):
-  1. Op de server: sudo nano /etc/bowaco-postbode/postbode.env  → BREVO_API_KEY en MAIL_FROM invullen (BREVO_SANDBOX=1 laten)
-  2. In de app (admin): Instellingen → Postbode → robot toevoegen met de principal hierboven, soort "mail"
+  1. Op de server: sudo nano /etc/bowaco-postbode/postbode.env  → BOWACO_CANISTER nakijken (geen mail: die gaat via de app)
+  2. In de app (admin): Postbode → robot toevoegen met de principal hierboven, soort "proef" (fase 3: de AI-soorten)
   3. zsh gateway/deploy/deploy.sh update $host
 EOF
     ;;

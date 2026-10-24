@@ -51,3 +51,21 @@ export async function resync(...actors) {
   for (const a of actors) await Actor.agentOf(a).syncTime();
 }
 export { Principal } from "@icp-sdk/core/principal";
+
+// mail-caffeine: de nep-maildienst van het EIGEN lokale net (tests/net/nepmail.mo). Enkel lokaal; NEPMAIL = canister-id
+// (tests/lokaal.sh zet het). Op een draft is er geen nep-maildienst: daar gaat de mail naar Caffeine (testmodus).
+export async function nepmail(canisterId) {
+  const host = process.env.ICP_HOST || "";
+  if (!host.includes("localhost") && !host.includes("127.0.0.1")) throw new Error("nep-maildienst enkel lokaal");
+  const agent = await HttpAgent.create({ host, shouldFetchRootKey: true });
+  const idl = ({ IDL }) => {
+    const Mail = IDL.Record({ to: IDL.Text, subject: IDL.Text, size: IDL.Nat, sub: IDL.Text, from: IDL.Text, html: IDL.Text });
+    return IDL.Service({
+      zet: IDL.Func([IDL.Text, IDL.Nat, IDL.Nat], [], []),
+      mails: IDL.Func([IDL.Nat], [IDL.Vec(Mail)], ["query"]),
+      aantal: IDL.Func([], [IDL.Nat], ["query"]),
+      onderweg: IDL.Func([], [IDL.Nat], ["query"]),
+    });
+  };
+  return Actor.createActor(idl, { agent, canisterId });
+}

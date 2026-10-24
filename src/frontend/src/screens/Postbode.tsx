@@ -1,10 +1,11 @@
-// Postbode (stap 1b.3): de beheerder zet de weekmail en de herinneringen aan, bekijkt een mail vooraf (zonder te
-// versturen), zet een proefmail klaar, volgt de wachtrij (open, mislukt, klaar) en beheert de robots (de gateway).
-// De mails zelf verstuurt de gateway (docs/postbode-installatie.md); de app verstuurt nooit zelf.
+// Postbode (stap 1b.3, sinds mail-caffeine): de app verstuurt de mails zelf via de maildienst van Caffeine. De
+// beheerder zet de testmodus (alle mail naar één testadres, of droog), de weekmail en de herinneringen, bekijkt een mail
+// vooraf zoals ze vertrekt, zet een proefmail klaar en verstuurt meteen, volgt de wachtrij en het logboek (zonder
+// adressen), en kiest per firma aan/uit en de taal. Robots (de gateway) blijven voor fase 3; ze krijgen geen mail meer.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Principal } from "@icp-sdk/core/principal";
-import type { JobView, MailOut } from "../backend";
+import type { JobView, MailLogView, MailPreview } from "../backend";
 import { Button, Choice, Confirm, Icon, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtTime, inputToDay, todayDay, unwrap, useBackend } from "../util";
@@ -13,21 +14,30 @@ import { Field } from "./Werven";
 
 const S = t.postbode;
 const DAYS = ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"];
-/** Laatste lease van een robot (de meest recente), als tijd. */
-function lastSeen(xs: (bigint | undefined)[]): string {
-  const v = xs.filter((x): x is bigint => x !== undefined).sort((a, b) => (a < b ? 1 : -1))[0];
-  return v === undefined ? "–" : fmtTime(v);
-}
 const nextMonday = () => { const d = todayDay(); const wd = (Number(d) + 3) % 7; return d + BigInt(7 - wd); };
+const fmtCycles = (n: bigint) => (n >= 1_000_000_000n ? `${(Number(n) / 1e9).toLocaleString("nl-BE", { maximumFractionDigits: 2 })} miljard` : `${(Number(n) / 1e6).toLocaleString("nl-BE", { maximumFractionDigits: 1 })} miljoen`);
 
 function stateText(j: JobView): { text: string; tone: string } {
   const s = j.state;
   switch (s.__kind__) {
     case "queued": return { text: S.states.queued, tone: "a-tag--accent" };
     case "leased": return { text: S.states.leased, tone: "a-tag--accent" };
-    case "done": return { text: s.done.result.startsWith("overgeslagen") ? s.done.result : S.states.done, tone: s.done.result.startsWith("overgeslagen") ? "" : "a-tag--ok" };
-    case "failed": return { text: `${S.states.failed}: ${s.failed.why}`, tone: "a-tag--bad" };
+    case "done": {
+      const skip = s.done.result.startsWith("overgeslagen") || s.done.result.startsWith("droog");
+      return { text: skip ? s.done.result : s.done.result.startsWith("verstuurd") ? s.done.result : S.states.done, tone: skip ? "" : "a-tag--ok" };
+    }
+    case "failed": return { text: `${s.failed.why.startsWith("onzeker") ? S.states.unsure : S.states.failed}: ${s.failed.why}`, tone: "a-tag--bad" };
     case "cancelled": return { text: S.states.cancelled, tone: "" };
+  }
+}
+
+function outcomeText(l: MailLogView): { text: string; tone: string } {
+  const o = l.outcome;
+  switch (o.__kind__) {
+    case "sent": return { text: l.test ? S.log.sentTest : S.log.sent, tone: "a-tag--ok" };
+    case "dryRun": return { text: S.log.dry, tone: "" };
+    case "failed": return { text: `${S.log.failed}: ${o.failed}`, tone: "a-tag--bad" };
+    case "unsure": return { text: `${S.log.unsure}: ${o.unsure}`, tone: "a-tag--bad" };
   }
 }
 
@@ -39,6 +49,7 @@ export function PostbodePage() {
   const st = useQuery({ queryKey: ["postSettings"], queryFn: () => actor!.postSettings(), enabled: on, refetchInterval: 30_000 });
   const [filter, setFilter] = useState("open");
   const jobs = useQuery({ queryKey: ["jobs", filter], queryFn: () => actor!.listJobs(filter, 0n, 100n), enabled: on, refetchInterval: 30_000 });
+  const log = useQuery({ queryKey: ["mailLog"], queryFn: () => actor!.listMailLog(0n, 50n), enabled: on, refetchInterval: 30_000 });
   const oas = useQuery({ queryKey: ["oas-post"], queryFn: () => actor!.listOas({ text: undefined, trade: undefined, kind: undefined, includeArchived: false }), enabled: on });
   const [weekmail, setWeekmail] = useState(false);
   const [reminders, setReminders] = useState(false);
@@ -46,23 +57,38 @@ export function PostbodePage() {
   const [hour, setHour] = useState("14");
   const [rDay, setRDay] = useState(2);
   const [url, setUrl] = useState("");
+  const [contact, setContact] = useState("");
+  const [testOn, setTestOn] = useState(true);
+  const [testAddr, setTestAddr] = useState("");
   useEffect(() => {
     if (!st.data) return;
-    setWeekmail(st.data.weekmail); setReminders(st.data.reminders); setDay(Number(st.data.day)); setHour(String(st.data.hour)); setRDay(Number(st.data.reminderDay)); setUrl(st.data.appUrl);
+    const d = st.data;
+    setWeekmail(d.weekmail); setReminders(d.reminders); setDay(Number(d.day)); setHour(String(d.hour)); setRDay(Number(d.reminderDay)); setUrl(d.appUrl); setContact(d.contact);
+    setTestOn(d.testMode); setTestAddr(d.testAddress);
   }, [st.data]);
-  const done = (text: string = t.common.saved) => { toast.show({ kind: "ok", text }); void qc.invalidateQueries({ queryKey: ["postSettings"] }); void qc.invalidateQueries({ queryKey: ["jobs"] }); };
+  const refresh = () => { for (const k of ["postSettings", "jobs", "mailLog"]) void qc.invalidateQueries({ queryKey: [k] }); };
+  const done = (text: string = t.common.saved) => { toast.show({ kind: "ok", text }); refresh(); };
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
-  const save = useMutation({ mutationFn: async () => unwrap(await actor!.setPostSettings({ weekmail, reminders, day: BigInt(day), hour: BigInt(hour || "0"), reminderDay: BigInt(rDay), appUrl: url.trim() })), onSuccess: () => done(), onError: fail });
+  const save = useMutation({ mutationFn: async () => unwrap(await actor!.setPostSettings({ weekmail, reminders, day: BigInt(day), hour: BigInt(hour || "0"), reminderDay: BigInt(rDay), appUrl: url.trim(), contact: contact.trim() })), onSuccess: () => done(), onError: fail });
+  const [confirmOff, setConfirmOff] = useState(false);
+  const saveTest = useMutation({ mutationFn: async () => unwrap(await actor!.setMailTest(testOn, testOn ? testAddr.trim() : "")), onSuccess: () => { setConfirmOff(false); done(); }, onError: fail });
   const [testTo, setTestTo] = useState("");
-  const test = useMutation({ mutationFn: async () => unwrap(await actor!.queueTestMail(testTo.trim())), onSuccess: () => { setTestTo(""); done(S.testQueued); }, onError: fail });
+  const test = useMutation({ mutationFn: async () => unwrap(await actor!.queueTestMail(testTo.trim() || (st.data?.testAddress ?? ""))), onSuccess: () => { setTestTo(""); done(S.testQueued); }, onError: fail });
+  const now = useMutation({
+    mutationFn: async () => unwrap(await actor!.sendMailNow()),
+    onSuccess: (r) => done(r.busy ? S.roundBusy : S.round(Number(r.sent), Number(r.dry), Number(r.skipped), Number(r.failed))),
+    onError: fail,
+  });
   const [preview, setPreview] = useState(false);
   const [confirmAll, setConfirmAll] = useState(false);
   const qAll = useMutation({ mutationFn: async () => unwrap(await actor!.queueWeekMails(nextMonday(), null)), onSuccess: (n) => { setConfirmAll(false); done(S.queued(Number(n))); }, onError: fail });
   const cancel = useMutation({ mutationFn: async (id: bigint) => unwrap(await actor!.cancelJob(id)), onSuccess: () => done(), onError: fail });
   const retry = useMutation({ mutationFn: async (id: bigint) => unwrap(await actor!.retryJob(id)), onSuccess: () => done(), onError: fail });
   const optOut = useMutation({ mutationFn: async ([id, v]: [bigint, boolean]) => unwrap(await actor!.setOrgMail(id, v)), onSuccess: () => done(), onError: fail });
+  const setLang = useMutation({ mutationFn: async ([id, l]: [bigint, string]) => unwrap(await actor!.setOrgMailLang(id, l)), onSuccess: () => done(), onError: fail });
   const s = st.data;
   const withMail = (oas.data ?? []).filter((o) => o.org.kind === "subcontractor");
+  const testSaved = s ? s.testMode === testOn && s.testAddress === testAddr.trim() : true;
   return (
     <Page title={S.title}>
       <p className="bw-muted">{S.lead}</p>
@@ -73,13 +99,26 @@ export function PostbodePage() {
             <div className="a-counter"><span className="a-counter__n">{String(s.queued)}</span><span className="a-counter__l">{S.states.queued}</span></div>
             <div className="a-counter"><span className="a-counter__n">{String(s.leased)}</span><span className="a-counter__l">{S.states.leased}</span></div>
             <div className={`a-counter${s.failed > 0n ? " a-counter--warn" : ""}`}><span className="a-counter__n">{String(s.failed)}</span><span className="a-counter__l">{S.states.failed}</span></div>
-            <div className="a-counter"><span className="a-counter__n a-counter__n--small">{lastSeen(s.robots.map((r) => r.lastSeen))}</span><span className="a-counter__l">{S.lastSeen}</span></div>
+            <div className="a-counter"><span className="a-counter__n">{String(s.sent)}</span><span className="a-counter__l">{S.sentCount}</span></div>
+            <div className="a-counter"><span className="a-counter__n a-counter__n--small">{s.sent > 0n ? fmtCycles(s.cyclesSent / s.sent) : "–"}</span><span className="a-counter__l">{S.cyclesPerMail}</span></div>
           </div>
-          {s.robots.length === 0 && <p className="a-note"><Icon name="alert" size={16} /> {S.noRobot}</p>}
+
+          <section className="a-section" style={{ maxWidth: 640 }}>
+            <h2 className="bw-h2">{S.testTitle}</h2>
+            <p className={`a-note${s.testMode ? "" : " a-note--bad"}`}>
+              <Icon name="alert" size={16} /> {s.testMode ? (s.testAddress ? S.testOnTo : S.testOnDry) : S.testOff}
+            </p>
+            {s.draft && <p className="bw-muted">{S.testDraft}</p>}
+            <Field label={S.testMode}><Choice label={S.testMode} value={testOn ? "aan" : "uit"} onChange={(v) => setTestOn(v === "aan" || s.draft)} options={[{ value: "aan", label: S.on }, ...(s.draft ? [] : [{ value: "uit", label: S.off }])]} /></Field>
+            {testOn && <Field label={S.testAddress}><input className="bw-input" type="email" value={testAddr} placeholder={S.testAddressPh} onChange={(e) => setTestAddr(e.target.value)} /></Field>}
+            <p className="bw-muted">{S.testHelp}</p>
+            <div><Button variant="primary" disabled={testSaved} busy={saveTest.isPending} onClick={() => (testOn ? saveTest.mutate() : setConfirmOff(true))}>{t.common.save}</Button></div>
+          </section>
 
           <section className="a-section" style={{ maxWidth: 640 }}>
             <h2 className="bw-h2">{S.settings}</h2>
             <Field label={S.appUrl}><input className="bw-input" value={url} placeholder="https://app.bowaco.eu" onChange={(e) => setUrl(e.target.value)} /></Field>
+            <Field label={S.contact}><input className="bw-input" type="email" value={contact} placeholder="info@bowaco.eu" onChange={(e) => setContact(e.target.value)} /></Field>
             <Field label={S.weekmail}><Choice label={S.weekmail} value={weekmail ? "aan" : "uit"} onChange={(v) => setWeekmail(v === "aan")} options={[{ value: "aan", label: S.on }, { value: "uit", label: S.off }]} /></Field>
             <div className="a-row">
               <Field label={S.day}><select className="bw-input" value={day} onChange={(e) => setDay(Number(e.target.value))}>{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select></Field>
@@ -99,10 +138,14 @@ export function PostbodePage() {
               <Button onClick={() => setConfirmAll(true)}>{S.queueAll}</Button>
             </div>
             <div className="a-row">
-              <Field label={S.testTo}><input className="bw-input" type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} /></Field>
-              <Button busy={test.isPending} disabled={!testTo.includes("@")} onClick={() => test.mutate()}>{S.testSend}</Button>
+              <Field label={S.testTo}><input className="bw-input" type="email" value={testTo} placeholder={s.testMode && s.testAddress ? s.testAddress : ""} onChange={(e) => setTestTo(e.target.value)} /></Field>
+              <Button busy={test.isPending} disabled={!(testTo.includes("@") || (s.testMode && !!s.testAddress))} onClick={() => test.mutate()}>{S.testSend}</Button>
             </div>
-            <p className="bw-muted">{S.testHelp}</p>
+            <p className="bw-muted">{S.testMailHelp}</p>
+            <div className="a-row">
+              <Button variant="primary" icon="sync" busy={now.isPending} disabled={s.sending} onClick={() => now.mutate()}>{S.sendNow}</Button>
+              <span className="bw-muted">{s.sending ? S.roundBusy : S.sendNowHelp}</span>
+            </div>
           </section>
         </>
       )}
@@ -125,7 +168,7 @@ export function PostbodePage() {
                     <span className="bw-muted">{j.ref ? `${S.week} ${fmtDayNum(BigInt(j.ref))} · ` : ""}{S.attempts(Number(j.attempts))} · {fmtTime(j.updatedAt)} · {j.createdByName}</span>
                   </span>
                   <span className={`a-tag ${x.tone}`}>{x.text}</span>
-                  {(j.state.__kind__ === "queued" || j.state.__kind__ === "leased") && <Button variant="quiet" onClick={() => cancel.mutate(j.id)}>{S.cancel}</Button>}
+                  {j.state.__kind__ === "queued" && <Button variant="quiet" onClick={() => cancel.mutate(j.id)}>{S.cancel}</Button>}
                   {j.state.__kind__ === "failed" && <Button variant="quiet" onClick={() => retry.mutate(j.id)}>{S.retry}</Button>}
                 </li>
               );
@@ -134,7 +177,28 @@ export function PostbodePage() {
         )}
       </section>
 
-      {s && <Robots />}
+      <section className="a-section">
+        <h2 className="bw-h2">{S.logTitle}</h2>
+        <p className="bw-muted">{S.logLead}</p>
+        <Loading q={log} />
+        {log.data && log.data.length === 0 && <p className="a-empty">{S.noLog}</p>}
+        {log.data && log.data.length > 0 && (
+          <ul className="a-list">
+            {log.data.map((l) => {
+              const x = outcomeText(l);
+              return (
+                <li key={String(l.id)}>
+                  <span className="a-list__main">
+                    <b>{fmtTime(l.at)} · {S.kinds[l.kind] ?? l.kind}{l.orgName ? ` · ${l.orgName}` : ""}</b>
+                    <span className="bw-muted">#{String(l.jobId)} · {S.attempts(Number(l.attempt))} · {S.addresses(Number(l.recipients))} · {l.lang}{l.cycles > 0n ? ` · ${fmtCycles(l.cycles)} cycles` : ""}</span>
+                  </span>
+                  <span className={`a-tag ${x.tone}`}>{x.text}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <section className="a-section">
         <h2 className="bw-h2">{S.orgs}</h2>
@@ -143,17 +207,26 @@ export function PostbodePage() {
           {withMail.map((o) => {
             const out = s?.optedOut.some((x) => x === o.org.id) ?? false;
             const mail = o.contact?.email ?? o.persons.find((p) => p.email)?.email;
+            const lang = s?.langs.find(([id]) => id === o.org.id)?.[1] ?? "";
             return (
               <li key={String(o.org.id)}>
                 <span className="a-list__main"><b>{o.org.name}</b><span className="bw-muted">{mail ?? S.noMail}</span></span>
+                <select className="bw-input" style={{ maxWidth: 150 }} aria-label={S.lang} value={lang} disabled={!mail} onChange={(e) => setLang.mutate([o.org.id, e.target.value])}>
+                  <option value="">{S.langAuto}</option>
+                  {Object.entries(S.langs).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
                 <label className="a-check"><input type="checkbox" checked={!out} disabled={!mail} onChange={(e) => optOut.mutate([o.org.id, e.target.checked])} /> {S.gets}</label>
               </li>
             );
           })}
         </ul>
       </section>
+
+      {s && <Robots />}
+
       {preview && <PreviewSheet onClose={() => setPreview(false)} orgs={withMail.map((o) => ({ id: o.org.id, name: o.org.name }))} />}
-      <Confirm open={confirmAll} title={S.queueAllTitle} text={S.queueAllText(fmtDayNum(nextMonday()))} confirmLabel={S.queueAll} busy={qAll.isPending} onConfirm={() => qAll.mutate()} onClose={() => setConfirmAll(false)} />
+      <Confirm open={confirmAll} title={S.queueAllTitle} text={S.queueAllText(fmtDayNum(nextMonday()), !!s?.testMode)} confirmLabel={S.queueAll} busy={qAll.isPending} onConfirm={() => qAll.mutate()} onClose={() => setConfirmAll(false)} />
+      <Confirm open={confirmOff} title={S.testOffTitle} text={S.testOffText} confirmLabel={S.testOffConfirm} busy={saveTest.isPending} onConfirm={() => saveTest.mutate()} onClose={() => setConfirmOff(false)} />
     </Page>
   );
 }
@@ -163,12 +236,12 @@ function PreviewSheet({ onClose, orgs }: { onClose: () => void; orgs: { id: bigi
   const [kind, setKind] = useState("weekplanning");
   const [org, setOrg] = useState(orgs[0] ? String(orgs[0].id) : "");
   const [monday, setMonday] = useState(dayToInput(nextMonday()));
-  const q = useMutation({ mutationFn: async (): Promise<MailOut> => {
+  const q = useMutation({ mutationFn: async (): Promise<MailPreview> => {
     const d = inputToDay(monday) ?? nextMonday();
     const m = d - BigInt((Number(d) + 3) % 7);
-    return unwrap(await actor!.previewMail(kind, kind === "proef" ? null : BigInt(org), m));
+    return unwrap(await actor!.mailPreview(kind, kind === "proef" ? null : BigInt(org), m));
   } });
-  const m = q.data;
+  const p = q.data;
   return (
     <Sheet title={S.preview} open onClose={onClose} side wide>
       <Field label={S.kind}><select className="bw-input" value={kind} onChange={(e) => setKind(e.target.value)}>{["weekplanning", "herinnering-planning", "herinnering-uren", "proef"].map((k) => <option key={k} value={k}>{S.kinds[k]}</option>)}</select></Field>
@@ -176,28 +249,20 @@ function PreviewSheet({ onClose, orgs }: { onClose: () => void; orgs: { id: bigi
       {kind === "weekplanning" && <Field label={S.weekOf}><input className="bw-input" type="date" value={monday} onChange={(e) => setMonday(e.target.value)} /></Field>}
       <div><Button variant="primary" busy={q.isPending} onClick={() => q.mutate()}>{S.show}</Button></div>
       {q.error && <p className="a-err">{errText(q.error)}</p>}
-      {m && (
+      {p && (
         <div className="p-mail">
-          <p className="bw-muted">{S.to}: {m.to.map((x) => x.email).join(", ")}</p>
-          <p><b>{m.subject}</b></p>
-          <h3 className="bw-h2">{m.heading}</h3>
-          <p>{m.intro}</p>
-          {m.sections.map((x, i) => (
-            <div key={i} className="p-mail__sec">
-              <b>{x.title}</b>
-              {x.subtitle && <div className="bw-muted">{x.subtitle}</div>}
-              <ul>{x.lines.map((l, k) => <li key={k}>{l}</li>)}</ul>
-            </div>
-          ))}
-          <p>{m.outro}</p>
-          {m.link && <p className="bw-muted">{S.button}: {m.link}</p>}
+          <p className="bw-muted">{S.to}: {p.mail.to.map((x) => x.email).join(", ")} · {S.langs[p.lang] ?? p.lang}</p>
+          <p className="bw-muted"><Icon name="alert" size={14} /> {p.deliver}</p>
+          <p><b>{p.mail.subject}</b></p>
+          {/* De mail precies zoals ze vertrekt; sandbox zonder scripts, enkel opmaak. */}
+          <iframe className="p-mail__frame" title={S.preview} sandbox="" srcDoc={p.html} />
         </div>
       )}
     </Sheet>
   );
 }
 
-const KINDS = ["mail", "proef", "inhoudingsplicht"];
+const KINDS = ["proef", "inhoudingsplicht"];
 
 function Robots() {
   const { actor, isFetching } = useBackend();
@@ -205,8 +270,8 @@ function Robots() {
   const toast = useToast();
   const robots = useQuery({ queryKey: ["robots"], queryFn: () => actor!.listRobots(), enabled: !!actor && !isFetching });
   const [rp, setRp] = useState("");
-  const [rn, setRn] = useState("Postbode");
-  const [kinds, setKinds] = useState<string[]>(["mail"]);
+  const [rn, setRn] = useState("Gateway");
+  const [kinds, setKinds] = useState<string[]>(["proef"]);
   const [revoking, setRevoking] = useState<Principal | null>(null);
   const ok = () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries(); };
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
@@ -220,7 +285,7 @@ function Robots() {
       <ul className="a-list">
         {(robots.data ?? []).map((r) => (
           <li key={r.principal.toText()}>
-            <span className="a-list__main"><b>{r.name} · {r.kinds.join(", ")}</b><span className="a-mono">{r.principal.toText()}</span><span className="bw-muted">{fmtTime(r.addedAt)}{r.revokedAt !== undefined ? ` · ${S.revokedAt} ${fmtTime(r.revokedAt)}` : ""}</span></span>
+            <span className="a-list__main"><b>{r.name} · {r.kinds.map((k) => S.robotKinds[k] ?? k).join(", ")}</b><span className="a-mono">{r.principal.toText()}</span><span className="bw-muted">{fmtTime(r.addedAt)}{r.revokedAt !== undefined ? ` · ${S.revokedAt} ${fmtTime(r.revokedAt)}` : ""}</span></span>
             {r.revokedAt === undefined && <Button variant="quiet" onClick={() => setRevoking(r.principal)}>{t.settings.revoke}</Button>}
           </li>
         ))}

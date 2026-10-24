@@ -115,3 +115,6 @@
 .p-mail__sec { padding-top: 8px; border-top: 1px solid var(--bw-line); }
 .p-mail__sec ul { margin: 4px 0 0; padding-left: 18px; }
 .a-counter__n--small { font-size: var(--bw-fs-md); }
+/* mail-caffeine: voorbeeld van de mail zoals ze vertrekt (sandbox-iframe), en de testmodus die uit staat */
+.p-mail__frame { width: 100%; height: 620px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius); background: #f2f3f5; }
+.a-note--bad { background: var(--bw-surface); border: 2px solid var(--bw-st-blocked); color: var(--bw-ink); }

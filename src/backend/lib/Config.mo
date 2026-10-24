@@ -1,8 +1,8 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "1b.4-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
-  public let schema : Nat = 10; // 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
+  public let version = "1b.3c-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let schema : Nat = 11; // 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
   // eigenaar zelf met tools/opstartcode.mjs (A16, T21, 23-10). De code staat nergens in git of in een sessie.
@@ -282,6 +282,26 @@ module {
   // ── Postbode (1b.3, architectuur §6.2) ──────────────────────────────────
   public let jobLease : Int = 600_000_000_000; // 10 min
   public let jobMaxAttempts : Nat = 5;
-  // Soorten die een robot kan krijgen: "mail" (postbode), "proef" (ticketproef), "inhoudingsplicht" (later, met aansluiting).
-  public func robotKinds() : [Text] { ["mail", "proef", "inhoudingsplicht"] };
+  // Soorten die een robot kan krijgen: "proef" (ticketproef), "inhoudingsplicht" (later, met aansluiting). Sinds
+  // mail-caffeine (E-11) verstuurt de app zelf de mails: "mail" is geen robotsoort meer (een oude robot met die soort
+  // leaset niets).
+  public func robotKinds() : [Text] { ["proef", "inhoudingsplicht"] };
+
+  // ── Mail via de maildienst van Caffeine (mail-caffeine, E-11) ───────────
+  // De app verstuurt zelf (caffeineai-email, "service"-mail). Elke ronde is begrensd en er loopt er hoogstens één tegelijk.
+  public let mailFrom = "no-reply"; // afzendernaam bij Caffeine (antwoorden kan niet: de voet zegt wie te bellen)
+  public let mailTimerSeconds : Nat = 300; // eigen klokjob (eigen slot), los van het kleine werk elke 10 min
+  public let mailPerRound : Nat = 25; // echte verstuurpogingen per ronde van de klok
+  public let mailPerRoundNow : Nat = 10; // per druk op "Nu versturen"
+  public let mailScanPerRound : Nat = 200; // opdrachten die een ronde hoogstens bekijkt (overslaan, droog)
+  public let mailCyclesMax : Nat = 50_000_000_000; // meegegeven per mail (zoals caffeineai-email); de rest komt terug
+  public let mailCyclesFloor : Nat = 500_000_000_000; // daaronder geen mail: de canister mag niet bevriezen
+  public let mailTimeoutSeconds : Nat32 = 300; // begrensd wachten op de maildienst (anders kan een upgrade blijven hangen)
+  public let mailLease : Int = 3_600_000_000_000; // 1 uur: zo lang staat een mail "bij de maildienst" zonder antwoord
+  public let mailLogKeepDays : Nat = 400; // logboek: ruim een jaar (PR11)
+  public let mailLogPrunePerRound : Nat = 200;
+  // Markering van een lease door de app zelf (geen robot kan deze principal hebben: het is de beheercanister).
+  public let appSender = "aaaaa-aa";
+  // De draftcanister(s) van dit project: daar blijft de testmodus ALTIJD aan (geen echte mail vanaf de draft, E-0).
+  public func draftBackends() : [Text] { ["w5pbr-raaaa-aaaal-qs3aq-cai"] };
 };

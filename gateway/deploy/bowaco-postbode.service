@@ -1,6 +1,6 @@
 # systemd-dienst van de BOWACO-postbode (stap 1b.3). Geïnstalleerd door deploy.sh in /etc/systemd/system/.
 [Unit]
-Description=BOWACO postbode (gateway-lite: mail uit de werkwachtrij van de app)
+Description=BOWACO gateway (tickets en voorstellen; geen mail, die gaat via de app)
 After=network-online.target
 Wants=network-online.target
 

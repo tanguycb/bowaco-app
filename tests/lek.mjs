@@ -238,13 +238,13 @@ const table = {
   saveProcedure: [["admin", "werfleider"], () => [{ municipalityId: X, kind: "", how: "", portal: [], email: [], leadDays: 0n, cost: "", attachments: [], contact: "", notes: "", archived: false }]],
   // 1b.2 boete-opzoeking (R14): admin alle ritten, werfleider de zijne; onmogelijke dag → daarna een invoerfout
   lookupFine: [["admin", "werfleider"], () => [{ day: 5n, time: [], plate: "", place: "", widen: false }]],
-  // 1b.3 postbode: de robot leaset en meldt (onbekende opdracht → daarna een invoerfout); instellingen, wachtrij,
-  // voorbeeld en proefmail enkel admin (#manageRobots). De lektestrobot heeft enkel de soort "proef": hij leaset niets.
+  // 1b.3 postbode: de robot leaset en meldt (onbekende opdracht → daarna een invoerfout; sinds mail-caffeine krijgt
+  // geen robot nog een mail); instellingen, wachtrij, voorbeeld en proefmail enkel admin (#manageRobots).
   leaseJobs: [["robot"], () => [1n]],
   completeJob: [["robot"], () => [X, 1n, ""]],
   failJob: [["robot"], () => [X, 1n, "", false]],
   postSettings: [ADMIN, () => []],
-  setPostSettings: [ADMIN, () => [{ weekmail: false, reminders: false, day: 9n, hour: 0n, reminderDay: 0n, appUrl: "" }]],
+  setPostSettings: [ADMIN, () => [{ weekmail: false, reminders: false, day: 9n, hour: 0n, reminderDay: 0n, appUrl: "", contact: [] }]],
   setOrgMail: [ADMIN, () => [X, true]],
   listJobs: [ADMIN, () => ["open", 0n, 1n]],
   previewMail: [ADMIN, () => ["bestaat-niet", [], 20_000n]],
@@ -253,6 +253,13 @@ const table = {
   queueTestMail: [ADMIN, () => [""]],
   cancelJob: [ADMIN, () => [X]],
   retryJob: [ADMIN, () => [X]],
+  // mail-caffeine: de app verstuurt zelf (testmodus, logboek, taal per firma, nu versturen): enkel admin. "Nu versturen"
+  // doet voor de admin een echte ronde; de rollentest liet de wachtrij leeg en de testmodus droog.
+  setMailTest: [ADMIN, () => [true, "geen-adres"]],
+  setOrgMailLang: [ADMIN, () => [X, "xx"]],
+  sendMailNow: [ADMIN, () => []],
+  listMailLog: [ADMIN, () => [0n, 1n]],
+  mailPreview: [ADMIN, () => ["bestaat-niet", [], 20_000n]],
   // 1b.4 werfadministratie: lezen interne rollen die de werf zien (#readWorkFacts), bijhouden en exporteren admin en
   // werfleider (#editWork), inhoudingsplicht interne rollen, regels admin.
   workAdmin: [INTERNAL, () => [B]],

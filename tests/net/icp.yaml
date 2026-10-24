@@ -1,6 +1,7 @@
 # Eigen lokaal testnetwerk voor BOWACO (poort 8041). Raakt het gedeelde netwerk op :8000 niet.
 # tests/lokaal.sh kopieert dit bestand naar ~/.bowaco/net en draait het net daar (buiten iCloud).
-# WASM kiest het programma (standaard de laatste bouw).
+# WASM kiest het programma (standaard de laatste bouw). NEPMAIL = de nep-maildienst (tests/net/nepmail.mo, gebouwd door
+# tests/lokaal.sh); de backend krijgt INTEGRATIONS_CANISTER_ID = die canister, zoals Caffeine de echte maildienst zet.
 networks:
   - name: local
     mode: managed
@@ -13,3 +14,9 @@ canisters:
         - type: script
           commands:
             - cp "${WASM:-../../src/backend/dist/backend.wasm}" "$ICP_WASM_OUTPUT_PATH"
+  - name: nepmail
+    build:
+      steps:
+        - type: script
+          commands:
+            - cp "${NEPMAIL:-$HOME/.bowaco/nepmail.wasm}" "$ICP_WASM_OUTPUT_PATH"

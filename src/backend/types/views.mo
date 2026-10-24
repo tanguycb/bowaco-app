@@ -809,6 +809,7 @@ module {
     procedures : [Types.PermitProcedure];
     permitAlerts : [(Text, Int)];
     jobs : [Types.Job]; // 1b.3: de werkwachtrij van de postbode
+    mailLog : [Types.MailLog]; // mail-caffeine: het logboek van de verstuurpogingen (geen adressen, geen inhoud)
     withholdingChecks : [Types.WithholdingCheck]; // 1b.4: raadplegingen inhoudingsplicht
     declarations : [Types.Declaration]; // 1b.4: aangifte van werken per werf
   };
@@ -875,6 +876,7 @@ module {
     #procedures : [Types.PermitProcedure];
     #permitAlerts : [(Text, Int)];
     #jobs : [Types.Job]; // 1b.3
+    #mailLog : [Types.MailLog]; // mail-caffeine
     #withholdingChecks : [Types.WithholdingCheck]; // 1b.4
     #declarations : [Types.Declaration];
   };
@@ -1366,8 +1368,23 @@ module {
     leased : Nat;
     failed : Nat;
     lastWeek : Nat; // maandag (dagnummer) van de laatst klaargezette weekmails; 0 = nog nooit
+    // mail-caffeine (E-11): de app verstuurt zelf via de maildienst van Caffeine
+    testMode : Bool; // alle mail naar het testadres (of droog)
+    testAddress : Text; // "" = droog: niets verstuurd, enkel het logboek
+    draft : Bool; // dit is de draftcanister: de testmodus kan niet uit
+    contact : Text; // adres van het kantoor in de voet van de mail
+    langs : [(OrgId, Text)]; // taal per firma (enkel wat ingesteld is; anders de taal van de contactpersoon, anders nl)
+    sending : Bool; // er loopt nu een verstuurronde
+    sent : Nat; // verstuurd volgens het logboek (alles samen)
+    cyclesSent : Nat; // aangerekend door de maildienst (alles samen)
   };
-  public type PostSettingsInput = { weekmail : Bool; reminders : Bool; day : Nat; hour : Nat; reminderDay : Nat; appUrl : Text };
+  // `contact` optioneel: weglaten = ongewijzigd.
+  public type PostSettingsInput = { weekmail : Bool; reminders : Bool; day : Nat; hour : Nat; reminderDay : Nat; appUrl : Text; contact : ?Text };
+  // Voorbeeld van een mail: de inhoud, de HTML zoals ze vertrekt, en waar ze heen zou gaan (zonder adressen te tonen
+  // buiten wat de admin al ziet).
+  public type MailPreview = { mail : MailOut; html : Text; lang : Text; deliver : Text };
+  public type MailLogView = { id : Nat; jobId : Nat; kind : Text; orgId : ?OrgId; orgName : Text; attempt : Nat; at : Int; recipients : Nat; test : Bool; lang : Text; outcome : Types.MailOutcome; cycles : Nat };
+  public type MailRound = { busy : Bool; sent : Nat; dry : Nat; skipped : Nat; failed : Nat };
 
   // ── Werfadministratie (1b.4) ────────────────────────────────────────────
   public type WithholdingCheckView = { id : Nat; orgId : OrgId; kbo : Text; result : Types.WithholdingResult; consultedOn : Day; reference : Text; note : Text; source : Text; workId : ?WorkId; at : Int; byName : Text };
