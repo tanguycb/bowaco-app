@@ -129,7 +129,7 @@ export function Posten({ caps }: { caps: Caps }) {
               { key: "t", label: P.item, render: (r) => <ItemCell r={r} /> },
               { key: "u", label: P.unit, width: "76px", render: (r) => <span className="bw-mono">{r.unit}</span> },
               { key: "f", label: P.form, width: "112px", render: (r) => <span className="a-tag">{P.formsShort[r.form] ?? r.form}</span> },
-              { key: "o", label: P.oaTrade, width: "190px", render: (r) => <span>{r.orgName || <span className="bw-muted">{tradeName(r.trade) || "—"}</span>}</span> },
+              { key: "o", label: P.oaTradeShort, width: "190px", render: (r) => <span>{r.orgName || <span className="bw-muted">{tradeName(r.trade) || "—"}</span>}</span> },
               { key: "d", label: P.duration, width: "92px", right: true, render: (r) => <span className="bw-mono">{r.durationDays !== undefined ? `${r.durationDays} d` : r.perDayMilli !== undefined ? `${fmtMilli(r.perDayMilli)}/${r.unit}·d` : "—"}</span> },
               ...(prices
                 ? [
@@ -169,9 +169,9 @@ function CostCell({ p }: { p?: LibPriceView }) {
   // Zonder aankoopprijs is enkel een post met een marge onvolledig (geen verkoopprijs); een vaste prijs heeft er geen nodig.
   if (!p.cost) return p.rule?.__kind__ === "price" ? <span className="bw-muted">—</span> : <span className="a-tag a-tag--warn">{P.noCost}</span>;
   return (
-    <span className="bw-mono">
-      {fmtEuro(p.cost.costCents)}
-      {p.cost.orgName && <><br /><span className="bw-muted" style={{ fontFamily: "inherit" }}>{p.cost.orgName}</span></>}
+    <span>
+      <span className="bw-mono">{fmtEuro(p.cost.costCents)}</span>
+      {p.cost.orgName && <><br /><span className="bw-muted">{p.cost.orgName}</span></>}
     </span>
   );
 }
@@ -181,7 +181,7 @@ function MarginCell({ p }: { p?: LibPriceView }) {
   return (
     <span className="bw-mono">
       {p.marginBp !== undefined ? fmtBpInt(p.marginBp) : "—"}
-      {p.deviates && <><br /><span className="a-tag a-tag--warn">{p.rule?.__kind__ === "price" ? P.rulePrice.toLowerCase() : P.deviates}</span></>}
+      {p.deviates && <><br /><span className="a-tag a-tag--warn">{p.rule?.__kind__ === "price" ? P.fixedShort : P.deviates}</span></>}
     </span>
   );
 }

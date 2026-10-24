@@ -69,13 +69,25 @@ export async function backupAudit(b: Backend): Promise<unknown[]> {
   return out.reverse();
 }
 
-// Zelfde vorm als tests/herstel.mjs (replacer): bigint, bytes en principals blijven herkenbaar.
+// Zelfde vorm als tests/herstel.mjs (replacer): bigint → {$n}, bytes → {$b}, principal → {$p}. Eerst zelf omzetten en dan
+// pas JSON.stringify: in de app definieert een bibliotheek BigInt.prototype.toJSON, waardoor een replacer de getallen
+// al als tekst zou krijgen (Chrome-test 2.2) en het script ze bij een herstel niet meer als getal zou lezen.
+function encode(v: unknown): unknown {
+  if (typeof v === "bigint") return { $n: v.toString() };
+  if (v instanceof Uint8Array) {
+    let bin = "";
+    for (let i = 0; i < v.length; i += 0x8000) bin += String.fromCharCode(...v.subarray(i, i + 0x8000));
+    return { $b: btoa(bin) };
+  }
+  if (Array.isArray(v)) return v.map(encode);
+  if (v && typeof v === "object") {
+    const o = v as { _isPrincipal?: unknown; toText?: () => string };
+    if (o._isPrincipal === true && typeof o.toText === "function") return { $p: o.toText() };
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, encode(x)]));
+  }
+  return v;
+}
+
 export function toJson(data: unknown): string {
-  return JSON.stringify(data, (_k, v) => {
-    if (typeof v === "bigint") return { $n: v.toString() };
-    if (v instanceof Uint8Array) return { $b: btoa(String.fromCharCode(...v)) };
-    if (v && typeof v === "object" && typeof (v as { toText?: unknown }).toText === "function" && typeof (v as { _isPrincipal?: unknown })._isPrincipal === "boolean") return { $p: (v as { toText: () => string }).toText() };
-    if (v && typeof v === "object" && typeof (v as { __principal__?: unknown }).__principal__ === "string") return { $p: (v as { __principal__: string }).__principal__ };
-    return v;
-  });
+  return JSON.stringify(encode(data));
 }
