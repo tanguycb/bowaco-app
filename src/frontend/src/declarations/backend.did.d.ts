@@ -598,6 +598,12 @@ export interface DossierView {
   'workId' : WorkId,
   'deliverKinds' : Array<DocKindView>,
 }
+export interface ExistingInvite {
+  'tag' : string,
+  'validDays' : bigint,
+  'personId' : PersonId,
+  'workIds' : Array<WorkId>,
+}
 export interface ExportConfidential {
   'at' : bigint,
   'files' : Array<FileView>,
@@ -651,6 +657,17 @@ export interface ExportIntern {
   'workInfo' : Array<WorkInfo>,
 }
 export type ExternalBlob = Uint8Array;
+export interface ExternalWork {
+  'id' : WorkId,
+  'status' : WorkStatus,
+  'grants' : Array<Grant>,
+  'code' : string,
+  'name' : string,
+  'leaderName' : string,
+  'address' : Address,
+  'leaderPhone' : [] | [string],
+  'roles' : Array<Role>,
+}
 export type Extra = Array<[string, string]>;
 export interface FileIn {
   'blob' : ExternalBlob,
@@ -686,6 +703,22 @@ export interface HoursConfirmation {
   'remark' : string,
   'orgId' : OrgId,
   'attendanceId' : bigint,
+}
+export interface HoursLine {
+  'day' : Day,
+  'workName' : string,
+  'confirmations' : Array<ConfirmationView>,
+  'headcount' : bigint,
+  'slots' : Array<TimeSlot>,
+  'names' : string,
+  'canConfirm' : boolean,
+  'workId' : WorkId,
+  'reportFinal' : boolean,
+  'minutesTotal' : bigint,
+  'attendanceId' : bigint,
+  'reportId' : bigint,
+  'regie' : boolean,
+  'workCode' : string,
 }
 export interface ImportAppt {
   'day' : Day,
@@ -1829,6 +1862,7 @@ export interface _SERVICE {
   'checkTicket' : ActorMethod<[string], Result_20>,
   'claimBootstrap' : ActorMethod<[string, string], Result_1>,
   'confirmAssignment' : ActorMethod<[bigint, boolean, string], Result_4>,
+  'confirmHours' : ActorMethod<[bigint, boolean, string], Result_4>,
   'confirmLink' : ActorMethod<[Principal], Result_4>,
   'createOrg' : ActorMethod<[OrgInput], Result_2>,
   'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_15>,
@@ -1851,6 +1885,7 @@ export interface _SERVICE {
     [boolean, string, string, Array<string>, ImportBlock],
     Result_16
   >,
+  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_15>,
   'invitePerson' : ActorMethod<[InviteRequest], Result_15>,
   'listAbsences' : ActorMethod<
     [[] | [bigint], bigint, bigint],
@@ -1882,8 +1917,10 @@ export interface _SERVICE {
   'me' : ActorMethod<[], MeView>,
   'myBoard' : ActorMethod<[bigint, bigint], MyBoardView>,
   'myDay' : ActorMethod<[bigint, boolean], MyDayView>,
+  'myHours' : ActorMethod<[bigint, bigint], Array<HoursLine>>,
   'myNotifications' : ActorMethod<[boolean], Array<NotificationView>>,
   'myProposals' : ActorMethod<[], Array<ProposalView>>,
+  'myWorks' : ActorMethod<[], Array<ExternalWork>>,
   'orgAssignments' : ActorMethod<
     [[] | [bigint], bigint, bigint],
     Array<OrgAssignmentView>
@@ -1917,6 +1954,7 @@ export interface _SERVICE {
   'setDocKind' : ActorMethod<[DocKindInput], Result_4>,
   'setDocumentStatus' : ActorMethod<[bigint, DocStatus, string], Result_4>,
   'setLinkLabel' : ActorMethod<[Principal, string], Result_4>,
+  'setMemberGrants' : ActorMethod<[bigint, Array<Grant>], Result_4>,
   'setOrgConfidential' : ActorMethod<
     [bigint, [] | [Contact], string],
     Result_3

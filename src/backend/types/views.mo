@@ -992,4 +992,36 @@ module {
     writer : Bool;
   };
   public type VehicleInput = { id : ?Nat; plate : Text; name : Text; archived : Bool };
+
+  // ── Externe weergaven (1.7) ─────────────────────────────────────────────
+  // Mijn uren (OA): de aanwezigheidsregels van de eigen firma uit de werfverslagen, met de bevestigingen.
+  public type HoursLine = {
+    attendanceId : Nat;
+    reportId : Nat;
+    workId : WorkId;
+    workCode : Text;
+    workName : Text;
+    day : Day;
+    names : Text;
+    headcount : Nat;
+    slots : [Types.TimeSlot];
+    minutesTotal : Nat;
+    regie : Bool;
+    reportFinal : Bool; // enkel een afgesloten verslag kan bevestigd worden
+    confirmations : [ConfirmationView];
+    canConfirm : Bool;
+  };
+  // Mijn werven (externen): waar ik lid ben, met de werfleider om te bellen.
+  public type ExternalWork = {
+    id : WorkId;
+    code : Text;
+    name : Text;
+    address : Types.Address;
+    status : Types.WorkStatus;
+    roles : [Types.Role];
+    grants : [Types.Grant];
+    leaderName : Text;
+    leaderPhone : ?Text;
+  };
+  public type ExistingInvite = { personId : PersonId; workIds : [WorkId]; validDays : Nat; tag : Text };
 };

@@ -10,6 +10,7 @@ import { t } from "../texts/nl";
 import { errText, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
 import { AbsencePanel } from "./Weekbord";
+import { ShareSheet } from "./Extern";
 import { Field } from "./Werven";
 import { fmtDm, fmtShort, isoWeek, today, weekday } from "./planUtil";
 
@@ -51,10 +52,15 @@ export function MijnTaken({ go }: { go: (to: string) => void }) {
     : rows.filter((r) => N(r.assignment.start) <= wk + 6 && N(r.assignment.end) >= wk);
   const conflicts = (row?.conflicts ?? []).filter((c) => tab === "later" || N(c.week) === wk);
   const self = me.data?.person;
+  const [sharing, setSharing] = useState(false);
 
   return (
     <section className="a-section">
-      <p className="bw-muted">{t.mine.lead}</p>
+      <div className="a-row a-row--between">
+        <p className="bw-muted">{t.mine.lead}</p>
+        {row && <Button icon="share" onClick={() => setSharing(true)}>{t.extern.share}</Button>}
+      </div>
+      {sharing && row && <ShareSheet base={{ orgName: row.name, orgCode: row.code, appUrl: window.location.origin, byName: self?.name }} row={row} monday={monday} weeks={2} onClose={() => setSharing(false)} />}
       <Choice label={t.mine.title} value={tab} onChange={setTab} fill options={[
         { value: "now", label: `${t.mine.thisWeek} · ${isoWeek(monday).week}` },
         { value: "next", label: `${t.mine.nextWeek} · ${isoWeek(monday + 7).week}` },

@@ -328,6 +328,7 @@ mixin (
         plan.assignments.add(id, { id; taskId = i.taskId; workId; orgId = i.orgId; personId = i.personId; fromDay = i.fromDay; toDay = i.toDay; note = i.note; primary = false; confirmation = #open; createdAt = now; createdBy = p.id; updatedAt = now; archivedAt = null; extra = [] });
         plChange(t, p.id, "uitvoerder", "", plOrgText(?i.orgId), "");
         Access.audit(audit, caller, ?p.id, ?workId, "planning-uitvoerder", plWorkCode(workId) # ": " # plOrgText(?i.orgId) # " bij «" # t.title # "»");
+        plNotifyNew(p.id, i.orgId, t);
         ignore plBump(workId);
         #ok(id);
       };
@@ -695,6 +696,7 @@ mixin (
         if (not current.any(func a = a.orgId == o)) {
           let id = Ids.next(ctr, "assignment");
           plan.assignments.add(id, { id; taskId = t.id; workId = t.workId; orgId = o; personId = null; fromDay = null; toDay = null; note = ""; primary = true; confirmation = #open; createdAt = now; createdBy = by; updatedAt = now; archivedAt = null; extra = [] });
+          plNotifyNew(by, o, t);
         };
       };
       case null {};
@@ -718,6 +720,8 @@ mixin (
   func plApplyShifts(p : Types.Person, cal : Plan.Cal, shifts : [Plan.Shift], reason : Text) : Nat {
     let now = Time.now();
     var reopened = 0;
+    // 1.7: wat schoof per firma (voor één melding per firma en werf, niet per taak).
+    let moved = Map.empty<Text, (Nat, Nat, List.List<Text>)>();
     for (s in shifts.values()) {
       switch (plan.tasks.get(s.taskId)) {
         case (?t) {
@@ -735,14 +739,28 @@ mixin (
                 plChange(t, p.id, "bevestiging", plConfText(a.confirmation), "open", "verschoven");
               };
               plan.assignments.add(a.id, { a with fromDay = shift(a.fromDay); toDay = shift(a.toDay); confirmation = #open; updatedAt = now });
+              let key = a.orgId.toText() # ":" # t.workId.toText();
+              let l = switch (moved.get(key)) { case (?(_, _, l)) l; case null { let l = List.empty<Text>(); moved.add(key, (a.orgId, t.workId, l)); l } };
+              let line = "«" # t.title # "» → " # Plan.fmtDay(s.toStart);
+              if (not l.contains(Text.equal, line)) { l.add(line) };
             };
           };
         };
         case null {};
       };
     };
+    for ((_, (o, w, l)) in moved.entries()) {
+      let first = l.sliceToArray(0, Nat.min(3, l.size()));
+      let more = if (l.size() > 3) " (+" # (l.size() - 3 : Nat).toText() # ")" else "";
+      Access.notifyOrgOnWork(access, { works; settings }, audit, ctr, o, w, ?#confirmPlanning, p.id, "planning-verschoven", "De planning van " # plWorkCode(w) # " schoof: " # Text.join(first.values(), " · ") # more # ". Bevestig opnieuw in Mijn week.");
+    };
     ignore cal;
     reopened;
+  };
+
+  // 1.7: een firma krijgt een (nieuwe) taak op een werf: melding aan haar OA-personen op die werf.
+  func plNotifyNew(by : Nat, orgId : Nat, t : Types.Task) {
+    Access.notifyOrgOnWork(access, { works; settings }, audit, ctr, orgId, t.workId, null, by, "planning-nieuw", "Nieuwe taak voor jou op " # plWorkCode(t.workId) # ": «" # t.title # "» vanaf " # Plan.fmtDay(t.start) # ".");
   };
 
   // Alle taken die (rechtstreeks of verder in de keten) op `start` wachten, `start` inbegrepen.

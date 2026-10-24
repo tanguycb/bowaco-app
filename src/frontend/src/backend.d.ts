@@ -631,6 +631,12 @@ export interface DossierView {
     workId: WorkId;
     deliverKinds: Array<DocKindView>;
 }
+export interface ExistingInvite {
+    tag: string;
+    validDays: bigint;
+    personId: PersonId;
+    workIds: Array<WorkId>;
+}
 export interface ExportConfidential {
     at: bigint;
     files: Array<FileView>;
@@ -683,6 +689,17 @@ export interface ExportIntern {
     workDone: Array<WorkDone>;
     workInfo: Array<WorkInfo>;
 }
+export interface ExternalWork {
+    id: WorkId;
+    status: WorkStatus;
+    grants: Array<Grant>;
+    code: string;
+    name: string;
+    leaderName: string;
+    address: Address;
+    leaderPhone?: string;
+    roles: Array<Role>;
+}
 export type Extra = Array<[string, string]>;
 export interface FileIn {
     blob: ExternalBlob;
@@ -709,6 +726,22 @@ export interface HoursConfirmation {
     remark: string;
     orgId: OrgId;
     attendanceId: bigint;
+}
+export interface HoursLine {
+    day: Day;
+    workName: string;
+    confirmations: Array<ConfirmationView>;
+    headcount: bigint;
+    slots: Array<TimeSlot>;
+    names: string;
+    canConfirm: boolean;
+    workId: WorkId;
+    reportFinal: boolean;
+    minutesTotal: bigint;
+    attendanceId: bigint;
+    reportId: bigint;
+    regie: boolean;
+    workCode: string;
 }
 export interface ImportAppt {
     day: Day;
@@ -2068,6 +2101,7 @@ export interface backendInterface {
     checkTicket(ticket: string): Promise<Result_20>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
     confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_4>;
+    confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_4>;
     confirmLink(p: Principal): Promise<Result_4>;
     createOrg(input: OrgInput): Promise<Result_2>;
     createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_15>;
@@ -2087,6 +2121,7 @@ export interface backendInterface {
     handleIssue(issueId: bigint, note: string): Promise<Result_4>;
     importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_17>;
     importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_16>;
+    inviteExistingPerson(i: ExistingInvite): Promise<Result_15>;
     invitePerson(req: InviteRequest): Promise<Result_15>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
@@ -2112,8 +2147,10 @@ export interface backendInterface {
     me(): Promise<MeView>;
     myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;
     myDay(day: bigint, all: boolean): Promise<MyDayView>;
+    myHours(fromDay: bigint, toDay: bigint): Promise<Array<HoursLine>>;
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
+    myWorks(): Promise<Array<ExternalWork>>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
     previewDependency(workId: bigint, i: DependencyInput): Promise<Result_14>;
     previewPlan(workId: bigint, change: PlanChange): Promise<Result_14>;
@@ -2144,6 +2181,7 @@ export interface backendInterface {
     setDocKind(k: DocKindInput): Promise<Result_4>;
     setDocumentStatus(docId: bigint, status: DocStatus, note: string): Promise<Result_4>;
     setLinkLabel(p: Principal, tag: string): Promise<Result_4>;
+    setMemberGrants(membershipId: bigint, grants: Array<Grant>): Promise<Result_4>;
     setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_3>;
     setSettings(s: SettingsView): Promise<Result_4>;
     setTaskOrder(workId: bigint, taskIds: Array<bigint>, expectedVersion: bigint): Promise<Result_3>;

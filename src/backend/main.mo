@@ -18,6 +18,7 @@ import PlanApi "mixins/PlanApi";
 import BoardApi "mixins/BoardApi";
 import ImportApi "mixins/ImportApi";
 import ReportsApi "mixins/ReportsApi";
+import ExternApi "mixins/ExternApi";
 
 persistent actor {
   let settings : Types.SettingsState;
@@ -47,6 +48,7 @@ persistent actor {
   include BoardApi(settings, access, org, works, plan, board, audit, ctr);
   include ImportApi(settings, access, org, works, plan, imp, audit, ctr);
   include ReportsApi(settings, access, org, works, files, plan, imp, reports, audit, ctr);
+  include ExternApi(settings, access, org, works, reports, audit, ctr);
   include TicketsApi(settings, access, works, robot, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.

@@ -12,6 +12,7 @@ import { Dossier } from "./Dossier";
 import { PlanSummary } from "./Planning";
 import { AddMember, Field, Files, NewWork } from "./Werven";
 import { ReportsSection } from "./Verslagen";
+import { GrantToggles, InviteToWork } from "./Extern";
 
 export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
@@ -25,6 +26,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
   const persons = useQuery({ queryKey: ["persons", false], queryFn: () => actor!.listPersons(false), enabled: on && caps.readTeam });
   const [adding, setAdding] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [newSub, setNewSub] = useState(false);
   const status = useMutation({
@@ -93,7 +95,10 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
       <section className="a-section">
         <div className="a-row a-row--between">
           <h2 className="bw-h2">{t.werven.team}</h2>
-          {w.caps.manageMembers && <Button icon="plus" onClick={() => setAdding(true)}>{t.werven.addMember}</Button>}
+          <span className="a-row">
+            {w.caps.manageMembers && caps.inviteExternal && <Button icon="people" onClick={() => setInviting(true)}>{t.invite.toWork}</Button>}
+            {w.caps.manageMembers && <Button icon="plus" onClick={() => setAdding(true)}>{t.werven.addMember}</Button>}
+          </span>
         </div>
         <p className="bw-muted">{t.werven.teamLead}</p>
         <Loading q={members} />
@@ -104,7 +109,8 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
               <li key={String(m.id)}>
                 <span className="a-list__main">
                   <b>{m.name}</b>
-                  <span className="a-row"><RoleTags roles={[m.role]} />{m.archived && <span className="a-tag a-tag--bad">{t.werven.archivedMember}</span>}{m.orgId !== undefined && m.personId === undefined && <span className="a-tag">{t.werven.org}</span>}{m.grants.map((g) => <span key={g} className="a-tag">{t.grants[g] ?? g}</span>)}</span>
+                  <span className="a-row"><RoleTags roles={[m.role]} />{m.archived && <span className="a-tag a-tag--bad">{t.werven.archivedMember}</span>}{m.orgId !== undefined && m.personId === undefined && <span className="a-tag">{t.werven.org}</span>}{!w.caps.manageMembers && m.grants.map((g) => <span key={g} className="a-tag">{t.grants[g] ?? g}</span>)}</span>
+                  {w.caps.manageMembers && <GrantToggles m={m} />}
                 </span>
                 {w.caps.manageMembers && (m.role !== Role.werfleider || w.caps.setLeader) && <Button variant="quiet" busy={end.isPending && end.variables === m.id} onClick={() => end.mutate(m.id)}>{t.werven.endMember}</Button>}
               </li>
@@ -118,9 +124,10 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
       <ReportsSection workId={id} caps={caps} go={go} />
 
       <Dossier w={w} />
-      <Files workId={id} canUpload={caps.upload && w.caps.upload} title={t.werven.loose} />
+      <Files workId={id} canUpload={caps.upload && w.caps.upload} title={t.werven.loose} canConfidential={caps.readContracts} />
 
       {adding && <AddMember workId={id} allowLeader={w.caps.setLeader} onClose={() => setAdding(false)} />}
+      {inviting && <InviteToWork workId={id} onClose={() => setInviting(false)} />}
       {editing && <EditWork w={w} onClose={() => setEditing(false)} />}
       {newSub && <NewWork parent={w} onClose={() => setNewSub(false)} go={go} />}
     </Page>

@@ -60,7 +60,9 @@ mixin (
       case null { Rights.require(ctx, p, #readTeam, null); [] };
     };
     // Foto's en bonnen van een werfverslag tonen enkel via het verslag (R8: lezen per rol, 1.6).
-    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id)).map(Dossier.fileView).toArray();
+    // 1.7: een los vertrouwelijk bestand ziet een externe (architect, OA, klant, VC) zelfs niet bij naam (R12, R20).
+    let internal = Rights.internal(p);
+    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id) and (internal or not f.confidential)).map(Dossier.fileView).toArray();
   };
 
   public shared ({ caller }) func readConfidentialFile(id : Nat) : async Result.Result<Views.FileView, Text> {

@@ -55,7 +55,9 @@ const orgDak = ex.orgs.find((o) => o.name === "Proef Dak NV");
 const absGone = ex.absences.find((a) => a.archivedAt.length === 1 && "intern" in a.source && a.orgId === orgDak?.id);
 const repA = ex.dayReports?.find((r) => r.workId === A);
 const issDone = ex.issues?.find((i) => "handled" in i.status);
-if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone || !repA || !issDone) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
+const attDak = ex.attendances?.find((a) => a.orgId[0] === orgDak?.id && a.archivedAt.length === 0);
+const memDakB = ex.memberships.find((m) => m.workId === B && "onderaannemer" in m.role && m.personId.length === 1 && m.endedAt.length === 0);
+if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone || !repA || !issDone || !attDak || !memDakB) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
 const someone = identity("proef-lek-onbekend").getPrincipal();
 const hash = "sha256:" + "c".repeat(64);
@@ -197,6 +199,15 @@ const table = {
   listTrips: [["admin", "werfleider"], () => [20_000n, 20_001n]],
   listVehicles: [INTERNAL, () => [false]],
   saveVehicle: [ADMIN, () => [{ id: [], plate: "", name: "", archived: false }]],
+  // 1.7 externe weergaven: Mijn uren en Mijn werven voor elke actieve persoon (leeg voor wie niets heeft); uren
+  // bevestigen enkel de OA van die firma MET de grant (OA Dak is lid via zijn firma zonder grant: niemand); rechten
+  // per externe: wie het team beheert (een recht dat niet bij de rol past: daarna "past niet"); een bestaande
+  // persoon uitnodigen: admin en werfleider (onbekende persoon: daarna "Onbekende persoon").
+  myHours: [ACTIVE, () => [20_000n, 20_001n]],
+  confirmHours: [NONE, () => [attDak.id, true, ""]],
+  myWorks: [ACTIVE, () => []],
+  setMemberGrants: [["admin", "werfleider"], () => [memDakB.id, [{ readSellPrices: null }]]],
+  inviteExistingPerson: [["admin", "werfleider"], () => [{ personId: X, workIds: [], validDays: 0n, tag: "" }]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

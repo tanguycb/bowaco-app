@@ -1332,6 +1332,12 @@ export const Result_16 = IDL.Variant({
   'ok' : PlanImportReport,
   'err' : IDL.Text,
 });
+export const ExistingInvite = IDL.Record({
+  'tag' : IDL.Text,
+  'validDays' : IDL.Nat,
+  'personId' : PersonId,
+  'workIds' : IDL.Vec(WorkId),
+});
 export const InviteRequest = IDL.Record({
   'tag' : IDL.Text,
   'validDays' : IDL.Nat,
@@ -1518,6 +1524,22 @@ export const MyDayView = IDL.Record({
   'drivers' : IDL.Vec(PersonRef),
   'works' : IDL.Vec(DayWork),
 });
+export const HoursLine = IDL.Record({
+  'day' : Day,
+  'workName' : IDL.Text,
+  'confirmations' : IDL.Vec(ConfirmationView),
+  'headcount' : IDL.Nat,
+  'slots' : IDL.Vec(TimeSlot),
+  'names' : IDL.Text,
+  'canConfirm' : IDL.Bool,
+  'workId' : WorkId,
+  'reportFinal' : IDL.Bool,
+  'minutesTotal' : IDL.Nat,
+  'attendanceId' : IDL.Nat,
+  'reportId' : IDL.Nat,
+  'regie' : IDL.Bool,
+  'workCode' : IDL.Text,
+});
 export const NotificationView = IDL.Record({
   'id' : IDL.Nat,
   'kind' : IDL.Text,
@@ -1525,6 +1547,17 @@ export const NotificationView = IDL.Record({
   'text' : IDL.Text,
   'workId' : IDL.Opt(WorkId),
   'readAt' : IDL.Opt(IDL.Int),
+});
+export const ExternalWork = IDL.Record({
+  'id' : WorkId,
+  'status' : WorkStatus,
+  'grants' : IDL.Vec(Grant),
+  'code' : IDL.Text,
+  'name' : IDL.Text,
+  'leaderName' : IDL.Text,
+  'address' : Address,
+  'leaderPhone' : IDL.Opt(IDL.Text),
+  'roles' : IDL.Vec(Role),
 });
 export const OrgAssignmentView = IDL.Record({
   'workName' : IDL.Text,
@@ -1917,6 +1950,7 @@ export const idlService = IDL.Service({
   'checkTicket' : IDL.Func([IDL.Text], [Result_20], []),
   'claimBootstrap' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
   'confirmAssignment' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_4], []),
+  'confirmHours' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_4], []),
   'confirmLink' : IDL.Func([IDL.Principal], [Result_4], []),
   'createOrg' : IDL.Func([OrgInput], [Result_2], []),
   'createRecoveryCode' : IDL.Func(
@@ -1948,6 +1982,7 @@ export const idlService = IDL.Service({
       [Result_16],
       [],
     ),
+  'inviteExistingPerson' : IDL.Func([ExistingInvite], [Result_15], []),
   'invitePerson' : IDL.Func([InviteRequest], [Result_15], []),
   'listAbsences' : IDL.Func(
       [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
@@ -1993,12 +2028,14 @@ export const idlService = IDL.Service({
   'me' : IDL.Func([], [MeView], ['query']),
   'myBoard' : IDL.Func([IDL.Nat, IDL.Nat], [MyBoardView], ['query']),
   'myDay' : IDL.Func([IDL.Nat, IDL.Bool], [MyDayView], ['query']),
+  'myHours' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(HoursLine)], ['query']),
   'myNotifications' : IDL.Func(
       [IDL.Bool],
       [IDL.Vec(NotificationView)],
       ['query'],
     ),
   'myProposals' : IDL.Func([], [IDL.Vec(ProposalView)], ['query']),
+  'myWorks' : IDL.Func([], [IDL.Vec(ExternalWork)], ['query']),
   'orgAssignments' : IDL.Func(
       [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
       [IDL.Vec(OrgAssignmentView)],
@@ -2049,6 +2086,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'setLinkLabel' : IDL.Func([IDL.Principal, IDL.Text], [Result_4], []),
+  'setMemberGrants' : IDL.Func([IDL.Nat, IDL.Vec(Grant)], [Result_4], []),
   'setOrgConfidential' : IDL.Func(
       [IDL.Nat, IDL.Opt(Contact), IDL.Text],
       [Result_3],
@@ -3391,6 +3429,12 @@ export const idlFactory = ({ IDL }) => {
     'workCreated' : IDL.Nat,
   });
   const Result_16 = IDL.Variant({ 'ok' : PlanImportReport, 'err' : IDL.Text });
+  const ExistingInvite = IDL.Record({
+    'tag' : IDL.Text,
+    'validDays' : IDL.Nat,
+    'personId' : PersonId,
+    'workIds' : IDL.Vec(WorkId),
+  });
   const InviteRequest = IDL.Record({
     'tag' : IDL.Text,
     'validDays' : IDL.Nat,
@@ -3577,6 +3621,22 @@ export const idlFactory = ({ IDL }) => {
     'drivers' : IDL.Vec(PersonRef),
     'works' : IDL.Vec(DayWork),
   });
+  const HoursLine = IDL.Record({
+    'day' : Day,
+    'workName' : IDL.Text,
+    'confirmations' : IDL.Vec(ConfirmationView),
+    'headcount' : IDL.Nat,
+    'slots' : IDL.Vec(TimeSlot),
+    'names' : IDL.Text,
+    'canConfirm' : IDL.Bool,
+    'workId' : WorkId,
+    'reportFinal' : IDL.Bool,
+    'minutesTotal' : IDL.Nat,
+    'attendanceId' : IDL.Nat,
+    'reportId' : IDL.Nat,
+    'regie' : IDL.Bool,
+    'workCode' : IDL.Text,
+  });
   const NotificationView = IDL.Record({
     'id' : IDL.Nat,
     'kind' : IDL.Text,
@@ -3584,6 +3644,17 @@ export const idlFactory = ({ IDL }) => {
     'text' : IDL.Text,
     'workId' : IDL.Opt(WorkId),
     'readAt' : IDL.Opt(IDL.Int),
+  });
+  const ExternalWork = IDL.Record({
+    'id' : WorkId,
+    'status' : WorkStatus,
+    'grants' : IDL.Vec(Grant),
+    'code' : IDL.Text,
+    'name' : IDL.Text,
+    'leaderName' : IDL.Text,
+    'address' : Address,
+    'leaderPhone' : IDL.Opt(IDL.Text),
+    'roles' : IDL.Vec(Role),
   });
   const OrgAssignmentView = IDL.Record({
     'workName' : IDL.Text,
@@ -3974,6 +4045,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_4],
         [],
       ),
+    'confirmHours' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_4], []),
     'confirmLink' : IDL.Func([IDL.Principal], [Result_4], []),
     'createOrg' : IDL.Func([OrgInput], [Result_2], []),
     'createRecoveryCode' : IDL.Func(
@@ -4005,6 +4077,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_16],
         [],
       ),
+    'inviteExistingPerson' : IDL.Func([ExistingInvite], [Result_15], []),
     'invitePerson' : IDL.Func([InviteRequest], [Result_15], []),
     'listAbsences' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
@@ -4050,12 +4123,14 @@ export const idlFactory = ({ IDL }) => {
     'me' : IDL.Func([], [MeView], ['query']),
     'myBoard' : IDL.Func([IDL.Nat, IDL.Nat], [MyBoardView], ['query']),
     'myDay' : IDL.Func([IDL.Nat, IDL.Bool], [MyDayView], ['query']),
+    'myHours' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(HoursLine)], ['query']),
     'myNotifications' : IDL.Func(
         [IDL.Bool],
         [IDL.Vec(NotificationView)],
         ['query'],
       ),
     'myProposals' : IDL.Func([], [IDL.Vec(ProposalView)], ['query']),
+    'myWorks' : IDL.Func([], [IDL.Vec(ExternalWork)], ['query']),
     'orgAssignments' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
         [IDL.Vec(OrgAssignmentView)],
@@ -4106,6 +4181,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'setLinkLabel' : IDL.Func([IDL.Principal, IDL.Text], [Result_4], []),
+    'setMemberGrants' : IDL.Func([IDL.Nat, IDL.Vec(Grant)], [Result_4], []),
     'setOrgConfidential' : IDL.Func(
         [IDL.Nat, IDL.Opt(Contact), IDL.Text],
         [Result_3],

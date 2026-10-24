@@ -14,6 +14,7 @@ import { dayToInput, errText, fmtTime, inputToDay, unwrap, useBackend } from "..
 import { Loading, Page } from "./common";
 import { useMedia } from "./Planning";
 import { Field } from "./Werven";
+import { ShareSheet } from "./Extern";
 import { fmtDm, fmtShort, isoWeek, today, weekday } from "./planUtil";
 
 const N = Number;
@@ -324,8 +325,12 @@ function OrgSheet({ orgId, row, b, caps, tradeName, onClose, go }: { orgId: bigi
   const oa = useQuery({ queryKey: ["oa", String(orgId)], queryFn: async () => unwrap(await actor!.getOa(orgId)), enabled: !!actor && !isFetching });
   const name = row?.name ?? oa.data?.org.name ?? "…";
   const persons = (oa.data?.persons ?? []).filter((p) => p.archivedAt === undefined).map((p) => ({ id: p.id, name: p.name }));
+  const [sharing, setSharing] = useState(false);
   return (
     <Sheet side wide title={`${row?.code ? `${row.code} · ` : ""}${name}`} open onClose={onClose}>
+      {/* 1.7: deel-knop weekplanning per OA (PDF of beeld) */}
+      <div><Button icon="share" onClick={() => setSharing(true)}>{t.extern.shareRow}</Button></div>
+      {sharing && <ShareSheet base={{ orgName: name, orgCode: row?.code, appUrl: window.location.origin }} row={row} monday={N(b.from)} weeks={b.weeks.length} onClose={() => setSharing(false)} />}
       {row && (
         <p className="bw-muted">
           {row.trades.map(tradeName).join(", ")}{row.trades.length ? " · " : ""}{t.board.max(N(row.maxWorks))} ({t.board.maxFrom[row.maxFrom] ?? row.maxFrom})

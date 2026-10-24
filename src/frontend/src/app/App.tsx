@@ -25,6 +25,8 @@ import { Weekbord } from "../screens/Weekbord";
 import { Vandaag } from "../screens/Vandaag";
 import { Werfverslag } from "../screens/Werfverslag";
 import { OutboxSheet } from "../screens/Verslagen";
+import { MijnUren } from "../screens/Extern";
+import { Bell } from "../screens/Meldingen";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -141,6 +143,8 @@ function navFor(caps: Caps): NavItem[] {
   // 1.6: wie verslagen schrijft maar een ander startscherm heeft (admin), krijgt Vandaag erbij.
   if (caps.writeReports && caps.home !== "vandaag") items.push({ key: "vandaag", label: t.nav.vandaag, icon: "home" });
   if (caps.home !== "werven") items.push({ key: "werven", label: t.nav.werven, icon: "building" });
+  // 1.7: de OA bevestigt zijn uren uit de werfverslagen.
+  if (caps.home === "week") items.push({ key: "uren", label: t.nav.uren, icon: "clock" });
   if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
   if (caps.readTeam) items.push({ key: "team", label: t.nav.team, icon: "people" });
   if (caps.inviteExternal || caps.manageAccess) items.push({ key: "codes", label: t.nav.codes, icon: "key" });
@@ -187,6 +191,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
           return route[2] === "planning" ? <PlanningPage id={BigInt(route[1])} caps={caps} go={go} /> : <WerfDetail id={BigInt(route[1])} caps={caps} go={go} />;
         }
         return page === "werven" ? <Werven caps={caps} go={go} /> : <Home kind={page} go={go} caps={caps} />;
+      case "uren": return <MijnUren />;
       case "weekbord": return <Weekbord key={window.location.hash} caps={caps} go={go} />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;
@@ -217,7 +222,8 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
     <div className="a-app">
       <aside className="a-side">
         <div className="a-side__brand"><Wordmark size={17} sub={t.app.sub} /></div>
-        {(caps.writeReports || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
+        <div className="a-row--tight"><Bell go={go} home={caps.home} />
+        {(caps.writeReports || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}</div>
         {navList()}
         <div className="a-me">
           <span className="a-avatar">{initials}</span>
@@ -228,6 +234,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       <div className="a-main">
         <header className="a-bar">
           <span className="a-bar__brand"><Wordmark size={16} sub={t.app.sub} /></span>
+          <Bell go={go} home={caps.home} />
           {(caps.writeReports || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
           <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>
         </header>

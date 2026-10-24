@@ -352,6 +352,28 @@ module {
     };
   };
 
+  // 1.7: welke rechten (grants) bij een externe rol passen (instelbaar per lidmaatschap).
+  public func allowedGrants(r : Role) : [Types.Grant] {
+    switch r {
+      case (#architect) [#readReports, #uploadDocs, #readSellPrices, #readProgress];
+      case (#onderaannemer) [#confirmPlanning, #confirmHours];
+      case (#veiligheidscoordinator) [#uploadDocs, #readReports];
+      case (#klant) [#readProgress];
+      case _ [];
+    };
+  };
+
+  public func grantKey(g : Types.Grant) : Text {
+    switch g {
+      case (#readReports) "verslagen lezen";
+      case (#readSellPrices) "verkoopprijzen";
+      case (#readProgress) "vorderingsstaten";
+      case (#uploadDocs) "documenten opladen";
+      case (#confirmHours) "uren bevestigen";
+      case (#confirmPlanning) "planning bevestigen";
+    };
+  };
+
   public func roleKey(r : Role) : Text {
     switch r {
       case (#admin) "admin";

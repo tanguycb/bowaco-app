@@ -3,6 +3,7 @@
 import { t } from "../texts/nl";
 import { Loading, Page, useWorks, WorkList } from "./common";
 import { MijnTaken } from "./MijnTaken";
+import { HoursPanel, MijnWerven } from "./Extern";
 import { BoardAttention } from "./Weekbord";
 import type { Caps } from "../backend";
 
@@ -13,10 +14,12 @@ export function Home({ kind, go, caps }: { kind: string; go: (to: string) => voi
   return (
     <Page title={TITLE[kind] ?? t.home.werven}>
       {kind === "week" && <MijnTaken go={go} />}
+      {kind === "week" && <HoursPanel compact />}
+      {caps && !caps.readTeam && <MijnWerven go={go} />}
       {kind === "vandaag" && caps?.readOrgPlanning && <section className="a-section"><h2 className="bw-h2">{t.overzicht.attention}</h2><BoardAttention go={go} /></section>}
-      <p className="a-note">{kind === "offertes" ? t.home.laterOffertes : t.home.later}</p>
+      {kind === "offertes" && <p className="a-note">{t.home.laterOffertes}</p>}
       <Loading q={works} />
-      {works.data && <WorkList works={works.data.filter((w) => w.archivedAt === undefined)} go={go} empty={t.home.noWorks} />}
+      {works.data && (!caps || caps.readTeam) && <WorkList works={works.data.filter((w) => w.archivedAt === undefined)} go={go} empty={t.home.noWorks} />}
     </Page>
   );
 }

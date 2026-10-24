@@ -150,7 +150,7 @@ export async function shrinkPhoto(file: File): Promise<Blob> {
   return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("Verkleinen mislukt"))), "image/jpeg", 0.82));
 }
 
-export function Files({ workId, canUpload, title }: { workId: bigint; canUpload: boolean; title?: string }) {
+export function Files({ workId, canUpload, title, canConfidential }: { workId: bigint; canUpload: boolean; title?: string; canConfidential?: boolean }) {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -188,14 +188,14 @@ export function Files({ workId, canUpload, title }: { workId: bigint; canUpload:
       {files.data && sorted.length === 0 && <p className="a-empty">{t.werven.noFiles}</p>}
       {sorted.length > 0 && (
         <ul className="a-list">
-          {sorted.map((f) => <FileRow key={String(f.id)} f={f} />)}
+          {sorted.map((f) => <FileRow key={String(f.id)} f={f} canConfidential={!!canConfidential} />)}
         </ul>
       )}
     </section>
   );
 }
 
-function FileRow({ f }: { f: FileView }) {
+function FileRow({ f, canConfidential }: { f: FileView; canConfidential: boolean }) {
   const url = f.blob?.getDirectURL();
   return (
     <li>
@@ -206,7 +206,7 @@ function FileRow({ f }: { f: FileView }) {
       {f.confidential && <span className="a-tag a-tag--warn">{t.werven.confidential}</span>}
       {url && <a className="bw-btn bw-btn--quiet" href={url} target="_blank" rel="noreferrer">{t.werven.open}</a>}
       {/* P-15 (1.1): ook een los vertrouwelijk bestand opent, via de gelogde update-call (R12, R23). */}
-      {!url && f.confidential && <OpenConfidential fileId={f.id} />}
+      {!url && f.confidential && canConfidential && <OpenConfidential fileId={f.id} />}
     </li>
   );
 }

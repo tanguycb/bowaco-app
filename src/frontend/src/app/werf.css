@@ -67,3 +67,6 @@
 .a-bar .bw-conn { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .a-side .bw-conn { align-self: flex-start; }
 @media (max-width: 420px) { .a-bar .bw-wordmark__sub { display: none; } }
+.a-bell--on { background: var(--bw-accent); color: var(--bw-on-accent, #fff); }
+.a-strong { font-weight: 600; }
+.a-side .a-row--tight { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

@@ -127,6 +127,17 @@ module {
     for (id in activeAdminIds(access).values()) { notify(log, ctr, id, kind, text, null) };
   };
 
+  // 1.7: melding aan de personen van een OA-firma die op deze werf lid zijn (persoonlijk of via hun firma) en een
+  // actieve login hebben; met `grant` enkel wie dat recht op de werf heeft. Nooit aan `except` (de auteur zelf).
+  public func notifyOrgOnWork(access : AccessState, ctx : Rights.Ctx, log : Types.AuditState, ctr : Types.Counters, orgId : Nat, workId : Nat, grant : ?Types.Grant, except : Nat, kind : Text, text : Text) {
+    for (q in access.persons.values()) {
+      if (q.archivedAt == null and q.orgId == ?orgId and q.id != except and hasActiveLink(access, q.id) and Rights.member(ctx, q, workId, ?#onderaannemer)) {
+        let allowed = switch grant { case (?g) Rights.grant(ctx, q, workId, g); case null true };
+        if allowed { notify(log, ctr, q.id, kind, text, ?workId) };
+      };
+    };
+  };
+
   // ── Views ───────────────────────────────────────────────────────────────
   public func personView(p : Person) : Views.PersonView {
     {

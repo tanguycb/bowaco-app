@@ -729,6 +729,17 @@ mixin (
       };
       case null {};
     };
+    // 1.7: de OA's van wie er uren in staan, kunnen ze nu bevestigen (R9).
+    let orgsIn = List.empty<Nat>();
+    for (aid in rpBlocks(target.id).attendances.values()) {
+      switch (reports.attendances.get(aid)) {
+        case (?a) { switch (a.orgId) { case (?o) { if (a.archivedAt == null and not orgsIn.contains(Nat.equal, o)) { orgsIn.add(o) } }; case null {} } };
+        case null {};
+      };
+    };
+    for (o in orgsIn.values()) {
+      Access.notifyOrgOnWork(access, ctx, audit, ctr, o, target.workId, ?#confirmHours, p.id, "uren-bevestigen", "Je uren van " # Plan.fmtDay(target.day) # " op " # rpWorkCode(target.workId) # " staan klaar om te bevestigen (Mijn uren).");
+    };
     Access.audit(audit, caller, ?p.id, ?target.workId, "verslag-afgesloten", rpWorkCode(target.workId) # " " # Plan.fmtDay(target.day) # " #" # target.id.toText() # (switch (target.corrects) { case (?c) " (correctie van #" # c.toText() # ")"; case null "" }));
     #ok((target.id, null, if (target.id == r0.id) "afgesloten" else "correctie afgesloten"));
   };

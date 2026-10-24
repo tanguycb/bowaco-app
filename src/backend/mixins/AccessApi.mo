@@ -155,7 +155,52 @@ mixin (
     let tag = Access.cleanText(req.tag, Config.maxLabel) ?? "";
     let code = newCode(id, #invite, again.id, req.validDays, tag, req.workIds, entropy);
     Access.audit(audit, caller, ?again.id, null, "uitnodiging-gemaakt", name # " " # rolesText(person.roles) # " (code …" # Codes.hint(code.body) # ")");
+    // R15: nodigt een werfleider een externe uit, dan krijgen de admins een melding (bouwplan §3.2).
+    acInviteNotice(again, name, person.roles, req.workIds);
     #ok({ inviteId = code.id; personId = id; code = Codes.display(code.body); expiresAt = code.expiresAt });
+  };
+
+  // 1.7: een BESTAANDE externe persoon (bv. een contactpersoon uit de OA-database, nog zonder login) uitnodigen,
+  // zonder een dubbele persoon te maken. Admin, of een werfleider voor de werven die hij ziet (R15). Wie al een
+  // actieve login heeft, krijgt geen code: die voeg je in het team aan de werf toe.
+  public shared ({ caller }) func inviteExistingPerson(i : Views.ExistingInvite) : async Result.Result<Views.NewCode, Text> {
+    let inviter = Access.requireActive(access, caller);
+    let ctx = { works; settings };
+    // Eerst de rechten (wie geen externen mag uitnodigen, hoort niets over de persoon), dan de invoer.
+    Rights.require(ctx, inviter, #inviteExternal, null);
+    let p = access.persons.get(i.personId) ?? return #err("Onbekende persoon");
+    if (not Rights.mayInvite(ctx, inviter, p.roles, i.workIds)) { return #err("Geen toegang voor deze persoon of werf/werven") };
+    if (p.archivedAt != null) { return #err("Persoon is afgezet") };
+    if (p.roles.size() == 0 or not p.roles.all(Rights.isExternalRole)) { return #err("Enkel een externe persoon (OA, architect, …); een interne persoon krijgt een herstelcode van de admin") };
+    if (p.orgId == null) { return #err("Deze persoon hoort bij geen firma") };
+    if (Access.hasActiveLink(access, p.id)) { return #err("Deze persoon heeft al een login: voeg hem in het team aan de werf toe") };
+    if (i.workIds.size() > Config.maxWorkIdsPerInvite) { return #err("Te veel werven") };
+    let entropy = await Random.blob();
+    // R33: na de await opnieuw nakijken.
+    let again = Access.activePerson(access, caller) ?? return #err("Geen toegang meer");
+    if (not Rights.mayInvite(ctx, again, p.roles, i.workIds)) { return #err("Geen toegang meer") };
+    let now = Time.now();
+    for (w in i.workIds.values()) {
+      for (r in p.roles.values()) {
+        let already = works.memberships.values().any(func m = m.workId == w and m.personId == ?p.id and m.role == r and m.endedAt == null);
+        if (not already) {
+          let mid = Ids.next(ctr, "membership");
+          let m : Types.Membership = { id = mid; workId = w; personId = ?p.id; orgId = null; role = r; grants = Rights.defaultGrants(r); grantedAt = now; grantedBy = again.id; var endedAt = null; var endedBy = null };
+          works.memberships.add(mid, m);
+          Access.audit(audit, caller, ?again.id, ?w, "lid-toegevoegd", Rights.roleKey(r) # " #" # mid.toText() # " (uitnodiging " # p.name # ")");
+        };
+      };
+    };
+    let code = newCode(p.id, #invite, again.id, i.validDays, Access.cleanText(i.tag, Config.maxLabel) ?? "", i.workIds, entropy);
+    Access.audit(audit, caller, ?again.id, null, "uitnodiging-gemaakt", p.name # " " # rolesText(p.roles) # " (bestaande persoon, code …" # Codes.hint(code.body) # ")");
+    acInviteNotice(again, p.name, p.roles, i.workIds);
+    #ok({ inviteId = code.id; personId = p.id; code = Codes.display(code.body); expiresAt = code.expiresAt });
+  };
+
+  func acInviteNotice(inviter : Types.Person, name : Text, roles : [Types.Role], workIds : [Nat]) {
+    if (Rights.isAdmin(inviter)) { return };
+    let codes = workIds.map<Nat, Text>(func w = switch (works.works.get(w)) { case (?x) x.code; case null "#" # w.toText() });
+    Access.notifyAdmins(access, audit, ctr, "uitnodiging", inviter.name # " nodigde " # name # " uit als " # rolesText(roles) # (if (codes.size() > 0) " voor " # Text.join(codes.values(), ", ") else ""));
   };
 
   // Herstelcode: een extra principal voor een bestaande persoon (nieuw toestel, verloren passkey, live na draft).
