@@ -49,7 +49,7 @@ export function WorkAdmin({ w }: { w: WorkView }) {
             <li className="a-doc">
               <span className="a-list__main">
                 <b>{A.art30bis}: {yesNo(v.art30bis)}</b>
-                <span className="bw-muted">{v.reason} · {A.oaCount(N(v.oaCount))}{v.declaration.deadline !== undefined && v.art30bis !== false ? ` · ${A.deadline} ${fmtDayNum(v.declaration.deadline)}` : ""}</span>
+                <span className="bw-muted">{v.reason} · {A.oaCount(N(v.oaCount))}{v.declaration.deadline !== undefined && v.art30bis !== false ? ` · ${A.deadline} ${fmtDayNum(v.declaration.deadline)}${v.declaration.status.__kind__ === "todo" && v.declaration.deadline < todayDay() ? ` (${A.past})` : ""}` : ""}</span>
                 <span className="bw-muted">{declText(v.declaration)}{v.declaration.asbestos ? ` · ${A.asbestos}` : ""}</span>
               </span>
               {v.art30bis !== false && v.declaration.status.__kind__ === "todo" && <span className="a-tag a-tag--warn">{A.declStatus.todo}</span>}
@@ -125,11 +125,11 @@ function DeclarationSheet({ w, v, onClose }: { w: WorkView; v: WorkAdminView; on
   const addr = (a?: { street: string; number: string; zip: string; city: string }) => (a ? `${a.street} ${a.number}, ${a.zip} ${a.city}`.trim() : "–");
   const rows: [string, string][] = d ? [
     [A.d.client, d.client || "–"],
-    [A.d.clientAddress, d.clientAddress ? addr(d.clientAddress) : A.d.onlyOffice],
+    [A.d.clientAddress, d.clientAddress ? addr(d.clientAddress) : v.canSeeAmounts ? A.d.notSet : A.d.onlyOffice],
     [A.d.site, addr(d.workAddress)],
     [A.d.nature, d.nature],
     [A.d.period, `${fmtDayNum(d.start)} – ${fmtDayNum(d.end)}`],
-    [A.d.amount, d.amountCents !== undefined ? fmtEuro(d.amountCents) : A.d.onlyOffice],
+    [A.d.amount, d.amountCents !== undefined ? fmtEuro(d.amountCents) : v.canSeeAmounts ? A.d.notSet : A.d.onlyOffice],
     [A.d.regie, d.regie ? A.yes : A.no],
     [A.d.oas, d.oas.length ? d.oas.map((o) => `${o.name}${o.kbo ? ` (KBO ${o.kbo})` : ` (${A.noKbo})`}`).join("; ") : A.noOas],
     [A.d.architect, d.architect || "–"],
@@ -270,7 +270,7 @@ export function WadmPage({ go, canRules }: { go: (to: string) => void; canRules:
               {v.declarations.map((d) => (
                 <li key={String(d.workId)}>
                   <button type="button" className="a-list__btn" onClick={() => go(`werven/${d.workId}`)}>
-                    <span className="a-list__main"><b>{d.workCode} · {d.workName}</b><span className="bw-muted">{d.reason}{d.deadline !== undefined ? ` · ${A.deadline} ${fmtDayNum(d.deadline)}` : ""}</span></span>
+                    <span className="a-list__main"><b>{d.workCode} · {d.workName}</b><span className="bw-muted">{d.reason}{d.deadline !== undefined ? ` · ${A.deadline} ${fmtDayNum(d.deadline)}${d.deadline < todayDay() ? ` (${A.past})` : ""}` : ""}</span></span>
                     <span className={`a-tag ${d.status === "te doen" ? "a-tag--warn" : ""}`}>{d.status}</span>
                     <Icon name="next" size={18} />
                   </button>

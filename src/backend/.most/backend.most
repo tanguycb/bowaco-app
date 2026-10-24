@@ -370,6 +370,7 @@ type DayReport__682189017 =
   };
 type Day__1060919207 = Nat;
 type Day__162369424 = Nat;
+type Day__432051804 = Nat;
 type Day__672613163 = Nat;
 type Day__728056481 = Nat;
 type Day__786034210 = Nat;
@@ -379,6 +380,40 @@ type Decision__965673210 =
   {accepted : Bool; at : Int; by : PersonId__1007515609; note : Text};
 type Decision__978490448 =
   {accepted : Bool; at : Int; by : PersonId__967516914; note : Text};
+type DeclarationStatus__663918345 =
+  {
+    #done : {number : Text; on : Day__432051804};
+    #notNeeded : {reason : Text};
+    #todo
+  };
+type DeclarationStatus__922495541 =
+  {
+    #done : {number : Text; on : Day__162369424};
+    #notNeeded : {reason : Text};
+    #todo
+  };
+type Declaration__156120691 =
+  {
+    asbestos : Bool;
+    extra : Extra__945213800;
+    nature : Text;
+    note : Text;
+    status : DeclarationStatus__922495541;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    workId : WorkId__929594816
+  };
+type Declaration__849861983 =
+  {
+    asbestos : Bool;
+    extra : Extra__459120016;
+    nature : Text;
+    note : Text;
+    status : DeclarationStatus__663918345;
+    updatedAt : Int;
+    updatedBy : PersonId__858692293;
+    workId : WorkId__35351127
+  };
 type DependencyKind__411207170 = {#finishToStart; #startToStart};
 type DependencyKind__781499829 = {#finishToStart; #startToStart};
 type Dependency__16095651 =
@@ -460,6 +495,7 @@ type DossierState__7485337 =
   };
 type Extra__268650993 = [(Text, Text)];
 type Extra__365037972 = [(Text, Text)];
+type Extra__459120016 = [(Text, Text)];
 type Extra__482036894 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
 type Extra__550678138 = [(Text, Text)];
@@ -913,6 +949,7 @@ type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
 type NewActor__2917504 = {plan : PlanState__393161007};
 type NewActor__398557116 = {imp : ImportState__440367384};
+type NewActor__473839593 = {wadm : WadmState__864899804};
 type NewActor__542837279 = {reports : ReportState__211051397};
 type NewActor__914032600 = {oa : OaState__978871092};
 type NewActor__918578615 = {permits : PermitState__160097102};
@@ -955,6 +992,7 @@ type OldActor__415128861 = {};
 type OldActor__430767433 = {};
 type OldActor__574962007 = {};
 type OldActor__669130419 = {};
+type OldActor__853471898 = {};
 type OpRecord__50968246 =
   {
     at : Int;
@@ -1014,6 +1052,7 @@ type OrgContact__539818738 =
     website : ?Text
   };
 type OrgId__1000487066 = Nat;
+type OrgId__137103020 = Nat;
 type OrgId__168115520 = Nat;
 type OrgId__17031398 = Nat;
 type OrgId__208183745 = Nat;
@@ -1244,6 +1283,7 @@ type PersonId__253911295 = Nat;
 type PersonId__363464289 = Nat;
 type PersonId__677245278 = Nat;
 type PersonId__820620982 = Nat;
+type PersonId__858692293 = Nat;
 type PersonId__967516914 = Nat;
 type Person__726696944 =
   {
@@ -1705,6 +1745,47 @@ type Vehicle__501905308 =
     name : Text;
     plate : Text
   };
+type WadmState__864899804 =
+  {
+    checks : Map__230067015<Nat, WithholdingCheck__611381058>;
+    declarations : Map__230067015<WorkId__35351127, Declaration__849861983>
+  };
+type WithholdingCheck__333292462 =
+  {
+    at : Int;
+    by : ?PersonId__967516914;
+    consultedOn : Day__162369424;
+    extra : Extra__945213800;
+    fileId : ?Nat;
+    id : Nat;
+    kbo : Text;
+    note : Text;
+    orgId : OrgId__17031398;
+    reference : Text;
+    result : WithholdingResult__1032279845;
+    source : Text;
+    workId : ?WorkId__929594816
+  };
+type WithholdingCheck__611381058 =
+  {
+    at : Int;
+    by : ?PersonId__858692293;
+    consultedOn : Day__432051804;
+    extra : Extra__459120016;
+    fileId : ?Nat;
+    id : Nat;
+    kbo : Text;
+    note : Text;
+    orgId : OrgId__137103020;
+    reference : Text;
+    result : WithholdingResult__184859011;
+    source : Text;
+    workId : ?WorkId__35351127
+  };
+type WithholdingResult__1032279845 =
+  {#both; #clear; #fiscal; #social; #unknown};
+type WithholdingResult__184859011 =
+  {#both; #clear; #fiscal; #social; #unknown};
 type WorkConfidentialVersion__408773235 =
   {
     at : Int;
@@ -1779,6 +1860,7 @@ type WorkDone__366546212 =
   };
 type WorkId__111716167 = Nat;
 type WorkId__171501769 = Nat;
+type WorkId__35351127 = Nat;
 type WorkId__642659770 = Nat;
 type WorkId__72456761 = Nat;
 type WorkId__838834227 = Nat;
@@ -1879,7 +1961,8 @@ type WorksState__605582232 =
   "20261024_090000" : OldActor__381654595 -> NewActor__398557116;
   "20261024_120000" : OldActor__430767433 -> NewActor__542837279;
   "20261024_150000" : OldActor__669130419 -> NewActor__918578615;
-  "20261024_180000" : OldActor__285002242 -> NewActor__127410502
+  "20261024_180000" : OldActor__285002242 -> NewActor__127410502;
+  "20261024_210000" : OldActor__853471898 -> NewActor__473839593
 }
 actor  {
   stable access :
@@ -1995,6 +2078,12 @@ actor  {
       sequences : Map__230067015<Text, Nat>;
       values : Map__230067015<Text, Text>;
       var werfleiderZietAlles : Bool
+    };
+  stable wadm :
+    {
+      checks : Map__230067015<Nat, WithholdingCheck__333292462>;
+      declarations :
+        Map__230067015<WorkId__929594816, Declaration__156120691>
     };
   stable works :
     {
