@@ -294,6 +294,7 @@ type CodeState__574295970 =
 type Confidential__546665525<T> = {#plain : T; #sealed : Sealed__69262316};
 type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
 type Confidential__675319516<T> = {#plain : T; #sealed : Sealed__1041298352};
+type Confidential__886369716<T> = {#plain : T; #sealed : Sealed__566922365};
 type Confirmation__1046287337 =
   {
     #confirmed : {at : Int; by : PersonId__185004052};
@@ -312,6 +313,10 @@ type Contact__86024909 =
   {address : ?Address__294896158; email : ?Text; name : Text; phone : ?Text};
 type Contact__934541314 =
   {address : ?Address__766490103; email : ?Text; name : Text; phone : ?Text};
+type ContractForm__243403253 =
+  {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
+type ContractForm__592914701 =
+  {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
 type ContractParams__65105207 =
   {
     estimatedAmountCents : ?Int;
@@ -370,6 +375,7 @@ type DayReport__682189017 =
   };
 type Day__1060919207 = Nat;
 type Day__162369424 = Nat;
+type Day__315760598 = Nat;
 type Day__432051804 = Nat;
 type Day__672613163 = Nat;
 type Day__728056481 = Nat;
@@ -496,6 +502,7 @@ type DossierState__7485337 =
 type Extra__1018104949 = [(Text, Text)];
 type Extra__268650993 = [(Text, Text)];
 type Extra__365037972 = [(Text, Text)];
+type Extra__417870522 = [(Text, Text)];
 type Extra__459120016 = [(Text, Text)];
 type Extra__482036894 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
@@ -739,6 +746,193 @@ type Job__800437494 =
     workId : ?WorkId__642659770
   };
 type Leaf__598469445<K, V> = {data : Data__44217153<K, V>};
+type LibChapter__767147912 =
+  {
+    archivedAt : ?Int;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    id : Nat;
+    note : Text;
+    order : Nat;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914
+  };
+type LibChapter__990175788 =
+  {
+    archivedAt : ?Int;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__518727946;
+    extra : Extra__417870522;
+    id : Nat;
+    note : Text;
+    order : Nat;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__518727946
+  };
+type LibCost__181948781 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__967516914;
+    cost : Confidential__546665525<Int>;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    day : Day__162369424;
+    extra : Extra__945213800;
+    id : Nat;
+    itemId : Nat;
+    note : Text;
+    orgId : ?OrgId__17031398;
+    ref : Text;
+    source : Text
+  };
+type LibCost__993010746 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__518727946;
+    cost : Confidential__886369716<Int>;
+    createdAt : Int;
+    createdBy : PersonId__518727946;
+    day : Day__315760598;
+    extra : Extra__417870522;
+    id : Nat;
+    itemId : Nat;
+    note : Text;
+    orgId : ?OrgId__874222008;
+    ref : Text;
+    source : Text
+  };
+type LibItemVersion__478352403 =
+  {
+    at : Int;
+    by : PersonId__518727946;
+    fields : Text;
+    id : Nat;
+    item : LibItem__131294538;
+    itemId : Nat;
+    version : Nat
+  };
+type LibItemVersion__870173281 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    fields : Text;
+    id : Nat;
+    item : LibItem__144239490;
+    itemId : Nat;
+    version : Nat
+  };
+type LibItem__131294538 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__518727946;
+    chapterId : Nat;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__518727946;
+    durationDays : ?Nat;
+    extra : Extra__417870522;
+    form : ContractForm__592914701;
+    id : Nat;
+    importKey : ?Text;
+    keywords : [Text];
+    orgId : ?OrgId__874222008;
+    perDayMilli : ?Int;
+    planStepKey : ?Text;
+    text : Text;
+    title : Text;
+    trade : ?Text;
+    unit : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__518727946;
+    version : Nat
+  };
+type LibItem__144239490 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__967516914;
+    chapterId : Nat;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    durationDays : ?Nat;
+    extra : Extra__945213800;
+    form : ContractForm__243403253;
+    id : Nat;
+    importKey : ?Text;
+    keywords : [Text];
+    orgId : ?OrgId__17031398;
+    perDayMilli : ?Int;
+    planStepKey : ?Text;
+    text : Text;
+    title : Text;
+    trade : ?Text;
+    unit : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    version : Nat
+  };
+type LibSellRule__575445335 = {#margin : Nat; #price : Int};
+type LibSellRule__728679382 = {#margin : Nat; #price : Int};
+type LibSellVersion__871048333 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    id : Nat;
+    itemId : Nat;
+    reason : Confidential__546665525<Text>;
+    rule : ?Confidential__546665525<LibSellRule__728679382>;
+    version : Nat
+  };
+type LibSellVersion__97351344 =
+  {
+    at : Int;
+    by : PersonId__518727946;
+    id : Nat;
+    itemId : Nat;
+    reason : Confidential__886369716<Text>;
+    rule : ?Confidential__886369716<LibSellRule__575445335>;
+    version : Nat
+  };
+type LibSell__691683324 =
+  {
+    extra : Extra__945213800;
+    itemId : Nat;
+    reason : Confidential__546665525<Text>;
+    rule : ?Confidential__546665525<LibSellRule__728679382>;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    version : Nat
+  };
+type LibSell__822435941 =
+  {
+    extra : Extra__417870522;
+    itemId : Nat;
+    reason : Confidential__886369716<Text>;
+    rule : ?Confidential__886369716<LibSellRule__575445335>;
+    updatedAt : Int;
+    updatedBy : PersonId__518727946;
+    version : Nat
+  };
+type LibraryState__89257550 =
+  {
+    chapters : Map__230067015<Nat, LibChapter__990175788>;
+    costs : Map__230067015<Nat, LibCost__993010746>;
+    costsByItem : Map__230067015<Nat, [Nat]>;
+    importKeys : Map__230067015<Text, Nat>;
+    itemVersions : Map__230067015<Nat, LibItemVersion__478352403>;
+    items : Map__230067015<Nat, LibItem__131294538>;
+    sellVersions : Map__230067015<Nat, LibSellVersion__97351344>;
+    sells : Map__230067015<Nat, LibSell__822435941>
+  };
 type LinkHistory__721080331 =
   {
     codeHint : Text;
@@ -986,6 +1180,7 @@ type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
 type NewActor__2917504 = {plan : PlanState__393161007};
 type NewActor__398557116 = {imp : ImportState__440367384};
+type NewActor__410098017 = {library : LibraryState__89257550};
 type NewActor__473839593 = {wadm : WadmState__864899804};
 type NewActor__542837279 = {reports : ReportState__211051397};
 type NewActor__914032600 = {oa : OaState__978871092};
@@ -1025,6 +1220,7 @@ type OldActor__1025357807 = {};
 type OldActor__211850744 = {};
 type OldActor__285002242 = {};
 type OldActor__305186077 = {};
+type OldActor__376205032 = {};
 type OldActor__381654595 = {};
 type OldActor__415128861 = {};
 type OldActor__430767433 = {};
@@ -1099,6 +1295,7 @@ type OrgId__232449879 = Nat;
 type OrgId__331006062 = Nat;
 type OrgId__370186017 = Nat;
 type OrgId__579572044 = Nat;
+type OrgId__874222008 = Nat;
 type OrgId__875663865 = Nat;
 type OrgId__98679714 = Nat;
 type OrgKind__867804321 =
@@ -1321,6 +1518,7 @@ type PersonId__185004052 = Nat;
 type PersonId__199562452 = Nat;
 type PersonId__253911295 = Nat;
 type PersonId__363464289 = Nat;
+type PersonId__518727946 = Nat;
 type PersonId__677245278 = Nat;
 type PersonId__820620982 = Nat;
 type PersonId__858692293 = Nat;
@@ -1547,6 +1745,7 @@ type Role__679663545 =
     #werfleider
   };
 type Sealed__1041298352 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__566922365 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__69262316 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__901946251 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type SettingsState__180579617 =
@@ -2003,7 +2202,8 @@ type WorksState__605582232 =
   "20261024_150000" : OldActor__669130419 -> NewActor__918578615;
   "20261024_180000" : OldActor__285002242 -> NewActor__127410502;
   "20261024_210000" : OldActor__853471898 -> NewActor__473839593;
-  "20261024_230000" : OldActor__804964816 -> NewActor__984285705
+  "20261024_230000" : OldActor__804964816 -> NewActor__984285705;
+  "20261024_235500" : OldActor__376205032 -> NewActor__410098017
 }
 actor  {
   stable access :
@@ -2047,6 +2247,17 @@ actor  {
       appointments : Map__230067015<Nat, Appointment__3400962>;
       batches : Map__230067015<Text, ImportBatch__918829545>;
       keys : Map__230067015<Text, ImportKey__605447614>
+    };
+  stable library :
+    {
+      chapters : Map__230067015<Nat, LibChapter__767147912>;
+      costs : Map__230067015<Nat, LibCost__181948781>;
+      costsByItem : Map__230067015<Nat, [Nat]>;
+      importKeys : Map__230067015<Text, Nat>;
+      itemVersions : Map__230067015<Nat, LibItemVersion__870173281>;
+      items : Map__230067015<Nat, LibItem__144239490>;
+      sellVersions : Map__230067015<Nat, LibSellVersion__871048333>;
+      sells : Map__230067015<Nat, LibSell__691683324>
     };
   stable mail : {log : Map__230067015<Nat, MailLog__213783183>};
   stable oa :
