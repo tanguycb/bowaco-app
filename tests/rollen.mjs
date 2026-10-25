@@ -139,12 +139,13 @@ const adminId = ame.person[0].id;
 
 await sec("── organisaties en werven");
 const org = async (kind, name, extra = {}) =>
-  admin.createOrg({ kind: { [kind]: null }, name, kbo: opt(extra.kbo), vat: [], aliases: extra.aliases ?? [], trades: [], address: [], notes: "" });
+  admin.createOrg({ kind: { [kind]: null }, name, kbo: opt(extra.kbo), vat: [], aliases: extra.aliases ?? [], trades: [], address: opt(extra.address), notes: "" });
 const orgX = await org("subcontractor", "Proef Tegels BV", { kbo: "0123.456.789", aliases: ["gils"] });
 check("admin maakt OA-firma; KBO genormaliseerd, alias in hoofdletters", isOk(orgX) && orgX.ok.kbo[0] === "0123456789" && orgX.ok.aliases[0] === "GILS", JSON.stringify(orgX, big));
 const orgY = await org("subcontractor", "Proef Dak NV");
 const orgArch = await org("architect", "Proef Architecten");
-const orgKlant = await org("client", "Familie Proef");
+// 2.6: een klant zonder volledig adres blokkeert het versturen van een offerte; de proefklant heeft er een (verzonnen).
+const orgKlant = await org("client", "Familie Proef", { address: { street: "Proefstraat", number: "1", zip: "8670", city: "Koksijde", country: "BE" } });
 check("KBO met verkeerde lengte geweigerd", "err" in (await org("subcontractor", "Fout", { kbo: "123" })));
 const addr = (street) => ({ street, number: "1", zip: "8670", city: "Koksijde", country: "BE" });
 const workA = await admin.createWork({ code: "P-A", name: "Proefstraat 1", address: addr("Proefstraat"), parentId: [], clientOrgId: [orgKlant.ok.id], architectOrgId: [orgArch.ok.id], leaderPersonId: [], vatBp: 600n });
@@ -1778,6 +1779,7 @@ await sec("── offertes (2.4): versies, rekenen in de browser + controle op d
   check("versie 1: ontwerp, btw 21 % van P-B, standaardmarge 20 %", "draft" in r2.version.status && r2.version.vatBp === 2100n && r2.margins[0]?.standardMarginBp === 2000n);
   // Invullen en bewaren zoals de browser
   const m = fromRead(r2);
+  M.setHeader(m, { clientOrgId: orgKlant.ok.id }); // 2.6: een offerte zonder klant wordt niet verstuurd
   const c1 = M.addChapter(m, { code: "02", title: "Proef afbraak" });
   const c2 = M.addChapter(m, { code: "03", title: "Proef grondwerken" });
   const pr = (cost, rule = null, reason = "") => ({ cost, rule, reason, orgId: null, source: cost === null ? "" : "eigen", libCostId: null });
@@ -1829,15 +1831,15 @@ await sec("── offertes (2.4): versies, rekenen in de browser + controle op d
   const rwc = ok1b(await wlcalc.readQuoteVersion(vid));
   check("werfleider die ook calculator is: alles (rechten = som van de rollen, R20)", "full" in rwc.scope && rwc.costs.length === 5);
   for (const [n, x] of [["architect (zonder grant)", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon], ["onbekende login", vreemde]]) {
-    const rs = await Promise.all([x.readQuoteVersion(vid), x.listQuotes([B], false), x.listQuotes([], false), x.newQuoteVersion(q2.ok.quoteId, []), x.sendQuoteVersion(vid, 0n, 0n), x.decideQuoteVersion(vid, true, ""), x.setQuoteArchived(q2.ok.quoteId, true, "x")].map(denied));
+    const rs = await Promise.all([x.readQuoteVersion(vid), x.listQuotes([B], false), x.listQuotes([], false), x.newQuoteVersion(q2.ok.quoteId, []), x.sendQuoteVersion(vid, 0n, 0n, "proef: regels"), x.decideQuoteVersion(vid, true, ""), x.setQuoteArchived(q2.ok.quoteId, true, "x")].map(denied));
     check(`${n}: geen enkele offertefunctie (7 oproepen geweigerd)`, rs.every(Boolean), rs.map((r) => (r ? "·" : "✗")).join(""));
   }
-  check("werfleider: lijst van de werf wel, zonder bedragen; bewaren, versturen, nieuwe versie: geweigerd", (await wl.listQuotes([B], false)).length === 2 && (await Promise.all([wl.saveQuoteDraft(...bad), wl.sendQuoteVersion(vid, 0n, 0n), wl.newQuoteVersion(q2.ok.quoteId, [])].map(denied))).every(Boolean));
+  check("werfleider: lijst van de werf wel, zonder bedragen; bewaren, versturen, nieuwe versie: geweigerd", (await wl.listQuotes([B], false)).length === 2 && (await Promise.all([wl.saveQuoteDraft(...bad), wl.sendQuoteVersion(vid, 0n, 0n, "proef: regels"), wl.newQuoteVersion(q2.ok.quoteId, [])].map(denied))).every(Boolean));
   check("caps: offertes voor interne rollen, bewerken en prijzen enkel admin en calculator", meOf(await wl.me(), "quotes") && !meOf(await wl.me(), "editQuotes") && !meOf(await wl.me(), "quotePrices") && meOf(await calc.me(), "quotePrices") && !meOf(await oa2.me(), "quotes"));
   // Versturen en versies
-  const sent = await calc.sendQuoteVersion(vid, rv.version.rev, rv.totals.totalCents);
+  const sent = await calc.sendQuoteVersion(vid, rv.version.rev, rv.totals.totalCents, "proef: regels");
   check("versturen: hash; daarna niets meer aan te passen", isOk(sent) && /kan niet meer veranderen/.test(errOf(await calc.saveQuoteDraft(...bad))));
-  check("lege offerte versturen: geweigerd", /nog geen enkele post/.test(errOf(await calc.sendQuoteVersion(q1.ok.versionId, 0n, 0n))));
+  check("lege offerte versturen: geweigerd", /nog geen enkele post/.test(errOf(await calc.sendQuoteVersion(q1.ok.versionId, 0n, 0n, "proef: regels"))));
   const nv = await calc.newQuoteVersion(q2.ok.quoteId, []);
   check("nieuwe versie v2 als kopie; een tweede ontwerp: geweigerd", isOk(nv) && /al een ontwerp/.test(errOf(await calc.newQuoteVersion(q2.ok.quoteId, []))));
   const rv2 = ok1b(await calc.readQuoteVersion(nv.ok));

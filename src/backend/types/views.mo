@@ -827,6 +827,9 @@ module {
     quoteVersions : [Types.QuoteVersion];
     quoteChapters : [Types.QuoteChapter];
     quoteLines : [Types.QuoteLine];
+    quoteRules : [Types.QuoteRuleCfg]; // 2.6
+    quoteStdPosts : [Types.QuoteStdPost];
+    quoteChecks : [Types.QuoteCheckDone];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -904,6 +907,9 @@ module {
     #quoteVersions : [Types.QuoteVersion];
     #quoteChapters : [Types.QuoteChapter];
     #quoteLines : [Types.QuoteLine];
+    #quoteRules : [Types.QuoteRuleCfg]; // 2.6 (intern)
+    #quoteStdPosts : [Types.QuoteStdPost];
+    #quoteChecks : [Types.QuoteCheckDone];
     #quotePrices : [Types.QuoteLinePrice]; // 2.4 (vertrouwelijk)
     #quoteVersionConf : [Types.QuoteVersionConf];
   };
@@ -1666,6 +1672,8 @@ module {
     sell : [QuoteSellLine]; // leeg voor de werfleider
     costs : [QuoteCostLine]; // enkel #full
     margins : ?QuoteMarginTotals; // enkel #full
+    check : ?QuoteCheckView; // enkel #full: waarschuwingen die bij het versturen doorgezet werden
+    vatNote : Text; // enkel #full: de grond voor het btw-tarief op de werffiche (controleregel 2.6)
   };
   public type QuoteNew = { workId : WorkId; number : Text; title : Text };
   public type QuoteCreated = { quoteId : Nat; versionId : Nat; number : Text };
@@ -1695,5 +1703,15 @@ module {
   };
   public type QuoteExpectChapter = { chapter : QuoteChapterRef; sellCents : Int };
   public type QuoteExpect = { subtotalCents : Int; vatCents : Int; totalCents : Int; optionsPlusCents : Int; optionsMinusCents : Int; costCents : Int; marginCents : Int; chapters : [QuoteExpectChapter] };
+  // ── Controleregels vóór verzending (2.6) ──
+  // Een bevinding draagt nooit een bedrag: de regel, hoeveel lijnen of hoofdstukken, en welke (hoogstens 20).
+  public type QuoteFinding = { rule : Text; name : Text; severity : Types.QuoteSeverity; count : Nat; lineIds : [Nat]; chapterIds : [Nat] };
+  public type QuoteRuleView = { key : Text; name : Text; fixed : Bool; enabled : Bool; severity : Types.QuoteSeverity; thresholdBp : ?Nat; hasThreshold : Bool };
+  public type QuoteStdPostView = { key : Text; name : Text; keywords : [Text]; enabled : Bool; severity : Types.QuoteSeverity; order : Nat; archived : Bool };
+  public type QuoteRulesView = { rules : [QuoteRuleView]; stdPosts : [QuoteStdPostView] };
+  public type QuoteRuleInput = { key : Text; enabled : Bool; severity : Types.QuoteSeverity; thresholdBp : ?Nat };
+  public type QuoteStdPostInput = { key : Text; name : Text; keywords : [Text]; enabled : Bool; severity : Types.QuoteSeverity; order : Nat; archived : Bool };
+  public type QuoteWarned = { rule : Text; name : Text; count : Nat };
+  public type QuoteCheckView = { at : Int; byName : Text; reason : Text; warned : [QuoteWarned] };
   public type QuoteSaveResult = { rev : Nat; refs : [(Text, Nat)]; totals : QuoteTotalsView; margins : QuoteMarginTotals };
 };

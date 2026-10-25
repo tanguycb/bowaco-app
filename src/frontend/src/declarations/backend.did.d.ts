@@ -821,6 +821,7 @@ export interface ExportIntern {
   'links' : Array<LinkView>,
   'reportKeys' : Array<[string, bigint]>,
   'municipalities' : Array<Municipality>,
+  'quoteChecks' : Array<QuoteCheckDone>,
   'version' : string,
   'issues' : Array<Issue>,
   'permits' : Array<Permit>,
@@ -840,8 +841,10 @@ export interface ExportIntern {
   'capacity' : Array<CapacityRule>,
   'importBatches' : Array<ImportBatch>,
   'proposals' : Array<ProposalView>,
+  'quoteStdPosts' : Array<QuoteStdPost>,
   'permitAlerts' : Array<[string, bigint]>,
   'works' : Array<WorkView>,
+  'quoteRules' : Array<QuoteRuleCfg>,
   'quotes' : Array<Quote>,
   'personContacts' : Array<PersonContact>,
   'sequences' : Array<[string, bigint]>,
@@ -2145,6 +2148,19 @@ export interface QuoteChapterView {
   'libChapterId' : [] | [bigint],
   'code' : string,
 }
+export interface QuoteCheckDone {
+  'at' : bigint,
+  'by' : PersonId,
+  'versionId' : bigint,
+  'warned' : Array<[string, bigint]>,
+  'reason' : string,
+}
+export interface QuoteCheckView {
+  'at' : bigint,
+  'byName' : string,
+  'warned' : Array<QuoteWarned>,
+  'reason' : string,
+}
 export interface QuoteCostLine {
   'orgName' : string,
   'source' : string,
@@ -2183,6 +2199,14 @@ export interface QuoteExpect {
 export interface QuoteExpectChapter {
   'chapter' : QuoteChapterRef,
   'sellCents' : bigint,
+}
+export interface QuoteFinding {
+  'lineIds' : Array<bigint>,
+  'name' : string,
+  'count' : bigint,
+  'rule' : string,
+  'severity' : QuoteSeverity,
+  'chapterIds' : Array<bigint>,
 }
 export interface QuoteHeaderInput {
   'title' : string,
@@ -2287,6 +2311,7 @@ export interface QuotePriceInput {
   'reason' : string,
 }
 export interface QuoteRead {
+  'check' : [] | [QuoteCheckView],
   'costs' : Array<QuoteCostLine>,
   'sell' : Array<QuoteSellLine>,
   'quote' : QuoteSummary,
@@ -2296,6 +2321,34 @@ export interface QuoteRead {
   'version' : QuoteVersionView,
   'chapters' : Array<QuoteChapterView>,
   'totals' : QuoteTotalsView,
+  'vatNote' : string,
+}
+export interface QuoteRuleCfg {
+  'key' : string,
+  'thresholdBp' : [] | [bigint],
+  'enabled' : boolean,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'severity' : QuoteSeverity,
+}
+export interface QuoteRuleInput {
+  'key' : string,
+  'thresholdBp' : [] | [bigint],
+  'enabled' : boolean,
+  'severity' : QuoteSeverity,
+}
+export interface QuoteRuleView {
+  'key' : string,
+  'fixed' : boolean,
+  'name' : string,
+  'thresholdBp' : [] | [bigint],
+  'enabled' : boolean,
+  'severity' : QuoteSeverity,
+  'hasThreshold' : boolean,
+}
+export interface QuoteRulesView {
+  'stdPosts' : Array<QuoteStdPostView>,
+  'rules' : Array<QuoteRuleView>,
 }
 export interface QuoteSaveResult {
   'rev' : bigint,
@@ -2321,12 +2374,43 @@ export interface QuoteSent {
   'optionsMinusCents' : bigint,
   'optionsPlusCents' : bigint,
 }
+export type QuoteSeverity = { 'warn' : null } |
+  { 'block' : null };
 export type QuoteStatus = { 'superseded' : null } |
   { 'sent' : null } |
   { 'rejected' : null } |
   { 'accepted' : null } |
   { 'withdrawn' : null } |
   { 'draft' : null };
+export interface QuoteStdPost {
+  'key' : string,
+  'order' : bigint,
+  'name' : string,
+  'enabled' : boolean,
+  'keywords' : Array<string>,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'severity' : QuoteSeverity,
+  'archivedAt' : [] | [bigint],
+}
+export interface QuoteStdPostInput {
+  'key' : string,
+  'order' : bigint,
+  'name' : string,
+  'enabled' : boolean,
+  'keywords' : Array<string>,
+  'severity' : QuoteSeverity,
+  'archived' : boolean,
+}
+export interface QuoteStdPostView {
+  'key' : string,
+  'order' : bigint,
+  'name' : string,
+  'enabled' : boolean,
+  'keywords' : Array<string>,
+  'severity' : QuoteSeverity,
+  'archived' : boolean,
+}
 export interface QuoteSummary {
   'id' : bigint,
   'workName' : string,
@@ -2416,6 +2500,11 @@ export interface QuoteVersionView {
   'editable' : boolean,
   'decidedAt' : [] | [bigint],
   'workVatBp' : bigint,
+}
+export interface QuoteWarned {
+  'name' : string,
+  'count' : bigint,
+  'rule' : string,
 }
 export interface ReportChange {
   'at' : bigint,
@@ -2582,6 +2671,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'links' : Array<LinkView> } |
   { 'reportKeys' : Array<[string, bigint]> } |
   { 'municipalities' : Array<Municipality> } |
+  { 'quoteChecks' : Array<QuoteCheckDone> } |
   { 'workConfidentialHistory' : Array<WorkConfidentialVersion> } |
   { 'issues' : Array<Issue> } |
   { 'permits' : Array<Permit> } |
@@ -2603,8 +2693,10 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'capacity' : Array<CapacityRule> } |
   { 'importBatches' : Array<ImportBatch> } |
   { 'proposals' : Array<ProposalView> } |
+  { 'quoteStdPosts' : Array<QuoteStdPost> } |
   { 'permitAlerts' : Array<[string, bigint]> } |
   { 'works' : Array<WorkView> } |
+  { 'quoteRules' : Array<QuoteRuleCfg> } |
   { 'orgConfidential' : Array<[OrgId, ContactConfidentialView]> } |
   { 'quotes' : Array<Quote> } |
   { 'personContacts' : Array<PersonContact> } |
@@ -2698,6 +2790,8 @@ export type Result_4 = { 'ok' : null } |
 export type Result_40 = { 'ok' : CiawExport } |
   { 'err' : string };
 export type Result_41 = { 'ok' : TicketInfo } |
+  { 'err' : string };
+export type Result_42 = { 'ok' : Array<QuoteFinding> } |
   { 'err' : string };
 export type Result_5 = { 'ok' : PostSettingsView } |
   { 'err' : string };
@@ -3253,6 +3347,7 @@ export interface _SERVICE {
   'boardConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
   'boardRules' : ActorMethod<[], BoardRulesView>,
   'cancelJob' : ActorMethod<[bigint], Result_4>,
+  'checkQuoteVersion' : ActorMethod<[bigint], Result_42>,
   'checkTicket' : ActorMethod<[string], Result_41>,
   'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_40>,
   'claimBootstrap' : ActorMethod<[string, string], Result_1>,
@@ -3278,6 +3373,7 @@ export interface _SERVICE {
   'getLibraryItem' : ActorMethod<[bigint], Result_14>,
   'getOa' : ActorMethod<[bigint], Result_35>,
   'getPlan' : ActorMethod<[bigint], PlanView>,
+  'getQuoteRules' : ActorMethod<[], QuoteRulesView>,
   'getReport' : ActorMethod<[bigint], ReportView>,
   'getReportDay' : ActorMethod<[bigint, bigint], Array<ReportView>>,
   'getSettings' : ActorMethod<[], SettingsView>,
@@ -3405,7 +3501,7 @@ export interface _SERVICE {
   'saveVehicle' : ActorMethod<[VehicleInput], Result_3>,
   'scanPermits' : ActorMethod<[], bigint>,
   'sendMailNow' : ActorMethod<[], Result_7>,
-  'sendQuoteVersion' : ActorMethod<[bigint, bigint, bigint], Result_6>,
+  'sendQuoteVersion' : ActorMethod<[bigint, bigint, bigint, string], Result_6>,
   'setBoardRules' : ActorMethod<[BoardRulesInput], Result_4>,
   'setCapacity' : ActorMethod<[string, [] | [bigint], string], Result_4>,
   'setContract' : ActorMethod<[bigint, ContractInput, bigint], Result_3>,
@@ -3432,7 +3528,9 @@ export interface _SERVICE {
   >,
   'setPostSettings' : ActorMethod<[PostSettingsInput], Result_5>,
   'setQuoteArchived' : ActorMethod<[bigint, boolean, string], Result_4>,
+  'setQuoteRule' : ActorMethod<[QuoteRuleInput], Result_4>,
   'setQuoteSequence' : ActorMethod<[bigint, bigint], Result_4>,
+  'setQuoteStdPost' : ActorMethod<[QuoteStdPostInput], Result_4>,
   'setSettings' : ActorMethod<[SettingsView], Result_4>,
   'setTaskOrder' : ActorMethod<[bigint, Array<bigint>, bigint], Result_3>,
   'setTrade' : ActorMethod<[TradeInput], Result_4>,

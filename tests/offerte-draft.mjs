@@ -7,7 +7,7 @@
 // verkeerd totaal wordt geweigerd zonder iets te bewaren; een verzonden versie is onwijzigbaar.
 //   node tests/offerte-draft.mjs <canister-id>
 import { backend } from "../tools/lib.mjs";
-import { C, M, batchArgs, expectRaw, fromRead, opt, sameTotals, saveAll, tag, unopt } from "./offerte-lib.mjs";
+import { C, M, batchArgs, ensureProofClientAddress, expectRaw, fromRead, opt, sameTotals, saveAll, tag, unopt } from "./offerte-lib.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/offerte-draft.mjs <canister-id>");
@@ -25,6 +25,7 @@ const flat = (x) => JSON.stringify(x, (k, v) => (typeof v === "bigint" ? v.toStr
 
 const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-architect", "proef-oa2", "proef-klant", "proef-vc"].map((n) => backend(n, cid)));
 const me = await admin.me();
+await ensureProofClientAddress(admin); // 2.6
 check("versie 2.4 of later op de canister", /^2\.([4-9]|1\d)|^[3-9]\./.test(me.version), me.version);
 const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A");
@@ -101,16 +102,16 @@ if (isOk(rWl)) {
 const archA = await arch.readQuoteVersion(versionId).catch((e) => ({ trap: String(e) }));
 check("architect: zonder de grant geen toegang; met de grant enkel verkoopprijzen (nooit aankoop of marge)", isOk(archA) ? "sell" in archA.ok.scope && archA.ok.costs.length === 0 && archA.ok.margins.length === 0 : "trap" in archA && /Geen toegang/.test(archA.trap), isOk(archA) ? "met grant" : "zonder grant: geweigerd");
 for (const [n, x] of [["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc]]) {
-  const rs = await Promise.all([x.readQuoteVersion(versionId), x.listQuotes([A.id], false), x.listQuotes([], false), x.saveQuoteDraft(...batchArgs(m1, stale)), x.sendQuoteVersion(versionId, 0n, 0n), x.exportChunk("quotePrices", 0n, 1n)].map(denied));
+  const rs = await Promise.all([x.readQuoteVersion(versionId), x.listQuotes([A.id], false), x.listQuotes([], false), x.saveQuoteDraft(...batchArgs(m1, stale)), x.sendQuoteVersion(versionId, 0n, 0n, "proef: regels"), x.exportChunk("quotePrices", 0n, 1n)].map(denied));
   check(`${n}: geen enkele offertefunctie (6 oproepen geweigerd)`, rs.every(Boolean), rs.map((r) => (r ? "·" : "✗")).join(""));
 }
 const wlList = await wl.listQuotes([A.id], false);
 check("werfleider ziet de offerte in de lijst van de werf, zonder bedrag", wlList.some((q) => q.id === quoteId) && !/subtotal|Cents|cost|marg/i.test(Object.keys(wlList[0]).join() + Object.keys(wlList[0].versions[0]).join()));
-check("werfleider: bewaren, versturen, nieuwe versie, archiveren geweigerd", (await Promise.all([wl.saveQuoteDraft(...batchArgs(m1, stale)), wl.sendQuoteVersion(versionId, 0n, 0n), wl.newQuoteVersion(quoteId, []), wl.setQuoteArchived(quoteId, true, "x"), wl.exportChunk("quotePrices", 0n, 1n)].map(denied))).every(Boolean));
+check("werfleider: bewaren, versturen, nieuwe versie, archiveren geweigerd", (await Promise.all([wl.saveQuoteDraft(...batchArgs(m1, stale)), wl.sendQuoteVersion(versionId, 0n, 0n, "proef: regels"), wl.newQuoteVersion(quoteId, []), wl.setQuoteArchived(quoteId, true, "x"), wl.exportChunk("quotePrices", 0n, 1n)].map(denied))).every(Boolean));
 check("caps: werfleider ziet offertes maar geen prijzen; calculator wel", (await wl.me()).caps[0].quotes && !(await wl.me()).caps[0].quotePrices && (await calc.me()).caps[0].quotePrices && (await calc.me()).caps[0].editQuotes);
 
 // ── Versturen: onwijzigbaar (bouwplan §4) ───────────────────────────
-const sent = await calc.sendQuoteVersion(versionId, r1.version.rev, r1.totals.totalCents);
+const sent = await calc.sendQuoteVersion(versionId, r1.version.rev, r1.totals.totalCents, "proef: regels");
 check("versturen: hash van de inhoud", isOk(sent) && /^[0-9a-f]{64}$/.test(sent.ok), errOf(sent));
 const rS = ok(await calc.readQuoteVersion(versionId));
 check("verzonden versie: status verstuurd, niet te bewerken, hash klopt (intact)", "sent" in rS.version.status && !rS.version.editable && rS.version.intact && rS.version.hash === sent.ok);
@@ -118,7 +119,7 @@ const mS = fromRead(rS);
 M.updateLine(mS, mS.lines[0].key, { qtyMilli: 2000n });
 const late = await calc.saveQuoteDraft(...batchArgs(mS, M.nextBatch(mS)));
 check("verzonden versie bewerken: geweigerd", /kan niet meer veranderen/.test(errOf(late)), errOf(late));
-check("tweede keer versturen: geweigerd", "err" in (await calc.sendQuoteVersion(versionId, rS.version.rev, rS.totals.totalCents)));
+check("tweede keer versturen: geweigerd", "err" in (await calc.sendQuoteVersion(versionId, rS.version.rev, rS.totals.totalCents, "proef: regels")));
 const rS2 = ok(await calc.readQuoteVersion(versionId));
 check("… en de inhoud is ongewijzigd (zelfde totaal en hash)", rS2.totals.totalCents === r1.totals.totalCents && rS2.version.hash === sent.ok);
 
@@ -137,7 +138,7 @@ check("v2 aanpassen (VH goot 15 lm, één lijn weg): totalen gelijk in browser e
 const r1b = ok(await calc.readQuoteVersion(versionId));
 check("v1 blijft zoals verstuurd", r1b.lines.length === 8 && r1b.totals.totalCents === r1.totals.totalCents && r1b.version.intact);
 const r2b = ok(await calc.readQuoteVersion(v2.ok));
-check("v2 versturen → v1 'vervangen'; v2 aanvaarden", isOk(await calc.sendQuoteVersion(v2.ok, r2b.version.rev, r2b.totals.totalCents)) && "superseded" in ok(await calc.readQuoteVersion(versionId)).version.status && isOk(await calc.decideQuoteVersion(v2.ok, true, "proef: akkoord per mail")) && "accepted" in ok(await calc.readQuoteVersion(v2.ok)).version.status);
+check("v2 versturen → v1 'vervangen'; v2 aanvaarden", isOk(await calc.sendQuoteVersion(v2.ok, r2b.version.rev, r2b.totals.totalCents, "proef: regels")) && "superseded" in ok(await calc.readQuoteVersion(versionId)).version.status && isOk(await calc.decideQuoteVersion(v2.ok, true, "proef: akkoord per mail")) && "accepted" in ok(await calc.readQuoteVersion(v2.ok)).version.status);
 check("een aanvaarde versie kan niet opnieuw beslist of bewerkt worden", "err" in (await calc.decideQuoteVersion(v2.ok, false, "")) && /kan niet meer veranderen/.test(errOf(await calc.saveQuoteDraft(...batchArgs({ ...fromRead(r2b), versionId: v2.ok }, stale)))));
 
 // ── Auditlog: wie bekeek, nooit een bedrag ──────────────────────────

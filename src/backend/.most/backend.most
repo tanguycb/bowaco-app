@@ -1184,6 +1184,7 @@ type NewActor__1057791986 =
 type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
 type NewActor__2917504 = {plan : PlanState__393161007};
+type NewActor__305373795 = {quoteChecks : QuoteChecksState__658482826};
 type NewActor__369284664 = {quotes : QuotesState__146412283};
 type NewActor__398557116 = {imp : ImportState__440367384};
 type NewActor__410098017 = {library : LibraryState__89257550};
@@ -1223,6 +1224,7 @@ type OaState__978871092 =
       Map__230067015<PersonId__820620982, PersonContact__206564395>
   };
 type OldActor__1025357807 = {};
+type OldActor__1063236522 = {};
 type OldActor__211850744 = {};
 type OldActor__233879672 = {};
 type OldActor__285002242 = {};
@@ -1527,6 +1529,7 @@ type PersonId__199562452 = Nat;
 type PersonId__253911295 = Nat;
 type PersonId__363464289 = Nat;
 type PersonId__518727946 = Nat;
+type PersonId__580701172 = Nat;
 type PersonId__677245278 = Nat;
 type PersonId__820620982 = Nat;
 type PersonId__858692293 = Nat;
@@ -1659,6 +1662,28 @@ type QuoteChapter__942233490 =
     title : Text;
     versionId : Nat
   };
+type QuoteCheckDone__153704958 =
+  {
+    at : Int;
+    by : PersonId__580701172;
+    reason : Text;
+    versionId : Nat;
+    warned : [(Text, Nat)]
+  };
+type QuoteCheckDone__849522676 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    reason : Text;
+    versionId : Nat;
+    warned : [(Text, Nat)]
+  };
+type QuoteChecksState__658482826 =
+  {
+    done : Map__230067015<Nat, QuoteCheckDone__153704958>;
+    rules : Map__230067015<Text, QuoteRuleCfg__484667344>;
+    stdPosts : Map__230067015<Text, QuoteStdPost__172778016>
+  };
 type QuoteDecision__676329625 =
   {at : Int; by : PersonId__967516914; note : Text};
 type QuoteDecision__974893464 =
@@ -1729,6 +1754,24 @@ type QuoteLine__923781398 =
     unit : Text;
     versionId : Nat
   };
+type QuoteRuleCfg__1042695852 =
+  {
+    enabled : Bool;
+    key : Text;
+    severity : QuoteSeverity__1072643528;
+    thresholdBp : ?Nat;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914
+  };
+type QuoteRuleCfg__484667344 =
+  {
+    enabled : Bool;
+    key : Text;
+    severity : QuoteSeverity__421928908;
+    thresholdBp : ?Nat;
+    updatedAt : Int;
+    updatedBy : PersonId__580701172
+  };
 type QuoteSent__477543433 =
   {
     at : Int;
@@ -1751,10 +1794,36 @@ type QuoteSent__872611560 =
     totalCents : Int;
     vatCents : Int
   };
+type QuoteSeverity__1072643528 = {#block; #warn};
+type QuoteSeverity__421928908 = {#block; #warn};
 type QuoteStatus__578374387 =
   {#accepted; #draft; #rejected; #sent; #superseded; #withdrawn};
 type QuoteStatus__927008008 =
   {#accepted; #draft; #rejected; #sent; #superseded; #withdrawn};
+type QuoteStdPost__172778016 =
+  {
+    archivedAt : ?Int;
+    enabled : Bool;
+    key : Text;
+    keywords : [Text];
+    name : Text;
+    order : Nat;
+    severity : QuoteSeverity__421928908;
+    updatedAt : Int;
+    updatedBy : PersonId__580701172
+  };
+type QuoteStdPost__585345230 =
+  {
+    archivedAt : ?Int;
+    enabled : Bool;
+    key : Text;
+    keywords : [Text];
+    name : Text;
+    order : Nat;
+    severity : QuoteSeverity__1072643528;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914
+  };
 type QuoteVersionConf__455210991 =
   {
     extra : Extra__945213800;
@@ -2435,7 +2504,8 @@ type WorksState__605582232 =
   "20261024_210000" : OldActor__853471898 -> NewActor__473839593;
   "20261024_230000" : OldActor__804964816 -> NewActor__984285705;
   "20261024_235500" : OldActor__376205032 -> NewActor__410098017;
-  "20261025_090000" : OldActor__233879672 -> NewActor__369284664
+  "20261025_090000" : OldActor__233879672 -> NewActor__369284664;
+  "20261025_130000" : OldActor__1063236522 -> NewActor__305373795
 }
 actor  {
   stable access :
@@ -2529,6 +2599,12 @@ actor  {
       keys : Map__230067015<Text, Nat>;
       open : Map__230067015<Nat, ()>;
       seen : Map__230067015<Principal, Int>
+    };
+  stable quoteChecks :
+    {
+      done : Map__230067015<Nat, QuoteCheckDone__849522676>;
+      rules : Map__230067015<Text, QuoteRuleCfg__1042695852>;
+      stdPosts : Map__230067015<Text, QuoteStdPost__585345230>
     };
   stable quotes :
     {

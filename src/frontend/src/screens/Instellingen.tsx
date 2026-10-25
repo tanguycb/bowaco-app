@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Principal } from "@icp-sdk/core/principal";
-import type { DocKindView, ImportBatch, RollbackReport, TradeView } from "../backend";
+import { QuoteSeverity, type DocKindView, type ImportBatch, type QuoteRuleView, type QuoteStdPostView, type RollbackReport, type TradeView } from "../backend";
 import { Button, Choice, Confirm, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtEuro, fmtTime, parseEuro, unwrap, useBackend } from "../util";
@@ -60,6 +60,7 @@ export function Instellingen() {
         </section>
       )}
       <QuoteNumbers />
+      <QuoteRulesAdmin />
       <CompanyCalendar />
       <Templates />
       <DocKinds />
@@ -101,6 +102,120 @@ function QuoteNumbers() {
       </div>
       <div><Button variant="primary" busy={save.isPending} disabled={!valid} onClick={() => save.mutate()}>{t.common.save}</Button></div>
     </section>
+  );
+}
+
+/** 2.6: de controleregels vóór verzending: aan/uit, waarschuwing of blokkering, drempel, en de standaardposten. */
+function QuoteRulesAdmin() {
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const R = t.rulesAdmin;
+  const q = useQuery({ queryKey: ["quoteRules"], queryFn: () => actor!.getQuoteRules(), enabled: !!actor && !isFetching });
+  const [edit, setEdit] = useState<QuoteStdPostView | null>(null);
+  const [isNew, setIsNew] = useState(false);
+  const done = () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["quoteRules"] }); };
+  const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
+  const setRule = useMutation({
+    mutationFn: async (r: { key: string; enabled: boolean; severity: QuoteSeverity; thresholdBp?: bigint }) => unwrap(await actor!.setQuoteRule(r)),
+    onSuccess: done,
+    onError: fail,
+  });
+  const setStd = useMutation({
+    mutationFn: async (s: { key: string; name: string; keywords: string[]; enabled: boolean; severity: QuoteSeverity; order: bigint; archived: boolean }) => unwrap(await actor!.setQuoteStdPost(s)),
+    onSuccess: () => { done(); setEdit(null); },
+    onError: fail,
+  });
+  const patch = (r: QuoteRuleView, p: Partial<{ enabled: boolean; severity: QuoteSeverity; thresholdBp: bigint }>) =>
+    setRule.mutate({ key: r.key, enabled: r.enabled, severity: r.severity, thresholdBp: r.thresholdBp, ...p });
+  return (
+    <section className="a-section" style={{ maxWidth: 860 }} data-testid="quote-rules-admin">
+      <h2 className="bw-h2">{R.title}</h2>
+      <p className="bw-muted">{R.lead}</p>
+      <Loading q={q} />
+      {q.data && (
+        <table className="a-table" aria-label={R.title}>
+          <thead><tr><th>{R.rule}</th><th>{R.enabled}</th><th>{R.severity}</th><th>{R.threshold}</th></tr></thead>
+          <tbody>
+            {q.data.rules.map((r) => (
+              <tr key={r.key} data-rule={r.key}>
+                <td>{r.name}{r.fixed && <> <span className="a-tag">{R.fixed}</span></>}</td>
+                <td><input type="checkbox" aria-label={`${r.name}: ${R.enabled}`} checked={r.enabled} disabled={r.fixed || setRule.isPending} onChange={(e) => patch(r, { enabled: e.target.checked })} /></td>
+                <td>
+                  <select className="bw-input" aria-label={`${r.name}: ${R.severity}`} value={r.severity} disabled={r.fixed || setRule.isPending} onChange={(e) => patch(r, { severity: e.target.value as QuoteSeverity })}>
+                    <option value={QuoteSeverity.warn}>{R.warn}</option>
+                    <option value={QuoteSeverity.block}>{R.block}</option>
+                  </select>
+                </td>
+                <td>{r.hasThreshold && <ThresholdInput value={r.thresholdBp ?? 0n} label={`${r.name}: ${R.threshold}`} disabled={setRule.isPending} onCommit={(bp) => patch(r, { thresholdBp: bp })} />}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {q.data && (
+        <>
+          <div className="a-row a-row--between">
+            <h3 className="bw-h2">{R.stdTitle}</h3>
+            <Button icon="plus" onClick={() => { setIsNew(true); setEdit({ key: "", name: "", keywords: [], enabled: true, severity: QuoteSeverity.warn, order: BigInt((q.data!.stdPosts.length + 1) * 10), archived: false }); }}>{R.stdNew}</Button>
+          </div>
+          <p className="bw-muted">{R.stdLead}</p>
+          <ul className="a-list">
+            {q.data.stdPosts.map((s) => (
+              <li key={s.key} data-std={s.key}>
+                <span className="a-list__main">
+                  <b>{s.name}</b>
+                  <span className="bw-muted">{s.keywords.join(", ")}</span>
+                  <span className="a-row">
+                    <span className="a-tag">{s.severity === QuoteSeverity.block ? R.block : R.warn}</span>
+                    {!s.enabled && <span className="a-tag a-tag--bad">uit</span>}
+                    {s.archived && <span className="a-tag a-tag--bad">{R.stdArchived}</span>}
+                  </span>
+                </span>
+                <Button variant="quiet" onClick={() => { setIsNew(false); setEdit(s); }}>{t.team.edit}</Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {edit && <StdPostSheet value={edit} isNew={isNew} busy={setStd.isPending} onSave={(s) => setStd.mutate(s)} onClose={() => setEdit(null)} />}
+    </section>
+  );
+}
+
+function ThresholdInput({ value, label, disabled, onCommit }: { value: bigint; label: string; disabled: boolean; onCommit: (bp: bigint) => void }) {
+  const shown = (Number(value) / 100).toString().replace(".", ",");
+  const [v, setV] = useState(shown);
+  useEffect(() => setV(shown), [shown]);
+  const bp = (() => { const n = Number(v.replace(",", ".")); return Number.isFinite(n) && n >= 0 && n <= 90 && /^\d{1,2}([.,]\d{1,2})?$/.test(v) ? BigInt(Math.round(n * 100)) : null; })();
+  return <input className="bw-input bw-num" style={{ maxWidth: 90 }} aria-label={label} inputMode="decimal" aria-invalid={bp === null || undefined} disabled={disabled} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => { if (bp !== null && bp !== value) onCommit(bp); }} />;
+}
+
+function StdPostSheet({ value, isNew, busy, onSave, onClose }: { value: QuoteStdPostView; isNew: boolean; busy: boolean; onSave: (s: { key: string; name: string; keywords: string[]; enabled: boolean; severity: QuoteSeverity; order: bigint; archived: boolean }) => void; onClose: () => void }) {
+  const R = t.rulesAdmin;
+  const [key, setKey] = useState(value.key);
+  const [name, setName] = useState(value.name);
+  const [words, setWords] = useState(value.keywords.join(", "));
+  const [enabled, setEnabled] = useState(value.enabled);
+  const [severity, setSeverity] = useState<QuoteSeverity>(value.severity);
+  const [archived, setArchived] = useState(value.archived);
+  const kw = words.split(",").map((w) => w.trim()).filter(Boolean);
+  return (
+    <Sheet title={isNew ? R.stdNew : value.name} open onClose={onClose} side footer={<Button variant="primary" busy={busy} disabled={!key.trim() || !name.trim() || kw.length === 0} onClick={() => onSave({ key: key.trim(), name: name.trim(), keywords: kw, enabled, severity, order: value.order, archived })}>{R.save}</Button>}>
+      <div className="a-form">
+        <Field label={R.stdKey}><input className="bw-input" value={key} disabled={!isNew} onChange={(e) => setKey(e.target.value)} /></Field>
+        <Field label={R.stdName}><input className="bw-input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label={R.stdWords}><input className="bw-input" value={words} onChange={(e) => setWords(e.target.value)} /></Field>
+        <label className="a-check"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {R.enabled}</label>
+        <Field label={R.severity}>
+          <select className="bw-input" value={severity} onChange={(e) => setSeverity(e.target.value as QuoteSeverity)}>
+            <option value={QuoteSeverity.warn}>{R.warn}</option>
+            <option value={QuoteSeverity.block}>{R.block}</option>
+          </select>
+        </Field>
+        {!isNew && <label className="a-check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} /> {R.stdArchived}</label>}
+      </div>
+    </Sheet>
   );
 }
 

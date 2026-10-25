@@ -36,6 +36,7 @@ mixin (
   wadm : Types.WadmState,
   library : Types.LibraryState,
   quotes : Types.QuotesState,
+  quoteChecks : Types.QuoteChecksState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -234,6 +235,9 @@ mixin (
       quoteVersions = quotes.versions.values().toArray();
       quoteChapters = quotes.chapters.values().toArray();
       quoteLines = quotes.lines.values().toArray();
+      quoteRules = quoteChecks.rules.values().toArray();
+      quoteStdPosts = quoteChecks.stdPosts.values().toArray();
+      quoteChecks = quoteChecks.done.values().toArray();
     };
   };
 
@@ -327,6 +331,9 @@ mixin (
       case "quoteVersions" ?#quoteVersions(pg(quotes.versions.values().toArray()));
       case "quoteChapters" ?#quoteChapters(pg(quotes.chapters.values().toArray()));
       case "quoteLines" ?#quoteLines(pg(quotes.lines.values().toArray()));
+      case "quoteRules" ?#quoteRules(pg(quoteChecks.rules.values().toArray()));
+      case "quoteStdPosts" ?#quoteStdPosts(pg(quoteChecks.stdPosts.values().toArray()));
+      case "quoteChecks" ?#quoteChecks(pg(quoteChecks.done.values().toArray()));
       case "quotePrices" ?#quotePrices(pg(quotes.prices.values().toArray()));
       case "quoteVersionConf" ?#quoteVersionConf(pg(quotes.versionConf.values().toArray()));
       case _ null;

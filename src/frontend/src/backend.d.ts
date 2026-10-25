@@ -885,6 +885,7 @@ export interface ExportIntern {
     links: Array<LinkView>;
     reportKeys: Array<[string, bigint]>;
     municipalities: Array<Municipality>;
+    quoteChecks: Array<QuoteCheckDone>;
     version: string;
     issues: Array<Issue>;
     permits: Array<Permit>;
@@ -904,8 +905,10 @@ export interface ExportIntern {
     capacity: Array<CapacityRule>;
     importBatches: Array<ImportBatch>;
     proposals: Array<ProposalView>;
+    quoteStdPosts: Array<QuoteStdPost>;
     permitAlerts: Array<[string, bigint]>;
     works: Array<WorkView>;
+    quoteRules: Array<QuoteRuleCfg>;
     quotes: Array<Quote>;
     personContacts: Array<PersonContact>;
     sequences: Array<[string, bigint]>;
@@ -2282,6 +2285,19 @@ export interface QuoteChapterView {
     libChapterId?: bigint;
     code: string;
 }
+export interface QuoteCheckDone {
+    at: bigint;
+    by: PersonId;
+    versionId: bigint;
+    warned: Array<[string, bigint]>;
+    reason: string;
+}
+export interface QuoteCheckView {
+    at: bigint;
+    byName: string;
+    warned: Array<QuoteWarned>;
+    reason: string;
+}
 export interface QuoteCostLine {
     orgName: string;
     source: string;
@@ -2320,6 +2336,14 @@ export interface QuoteExpect {
 export interface QuoteExpectChapter {
     chapter: QuoteChapterRef;
     sellCents: bigint;
+}
+export interface QuoteFinding {
+    lineIds: Array<bigint>;
+    name: string;
+    count: bigint;
+    rule: string;
+    severity: QuoteSeverity;
+    chapterIds: Array<bigint>;
 }
 export interface QuoteHeaderInput {
     title: string;
@@ -2421,6 +2445,7 @@ export interface QuotePriceInput {
     reason: string;
 }
 export interface QuoteRead {
+    check?: QuoteCheckView;
     costs: Array<QuoteCostLine>;
     sell: Array<QuoteSellLine>;
     quote: QuoteSummary;
@@ -2430,6 +2455,34 @@ export interface QuoteRead {
     version: QuoteVersionView;
     chapters: Array<QuoteChapterView>;
     totals: QuoteTotalsView;
+    vatNote: string;
+}
+export interface QuoteRuleCfg {
+    key: string;
+    thresholdBp?: bigint;
+    enabled: boolean;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    severity: QuoteSeverity;
+}
+export interface QuoteRuleInput {
+    key: string;
+    thresholdBp?: bigint;
+    enabled: boolean;
+    severity: QuoteSeverity;
+}
+export interface QuoteRuleView {
+    key: string;
+    fixed: boolean;
+    name: string;
+    thresholdBp?: bigint;
+    enabled: boolean;
+    severity: QuoteSeverity;
+    hasThreshold: boolean;
+}
+export interface QuoteRulesView {
+    stdPosts: Array<QuoteStdPostView>;
+    rules: Array<QuoteRuleView>;
 }
 export interface QuoteSaveResult {
     rev: bigint;
@@ -2451,6 +2504,35 @@ export interface QuoteSent {
     vatCents: bigint;
     optionsMinusCents: bigint;
     optionsPlusCents: bigint;
+}
+export interface QuoteStdPost {
+    key: string;
+    order: bigint;
+    name: string;
+    enabled: boolean;
+    keywords: Array<string>;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    severity: QuoteSeverity;
+    archivedAt?: bigint;
+}
+export interface QuoteStdPostInput {
+    key: string;
+    order: bigint;
+    name: string;
+    enabled: boolean;
+    keywords: Array<string>;
+    severity: QuoteSeverity;
+    archived: boolean;
+}
+export interface QuoteStdPostView {
+    key: string;
+    order: bigint;
+    name: string;
+    enabled: boolean;
+    keywords: Array<string>;
+    severity: QuoteSeverity;
+    archived: boolean;
 }
 export interface QuoteSummary {
     id: bigint;
@@ -2541,6 +2623,11 @@ export interface QuoteVersionView {
     editable: boolean;
     decidedAt?: bigint;
     workVatBp: bigint;
+}
+export interface QuoteWarned {
+    name: string;
+    count: bigint;
+    rule: string;
 }
 export interface ReportChange {
     at: bigint;
@@ -2812,6 +2899,9 @@ export type RestorePart = {
     __kind__: "municipalities";
     municipalities: Array<Municipality>;
 } | {
+    __kind__: "quoteChecks";
+    quoteChecks: Array<QuoteCheckDone>;
+} | {
     __kind__: "workConfidentialHistory";
     workConfidentialHistory: Array<WorkConfidentialVersion>;
 } | {
@@ -2875,11 +2965,17 @@ export type RestorePart = {
     __kind__: "proposals";
     proposals: Array<ProposalView>;
 } | {
+    __kind__: "quoteStdPosts";
+    quoteStdPosts: Array<QuoteStdPost>;
+} | {
     __kind__: "permitAlerts";
     permitAlerts: Array<[string, bigint]>;
 } | {
     __kind__: "works";
     works: Array<WorkView>;
+} | {
+    __kind__: "quoteRules";
+    quoteRules: Array<QuoteRuleCfg>;
 } | {
     __kind__: "orgConfidential";
     orgConfidential: Array<[OrgId, ContactConfidentialView]>;
@@ -3178,6 +3274,13 @@ export type Result_40 = {
 export type Result_41 = {
     __kind__: "ok";
     ok: TicketInfo;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_42 = {
+    __kind__: "ok";
+    ok: Array<QuoteFinding>;
 } | {
     __kind__: "err";
     err: string;
@@ -3783,6 +3886,10 @@ export enum QuoteScope {
     sell = "sell",
     totals = "totals"
 }
+export enum QuoteSeverity {
+    warn = "warn",
+    block = "block"
+}
 export enum QuoteStatus {
     superseded = "superseded",
     sent = "sent",
@@ -3861,6 +3968,7 @@ export interface backendInterface {
     boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
     boardRules(): Promise<BoardRulesView>;
     cancelJob(id: bigint): Promise<Result_4>;
+    checkQuoteVersion(versionId: bigint): Promise<Result_42>;
     checkTicket(ticket: string): Promise<Result_41>;
     checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_40>;
     claimBootstrap(code: string, name: string): Promise<Result_1>;
@@ -3886,6 +3994,7 @@ export interface backendInterface {
     getLibraryItem(id: bigint): Promise<Result_14>;
     getOa(id: bigint): Promise<Result_35>;
     getPlan(workId: bigint): Promise<PlanView>;
+    getQuoteRules(): Promise<QuoteRulesView>;
     getReport(reportId: bigint): Promise<ReportView>;
     getReportDay(workId: bigint, day: bigint): Promise<Array<ReportView>>;
     getSettings(): Promise<SettingsView>;
@@ -3991,7 +4100,7 @@ export interface backendInterface {
     saveVehicle(i: VehicleInput): Promise<Result_3>;
     scanPermits(): Promise<bigint>;
     sendMailNow(): Promise<Result_7>;
-    sendQuoteVersion(versionId: bigint, rev: bigint, expectTotalCents: bigint): Promise<Result_6>;
+    sendQuoteVersion(versionId: bigint, rev: bigint, expectTotalCents: bigint, reason: string): Promise<Result_6>;
     setBoardRules(i: BoardRulesInput): Promise<Result_4>;
     setCapacity(key: string, maxWorks: bigint | null, note: string): Promise<Result_4>;
     setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_3>;
@@ -4015,7 +4124,9 @@ export interface backendInterface {
     }): Promise<Result_4>;
     setPostSettings(x: PostSettingsInput): Promise<Result_5>;
     setQuoteArchived(quoteId: bigint, archived: boolean, reason: string): Promise<Result_4>;
+    setQuoteRule(i: QuoteRuleInput): Promise<Result_4>;
     setQuoteSequence(year: bigint, last: bigint): Promise<Result_4>;
+    setQuoteStdPost(i: QuoteStdPostInput): Promise<Result_4>;
     setSettings(s: SettingsView): Promise<Result_4>;
     setTaskOrder(workId: bigint, taskIds: Array<bigint>, expectedVersion: bigint): Promise<Result_3>;
     setTrade(t: TradeInput): Promise<Result_4>;

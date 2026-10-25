@@ -300,7 +300,12 @@ const table = {
   quoteSequence: [ADMIN, () => [2026n]],
   newQuoteVersion: [["admin", "calculator"], () => [X, []]],
   saveQuoteDraft: [["admin", "calculator"], () => [X, 0n, [], [], [], { subtotalCents: 0n, vatCents: 0n, totalCents: 0n, optionsPlusCents: 0n, optionsMinusCents: 0n, costCents: 0n, marginCents: 0n, chapters: [] }]],
-  sendQuoteVersion: [["admin", "calculator"], () => [X, 0n, 0n]],
+  sendQuoteVersion: [["admin", "calculator"], () => [X, 0n, 0n, ""]],
+  // 2.6: controleregels vóór verzending (lezen: wie offertes bewerkt; instellen: enkel admin; de controle zelf: wie ook de marges mag zien)
+  getQuoteRules: [["admin", "calculator"], () => []],
+  setQuoteRule: [ADMIN, () => [{ key: "bestaat-niet", enabled: true, severity: { warn: null }, thresholdBp: [] }]],
+  setQuoteStdPost: [ADMIN, () => [{ key: "", name: "", keywords: [], enabled: true, severity: { warn: null }, order: 0n, archived: false }]],
+  checkQuoteVersion: [["admin", "calculator"], () => [X]],
   decideQuoteVersion: [["admin", "calculator"], () => [X, true, ""]],
   setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
   getSettings: [INTERNAL, () => []],

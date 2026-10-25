@@ -76,3 +76,14 @@ export function sameTotals(m, view, margins) {
 }
 
 export const euro = (c) => (Number(c) / 100).toLocaleString("nl-BE", { style: "currency", currency: "EUR" });
+
+/** 2.6: een offerte wordt niet verstuurd naar een klant zonder volledig adres. Geeft de proefklant "Familie Proef" een
+ *  (verzonnen) adres als hij er geen heeft (idempotent; op een draft die vóór 2.6 opgebouwd werd). */
+export async function ensureProofClientAddress(admin) {
+  const o = (await admin.listOrgs(true)).find((x) => x.name === "Familie Proef");
+  if (!o) return null;
+  if (o.address.length === 1 && o.address[0].street && o.address[0].zip && o.address[0].city) return o.id;
+  const r = await admin.updateOrg(o.id, { kind: o.kind, name: o.name, kbo: o.kbo, vat: o.vat, aliases: o.aliases, trades: o.trades, address: [{ street: "Proefstraat", number: "1", zip: "8670", city: "Koksijde", country: "BE" }], notes: o.notes });
+  if ("err" in r) throw new Error(r.err);
+  return o.id;
+}

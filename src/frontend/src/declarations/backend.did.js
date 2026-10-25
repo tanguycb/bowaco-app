@@ -209,6 +209,22 @@ export const BoardRulesView = IDL.Record({
   'oaReportsAbsence' : IDL.Bool,
   'rules' : IDL.Vec(CapacityView),
 });
+export const QuoteSeverity = IDL.Variant({
+  'warn' : IDL.Null,
+  'block' : IDL.Null,
+});
+export const QuoteFinding = IDL.Record({
+  'lineIds' : IDL.Vec(IDL.Nat),
+  'name' : IDL.Text,
+  'count' : IDL.Nat,
+  'rule' : IDL.Text,
+  'severity' : QuoteSeverity,
+  'chapterIds' : IDL.Vec(IDL.Nat),
+});
+export const Result_42 = IDL.Variant({
+  'ok' : IDL.Vec(QuoteFinding),
+  'err' : IDL.Text,
+});
 export const TicketInfo = IDL.Record({
   'expiresAt' : IDL.Int,
   'budgetCents' : IDL.Nat,
@@ -1037,6 +1053,13 @@ export const Municipality = IDL.Record({
   'portal' : IDL.Opt(IDL.Text),
   'archivedAt' : IDL.Opt(IDL.Int),
 });
+export const QuoteCheckDone = IDL.Record({
+  'at' : IDL.Int,
+  'by' : PersonId,
+  'versionId' : IDL.Nat,
+  'warned' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+  'reason' : IDL.Text,
+});
 export const InvoicingRhythm = IDL.Variant({
   'other' : IDL.Text,
   'perPhase' : IDL.Null,
@@ -1380,6 +1403,25 @@ export const ProposalView = IDL.Record({
   'personId' : IDL.Opt(PersonId),
   'workId' : IDL.Opt(WorkId),
 });
+export const QuoteStdPost = IDL.Record({
+  'key' : IDL.Text,
+  'order' : IDL.Nat,
+  'name' : IDL.Text,
+  'enabled' : IDL.Bool,
+  'keywords' : IDL.Vec(IDL.Text),
+  'updatedAt' : IDL.Int,
+  'updatedBy' : PersonId,
+  'severity' : QuoteSeverity,
+  'archivedAt' : IDL.Opt(IDL.Int),
+});
+export const QuoteRuleCfg = IDL.Record({
+  'key' : IDL.Text,
+  'thresholdBp' : IDL.Opt(IDL.Nat),
+  'enabled' : IDL.Bool,
+  'updatedAt' : IDL.Int,
+  'updatedBy' : PersonId,
+  'severity' : QuoteSeverity,
+});
 export const Quote = IDL.Record({
   'id' : IDL.Nat,
   'title' : IDL.Text,
@@ -1526,6 +1568,7 @@ export const RestorePart = IDL.Variant({
   'links' : IDL.Vec(LinkView),
   'reportKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'municipalities' : IDL.Vec(Municipality),
+  'quoteChecks' : IDL.Vec(QuoteCheckDone),
   'workConfidentialHistory' : IDL.Vec(WorkConfidentialVersion),
   'issues' : IDL.Vec(Issue),
   'permits' : IDL.Vec(Permit),
@@ -1547,8 +1590,10 @@ export const RestorePart = IDL.Variant({
   'capacity' : IDL.Vec(CapacityRule),
   'importBatches' : IDL.Vec(ImportBatch),
   'proposals' : IDL.Vec(ProposalView),
+  'quoteStdPosts' : IDL.Vec(QuoteStdPost),
   'permitAlerts' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
   'works' : IDL.Vec(WorkView),
+  'quoteRules' : IDL.Vec(QuoteRuleCfg),
   'orgConfidential' : IDL.Vec(IDL.Tuple(OrgId, ContactConfidentialView)),
   'quotes' : IDL.Vec(Quote),
   'personContacts' : IDL.Vec(PersonContact),
@@ -1616,6 +1661,7 @@ export const ExportIntern = IDL.Record({
   'links' : IDL.Vec(LinkView),
   'reportKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'municipalities' : IDL.Vec(Municipality),
+  'quoteChecks' : IDL.Vec(QuoteCheckDone),
   'version' : IDL.Text,
   'issues' : IDL.Vec(Issue),
   'permits' : IDL.Vec(Permit),
@@ -1635,8 +1681,10 @@ export const ExportIntern = IDL.Record({
   'capacity' : IDL.Vec(CapacityRule),
   'importBatches' : IDL.Vec(ImportBatch),
   'proposals' : IDL.Vec(ProposalView),
+  'quoteStdPosts' : IDL.Vec(QuoteStdPost),
   'permitAlerts' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
   'works' : IDL.Vec(WorkView),
+  'quoteRules' : IDL.Vec(QuoteRuleCfg),
   'quotes' : IDL.Vec(Quote),
   'personContacts' : IDL.Vec(PersonContact),
   'sequences' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
@@ -1823,6 +1871,28 @@ export const PlanView = IDL.Record({
   'blocks' : IDL.Vec(BlockView),
   'dependencies' : IDL.Vec(DependencyView),
   'workId' : WorkId,
+});
+export const QuoteStdPostView = IDL.Record({
+  'key' : IDL.Text,
+  'order' : IDL.Nat,
+  'name' : IDL.Text,
+  'enabled' : IDL.Bool,
+  'keywords' : IDL.Vec(IDL.Text),
+  'severity' : QuoteSeverity,
+  'archived' : IDL.Bool,
+});
+export const QuoteRuleView = IDL.Record({
+  'key' : IDL.Text,
+  'fixed' : IDL.Bool,
+  'name' : IDL.Text,
+  'thresholdBp' : IDL.Opt(IDL.Nat),
+  'enabled' : IDL.Bool,
+  'severity' : QuoteSeverity,
+  'hasThreshold' : IDL.Bool,
+});
+export const QuoteRulesView = IDL.Record({
+  'stdPosts' : IDL.Vec(QuoteStdPostView),
+  'rules' : IDL.Vec(QuoteRuleView),
 });
 export const TripView = IDL.Record({
   'id' : IDL.Nat,
@@ -2633,6 +2703,17 @@ export const Result_21 = IDL.Variant({
   'ok' : ContactConfidentialView,
   'err' : IDL.Text,
 });
+export const QuoteWarned = IDL.Record({
+  'name' : IDL.Text,
+  'count' : IDL.Nat,
+  'rule' : IDL.Text,
+});
+export const QuoteCheckView = IDL.Record({
+  'at' : IDL.Int,
+  'byName' : IDL.Text,
+  'warned' : IDL.Vec(QuoteWarned),
+  'reason' : IDL.Text,
+});
 export const QuoteCostLine = IDL.Record({
   'orgName' : IDL.Text,
   'source' : IDL.Text,
@@ -2745,6 +2826,7 @@ export const QuoteTotalsView = IDL.Record({
   'noPrice' : IDL.Nat,
 });
 export const QuoteRead = IDL.Record({
+  'check' : IDL.Opt(QuoteCheckView),
   'costs' : IDL.Vec(QuoteCostLine),
   'sell' : IDL.Vec(QuoteSellLine),
   'quote' : QuoteSummary,
@@ -2754,6 +2836,7 @@ export const QuoteRead = IDL.Record({
   'version' : QuoteVersionView,
   'chapters' : IDL.Vec(QuoteChapterView),
   'totals' : QuoteTotalsView,
+  'vatNote' : IDL.Text,
 });
 export const Result_20 = IDL.Variant({ 'ok' : QuoteRead, 'err' : IDL.Text });
 export const WithholdingInput = IDL.Record({
@@ -3180,6 +3263,21 @@ export const PostSettingsInput = IDL.Record({
   'reminders' : IDL.Bool,
   'reminderDay' : IDL.Nat,
 });
+export const QuoteRuleInput = IDL.Record({
+  'key' : IDL.Text,
+  'thresholdBp' : IDL.Opt(IDL.Nat),
+  'enabled' : IDL.Bool,
+  'severity' : QuoteSeverity,
+});
+export const QuoteStdPostInput = IDL.Record({
+  'key' : IDL.Text,
+  'order' : IDL.Nat,
+  'name' : IDL.Text,
+  'enabled' : IDL.Bool,
+  'keywords' : IDL.Vec(IDL.Text),
+  'severity' : QuoteSeverity,
+  'archived' : IDL.Bool,
+});
 export const TradeInput = IDL.Record({
   'key' : IDL.Text,
   'order' : IDL.Nat,
@@ -3393,6 +3491,7 @@ export const idlService = IDL.Service({
     ),
   'boardRules' : IDL.Func([], [BoardRulesView], ['query']),
   'cancelJob' : IDL.Func([IDL.Nat], [Result_4], []),
+  'checkQuoteVersion' : IDL.Func([IDL.Nat], [Result_42], []),
   'checkTicket' : IDL.Func([IDL.Text], [Result_41], []),
   'checkinatworkExport' : IDL.Func(
       [IDL.Nat, IDL.Nat, IDL.Nat],
@@ -3430,6 +3529,7 @@ export const idlService = IDL.Service({
   'getLibraryItem' : IDL.Func([IDL.Nat], [Result_14], ['query']),
   'getOa' : IDL.Func([IDL.Nat], [Result_35], ['query']),
   'getPlan' : IDL.Func([IDL.Nat], [PlanView], ['query']),
+  'getQuoteRules' : IDL.Func([], [QuoteRulesView], ['query']),
   'getReport' : IDL.Func([IDL.Nat], [ReportView], ['query']),
   'getReportDay' : IDL.Func(
       [IDL.Nat, IDL.Nat],
@@ -3631,7 +3731,11 @@ export const idlService = IDL.Service({
   'saveVehicle' : IDL.Func([VehicleInput], [Result_3], []),
   'scanPermits' : IDL.Func([], [IDL.Nat], []),
   'sendMailNow' : IDL.Func([], [Result_7], []),
-  'sendQuoteVersion' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Int], [Result_6], []),
+  'sendQuoteVersion' : IDL.Func(
+      [IDL.Nat, IDL.Nat, IDL.Int, IDL.Text],
+      [Result_6],
+      [],
+    ),
   'setBoardRules' : IDL.Func([BoardRulesInput], [Result_4], []),
   'setCapacity' : IDL.Func(
       [IDL.Text, IDL.Opt(IDL.Nat), IDL.Text],
@@ -3672,7 +3776,9 @@ export const idlService = IDL.Service({
     ),
   'setPostSettings' : IDL.Func([PostSettingsInput], [Result_5], []),
   'setQuoteArchived' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_4], []),
+  'setQuoteRule' : IDL.Func([QuoteRuleInput], [Result_4], []),
   'setQuoteSequence' : IDL.Func([IDL.Nat, IDL.Nat], [Result_4], []),
+  'setQuoteStdPost' : IDL.Func([QuoteStdPostInput], [Result_4], []),
   'setSettings' : IDL.Func([SettingsView], [Result_4], []),
   'setTaskOrder' : IDL.Func(
       [IDL.Nat, IDL.Vec(IDL.Nat), IDL.Nat],
@@ -3911,6 +4017,19 @@ export const idlFactory = ({ IDL }) => {
     'unit' : IDL.Text,
     'oaReportsAbsence' : IDL.Bool,
     'rules' : IDL.Vec(CapacityView),
+  });
+  const QuoteSeverity = IDL.Variant({ 'warn' : IDL.Null, 'block' : IDL.Null });
+  const QuoteFinding = IDL.Record({
+    'lineIds' : IDL.Vec(IDL.Nat),
+    'name' : IDL.Text,
+    'count' : IDL.Nat,
+    'rule' : IDL.Text,
+    'severity' : QuoteSeverity,
+    'chapterIds' : IDL.Vec(IDL.Nat),
+  });
+  const Result_42 = IDL.Variant({
+    'ok' : IDL.Vec(QuoteFinding),
+    'err' : IDL.Text,
   });
   const TicketInfo = IDL.Record({
     'expiresAt' : IDL.Int,
@@ -4722,6 +4841,13 @@ export const idlFactory = ({ IDL }) => {
     'portal' : IDL.Opt(IDL.Text),
     'archivedAt' : IDL.Opt(IDL.Int),
   });
+  const QuoteCheckDone = IDL.Record({
+    'at' : IDL.Int,
+    'by' : PersonId,
+    'versionId' : IDL.Nat,
+    'warned' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+    'reason' : IDL.Text,
+  });
   const InvoicingRhythm = IDL.Variant({
     'other' : IDL.Text,
     'perPhase' : IDL.Null,
@@ -5059,6 +5185,25 @@ export const idlFactory = ({ IDL }) => {
     'personId' : IDL.Opt(PersonId),
     'workId' : IDL.Opt(WorkId),
   });
+  const QuoteStdPost = IDL.Record({
+    'key' : IDL.Text,
+    'order' : IDL.Nat,
+    'name' : IDL.Text,
+    'enabled' : IDL.Bool,
+    'keywords' : IDL.Vec(IDL.Text),
+    'updatedAt' : IDL.Int,
+    'updatedBy' : PersonId,
+    'severity' : QuoteSeverity,
+    'archivedAt' : IDL.Opt(IDL.Int),
+  });
+  const QuoteRuleCfg = IDL.Record({
+    'key' : IDL.Text,
+    'thresholdBp' : IDL.Opt(IDL.Nat),
+    'enabled' : IDL.Bool,
+    'updatedAt' : IDL.Int,
+    'updatedBy' : PersonId,
+    'severity' : QuoteSeverity,
+  });
   const Quote = IDL.Record({
     'id' : IDL.Nat,
     'title' : IDL.Text,
@@ -5207,6 +5352,7 @@ export const idlFactory = ({ IDL }) => {
     'links' : IDL.Vec(LinkView),
     'reportKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'municipalities' : IDL.Vec(Municipality),
+    'quoteChecks' : IDL.Vec(QuoteCheckDone),
     'workConfidentialHistory' : IDL.Vec(WorkConfidentialVersion),
     'issues' : IDL.Vec(Issue),
     'permits' : IDL.Vec(Permit),
@@ -5228,8 +5374,10 @@ export const idlFactory = ({ IDL }) => {
     'capacity' : IDL.Vec(CapacityRule),
     'importBatches' : IDL.Vec(ImportBatch),
     'proposals' : IDL.Vec(ProposalView),
+    'quoteStdPosts' : IDL.Vec(QuoteStdPost),
     'permitAlerts' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
     'works' : IDL.Vec(WorkView),
+    'quoteRules' : IDL.Vec(QuoteRuleCfg),
     'orgConfidential' : IDL.Vec(IDL.Tuple(OrgId, ContactConfidentialView)),
     'quotes' : IDL.Vec(Quote),
     'personContacts' : IDL.Vec(PersonContact),
@@ -5297,6 +5445,7 @@ export const idlFactory = ({ IDL }) => {
     'links' : IDL.Vec(LinkView),
     'reportKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'municipalities' : IDL.Vec(Municipality),
+    'quoteChecks' : IDL.Vec(QuoteCheckDone),
     'version' : IDL.Text,
     'issues' : IDL.Vec(Issue),
     'permits' : IDL.Vec(Permit),
@@ -5316,8 +5465,10 @@ export const idlFactory = ({ IDL }) => {
     'capacity' : IDL.Vec(CapacityRule),
     'importBatches' : IDL.Vec(ImportBatch),
     'proposals' : IDL.Vec(ProposalView),
+    'quoteStdPosts' : IDL.Vec(QuoteStdPost),
     'permitAlerts' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
     'works' : IDL.Vec(WorkView),
+    'quoteRules' : IDL.Vec(QuoteRuleCfg),
     'quotes' : IDL.Vec(Quote),
     'personContacts' : IDL.Vec(PersonContact),
     'sequences' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
@@ -5504,6 +5655,28 @@ export const idlFactory = ({ IDL }) => {
     'blocks' : IDL.Vec(BlockView),
     'dependencies' : IDL.Vec(DependencyView),
     'workId' : WorkId,
+  });
+  const QuoteStdPostView = IDL.Record({
+    'key' : IDL.Text,
+    'order' : IDL.Nat,
+    'name' : IDL.Text,
+    'enabled' : IDL.Bool,
+    'keywords' : IDL.Vec(IDL.Text),
+    'severity' : QuoteSeverity,
+    'archived' : IDL.Bool,
+  });
+  const QuoteRuleView = IDL.Record({
+    'key' : IDL.Text,
+    'fixed' : IDL.Bool,
+    'name' : IDL.Text,
+    'thresholdBp' : IDL.Opt(IDL.Nat),
+    'enabled' : IDL.Bool,
+    'severity' : QuoteSeverity,
+    'hasThreshold' : IDL.Bool,
+  });
+  const QuoteRulesView = IDL.Record({
+    'stdPosts' : IDL.Vec(QuoteStdPostView),
+    'rules' : IDL.Vec(QuoteRuleView),
   });
   const TripView = IDL.Record({
     'id' : IDL.Nat,
@@ -6308,6 +6481,17 @@ export const idlFactory = ({ IDL }) => {
     'ok' : ContactConfidentialView,
     'err' : IDL.Text,
   });
+  const QuoteWarned = IDL.Record({
+    'name' : IDL.Text,
+    'count' : IDL.Nat,
+    'rule' : IDL.Text,
+  });
+  const QuoteCheckView = IDL.Record({
+    'at' : IDL.Int,
+    'byName' : IDL.Text,
+    'warned' : IDL.Vec(QuoteWarned),
+    'reason' : IDL.Text,
+  });
   const QuoteCostLine = IDL.Record({
     'orgName' : IDL.Text,
     'source' : IDL.Text,
@@ -6420,6 +6604,7 @@ export const idlFactory = ({ IDL }) => {
     'noPrice' : IDL.Nat,
   });
   const QuoteRead = IDL.Record({
+    'check' : IDL.Opt(QuoteCheckView),
     'costs' : IDL.Vec(QuoteCostLine),
     'sell' : IDL.Vec(QuoteSellLine),
     'quote' : QuoteSummary,
@@ -6429,6 +6614,7 @@ export const idlFactory = ({ IDL }) => {
     'version' : QuoteVersionView,
     'chapters' : IDL.Vec(QuoteChapterView),
     'totals' : QuoteTotalsView,
+    'vatNote' : IDL.Text,
   });
   const Result_20 = IDL.Variant({ 'ok' : QuoteRead, 'err' : IDL.Text });
   const WithholdingInput = IDL.Record({
@@ -6828,6 +7014,21 @@ export const idlFactory = ({ IDL }) => {
     'reminders' : IDL.Bool,
     'reminderDay' : IDL.Nat,
   });
+  const QuoteRuleInput = IDL.Record({
+    'key' : IDL.Text,
+    'thresholdBp' : IDL.Opt(IDL.Nat),
+    'enabled' : IDL.Bool,
+    'severity' : QuoteSeverity,
+  });
+  const QuoteStdPostInput = IDL.Record({
+    'key' : IDL.Text,
+    'order' : IDL.Nat,
+    'name' : IDL.Text,
+    'enabled' : IDL.Bool,
+    'keywords' : IDL.Vec(IDL.Text),
+    'severity' : QuoteSeverity,
+    'archived' : IDL.Bool,
+  });
   const TradeInput = IDL.Record({
     'key' : IDL.Text,
     'order' : IDL.Nat,
@@ -7041,6 +7242,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'boardRules' : IDL.Func([], [BoardRulesView], ['query']),
     'cancelJob' : IDL.Func([IDL.Nat], [Result_4], []),
+    'checkQuoteVersion' : IDL.Func([IDL.Nat], [Result_42], []),
     'checkTicket' : IDL.Func([IDL.Text], [Result_41], []),
     'checkinatworkExport' : IDL.Func(
         [IDL.Nat, IDL.Nat, IDL.Nat],
@@ -7086,6 +7288,7 @@ export const idlFactory = ({ IDL }) => {
     'getLibraryItem' : IDL.Func([IDL.Nat], [Result_14], ['query']),
     'getOa' : IDL.Func([IDL.Nat], [Result_35], ['query']),
     'getPlan' : IDL.Func([IDL.Nat], [PlanView], ['query']),
+    'getQuoteRules' : IDL.Func([], [QuoteRulesView], ['query']),
     'getReport' : IDL.Func([IDL.Nat], [ReportView], ['query']),
     'getReportDay' : IDL.Func(
         [IDL.Nat, IDL.Nat],
@@ -7291,7 +7494,11 @@ export const idlFactory = ({ IDL }) => {
     'saveVehicle' : IDL.Func([VehicleInput], [Result_3], []),
     'scanPermits' : IDL.Func([], [IDL.Nat], []),
     'sendMailNow' : IDL.Func([], [Result_7], []),
-    'sendQuoteVersion' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Int], [Result_6], []),
+    'sendQuoteVersion' : IDL.Func(
+        [IDL.Nat, IDL.Nat, IDL.Int, IDL.Text],
+        [Result_6],
+        [],
+      ),
     'setBoardRules' : IDL.Func([BoardRulesInput], [Result_4], []),
     'setCapacity' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Nat), IDL.Text],
@@ -7340,7 +7547,9 @@ export const idlFactory = ({ IDL }) => {
         [Result_4],
         [],
       ),
+    'setQuoteRule' : IDL.Func([QuoteRuleInput], [Result_4], []),
     'setQuoteSequence' : IDL.Func([IDL.Nat, IDL.Nat], [Result_4], []),
+    'setQuoteStdPost' : IDL.Func([QuoteStdPostInput], [Result_4], []),
     'setSettings' : IDL.Func([SettingsView], [Result_4], []),
     'setTaskOrder' : IDL.Func(
         [IDL.Nat, IDL.Vec(IDL.Nat), IDL.Nat],

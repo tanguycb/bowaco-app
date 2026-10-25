@@ -103,3 +103,14 @@
   .q-ch__head .q-in--code { display: none; }
   .q-ch__tools { grid-column: 1 / -1; }
 }
+
+/* 2.6: controleregels vóór verzending */
+.q-findings { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.q-find__btn { all: unset; cursor: pointer; display: block; width: 100%; box-sizing: border-box; padding: 4px 6px; border-radius: 4px; font-size: var(--bw-fs-sm); }
+.q-find__btn:hover:not(:disabled) { background: var(--bw-surface-2); }
+.q-find__btn:focus-visible { outline: 2px solid var(--bw-focus); }
+.q-find__btn:disabled { cursor: default; }
+.q-find--block .a-tag { background: var(--bw-st-blocked-bg); color: var(--bw-st-blocked); }
+.q-find--warn .a-tag { background: var(--bw-st-delayed-bg); color: var(--bw-st-delayed); }
+.q-sendcheck ul { margin: 4px 0 8px 18px; padding: 0; }
+.q-flash { outline: 2px solid var(--bw-accent); outline-offset: 1px; }

@@ -9,6 +9,7 @@ import { ContractForm, OrgKind, QuoteLineKind, QuoteScope, QuoteStatus, type Cap
 import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { calcLine, type Kind, type Rule } from "../quote/calc.ts";
 import * as M from "../quote/model.ts";
+import { addressOk, blocks, evaluate, warnings, type Finding, type RuleSet, type StdPost } from "../quote/rules.ts";
 import { runSelfTest } from "../quote/selftest.ts";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
@@ -59,6 +60,27 @@ function toLoaded(r: QuoteRead): M.Loaded {
       };
     }),
   };
+}
+
+/** De controleregels (2.6) op wat er nu in de editor staat, met de instellingen van de beheerder. */
+function findingsFor(m: M.Model, read: QuoteRead, orgs: OrgView[], rules: { rules: RuleSet[]; std: StdPost[] } | null): Finding[] {
+  if (!rules) return [];
+  const chapters = M.activeChapters(m);
+  const client = m.header.clientOrgId === null ? undefined : orgs.find((o) => o.id === m.header.clientOrgId);
+  return evaluate(
+    {
+      chapters: chapters.map((c) => ({ id: c.key, code: c.code, title: c.title })),
+      lines: M.activeLines(m).map((l) => ({ id: l.key, chapter: l.chapter, kind: l.kind, code: l.code, title: l.title, qtyMilli: l.qtyMilli, cost: l.price.cost, rule: l.price.rule, reason: l.price.rule === null ? "" : l.price.reason.replace(/^ +| +$/g, "") })),
+      standardBp: m.header.standardMarginBp,
+      vatBp: m.header.vatBp,
+      workVatBp: read.version.workVatBp,
+      vatNote: read.vatNote,
+      clientSet: m.header.clientOrgId !== null && !!client,
+      clientAddressOk: addressOk(client?.address),
+    },
+    rules.rules,
+    rules.std,
+  );
 }
 
 // ── Lijst ────────────────────────────────────────────────────────────────
@@ -309,6 +331,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
     return () => window.removeEventListener("keydown", onKey);
   }, [save]);
 
+  const rulesQ = useQuery({ queryKey: ["quoteRules"], queryFn: () => actor!.getQuoteRules(), enabled: on && caps.editQuotes });
   const libUnits = useQuery({ queryKey: ["libUnits", false], queryFn: () => actor!.libraryUnits(false), enabled: on && caps.readLibrary });
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
 
@@ -319,6 +342,13 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const scope = read.scope;
   const units: UnitView[] = libUnits.data ?? [];
   const totals = model ? M.totals(model) : null;
+  const ruleSet = rulesQ.data
+    ? {
+        rules: rulesQ.data.rules.map((r): RuleSet => ({ key: r.key, name: r.name, fixed: r.fixed, enabled: r.enabled, severity: r.severity, thresholdBp: r.thresholdBp ?? null })),
+        std: rulesQ.data.stdPosts.map((s): StdPost => ({ key: s.key, name: s.name, keywords: s.keywords, enabled: s.enabled, severity: s.severity, archived: s.archived })),
+      }
+    : null;
+  const findings = model && editable ? findingsFor(model, read, orgs.data ?? [], ruleSet) : [];
   const sellById = new Map(read.sell.map((s) => [String(s.lineId), s]));
   const serverChapter = new Map(read.totals.chapters.map((c) => [String(c.chapterId), c.sellCents]));
   const prevId = v.basedOnVersion !== undefined ? read.quote.versions.find((x) => x.version === v.basedOnVersion)?.id : undefined;
@@ -375,6 +405,11 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       </div>
 
       {!v.editable && <p className="a-note">{O.readOnly(statusWord(v.status))} {v.hash && <><span className="bw-mono">{O.hash} {v.hash.slice(0, 16)}…</span> · {v.intact ? O.intact : <b className="a-err">{O.notIntact}</b>}</>} {v.decisionNote && <>· {v.decisionNote}</>}</p>}
+      {read.check && (
+        <p className="a-note" data-testid="check-done">
+          {O.checkDoneLead(read.check.byName, fmtTime(read.check.at))} {read.check.warned.map((w) => `${w.name}${w.count > 1n ? ` (${w.count})` : ""}`).join(", ")}. <b>{O.checkDoneReason}</b> {read.check.reason}
+        </p>
+      )}
       {scope === QuoteScope.totals && <p className="a-note">{O.leadTotals}</p>}
       {scope === QuoteScope.sell && <p className="a-note">{O.leadSell}</p>}
       {scope === QuoteScope.full && <p className="bw-muted q-small">{O.auditNote}</p>}
@@ -401,7 +436,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
               const rows = model ? M.rowsOf(model, c.key) : read.lines.filter((l) => l.chapterId === c.id);
               const sub = totals ? totals.chapters.find((x) => x.chapter === c.key)?.sell : c.id !== null ? serverChapter.get(String(c.id)) : undefined;
               return (
-                <section key={c.key} className="q-ch">
+                <section key={c.key} className="q-ch" id={`ql-${c.key}`}>
                   <div className="q-ch__head">
                     {editable && model ? (
                       <>
@@ -450,7 +485,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
           {editable && pending > 0 && <p className="q-pending">{O.pending(pending)} <Button variant="quiet" onClick={() => { if (model) { unsaved.delete(String(model.versionId)); } void load(); }}>{O.discard}</Button></p>}
           {serverOk === true && <p className="q-ok"><Icon name="check" size={16} /> {O.serverOk}</p>}
           {serverOk === false && <p className="a-err" role="alert">{O.serverDiff}</p>}
-          {model && <Controls m={model} />}
+          {model && <Controls m={model} findings={findings} loaded={!!ruleSet || !editable} onJump={(f) => jump(f)} />}
           <p className={self.failed.length ? "a-err" : "q-ok q-small"} role={self.failed.length ? "alert" : undefined}>
             {self.failed.length ? O.selfFail(self.failed.length, self.failed.join(" · ")) : O.selfOk(self.passed)}
           </p>
@@ -468,7 +503,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       {sheet?.kind === "lib" && model && <LibPicker m={model} chapter={sheet.chapter} caps={caps} edit={edit} onClose={() => setSheet(null)} />}
       {sheet?.kind === "libChapters" && model && <LibChapters m={model} edit={edit} onClose={() => setSheet(null)} />}
       {sheet?.kind === "header" && model && <HeaderSheet m={model} orgs={orgs.data ?? []} workVatBp={v.workVatBp} edit={edit} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "send" && model && totals && <SendSheet total={totals.total} noPrice={totals.noPrice} onSend={async () => { await send(); }} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "send" && model && totals && <SendSheet total={totals.total} findings={findings} loaded={!!ruleSet} onSend={async (reason) => { await send(reason); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "decide" && <DecideSheet accepted={sheet.accepted} onDone={async (note) => { await decide(sheet.accepted, note); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "archive" && <ArchiveSheet onDone={async (reason) => { await archive(reason); }} onClose={() => setSheet(null)} />}
     </Page>
@@ -483,10 +518,17 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       toast.show({ kind: "error", text: errText(e) });
     }
   }
-  async function send() {
+  // Naar de eerste lijn (of het eerste hoofdstuk) van een bevinding springen.
+  function jump(f: Finding) {
+    const key = f.lineIds[0] ?? f.chapterIds[0];
+    if (!key) return;
+    const el = document.getElementById(`ql-${key}`);
+    if (el) { el.scrollIntoView({ block: "center", behavior: "smooth" }); el.classList.add("q-flash"); window.setTimeout(() => el.classList.remove("q-flash"), 1800); }
+  }
+  async function send(reason: string) {
     if (!model) return;
     try {
-      unwrap(await actor!.sendQuoteVersion(v.id, model.rev, M.totals(model).total));
+      unwrap(await actor!.sendQuoteVersion(v.id, model.rev, M.totals(model).total, reason));
       toast.show({ kind: "ok", text: O.sent });
       setSheet(null);
       void qc.invalidateQueries({ queryKey: ["quotes"] });
@@ -590,7 +632,7 @@ function LineRow({ m, l, scope, editable, units, orgs, mark, edit, open }: { m: 
   const ro = !editable || l.removed;
   const optionWord = l.kind === "option" ? (o.lineSell < 0n ? O.optionMinus : O.optionPlus) : "";
   return (
-    <div className={cls}>
+    <div className={cls} id={`ql-${l.key}`}>
       <span>{ro ? <span className="bw-mono">{l.code}</span> : <input className="q-in q-in--code" data-col="code" aria-label={O.code} value={l.code} onChange={(e) => up({ code: e.target.value })} />}</span>
       <span className={`q-desc${l.kind === "text" ? " q-desc--wide" : ""}`}>
         {ro ? <b>{l.title || l.text.split("\n")[0]}</b> : <input className="q-in" data-col="title" aria-label={O.item} placeholder={l.kind === "text" ? O.textPh : O.itemTitlePh} value={l.title} onChange={(e) => up({ title: e.target.value })} />}
@@ -707,29 +749,32 @@ function Totals({ read, totals, vatBp }: { read: QuoteRead; totals: ReturnType<t
   );
 }
 
-function Controls({ m }: { m: M.Model }) {
-  const items: string[] = [];
+function Controls({ m, findings, loaded, onJump }: { m: M.Model; findings: Finding[]; loaded: boolean; onJump: (f: Finding) => void }) {
+  // Wat de editor zelf al kende (markeringen), plus de controleregels van 2.6 zoals de beheerder ze instelde.
   const t2 = M.totals(m);
-  const lines = M.activeLines(m).filter((l) => l.kind !== "text");
-  const noReason = lines.filter((l) => { const o = M.lineOut(m, l); return o.deviates && l.price.reason.trim() === ""; }).length;
-  const zero = lines.filter((l) => l.kind === "item" && l.qtyMilli === 0n).length;
-  const emptyCh = M.activeChapters(m).filter((c) => M.linesOf(m, c.key).length === 0).length;
-  if (t2.noPrice) items.push(`${t2.noPrice}× ${O.flags.noPrice}`);
-  if (t2.deviating) items.push(`${t2.deviating}× ${O.flags.deviates}`);
-  if (noReason) items.push(`${noReason}× ${O.flags.noReason}`);
-  if (t2.negative) items.push(`${t2.negative}× ${O.flags.negative}`);
-  if (zero) items.push(`${zero}× ${O.flags.zero}`);
-  if (emptyCh) items.push(`${emptyCh}× ${O.emptyChapter}`);
+  const marks: string[] = [];
+  if (t2.deviating) marks.push(`${t2.deviating}× ${O.flags.deviates}`);
   return (
     <section className="q-controls">
       <h3 className="bw-label">{O.controls}</h3>
-      {items.length ? <ul>{items.map((x) => <li key={x}>{x}</li>)}</ul> : <p className="bw-muted">{O.controlsNone}</p>}
+      {!loaded && <p className="bw-muted">{t.common.loading}</p>}
+      {loaded && findings.length === 0 && <p className="q-ok"><Icon name="check" size={16} /> {O.controlsNone}</p>}
+      {findings.length > 0 && (
+        <ul className="q-findings">
+          {findings.map((f) => (
+            <li key={f.rule} className={f.severity === "block" ? "q-find q-find--block" : "q-find q-find--warn"} data-rule={f.rule}>
+              <button type="button" className="q-find__btn" disabled={!f.lineIds.length && !f.chapterIds.length} onClick={() => onJump(f)}>
+                <span className="a-tag">{f.severity === "block" ? O.checkBlock : O.checkWarn}</span> {f.name}{f.count > 1 ? ` (${f.count})` : ""}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {marks.length > 0 && <p className="bw-muted q-small">{marks.join(" · ")}</p>}
       <p className="bw-muted q-small">{O.controlsLead}</p>
     </section>
   );
 }
-
-// ── Panelen ──────────────────────────────────────────────────────────────
 function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.Model; lineKey: string; editable: boolean; units: UnitView[]; orgs: OrgView[]; edit: (f: (m: M.Model) => void) => void; onClose: () => void }) {
   const l = m.lines.find((x) => x.key === lineKey);
   if (!l) return null;
@@ -922,19 +967,40 @@ function LibChapters({ m, edit, onClose }: { m: M.Model; edit: (f: (m: M.Model) 
   );
 }
 
-function SendSheet({ total, noPrice, onSend, onClose }: { total: bigint; noPrice: number; onSend: () => Promise<void>; onClose: () => void }) {
+function SendSheet({ total, findings, loaded, onSend, onClose }: { total: bigint; findings: Finding[]; loaded: boolean; onSend: (reason: string) => Promise<void>; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  const bl = blocks(findings);
+  const wr = warnings(findings);
+  const reasonOk = wr.length === 0 || reason.trim().length >= 5;
   return (
-    <Sheet title={O.sendTitle} open onClose={onClose} side footer={<Button variant="primary" icon="share" busy={busy} disabled={noPrice > 0} onClick={() => { setBusy(true); void onSend().finally(() => setBusy(false)); }}>{O.send}</Button>}>
+    <Sheet title={O.sendTitle} open onClose={onClose} side footer={<Button variant="primary" icon="share" busy={busy} disabled={!loaded || bl.length > 0 || !reasonOk} onClick={() => { setBusy(true); void onSend(reason.trim()).finally(() => setBusy(false)); }}>{O.send}</Button>}>
       <div className="a-form">
         <p>{O.sendLead}</p>
         <dl className="a-dl"><dt>{O.total}</dt><dd className="bw-mono">{fmtEuro(total)}</dd></dl>
-        {noPrice > 0 && <p className="a-tag a-tag--warn">{O.incomplete(noPrice)}</p>}
+        {!loaded && <p className="a-tag a-tag--warn">{O.sendNoRules}</p>}
+        {bl.length > 0 && (
+          <div className="q-sendcheck" role="alert">
+            <p><b>{O.sendBlocked}</b></p>
+            <ul>{bl.map((f) => <li key={f.rule} data-rule={f.rule}>{f.name}{f.count > 1 ? ` (${f.count})` : ""}</li>)}</ul>
+          </div>
+        )}
+        {bl.length === 0 && wr.length > 0 && (
+          <div className="q-sendcheck">
+            <p><b>{O.sendWarned}</b></p>
+            <ul>{wr.map((f) => <li key={f.rule} data-rule={f.rule}>{f.name}{f.count > 1 ? ` (${f.count})` : ""}</li>)}</ul>
+            <label className="bw-field">
+              <span className="bw-label">{O.sendReason}</span>
+              <textarea className="bw-input" rows={3} maxLength={300} value={reason} placeholder={O.sendReasonPh} onChange={(e) => setReason(e.target.value)} />
+              <span className="bw-muted">{O.sendReasonHelp}</span>
+            </label>
+          </div>
+        )}
+        {loaded && bl.length === 0 && wr.length === 0 && <p className="q-ok"><Icon name="check" size={16} /> {O.controlsNone}</p>}
       </div>
     </Sheet>
   );
 }
-
 function DecideSheet({ accepted, onDone, onClose }: { accepted: boolean; onDone: (note: string) => Promise<void>; onClose: () => void }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);

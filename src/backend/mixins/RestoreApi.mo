@@ -47,6 +47,7 @@ mixin (
   wadm : Types.WadmState,
   library : Types.LibraryState,
   quotes : Types.QuotesState,
+  quoteChecks : Types.QuoteChecksState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -252,6 +253,9 @@ mixin (
       case (#quoteVersions xs) { for (v in xs.values()) { quotes.versions.add(v.id, v) }; xs.size() };
       case (#quoteChapters xs) { for (c in xs.values()) { quotes.chapters.add(c.id, c) }; xs.size() };
       case (#quoteLines xs) { for (l in xs.values()) { quotes.lines.add(l.id, l) }; xs.size() };
+      case (#quoteRules xs) { for (x in xs.values()) { quoteChecks.rules.add(x.key, x) }; xs.size() };
+      case (#quoteStdPosts xs) { for (x in xs.values()) { quoteChecks.stdPosts.add(x.key, x) }; xs.size() };
+      case (#quoteChecks xs) { for (x in xs.values()) { quoteChecks.done.add(x.versionId, x) }; xs.size() };
       case (#quotePrices xs) { for (x in xs.values()) { quotes.prices.add(x.lineId, x) }; xs.size() };
       case (#quoteVersionConf xs) { for (x in xs.values()) { quotes.versionConf.add(x.versionId, x) }; xs.size() };
     };

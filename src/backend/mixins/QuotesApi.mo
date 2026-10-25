@@ -26,6 +26,7 @@ import Config "../lib/Config";
 import Ids "../lib/Ids";
 import Library "../lib/Library";
 import QuoteCalc "../lib/QuoteCalc";
+import QuoteRules "../lib/QuoteRules";
 import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
 
@@ -34,8 +35,10 @@ mixin (
   access : Types.AccessState,
   org : Types.OrgState,
   works : Types.WorksState,
+  dossier : Types.DossierState,
   library : Types.LibraryState,
   quotes : Types.QuotesState,
+  quoteChecks : Types.QuoteChecksState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -80,6 +83,8 @@ mixin (
       sell = if (scope == #totals) [] else Quotes.sellLines(c);
       costs = if full Quotes.costLines(org, c) else [];
       margins = if full ?Quotes.marginTotals(c.totals, c.std, Quotes.noReason(c)) else null;
+      check = if full qtCheckView(v.id) else null;
+      vatNote = if full (switch (dossier.info.get(q.workId)) { case (?i) i.vatNote; case null "" }) else "";
     });
   };
 
@@ -418,11 +423,83 @@ mixin (
     #ok({ rev = saved.rev; refs; totals = Quotes.totalsView(c.totals, saved.vatBp, saved.calcVersion); margins = Quotes.marginTotals(c.totals, c.std, Quotes.noReason(c)) });
   };
 
+  // ── Controleregels vóór verzending (2.6) ───────────────────────────────
+  // De regels staan in lib/QuoteRules.mo (de browser heeft dezelfde in quote/rules.ts). Lezen: wie offertes bewerkt.
+  public query ({ caller }) func getQuoteRules() : async Views.QuoteRulesView {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #editQuote, null);
+    {
+      rules = QuoteRules.ruleSets(quoteChecks).map(func(r : QuoteRules.RuleSet) : Views.QuoteRuleView = { key = r.key; name = r.name; fixed = r.fixed; enabled = r.enabled; severity = r.severity; thresholdBp = r.thresholdBp; hasThreshold = qtHasThreshold(r.key) });
+      stdPosts = QuoteRules.stdPosts(quoteChecks, true).map(func(s : Types.QuoteStdPost) : Views.QuoteStdPostView = { key = s.key; name = s.name; keywords = s.keywords; enabled = s.enabled; severity = s.severity; order = s.order; archived = s.archivedAt != null });
+    };
+  };
+
+  // Een regel aan of uit zetten, de ernst (waarschuwing of blokkering) of de drempel van de marge. Enkel admin (R17).
+  // De vaste regels (geen post, geen prijs, totaal nul) blijven altijd blokkeren.
+  public shared ({ caller }) func setQuoteRule(i : Views.QuoteRuleInput) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #manageSettings, null);
+    let def = Config.quoteRuleDefaults().find(func((k, _, _, _, _) : (Text, Text, Bool, Bool, ?Nat)) : Bool = k == i.key) ?? return #err("Onbekende regel");
+    if (def.2) { return #err("Deze regel is vast: hij staat altijd aan en blokkeert") };
+    let thr : ?Nat = switch (def.4) {
+      case null { if (i.thresholdBp != null) { return #err("Deze regel heeft geen drempel") }; null };
+      case (?d) {
+        let t = switch (i.thresholdBp) { case (?x) x; case null d };
+        if (not QuoteRules.validThreshold(t)) { return #err("Drempel: 0 tot 90 %") };
+        ?t;
+      };
+    };
+    quoteChecks.rules.add(i.key, { key = i.key; enabled = i.enabled; severity = i.severity; thresholdBp = thr; updatedAt = Time.now(); updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, null, "offerteregel-gezet", i.key # ": " # (if (i.enabled) "aan" else "uit") # ", " # (switch (i.severity) { case (#warn) "waarschuwing"; case (#block) "blokkering" }) # (switch thr { case (?t) ", drempel " # (t / 100).toText() # "," # (if (t % 100 < 10) "0" else "") # (t % 100).toText() # " %"; case null "" }));
+    #ok;
+  };
+
+  // Een standaardpost (vergunning, EPB, PID, opkuis …) maken of wijzigen; nooit wissen, wel archiveren. Enkel admin.
+  public shared ({ caller }) func setQuoteStdPost(i : Views.QuoteStdPostInput) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #manageSettings, null);
+    let key = Text.toLower(i.key.trim(#char ' '));
+    if (key.size() == 0 or key.size() > 40 or not key.chars().all(func c = (c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-')) {
+      return #err("Sleutel: 1 tot 40 tekens, enkel a-z, 0-9 en -");
+    };
+    let name = Access.cleanText(i.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
+    var kws : [Text] = [];
+    for (k in i.keywords.values()) {
+      let t = k.trim(#char ' ');
+      if (t.size() > 60) { return #err("Een woord is hoogstens 60 tekens") };
+      if (QuoteRules.norm(t).size() > 0 and kws.find(func x = x == t) == null) { kws := kws.concat([t]) };
+    };
+    if (kws.size() == 0 or kws.size() > Config.maxQuoteStdKeywords) { return #err("Geef 1 tot " # Config.maxQuoteStdKeywords.toText() # " woorden waarop gezocht wordt") };
+    if (i.order > 1_000) { return #err("Volgorde: 0 tot 1.000") };
+    // Eerste wijziging: de standaardposten worden eerst echt bewaard, daarna geldt enkel nog wat in de Map staat.
+    let now = Time.now();
+    if (quoteChecks.stdPosts.size() == 0) {
+      for (s in QuoteRules.stdPosts(quoteChecks, true).values()) { quoteChecks.stdPosts.add(s.key, { s with updatedAt = now; updatedBy = p.id }) };
+    };
+    if (quoteChecks.stdPosts.get(key) == null and quoteChecks.stdPosts.size() >= Config.maxQuoteStdPosts) { return #err("Te veel standaardposten") };
+    quoteChecks.stdPosts.add(key, { key; name; keywords = kws; enabled = i.enabled; severity = i.severity; order = i.order; updatedAt = now; updatedBy = p.id; archivedAt = if (i.archived) ?now else null });
+    Access.audit(audit, caller, ?p.id, null, "offertestandaardpost-gezet", key # ": " # (if (i.archived) "gearchiveerd" else if (i.enabled) "aan" else "uit"));
+    #ok;
+  };
+
+  // De controle op een versie, zoals de server ze bij het versturen uitvoert (voor de rekentest en de editor). Draagt
+  // geen bedrag. Enkel wie ook de marges mag zien (de regels gebruiken ze).
+  public shared ({ caller }) func checkQuoteVersion(versionId : Nat) : async Result.Result<[Views.QuoteFinding], Text> {
+    let p = Access.requireActive(access, caller);
+    let ctx = { works; settings };
+    Rights.require(ctx, p, #editQuote, null);
+    Rights.require(ctx, p, #readCosts, null);
+    let (v, q) = switch (qtFind(versionId)) { case (?x) x; case null return #err("Onbekende versie") };
+    Rights.require(ctx, p, #readQuotes, ?q.workId);
+    #ok(qtFindings(q, v, qtCompute(v)).map(qtFindingView));
+  };
+
   // ── Versturen en beslissen ─────────────────────────────────────────────
   // Versturen = de versie vastleggen zoals de klant ze krijgt (hash van de inhoud, totalen); daarna onwijzigbaar. Een
-  // eerder verzonden versie van dezelfde offerte wordt "vervangen". Enkel met een volledig totaal (elke post een prijs);
-  // de controleregels vóór verzending komen in 2.6. Het eigenlijke versturen (PDF, akkoord van de klant) is 2.7.
-  public shared ({ caller }) func sendQuoteVersion(versionId : Nat, rev : Nat, expectTotalCents : Int) : async Result.Result<Text, Text> {
+  // eerder verzonden versie van dezelfde offerte wordt "vervangen". Eerst de controleregels (2.6): een blokkering houdt
+  // het versturen tegen; waarschuwingen vragen een reden (komt in de auditlog en bij de versie). `reason` mag leeg zijn
+  // als er geen waarschuwingen zijn. Het eigenlijke versturen naar de klant (PDF, akkoord) is 2.7.
+  public shared ({ caller }) func sendQuoteVersion(versionId : Nat, rev : Nat, expectTotalCents : Int, reason : Text) : async Result.Result<Text, Text> {
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #sendQuote, null);
@@ -434,8 +511,15 @@ mixin (
     if (rev != v.rev) { return #err("Iemand anders bewaarde deze versie intussen; laad opnieuw") };
     if (v.calcVersion != QuoteCalc.version) { return #err("Deze versie rekent met oude regels: maak een nieuwe versie") };
     let c = qtCompute(v);
-    if (c.lines.filter(func l = l.kind == #item).size() == 0) { return #err("Er staat nog geen enkele post in deze versie") };
-    if (c.totals.noPrice > 0) { return #err(c.totals.noPrice.toText() # " lijn(en) zonder prijs: het totaal is onvolledig") };
+    let findings = qtFindings(q, v, c);
+    let bl = QuoteRules.blocks(findings);
+    if (bl.size() > 0) { return #err("Niet verstuurd: " # QuoteRules.describe(bl)) };
+    let wr = QuoteRules.warnings(findings);
+    let why = reason.trim(#char ' ');
+    if (wr.size() > 0) {
+      if (why.size() < Config.minQuoteReason) { return #err("Waarschuwingen: " # QuoteRules.describe(wr) # ". Geef een reden om toch te versturen (minstens " # Config.minQuoteReason.toText() # " tekens)") };
+      if (why.size() > Config.maxQuoteReason) { return #err("Reden: hoogstens " # Config.maxQuoteReason.toText() # " tekens") };
+    };
     if (expectTotalCents != c.totals.total) { return #err("Het totaal is intussen veranderd; laad opnieuw") };
     let now = Time.now();
     let h = Quotes.hash(Quotes.canonical(q, v, c));
@@ -446,6 +530,11 @@ mixin (
     quotes.versions.add(v.id, { v with status = #sent; rev = v.rev + 1; sent = ?{ at = now; by = p.id; hash = h; subtotalCents = t.subtotal; vatCents = t.vat; totalCents = t.total; optionsPlusCents = t.optionsPlus; optionsMinusCents = t.optionsMinus }; updatedAt = now; updatedBy = p.id });
     quotes.quotes.add(q.id, { q with updatedAt = now; updatedBy = p.id });
     Access.audit(audit, caller, ?p.id, ?q.workId, "offerte-verstuurd", q.number # " v" # v.version.toText() # " hash " # Text.fromIter(h.chars().take(12)));
+    if (wr.size() > 0) {
+      quoteChecks.done.add(v.id, { versionId = v.id; at = now; by = p.id; reason = why; warned = QuoteRules.counts(wr) });
+      // De reden staat in de auditlog; nooit een bedrag (de beller is gewaarschuwd in de editor).
+      Access.audit(audit, caller, ?p.id, ?q.workId, "offerte-waarschuwingen-doorgezet", q.number # " v" # v.version.toText() # ": " # QuoteRules.describe(wr) # ". Reden: " # why);
+    };
     #ok(h);
   };
 
@@ -500,6 +589,65 @@ mixin (
   // Een verzonden versie: geeft de inhoud nog dezelfde hash? (Een ontwerp is altijd "intact".)
   func qtIntact(q : Types.Quote, v : Types.QuoteVersion, c : Quotes.Computed) : Bool {
     switch (v.sent) { case (?s) Quotes.hash(Quotes.canonical(q, v, c)) == s.hash; case null true };
+  };
+
+  // De controleregels (2.6) op de actuele inhoud van een versie.
+  func qtFindings(q : Types.Quote, v : Types.QuoteVersion, c : Quotes.Computed) : [QuoteRules.Finding] {
+    let workVat = switch (works.works.get(q.workId)) { case (?w) w.vatBp; case null v.vatBp };
+    let client = switch (v.clientOrgId) { case (?o) org.orgs.get(o); case null null };
+    let filled = func(t : Text) : Bool = t.trim(#char ' ').size() > 0;
+    let addrOk = switch client {
+      case (?o) { switch (o.address) { case (?a) filled(a.street) and filled(a.zip) and filled(a.city); case null false } };
+      case null false;
+    };
+    let input : QuoteRules.Input = {
+      chapters = c.chapters.map(func ch = { id = ch.id; code = ch.code; title = ch.title });
+      lines = Array.tabulate<QuoteRules.Line>(
+        c.lines.size(),
+        func i = { id = c.lines[i].id; chapter = c.lines[i].chapterId; kind = c.lines[i].kind; code = c.lines[i].code; title = c.lines[i].title; qtyMilli = c.lines[i].qtyMilli; cost = c.prices[i].cost; rule = c.prices[i].rule; reason = c.prices[i].reason },
+      );
+      standardBp = c.std;
+      vatBp = v.vatBp;
+      workVatBp = workVat;
+      vatNote = switch (dossier.info.get(q.workId)) { case (?i) i.vatNote; case null "" };
+      clientSet = (switch client { case (?_) true; case null false });
+      clientAddressOk = addrOk;
+    };
+    QuoteRules.evaluate(input, QuoteRules.ruleSets(quoteChecks), QuoteRules.stdPosts(quoteChecks, false));
+  };
+
+  func qtFindingView(f : QuoteRules.Finding) : Views.QuoteFinding {
+    { rule = f.rule; name = f.name; severity = f.severity; count = f.count; lineIds = f.lineIds; chapterIds = f.chapterIds };
+  };
+
+  func qtHasThreshold(key : Text) : Bool {
+    switch (Config.quoteRuleDefaults().find(func((k, _, _, _, _) : (Text, Text, Bool, Bool, ?Nat)) : Bool = k == key)) { case (?d) d.4 != null; case null false };
+  };
+
+  func qtCheckView(versionId : Nat) : ?Views.QuoteCheckView {
+    switch (quoteChecks.done.get(versionId)) {
+      case (?d) {
+        ?{
+          at = d.at;
+          byName = Access.personName(access, d.by);
+          reason = d.reason;
+          warned = d.warned.map(func((k, n) : (Text, Nat)) : Views.QuoteWarned = { rule = k; name = qtRuleLabel(k); count = n });
+        };
+      };
+      case null null;
+    };
+  };
+
+  func qtRuleLabel(key : Text) : Text {
+    switch (Config.quoteRuleDefaults().find(func((k, _, _, _, _) : (Text, Text, Bool, Bool, ?Nat)) : Bool = k == key)) {
+      case (?d) d.1;
+      case null {
+        if (key.startsWith(#text "std:")) {
+          let k = Text.fromIter(key.chars().drop(4));
+          switch (quoteChecks.stdPosts.get(k)) { case (?s) s.name; case null key };
+        } else key;
+      };
+    };
   };
 
   func qtToday() : Nat { let t = Time.now(); if (t <= 0) 0 else Int.abs(t) / Int.abs(Config.day) };

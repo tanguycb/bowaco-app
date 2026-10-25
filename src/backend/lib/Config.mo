@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2.5-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2.6-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -330,6 +330,41 @@ module {
   public func quoteCostSources() : [(Text, Text)] {
     [("bibliotheek", "Uit de postenbibliotheek"), ("oa-offerte", "Offerte van de OA"), ("eigen", "Eigen raming"), ("handmatig", "Met de hand"), ("vorige-versie", "Uit de vorige versie")];
   };
+
+  // ── Controleregels vóór verzending (2.6; VOORLOPIG: vragen voor Alexis) ──
+  // (sleutel, naam, vast, blokkeert, drempel in basispunten). "Vast" = integriteit van de offerte: niet af te zetten en
+  // niet te verzachten. De volgorde is die van de lijst in de editor én van tests/regels.mjs (browser = server).
+  public func quoteRuleDefaults() : [(Text, Text, Bool, Bool, ?Nat)] {
+    [
+      ("no-posts", "Er staat nog geen enkele post in deze versie", true, true, null),
+      ("no-price", "Posten zonder prijs", true, true, null),
+      ("total-zero", "Het totaal is nul of negatief", true, true, null),
+      ("client-missing", "De offerte heeft geen klant", false, true, null),
+      ("client-address", "De klant heeft geen volledig adres", false, true, null),
+      ("vat-ground", "Btw 6 % zonder grond bij de werf", false, false, null),
+      ("vat-differs", "Het btw-tarief wijkt af van dat van de werf", false, false, null),
+      ("qty-zero", "Posten met hoeveelheid 0", false, false, null),
+      ("qty-negative", "Posten met een negatieve hoeveelheid (minwerk)", false, false, null),
+      ("margin-unknown", "Vaste prijs zonder aankoopprijs: marge onbekend", false, false, null),
+      ("margin-low", "Marge onder de drempel", false, false, ?1_000),
+      ("below-cost", "Verkoop onder de aankoopprijs", false, true, null),
+      ("no-reason", "Afwijkende marge of vaste prijs zonder reden", false, true, null),
+      ("chapter-empty", "Hoofdstukken zonder posten", false, false, null),
+    ];
+  };
+  // De standaardposten die in een offerte horen (sleutel, naam, woorden in de titel, de code of het hoofdstuk van een post).
+  public func quoteStdPostDefaults() : [(Text, Text, [Text])] {
+    [
+      ("vergunning", "Vergunning of inname openbaar domein", ["vergunning", "openbaar domein", "inname", "signalisatie"]),
+      ("epb", "EPB-verslaggeving", ["epb", "peb", "energieprestatie"]),
+      ("pid", "Postinterventiedossier (PID)", ["pid", "postinterventiedossier", "post interventiedossier"]),
+      ("opkuis", "Opkuis en afvoer", ["opkuis", "opkuisen", "afval", "puin", "werfopruiming"]),
+    ];
+  };
+  public let maxQuoteStdPosts : Nat = 30;
+  public let maxQuoteStdKeywords : Nat = 12;
+  public let maxQuoteReason : Nat = 300; // reden om door te zetten (komt in de auditlog)
+  public let minQuoteReason : Nat = 5;
 
   // ── Vergunningen (1b.1, bouwplan §5.3; VOORLOPIG tot Alexis bevestigt) ───
   // Soorten (sleutel, naam, doorlooptijd in kalenderdagen, woorden in een taak die de vergunning vragen, openbare weg).

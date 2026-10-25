@@ -1294,6 +1294,29 @@ module {
     linesByVersion : Map.Map<Nat, [Nat]>;
   };
 
+  // ── Controleregels vóór verzending (stap 2.6, bouwplan §9 rij 2.6; VOORLOPIG: vragen voor Alexis) ────
+  // Eigen stabiel veld `quoteChecks` (deelvorm, OldActor = {}). De regels zelf staan in lib/QuoteRules.mo (de browser heeft
+  // dezelfde in quote/rules.ts); hier staat wat de beheerder instelt en wat er bij een verzending gebeurde. Elke regel is een
+  // waarschuwing of een blokkering. Een blokkering houdt de verzending tegen; doorzetten ondanks een waarschuwing vraagt een
+  // reden, die in de auditlog en bij de versie komt. Volledig vanaf het begin (D1a).
+  public type QuoteSeverity = { #warn; #block };
+
+  // klasse: intern. Geen record voor een regel = de standaard uit Config.quoteRuleDefaults.
+  public type QuoteRuleCfg = { key : Text; enabled : Bool; severity : QuoteSeverity; thresholdBp : ?Nat; updatedAt : Int; updatedBy : PersonId };
+
+  // klasse: intern. Een standaardpost die in elke offerte hoort (vergunning, EPB, PID, opkuis): gevonden op woorden in
+  // de titel, de code of het hoofdstuk van een post.
+  public type QuoteStdPost = { key : Text; name : Text; keywords : [Text]; enabled : Bool; severity : QuoteSeverity; order : Nat; updatedAt : Int; updatedBy : PersonId; archivedAt : ?Int };
+
+  // klasse: intern. Een verzending waarbij waarschuwingen doorgezet werden: wie, wanneer, waarom en welke regels.
+  public type QuoteCheckDone = { versionId : Nat; at : Int; by : PersonId; reason : Text; warned : [(Text, Nat)] };
+
+  public type QuoteChecksState = {
+    rules : Map.Map<Text, QuoteRuleCfg>;
+    stdPosts : Map.Map<Text, QuoteStdPost>;
+    done : Map.Map<Nat, QuoteCheckDone>; // sleutel = versie
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;
