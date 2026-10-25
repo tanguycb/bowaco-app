@@ -295,6 +295,7 @@ type Confidential__546665525<T> = {#plain : T; #sealed : Sealed__69262316};
 type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
 type Confidential__675319516<T> = {#plain : T; #sealed : Sealed__1041298352};
 type Confidential__886369716<T> = {#plain : T; #sealed : Sealed__566922365};
+type Confidential__978755673<T> = {#plain : T; #sealed : Sealed__56403581};
 type Confirmation__1046287337 =
   {
     #confirmed : {at : Int; by : PersonId__185004052};
@@ -316,6 +317,8 @@ type Contact__934541314 =
 type ContractForm__243403253 =
   {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
 type ContractForm__592914701 =
+  {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
+type ContractForm__792389254 =
   {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
 type ContractParams__65105207 =
   {
@@ -505,6 +508,7 @@ type Extra__365037972 = [(Text, Text)];
 type Extra__417870522 = [(Text, Text)];
 type Extra__459120016 = [(Text, Text)];
 type Extra__482036894 = [(Text, Text)];
+type Extra__492312138 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
 type Extra__550678138 = [(Text, Text)];
 type Extra__594079308 = [(Text, Text)];
@@ -880,6 +884,7 @@ type LibItem__144239490 =
     updatedBy : PersonId__967516914;
     version : Nat
   };
+type LibSellRule__519842534 = {#margin : Nat; #price : Int};
 type LibSellRule__575445335 = {#margin : Nat; #price : Int};
 type LibSellRule__728679382 = {#margin : Nat; #price : Int};
 type LibSellVersion__871048333 =
@@ -1179,6 +1184,7 @@ type NewActor__1057791986 =
 type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
 type NewActor__2917504 = {plan : PlanState__393161007};
+type NewActor__369284664 = {quotes : QuotesState__146412283};
 type NewActor__398557116 = {imp : ImportState__440367384};
 type NewActor__410098017 = {library : LibraryState__89257550};
 type NewActor__473839593 = {wadm : WadmState__864899804};
@@ -1218,6 +1224,7 @@ type OaState__978871092 =
   };
 type OldActor__1025357807 = {};
 type OldActor__211850744 = {};
+type OldActor__233879672 = {};
 type OldActor__285002242 = {};
 type OldActor__305186077 = {};
 type OldActor__376205032 = {};
@@ -1295,6 +1302,7 @@ type OrgId__232449879 = Nat;
 type OrgId__331006062 = Nat;
 type OrgId__370186017 = Nat;
 type OrgId__579572044 = Nat;
+type OrgId__837673520 = Nat;
 type OrgId__874222008 = Nat;
 type OrgId__875663865 = Nat;
 type OrgId__98679714 = Nat;
@@ -1522,6 +1530,7 @@ type PersonId__518727946 = Nat;
 type PersonId__677245278 = Nat;
 type PersonId__820620982 = Nat;
 type PersonId__858692293 = Nat;
+type PersonId__940766018 = Nat;
 type PersonId__967516914 = Nat;
 type Person__726696944 =
   {
@@ -1627,6 +1636,226 @@ type Proposal__703224334 =
     personId : ?PersonId__1007515609;
     ticketId : ?Nat;
     workId : ?WorkId__111716167
+  };
+type QuoteChapter__897183860 =
+  {
+    archivedAt : ?Int;
+    code : Text;
+    extra : Extra__945213800;
+    id : Nat;
+    libChapterId : ?Nat;
+    order : Nat;
+    title : Text;
+    versionId : Nat
+  };
+type QuoteChapter__942233490 =
+  {
+    archivedAt : ?Int;
+    code : Text;
+    extra : Extra__492312138;
+    id : Nat;
+    libChapterId : ?Nat;
+    order : Nat;
+    title : Text;
+    versionId : Nat
+  };
+type QuoteDecision__676329625 =
+  {at : Int; by : PersonId__967516914; note : Text};
+type QuoteDecision__974893464 =
+  {at : Int; by : PersonId__940766018; note : Text};
+type QuoteLineKind__221158815 = {#item; #option; #text};
+type QuoteLineKind__843657187 = {#item; #option; #text};
+type QuoteLinePrice__572862535 =
+  {
+    cost : Confidential__978755673<?Int>;
+    extra : Extra__492312138;
+    libCostId : ?Nat;
+    lineId : Nat;
+    orgId : ?OrgId__837673520;
+    reason : Confidential__978755673<Text>;
+    rule : Confidential__978755673<?LibSellRule__519842534>;
+    source : Text;
+    versionId : Nat
+  };
+type QuoteLinePrice__960262017 =
+  {
+    cost : Confidential__546665525<?Int>;
+    extra : Extra__945213800;
+    libCostId : ?Nat;
+    lineId : Nat;
+    orgId : ?OrgId__17031398;
+    reason : Confidential__546665525<Text>;
+    rule : Confidential__546665525<?LibSellRule__728679382>;
+    source : Text;
+    versionId : Nat
+  };
+type QuoteLine__526175101 =
+  {
+    archivedAt : ?Int;
+    chapterId : Nat;
+    code : Text;
+    copiedFrom : ?Nat;
+    extra : Extra__945213800;
+    form : ContractForm__243403253;
+    id : Nat;
+    kind : QuoteLineKind__221158815;
+    libItemId : ?Nat;
+    libItemVersion : ?Nat;
+    order : Nat;
+    qtyMilli : Int;
+    specRef : Text;
+    text : Text;
+    title : Text;
+    unit : Text;
+    versionId : Nat
+  };
+type QuoteLine__923781398 =
+  {
+    archivedAt : ?Int;
+    chapterId : Nat;
+    code : Text;
+    copiedFrom : ?Nat;
+    extra : Extra__492312138;
+    form : ContractForm__792389254;
+    id : Nat;
+    kind : QuoteLineKind__843657187;
+    libItemId : ?Nat;
+    libItemVersion : ?Nat;
+    order : Nat;
+    qtyMilli : Int;
+    specRef : Text;
+    text : Text;
+    title : Text;
+    unit : Text;
+    versionId : Nat
+  };
+type QuoteSent__477543433 =
+  {
+    at : Int;
+    by : PersonId__940766018;
+    hash : Text;
+    optionsMinusCents : Int;
+    optionsPlusCents : Int;
+    subtotalCents : Int;
+    totalCents : Int;
+    vatCents : Int
+  };
+type QuoteSent__872611560 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    hash : Text;
+    optionsMinusCents : Int;
+    optionsPlusCents : Int;
+    subtotalCents : Int;
+    totalCents : Int;
+    vatCents : Int
+  };
+type QuoteStatus__578374387 =
+  {#accepted; #draft; #rejected; #sent; #superseded; #withdrawn};
+type QuoteStatus__927008008 =
+  {#accepted; #draft; #rejected; #sent; #superseded; #withdrawn};
+type QuoteVersionConf__455210991 =
+  {
+    extra : Extra__945213800;
+    standardMarginBp : Confidential__546665525<Nat>;
+    versionId : Nat
+  };
+type QuoteVersionConf__779854103 =
+  {
+    extra : Extra__492312138;
+    standardMarginBp : Confidential__978755673<Nat>;
+    versionId : Nat
+  };
+type QuoteVersion__244379400 =
+  {
+    basedOnId : ?Nat;
+    calcVersion : Nat;
+    clientOrgId : ?OrgId__17031398;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    decision : ?QuoteDecision__676329625;
+    extra : Extra__945213800;
+    id : Nat;
+    intro : Text;
+    note : Text;
+    quoteId : Nat;
+    rev : Nat;
+    sent : ?QuoteSent__872611560;
+    status : QuoteStatus__927008008;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    validDays : Nat;
+    vatBp : Nat;
+    version : Nat
+  };
+type QuoteVersion__901844953 =
+  {
+    basedOnId : ?Nat;
+    calcVersion : Nat;
+    clientOrgId : ?OrgId__837673520;
+    createdAt : Int;
+    createdBy : PersonId__940766018;
+    decision : ?QuoteDecision__974893464;
+    extra : Extra__492312138;
+    id : Nat;
+    intro : Text;
+    note : Text;
+    quoteId : Nat;
+    rev : Nat;
+    sent : ?QuoteSent__477543433;
+    status : QuoteStatus__578374387;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__940766018;
+    validDays : Nat;
+    vatBp : Nat;
+    version : Nat
+  };
+type Quote__691457025 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__967516914;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    id : Nat;
+    number : Text;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    workId : WorkId__929594816
+  };
+type Quote__701382438 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__940766018;
+    createdAt : Int;
+    createdBy : PersonId__940766018;
+    extra : Extra__492312138;
+    id : Nat;
+    number : Text;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__940766018;
+    workId : WorkId__815998652
+  };
+type QuotesState__146412283 =
+  {
+    byQuote : Map__230067015<Nat, [Nat]>;
+    byWork : Map__230067015<Nat, [Nat]>;
+    chapters : Map__230067015<Nat, QuoteChapter__942233490>;
+    chaptersByVersion : Map__230067015<Nat, [Nat]>;
+    lines : Map__230067015<Nat, QuoteLine__923781398>;
+    linesByVersion : Map__230067015<Nat, [Nat]>;
+    numbers : Map__230067015<Text, Nat>;
+    prices : Map__230067015<Nat, QuoteLinePrice__572862535>;
+    quotes : Map__230067015<Nat, Quote__701382438>;
+    versionConf : Map__230067015<Nat, QuoteVersionConf__779854103>;
+    versions : Map__230067015<Nat, QuoteVersion__901844953>
   };
 type ReportBlocks__303830175 =
   {
@@ -1745,6 +1974,7 @@ type Role__679663545 =
     #werfleider
   };
 type Sealed__1041298352 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__56403581 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__566922365 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__69262316 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__901946251 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
@@ -2102,6 +2332,7 @@ type WorkId__171501769 = Nat;
 type WorkId__35351127 = Nat;
 type WorkId__642659770 = Nat;
 type WorkId__72456761 = Nat;
+type WorkId__815998652 = Nat;
 type WorkId__838834227 = Nat;
 type WorkId__872672482 = Nat;
 type WorkId__929594816 = Nat;
@@ -2203,7 +2434,8 @@ type WorksState__605582232 =
   "20261024_180000" : OldActor__285002242 -> NewActor__127410502;
   "20261024_210000" : OldActor__853471898 -> NewActor__473839593;
   "20261024_230000" : OldActor__804964816 -> NewActor__984285705;
-  "20261024_235500" : OldActor__376205032 -> NewActor__410098017
+  "20261024_235500" : OldActor__376205032 -> NewActor__410098017;
+  "20261025_090000" : OldActor__233879672 -> NewActor__369284664
 }
 actor  {
   stable access :
@@ -2297,6 +2529,20 @@ actor  {
       keys : Map__230067015<Text, Nat>;
       open : Map__230067015<Nat, ()>;
       seen : Map__230067015<Principal, Int>
+    };
+  stable quotes :
+    {
+      byQuote : Map__230067015<Nat, [Nat]>;
+      byWork : Map__230067015<Nat, [Nat]>;
+      chapters : Map__230067015<Nat, QuoteChapter__897183860>;
+      chaptersByVersion : Map__230067015<Nat, [Nat]>;
+      lines : Map__230067015<Nat, QuoteLine__526175101>;
+      linesByVersion : Map__230067015<Nat, [Nat]>;
+      numbers : Map__230067015<Text, Nat>;
+      prices : Map__230067015<Nat, QuoteLinePrice__960262017>;
+      quotes : Map__230067015<Nat, Quote__691457025>;
+      versionConf : Map__230067015<Nat, QuoteVersionConf__455210991>;
+      versions : Map__230067015<Nat, QuoteVersion__244379400>
     };
   stable reports :
     {
