@@ -1785,6 +1785,7 @@ export const nl = {
     proposeLead: "Als onderaannemer stel je je opmeting voor: de werfleider bevestigt ze voor ze meetelt.",
     // geschiedenis per post
     history: "Regels van deze post",
+    surveyLines: "Regels in deze opmeting",
     noLines: "Nog niets opgemeten voor deze post.",
     by: (name: string, day: string) => `${name} · gemeten ${day}`,
     status: { geldig: "geldig", voorstel: "wacht op bevestiging", afgewezen: "afgewezen" } as Record<string, string>,

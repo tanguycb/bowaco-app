@@ -525,7 +525,7 @@ function SurveySheet({ surveyId, onClose }: { surveyId: bigint; onClose: () => v
           </div>
           {d.entries.length > 0 && (
             <>
-              <h3 className="bw-h2">{T.history}</h3>
+              <h3 className="bw-h2">{T.surveyLines}</h3>
               <ul className="om-entries">
                 {d.entries.filter((e) => !e.archived).map((e) => (
                   <li key={keyOf(e.id)} className="om-entry">

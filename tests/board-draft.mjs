@@ -30,6 +30,9 @@ const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A")?.id;
 const B = works.find((w) => w.code === "P-B")?.id;
 const orgDak = (await admin.listOrgs(false)).find((o) => o.name === "Proef Dak NV");
+// 2.9: proefwerven van latere stappen (P-WS-, P-UI-, P-OM…) boeken Proef Dak NV ook in de planning; een afgesloten of geannuleerde
+// proefwerf telt niet mee voor de weekbordregels (geannuleerde werven tellen sinds 2.9 niet meer mee), dus eerst opruimen.
+for (const w of works) if (/^P-(UI|WS|WR|OM|OR)/.test(w.code) && !("cancelled" in w.status)) await admin.setWorkStatus(w.id, { cancelled: null });
 if (A === undefined || B === undefined || !orgDak) throw new Error("P-A/P-B of Proef Dak NV ontbreken: eerst de vorige draftproeven");
 const bq = (o = {}) => ({ from: o.from ?? day(), weeks: o.weeks ?? 6n, offset: 0n, limit: o.limit ?? 50n, text: o.text ?? "", trade: [], workId: opt(o.workId), onlyConflicts: o.only ?? false, withIdle: o.idle ?? false });
 const tIn = (o) => ({ id: opt(o.id), title: o.title, note: "", kind: { work: null }, trade: opt(o.trade), responsibleOrgId: opt(o.org), status: { planned: null }, percent: 0n, start: o.start, workdays: o.workdays ?? 2n, leadDays: 0n, orderDay: [], reason: "proef 1.4" });

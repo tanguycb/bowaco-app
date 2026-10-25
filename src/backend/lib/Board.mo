@@ -108,7 +108,7 @@ module {
                 case null {
                   let i = switch (src.works.works.get(a.workId)) {
                     case (?w) {
-                      if (w.archivedAt != null) null else switch (see(w)) {
+                      if (w.archivedAt != null or w.status == #cancelled) null else switch (see(w)) {
                         case (?v) {
                           let bs = Plan.blocksFor(src.plan, src.works, w.id);
                           ?(w, { blocks = bs.map(func b = (b.from, b.to)) }, bs, v);
