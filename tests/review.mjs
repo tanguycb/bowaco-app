@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { backend, freshBackend, identity, KEYDIR, nepmail, ok, setCanisterEnv } from "../tools/lib.mjs";
+import { M, batchArgs, expectRaw, fromRead, sameTotals, saveAll } from "./offerte-lib.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/review.mjs <canister-id>");
@@ -409,6 +410,114 @@ else {
   // (E10) Verkoopregel: een afwijking zonder reden wordt geweigerd (controle vóór verzending, 2.6).
   check("(E10) eigen marge of vaste prijs zonder reden: geweigerd", "err" in (await calc.setLibrarySell(rp.id, { rule: [{ price: 5000n }], reason: " " }, ok(await calc.readLibraryPrices([rp.id])).prices[0].sellVersion)));
 }
+
+// ── (F1–F10) offerte-editor 2.4: prijzen en marges enkel kantoor, rekenen nagekeken door de server, onwijzigbaar na verzending ──
+{
+  const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.did"), "utf8");
+  const types = new Map([...did.matchAll(/^type (\w+) =([\s\S]*?);\n(?=type |service|$)/gm)].map((m) => [m[1], m[2]]));
+  // Vormen die een aankoopprijs, marge of prijs per lijn dragen (rechtstreeks of via een ander type).
+  const tainted = new Set(["QuoteLinePrice", "QuoteVersionConf", "QuoteCostLine", "QuoteSellLine", "QuoteMarginTotals", "QuoteChapterMargin", "QuotePriceInput", "LibCost", "LibSell", "LibSellRule", "LibCostView", "LibPriceView"]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [n, body] of types) if (!tainted.has(n) && [...tainted].some((t) => new RegExp(`\\b${t}\\b`).test(body))) { tainted.add(n); grew = true; }
+  }
+  const service = did.slice(did.indexOf("service"));
+  const queries = [...service.matchAll(/^ {2}"?(\w+)"?\s*:\s*\(([^)]*)\)\s*->\s*\(([^)]*)\)\s*query/gm)];
+  const bad = queries.filter((m) => [...tainted].some((t) => new RegExp(`\\b${t}\\b`).test(m[3]))).map((m) => m[1]);
+  check("(F1) geen enkele query geeft een prijs per lijn, aankoopprijs of marge van een offerte terug", bad.length === 0 && tainted.has("QuoteRead"), bad.join(", ") || `${queries.length} queries, ${tainted.size} prijstypen`);
+  check("(F1) de interne vormen dragen geen prijs: lijst, kop, hoofdstuk, lijn, interne export", ["QuoteSummary", "QuoteVersionBrief", "QuoteVersionView", "QuoteChapterView", "QuoteLineView", "QuoteLine", "QuoteChapter", "QuoteVersion", "ExportIntern"].every((n) => types.has(n) && !tainted.has(n)), ["QuoteLineView", "QuoteLine", "ExportIntern"].filter((n) => tainted.has(n)).join());
+  // Een eigen reviewofferte op P-A (vast nummer, idempotent): een ontwerp om op te werken.
+  const NR = "PROEF-REVIEW";
+  let q = (await calc.listQuotes([A], true)).find((x) => x.number === NR);
+  if (!q) { ok(await calc.createQuote({ workId: A, number: NR, title: "Proef reviewofferte (tests/review.mjs)" })); q = (await calc.listQuotes([A], true)).find((x) => x.number === NR); }
+  if (q.archived) ok(await calc.setQuoteArchived(q.id, false, ""));
+  let draft = q.versions.find((v) => "draft" in v.status);
+  if (!draft) { ok(await calc.newQuoteVersion(q.id, [])); draft = (await calc.listQuotes([A], true)).find((x) => x.number === NR).versions[0]; }
+  const vid = draft.id;
+  let m = fromRead(ok(await calc.readQuoteVersion(vid)));
+  for (const l of m.lines) M.removeLine(m, l.key);
+  for (const c of m.chapters) M.removeChapter(m, c.key);
+  const ch = M.addChapter(m, { code: "R", title: "Proef review" });
+  M.addLine(m, ch.key, { title: "Proef reviewlijn", qtyMilli: 3_000n, unit: "st", form: "fixed", price: { cost: 1_234n, rule: null, reason: "", orgId: orgDak ? orgDak.id : null, source: "eigen", libCostId: null } });
+  M.addLine(m, ch.key, { title: "Proef reviewlijn vast", qtyMilli: 1_000n, unit: "sog", form: "fixed", price: { cost: null, rule: { price: 77_700n }, reason: "review", orgId: null, source: "", libCostId: null } });
+  const sv = await saveAll(calc, m);
+  check("(F2) calculator bewaart de reviewofferte; de server rekent hetzelfde", isOk(sv) && sameTotals(m, sv.ok.totals, sv.ok.margins), errOf(sv).slice(0, 160));
+  // (F3) Elke rol zonder prijsrecht, ook de robot en een onbekende login.
+  const anon = await backend(null, cid);
+  const vreemd = await freshBackend(cid);
+  const stale = [vid, 0n, [], [], [], expectRaw({ subtotal: 0n, vat: 0n, total: 0n, optionsPlus: 0n, optionsMinus: 0n, cost: 0n, margin: 0n, chapters: [] })];
+  for (const [n, x] of [["architect", arch], ["OA", oa2], ["klant", klant], ["VC", vc], ["robot", robot], ["anoniem", anon], ["onbekend", vreemd]]) {
+    const rs = await Promise.all([x.readQuoteVersion(vid), x.listQuotes([A], false), x.listQuotes([], false), x.createQuote({ workId: A, number: "", title: "x" }), x.saveQuoteDraft(...stale), x.sendQuoteVersion(vid, 0n, 0n), x.decideQuoteVersion(vid, true, ""), x.newQuoteVersion(q.id, []), x.setQuoteArchived(q.id, true, "x"), x.exportChunk("quotePrices", 0n, 1n), x.exportChunk("quoteVersionConf", 0n, 1n)].map((c) => denied(c)));
+    check(`(F3) ${n}: elke offertefunctie geweigerd (11 oproepen)`, rs.every(Boolean), rs.map((v) => (v ? "·" : "✗")).join(""));
+  }
+  // (F4) De werfleider: totalen, geen enkele prijs per lijn, aankoopprijs, marge of OA van de prijs.
+  const rw = ok(await wl.readQuoteVersion(vid));
+  const flat = JSON.stringify({ lines: rw.lines, chapters: rw.chapters, version: rw.version, quote: rw.quote }, big);
+  check("(F4) werfleider: scope totals, geen prijs per lijn, geen aankoop of marge, geen bedrag in de tekst", "totals" in rw.scope && rw.sell.length === 0 && rw.costs.length === 0 && rw.margins.length === 0 && !/\b(1234|1543|77700|4629)\b|Proef Dak/.test(flat));
+  check("(F4) werfleider: bewaren, versturen, beslissen, nieuwe versie, archiveren, export: geweigerd", (await Promise.all([wl.saveQuoteDraft(...stale), wl.sendQuoteVersion(vid, 0n, 0n), wl.decideQuoteVersion(vid, true, ""), wl.newQuoteVersion(q.id, []), wl.setQuoteArchived(q.id, true, "x"), wl.exportChunk("quotePrices", 0n, 1n)].map(denied))).every(Boolean));
+  // (F5) Een architect MET de grant #readSellPrices: verkoopprijzen, nooit aankoopprijzen of marges.
+  const meArch = (await arch.me()).person[0];
+  const mArch = (await admin.listMembers(A)).find((x) => x.personId[0] === meArch.id && "architect" in x.role);
+  if (mArch) {
+    ok(await admin.setMemberGrants(mArch.id, [...mArch.grants.filter((g) => !("readSellPrices" in g)), { readSellPrices: null }]));
+    const ra = await arch.readQuoteVersion(vid).catch((e) => ({ trap: String(e) }));
+    check("(F5) architect met de grant: scope sell, prijs per lijn, GEEN aankoopprijs of marge", isOk(ra) && "sell" in ra.ok.scope && ra.ok.sell.length === 2 && ra.ok.costs.length === 0 && ra.ok.margins.length === 0, errOf(ra) || ra.trap || "");
+    check("(F5) … en nog altijd niet bewerken of versturen", (await Promise.all([arch.saveQuoteDraft(...stale), arch.sendQuoteVersion(vid, 0n, 0n)].map(denied))).every(Boolean));
+    ok(await admin.setMemberGrants(mArch.id, mArch.grants));
+    check("(F5) grant terug weg: meteen geweigerd", await denied(arch.readQuoteVersion(vid)));
+  } else check("(F5) architect is lid van P-A", false);
+  // (F6) Een werf die de werfleider niet ziet ('ziet alles' uit en geen lid van die werf; op een draft kan hij lid zijn van
+  // P-B, dus zoeken we een werf zonder hem), met een eigen proefofferte daar (vast nummer, idempotent).
+  const setBefore = await admin.getSettings();
+  const wlId = (await wl.me()).person[0].id;
+  let other = null;
+  for (const w of (await admin.listWorks()).filter((x) => x.archivedAt.length === 0)) {
+    if (!(await admin.listMembers(w.id)).some((m) => m.personId[0] === wlId)) { other = w; break; }
+  }
+  if (other) {
+    let qo = (await calc.listQuotes([other.id], true)).find((x) => x.number === "PROEF-REVIEW-F6");
+    if (!qo) { ok(await calc.createQuote({ workId: other.id, number: "PROEF-REVIEW-F6", title: "Proef reviewofferte F6 (verzonnen)" })); qo = (await calc.listQuotes([other.id], true)).find((x) => x.number === "PROEF-REVIEW-F6"); }
+    ok(await admin.setSettings({ ...setBefore, werfleiderZietAlles: false }));
+    const deniedO = await denied(wl.readQuoteVersion(qo.versions[0].id));
+    const listAll = await wl.listQuotes([], true);
+    ok(await admin.setSettings(setBefore));
+    check(`(F6) werfleider zonder 'ziet alles': geen offerte van een werf die hij niet ziet (${other.code}: lezen, lijst)`, deniedO && !listAll.some((x) => x.workId === other.id));
+  } else console.log("· (F6) geen werf zonder de werfleider: overgeslagen");
+  // (F7) Rekenen: een verkeerd totaal wordt geweigerd en er verandert niets (ook de stand niet).
+  const r0 = ok(await calc.readQuoteVersion(vid));
+  const x0 = fromRead(r0);
+  M.updateLine(x0, x0.lines[0].key, { qtyMilli: 4_000n });
+  const b0 = M.nextBatch(x0);
+  const tamper = batchArgs(x0, b0);
+  tamper[5] = expectRaw({ ...b0.expect, margin: b0.expect.margin + 1n });
+  check("(F7) marge van de browser 1 cent anders: geweigerd, stand en hoeveelheid ongewijzigd", /verschillen/.test(errOf(await calc.saveQuoteDraft(...tamper))) && ok(await calc.readQuoteVersion(vid)).version.rev === r0.version.rev);
+  // (F8) Grenzen: tekst > 4.000 tekens, > 300 wijzigingen in één oproep.
+  const x1 = fromRead(r0);
+  M.updateLine(x1, x1.lines[0].key, { text: "y".repeat(4001) });
+  check("(F8) lastenboektekst > 4.000 tekens: geweigerd", /te lang/.test(errOf(await calc.saveQuoteDraft(...batchArgs(x1, M.nextBatch(x1))))));
+  const x2 = fromRead(r0);
+  for (let i = 0; i < 301; i++) M.addLine(x2, x2.chapters[0].key, { title: `R${i}`, qtyMilli: 1000n, unit: "st", price: M.emptyPrice() });
+  check("(F8) 301 wijzigingen in één oproep: geweigerd", /Te veel wijzigingen/.test(errOf(await calc.saveQuoteDraft(...batchArgs(x2, M.nextBatch(x2, 400))))));
+  // (F9) Lezen staat in de auditlog (één regel per oproep), nooit met een bedrag.
+  const c0 = await admin.auditCount();
+  ok(await calc.readQuoteVersion(vid));
+  const c1 = await admin.auditCount();
+  const last = (await admin.auditLog(0n, 3n)).find((e) => e.action === "bekeek:offerteprijzen");
+  check("(F9) readQuoteVersion = één auditregel 'bekeek:offerteprijzen', zonder bedrag", c1 === c0 + 1n && last && !/\d{3,}/.test(last.detail.replace(/#\d+|v\d+/g, "")), last?.detail);
+  // (F10) Versturen legt vast: daarna geen enkele wijziging, en de hash klopt nog na een nieuwe versie.
+  const rs = ok(await calc.readQuoteVersion(vid));
+  const h = ok(await calc.sendQuoteVersion(vid, rs.version.rev, rs.totals.totalCents));
+  const x3 = fromRead(ok(await calc.readQuoteVersion(vid)));
+  M.updateLine(x3, x3.lines[0].key, { qtyMilli: 9_000n });
+  check("(F10) verzonden versie bewerken: geweigerd", /kan niet meer veranderen/.test(errOf(await calc.saveQuoteDraft(...batchArgs(x3, M.nextBatch(x3))))));
+  const nv = ok(await calc.newQuoteVersion(q.id, []));
+  const x4 = fromRead(ok(await calc.readQuoteVersion(nv)));
+  M.updateLine(x4, x4.lines[0].key, { qtyMilli: 9_000n });
+  check("(F10) de nieuwe versie bewerken mag", isOk(await saveAll(calc, x4)));
+  const rsv = ok(await calc.readQuoteVersion(vid));
+  check("(F10) de verzonden versie: zelfde hash en totaal, inhoud intact", rsv.version.hash === h && rsv.version.intact && rsv.totals.totalCents === rs.totals.totalCents);
+}
+
 
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──
 if (local && !process.env.ZONDER_KLOK) {

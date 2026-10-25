@@ -60,7 +60,9 @@ check("en terug naar de oude datum", isOk(back), errOf(back));
 pA = await wl.getPlan(A);
 check("geen waarschuwingen", pA.tasks.every((t) => t.warnings.length === 0), pA.tasks.flatMap((t) => t.warnings).join(" | "));
 const vb4 = pA.version;
-const pvD = await wl.previewDependency(A, { fromTaskId: byKey(pA, "dak").id, toTaskId: byKey(pA, "trap").id, kind: { finishToStart: null }, lagDays: 2n });
+// "trap" bestaat niet als de huidige rollentest de draft opbouwde (die archiveert de trap): dan een andere latere taak.
+const naDak = byKey(pA, "trap") ?? byKey(pA, "tegels") ?? byKey(pA, "schilderen");
+const pvD = await wl.previewDependency(A, { fromTaskId: byKey(pA, "dak").id, toTaskId: naDak.id, kind: { finishToStart: null }, lagDays: 2n });
 check("voorvertoning van een afhankelijkheid (C2) verandert niets", isOk(pvD) && (await wl.getPlan(A)).version === vb4, errOf(pvD));
 const ab = byKey(pA, "afbraak");
 const pvF = await wl.previewPlan(A, { move: { taskId: ab.id, start: ab.start, workdays: ab.workdays + 2n, mode: { follow: null } } });

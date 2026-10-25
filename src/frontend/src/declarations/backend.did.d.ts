@@ -345,17 +345,20 @@ export interface Caps {
   'manageSettings' : boolean,
   'editLibrary' : boolean,
   'writeReports' : boolean,
+  'quotePrices' : boolean,
   'readTeam' : boolean,
   'permits' : boolean,
   'manageTemplates' : boolean,
   'upload' : boolean,
   'readLibrary' : boolean,
+  'editQuotes' : boolean,
   'readMunicipalities' : boolean,
   'manageOrgs' : boolean,
   'manageCompanyCalendar' : boolean,
   'manageRobots' : boolean,
   'reportOwnAbsence' : boolean,
   'export' : boolean,
+  'quotes' : boolean,
   'manageAbsences' : boolean,
   'readTrips' : boolean,
   'manageVehicles' : boolean,
@@ -406,8 +409,14 @@ export type Confidential_1 = { 'sealed' : Sealed } |
 export type Confidential_2 = { 'sealed' : Sealed } |
   { 'plain' : LibSellRule };
 export type Confidential_3 = { 'sealed' : Sealed } |
-  { 'plain' : Contact };
+  { 'plain' : [] | [bigint] };
 export type Confidential_4 = { 'sealed' : Sealed } |
+  { 'plain' : [] | [LibSellRule] };
+export type Confidential_5 = { 'sealed' : Sealed } |
+  { 'plain' : bigint };
+export type Confidential_6 = { 'sealed' : Sealed } |
+  { 'plain' : Contact };
+export type Confidential_7 = { 'sealed' : Sealed } |
   { 'plain' : ContractParams };
 export type Confirmation = { 'open' : null } |
   { 'confirmed' : { 'at' : bigint, 'by' : PersonId } } |
@@ -771,9 +780,11 @@ export interface ExportConfidential {
   'orgs' : Array<[OrgId, ContactConfidentialView]>,
   'libSellVersions' : Array<LibSellVersion>,
   'libSells' : Array<LibSell>,
+  'quotePrices' : Array<QuoteLinePrice>,
   'workConfidentialHistory' : Array<WorkConfidentialVersion>,
   'persons' : Array<[PersonId, ContactConfidentialView]>,
   'workConfidential' : Array<WorkConfidential>,
+  'quoteVersionConf' : Array<QuoteVersionConf>,
 }
 export interface ExportIntern {
   'at' : bigint,
@@ -802,6 +813,7 @@ export interface ExportIntern {
   'importKeys' : Array<ImportKey>,
   'values' : Array<[string, string]>,
   'planVersions' : Array<[WorkId, bigint]>,
+  'quoteLines' : Array<QuoteLine>,
   'calendarBlocks' : Array<CalendarBlock>,
   'hoursConfirmations' : Array<HoursConfirmation>,
   'orgContacts' : Array<OrgContact>,
@@ -812,6 +824,7 @@ export interface ExportIntern {
   'version' : string,
   'issues' : Array<Issue>,
   'permits' : Array<Permit>,
+  'quoteChapters' : Array<QuoteChapter>,
   'persons' : Array<PersonView>,
   'taskChanges' : Array<TaskChange>,
   'settings' : SettingsView,
@@ -823,11 +836,13 @@ export interface ExportIntern {
   'libItems' : Array<LibItem>,
   'robots' : Array<RobotView>,
   'permitChanges' : Array<PermitChange>,
+  'quoteVersions' : Array<QuoteVersion>,
   'capacity' : Array<CapacityRule>,
   'importBatches' : Array<ImportBatch>,
   'proposals' : Array<ProposalView>,
   'permitAlerts' : Array<[string, bigint]>,
   'works' : Array<WorkView>,
+  'quotes' : Array<Quote>,
   'personContacts' : Array<PersonContact>,
   'sequences' : Array<[string, bigint]>,
   'auditCount' : bigint,
@@ -2078,6 +2093,330 @@ export interface ProposalView {
   'personId' : [] | [PersonId],
   'workId' : [] | [WorkId],
 }
+export interface Quote {
+  'id' : bigint,
+  'title' : string,
+  'archiveReason' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'extra' : Extra,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'number' : string,
+  'workId' : WorkId,
+  'archivedAt' : [] | [bigint],
+  'archivedBy' : [] | [PersonId],
+}
+export interface QuoteChapter {
+  'id' : bigint,
+  'versionId' : bigint,
+  'title' : string,
+  'order' : bigint,
+  'libChapterId' : [] | [bigint],
+  'code' : string,
+  'extra' : Extra,
+  'archivedAt' : [] | [bigint],
+}
+export interface QuoteChapterMargin {
+  'costCents' : bigint,
+  'chapterId' : bigint,
+  'sellWithCostCents' : bigint,
+}
+export interface QuoteChapterOp {
+  'id' : [] | [bigint],
+  'ref' : string,
+  'remove' : boolean,
+  'title' : string,
+  'order' : bigint,
+  'libChapterId' : [] | [bigint],
+  'code' : string,
+}
+export type QuoteChapterRef = { 'id' : bigint } |
+  { 'ref' : string };
+export interface QuoteChapterTotal {
+  'chapterId' : bigint,
+  'noPrice' : bigint,
+  'sellCents' : bigint,
+}
+export interface QuoteChapterView {
+  'id' : bigint,
+  'title' : string,
+  'order' : bigint,
+  'libChapterId' : [] | [bigint],
+  'code' : string,
+}
+export interface QuoteCostLine {
+  'orgName' : string,
+  'source' : string,
+  'orgId' : [] | [OrgId],
+  'marginBp' : [] | [bigint],
+  'costCents' : [] | [bigint],
+  'rule' : [] | [LibSellRule],
+  'negative' : boolean,
+  'libCostId' : [] | [bigint],
+  'lineCostCents' : [] | [bigint],
+  'noPrice' : boolean,
+  'deviates' : boolean,
+  'lineId' : bigint,
+  'reason' : string,
+}
+export interface QuoteCreated {
+  'versionId' : bigint,
+  'quoteId' : bigint,
+  'number' : string,
+}
+export interface QuoteDecision {
+  'at' : bigint,
+  'by' : PersonId,
+  'note' : string,
+}
+export interface QuoteExpect {
+  'subtotalCents' : bigint,
+  'costCents' : bigint,
+  'totalCents' : bigint,
+  'vatCents' : bigint,
+  'optionsMinusCents' : bigint,
+  'optionsPlusCents' : bigint,
+  'marginCents' : bigint,
+  'chapters' : Array<QuoteExpectChapter>,
+}
+export interface QuoteExpectChapter {
+  'chapter' : QuoteChapterRef,
+  'sellCents' : bigint,
+}
+export interface QuoteHeaderInput {
+  'title' : string,
+  'clientOrgId' : [] | [OrgId],
+  'validDays' : bigint,
+  'vatBp' : bigint,
+  'note' : string,
+  'standardMarginBp' : bigint,
+  'intro' : string,
+}
+export interface QuoteLine {
+  'id' : bigint,
+  'versionId' : bigint,
+  'copiedFrom' : [] | [bigint],
+  'title' : string,
+  'qtyMilli' : bigint,
+  'order' : bigint,
+  'code' : string,
+  'form' : ContractForm,
+  'kind' : QuoteLineKind,
+  'text' : string,
+  'unit' : string,
+  'chapterId' : bigint,
+  'extra' : Extra,
+  'libItemId' : [] | [bigint],
+  'libItemVersion' : [] | [bigint],
+  'specRef' : string,
+  'archivedAt' : [] | [bigint],
+}
+export type QuoteLineKind = { 'option' : null } |
+  { 'item' : null } |
+  { 'text' : null };
+export interface QuoteLineOp {
+  'id' : [] | [bigint],
+  'ref' : string,
+  'remove' : boolean,
+  'title' : string,
+  'qtyMilli' : bigint,
+  'order' : bigint,
+  'code' : string,
+  'form' : ContractForm,
+  'kind' : QuoteLineKind,
+  'text' : string,
+  'unit' : string,
+  'libItemId' : [] | [bigint],
+  'libItemVersion' : [] | [bigint],
+  'price' : QuotePriceInput,
+  'chapter' : QuoteChapterRef,
+  'specRef' : string,
+}
+export interface QuoteLinePrice {
+  'versionId' : bigint,
+  'source' : string,
+  'orgId' : [] | [OrgId],
+  'cost' : Confidential_3,
+  'rule' : Confidential_4,
+  'libCostId' : [] | [bigint],
+  'extra' : Extra,
+  'lineId' : bigint,
+  'reason' : Confidential_1,
+}
+export interface QuoteLineView {
+  'id' : bigint,
+  'copiedFrom' : [] | [bigint],
+  'title' : string,
+  'qtyMilli' : bigint,
+  'order' : bigint,
+  'code' : string,
+  'form' : ContractForm,
+  'kind' : QuoteLineKind,
+  'text' : string,
+  'unit' : string,
+  'chapterId' : bigint,
+  'libItemId' : [] | [bigint],
+  'libItemVersion' : [] | [bigint],
+  'specRef' : string,
+  'unitName' : string,
+}
+export interface QuoteMarginTotals {
+  'deviating' : bigint,
+  'marginBp' : [] | [bigint],
+  'costCents' : bigint,
+  'negative' : bigint,
+  'standardMarginBp' : bigint,
+  'sellWithCostCents' : bigint,
+  'marginCents' : bigint,
+  'chapters' : Array<QuoteChapterMargin>,
+  'sellWithoutCostCents' : bigint,
+  'noReason' : bigint,
+}
+export interface QuoteNew {
+  'title' : string,
+  'number' : string,
+  'workId' : WorkId,
+}
+export interface QuotePriceInput {
+  'source' : string,
+  'orgId' : [] | [OrgId],
+  'costCents' : [] | [bigint],
+  'rule' : [] | [LibSellRule],
+  'libCostId' : [] | [bigint],
+  'reason' : string,
+}
+export interface QuoteRead {
+  'costs' : Array<QuoteCostLine>,
+  'sell' : Array<QuoteSellLine>,
+  'quote' : QuoteSummary,
+  'margins' : [] | [QuoteMarginTotals],
+  'lines' : Array<QuoteLineView>,
+  'scope' : QuoteScope,
+  'version' : QuoteVersionView,
+  'chapters' : Array<QuoteChapterView>,
+  'totals' : QuoteTotalsView,
+}
+export interface QuoteSaveResult {
+  'rev' : bigint,
+  'refs' : Array<[string, bigint]>,
+  'margins' : QuoteMarginTotals,
+  'totals' : QuoteTotalsView,
+}
+export type QuoteScope = { 'full' : null } |
+  { 'sell' : null } |
+  { 'totals' : null };
+export interface QuoteSellLine {
+  'lineSellCents' : bigint,
+  'unitSellCents' : [] | [bigint],
+  'lineId' : bigint,
+}
+export interface QuoteSent {
+  'at' : bigint,
+  'by' : PersonId,
+  'subtotalCents' : bigint,
+  'hash' : string,
+  'totalCents' : bigint,
+  'vatCents' : bigint,
+  'optionsMinusCents' : bigint,
+  'optionsPlusCents' : bigint,
+}
+export type QuoteStatus = { 'superseded' : null } |
+  { 'sent' : null } |
+  { 'rejected' : null } |
+  { 'accepted' : null } |
+  { 'withdrawn' : null } |
+  { 'draft' : null };
+export interface QuoteSummary {
+  'id' : bigint,
+  'workName' : string,
+  'title' : string,
+  'archiveReason' : string,
+  'clientName' : string,
+  'updatedAt' : bigint,
+  'number' : string,
+  'workId' : WorkId,
+  'versions' : Array<QuoteVersionBrief>,
+  'archived' : boolean,
+  'workCode' : string,
+}
+export interface QuoteTotalsView {
+  'subtotalCents' : bigint,
+  'calcVersion' : bigint,
+  'vatBp' : bigint,
+  'totalCents' : bigint,
+  'vatCents' : bigint,
+  'optionsMinusCents' : bigint,
+  'optionsPlusCents' : bigint,
+  'chapters' : Array<QuoteChapterTotal>,
+  'noPrice' : bigint,
+}
+export interface QuoteVersion {
+  'id' : bigint,
+  'rev' : bigint,
+  'status' : QuoteStatus,
+  'title' : string,
+  'clientOrgId' : [] | [OrgId],
+  'decision' : [] | [QuoteDecision],
+  'calcVersion' : bigint,
+  'validDays' : bigint,
+  'vatBp' : bigint,
+  'basedOnId' : [] | [bigint],
+  'note' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'sent' : [] | [QuoteSent],
+  'quoteId' : bigint,
+  'extra' : Extra,
+  'version' : bigint,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'intro' : string,
+}
+export interface QuoteVersionBrief {
+  'id' : bigint,
+  'status' : QuoteStatus,
+  'createdAt' : bigint,
+  'sentAt' : [] | [bigint],
+  'lines' : bigint,
+  'version' : bigint,
+  'updatedAt' : bigint,
+  'createdByName' : string,
+}
+export interface QuoteVersionConf {
+  'versionId' : bigint,
+  'standardMarginBp' : Confidential_5,
+  'extra' : Extra,
+}
+export interface QuoteVersionView {
+  'id' : bigint,
+  'rev' : bigint,
+  'status' : QuoteStatus,
+  'title' : string,
+  'clientOrgId' : [] | [OrgId],
+  'decisionNote' : string,
+  'calcVersion' : bigint,
+  'validDays' : bigint,
+  'vatBp' : bigint,
+  'clientName' : string,
+  'hash' : string,
+  'sentByName' : string,
+  'note' : string,
+  'createdAt' : bigint,
+  'quoteId' : bigint,
+  'decidedByName' : string,
+  'basedOnVersion' : [] | [bigint],
+  'sentAt' : [] | [bigint],
+  'version' : bigint,
+  'updatedByName' : string,
+  'updatedAt' : bigint,
+  'createdByName' : string,
+  'intact' : boolean,
+  'intro' : string,
+  'editable' : boolean,
+  'decidedAt' : [] | [bigint],
+  'workVatBp' : bigint,
+}
 export interface ReportChange {
   'at' : bigint,
   'by' : PersonId,
@@ -2232,18 +2571,21 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'importKeys' : Array<ImportKey> } |
   { 'values' : Array<[string, string]> } |
   { 'planVersions' : Array<[WorkId, bigint]> } |
+  { 'quoteLines' : Array<QuoteLine> } |
   { 'libSellVersions' : Array<LibSellVersion> } |
   { 'calendarBlocks' : Array<CalendarBlock> } |
   { 'hoursConfirmations' : Array<HoursConfirmation> } |
   { 'orgContacts' : Array<OrgContact> } |
   { 'libSells' : Array<LibSell> } |
   { 'libChapters' : Array<LibChapter> } |
+  { 'quotePrices' : Array<QuoteLinePrice> } |
   { 'links' : Array<LinkView> } |
   { 'reportKeys' : Array<[string, bigint]> } |
   { 'municipalities' : Array<Municipality> } |
   { 'workConfidentialHistory' : Array<WorkConfidentialVersion> } |
   { 'issues' : Array<Issue> } |
   { 'permits' : Array<Permit> } |
+  { 'quoteChapters' : Array<QuoteChapter> } |
   { 'persons' : Array<PersonView> } |
   { 'workConfidential' : Array<WorkConfidential> } |
   { 'taskChanges' : Array<TaskChange> } |
@@ -2254,14 +2596,17 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'materials' : Array<MaterialNote> } |
   { 'dependencies' : Array<Dependency> } |
   { 'libItems' : Array<LibItem> } |
+  { 'quoteVersionConf' : Array<QuoteVersionConf> } |
   { 'robots' : Array<RobotView> } |
   { 'permitChanges' : Array<PermitChange> } |
+  { 'quoteVersions' : Array<QuoteVersion> } |
   { 'capacity' : Array<CapacityRule> } |
   { 'importBatches' : Array<ImportBatch> } |
   { 'proposals' : Array<ProposalView> } |
   { 'permitAlerts' : Array<[string, bigint]> } |
   { 'works' : Array<WorkView> } |
   { 'orgConfidential' : Array<[OrgId, ContactConfidentialView]> } |
+  { 'quotes' : Array<Quote> } |
   { 'personContacts' : Array<PersonContact> } |
   { 'sequences' : Array<[string, bigint]> } |
   { 'libItemVersions' : Array<LibItemVersion> } |
@@ -2284,77 +2629,85 @@ export type Result = { 'ok' : WorkView } |
   { 'err' : string };
 export type Result_1 = { 'ok' : PersonView } |
   { 'err' : string };
-export type Result_10 = { 'ok' : OrgContactView } |
+export type Result_10 = { 'ok' : MunicipalityView } |
   { 'err' : string };
-export type Result_11 = { 'ok' : OaPersonView } |
+export type Result_11 = { 'ok' : PermitView } |
   { 'err' : string };
-export type Result_12 = { 'ok' : LibItemView } |
+export type Result_12 = { 'ok' : OrgContactView } |
   { 'err' : string };
-export type Result_13 = { 'ok' : DeclarationView } |
+export type Result_13 = { 'ok' : OaPersonView } |
   { 'err' : string };
-export type Result_14 = { 'ok' : RollbackReport } |
+export type Result_14 = { 'ok' : LibItemView } |
   { 'err' : string };
-export type Result_15 = { 'ok' : RestoreSummary } |
+export type Result_15 = { 'ok' : DeclarationView } |
   { 'err' : string };
-export type Result_16 = { 'ok' : MeView } |
+export type Result_16 = { 'ok' : RollbackReport } |
   { 'err' : string };
-export type Result_17 = { 'ok' : OaWithholding } |
+export type Result_17 = { 'ok' : RestoreSummary } |
   { 'err' : string };
-export type Result_18 = { 'ok' : ContactConfidentialView } |
+export type Result_18 = { 'ok' : MeView } |
   { 'err' : string };
-export type Result_19 = { 'ok' : LibPrices } |
+export type Result_19 = { 'ok' : OaWithholding } |
   { 'err' : string };
 export type Result_2 = { 'ok' : OrgView } |
   { 'err' : string };
-export type Result_20 = { 'ok' : LibPriceHistory } |
+export type Result_20 = { 'ok' : QuoteRead } |
   { 'err' : string };
-export type Result_21 = { 'ok' : Array<ContractVersionView> } |
+export type Result_21 = { 'ok' : ContactConfidentialView } |
   { 'err' : string };
-export type Result_22 = { 'ok' : ContractView } |
+export type Result_22 = { 'ok' : LibPrices } |
   { 'err' : string };
-export type Result_23 = { 'ok' : FileView } |
+export type Result_23 = { 'ok' : LibPriceHistory } |
   { 'err' : string };
-export type Result_24 = { 'ok' : PlanPreview } |
+export type Result_24 = { 'ok' : Array<ContractVersionView> } |
   { 'err' : string };
-export type Result_25 = { 'ok' : MailOut } |
+export type Result_25 = { 'ok' : ContractView } |
   { 'err' : string };
-export type Result_26 = { 'ok' : MailPreview } |
+export type Result_26 = { 'ok' : FileView } |
   { 'err' : string };
-export type Result_27 = { 'ok' : FineResult } |
+export type Result_27 = { 'ok' : PlanPreview } |
   { 'err' : string };
-export type Result_28 = { 'ok' : Array<LibItemVersionView> } |
+export type Result_28 = { 'ok' : MailOut } |
   { 'err' : string };
-export type Result_29 = { 'ok' : NewCode } |
+export type Result_29 = { 'ok' : MailPreview } |
   { 'err' : string };
 export type Result_3 = { 'ok' : bigint } |
   { 'err' : string };
-export type Result_30 = { 'ok' : PlanImportReport } |
+export type Result_30 = { 'ok' : FineResult } |
   { 'err' : string };
-export type Result_31 = { 'ok' : ImportReport } |
+export type Result_31 = { 'ok' : Array<LibItemVersionView> } |
   { 'err' : string };
-export type Result_32 = { 'ok' : OaView } |
+export type Result_32 = { 'ok' : NewCode } |
   { 'err' : string };
-export type Result_33 = { 'ok' : RestorePart } |
+export type Result_33 = { 'ok' : PlanImportReport } |
   { 'err' : string };
-export type Result_34 = { 'ok' : DeclarationDraft } |
+export type Result_34 = { 'ok' : ImportReport } |
   { 'err' : string };
-export type Result_35 = { 'ok' : NewTicket } |
+export type Result_35 = { 'ok' : OaView } |
   { 'err' : string };
-export type Result_36 = { 'ok' : CiawExport } |
+export type Result_36 = { 'ok' : RestorePart } |
   { 'err' : string };
-export type Result_37 = { 'ok' : TicketInfo } |
+export type Result_37 = { 'ok' : DeclarationDraft } |
+  { 'err' : string };
+export type Result_38 = { 'ok' : NewTicket } |
+  { 'err' : string };
+export type Result_39 = { 'ok' : QuoteCreated } |
   { 'err' : string };
 export type Result_4 = { 'ok' : null } |
   { 'err' : string };
+export type Result_40 = { 'ok' : CiawExport } |
+  { 'err' : string };
+export type Result_41 = { 'ok' : TicketInfo } |
+  { 'err' : string };
 export type Result_5 = { 'ok' : PostSettingsView } |
   { 'err' : string };
-export type Result_6 = { 'ok' : MailRound } |
+export type Result_6 = { 'ok' : string } |
   { 'err' : string };
-export type Result_7 = { 'ok' : PlanResult } |
+export type Result_7 = { 'ok' : MailRound } |
   { 'err' : string };
-export type Result_8 = { 'ok' : MunicipalityView } |
+export type Result_8 = { 'ok' : PlanResult } |
   { 'err' : string };
-export type Result_9 = { 'ok' : PermitView } |
+export type Result_9 = { 'ok' : QuoteSaveResult } |
   { 'err' : string };
 export interface RobotSeen {
   'name' : string,
@@ -2705,24 +3058,24 @@ export interface WorkCaps {
   'setLeader' : boolean,
 }
 export interface WorkConfidential {
-  'contract' : Confidential_4,
+  'contract' : Confidential_7,
   'extra' : Extra,
   'version' : bigint,
   'updatedAt' : bigint,
   'updatedBy' : PersonId,
   'notes' : Confidential_1,
   'workId' : WorkId,
-  'clientContact' : Confidential_3,
+  'clientContact' : Confidential_6,
 }
 export interface WorkConfidentialVersion {
   'at' : bigint,
   'by' : PersonId,
   'id' : bigint,
-  'contract' : Confidential_4,
+  'contract' : Confidential_7,
   'version' : bigint,
   'notes' : Confidential_1,
   'workId' : WorkId,
-  'clientContact' : Confidential_3,
+  'clientContact' : Confidential_6,
 }
 export interface WorkDone {
   'id' : bigint,
@@ -2864,7 +3217,7 @@ export interface _SERVICE {
     Array<AbsenceChangeView>
   >,
   'accessStats' : ActorMethod<[], AccessStats>,
-  'addDependency' : ActorMethod<[bigint, DependencyInput, bigint], Result_7>,
+  'addDependency' : ActorMethod<[bigint, DependencyInput, bigint], Result_8>,
   'addFile' : ActorMethod<
     [string, string, bigint, ExternalBlob, [] | [bigint], boolean],
     Result_3
@@ -2875,10 +3228,10 @@ export interface _SERVICE {
     Result_3
   >,
   'addRobot' : ActorMethod<[Principal, string, Array<string>], Result_4>,
-  'applyPlan' : ActorMethod<[bigint, PlanChange, bigint, string], Result_7>,
+  'applyPlan' : ActorMethod<[bigint, PlanChange, bigint, string], Result_8>,
   'applyTemplate' : ActorMethod<
     [bigint, string, bigint, boolean, bigint],
-    Result_7
+    Result_8
   >,
   'archiveAbsence' : ActorMethod<[bigint], Result_4>,
   'archiveAssignment' : ActorMethod<[bigint, bigint, bigint], Result_3>,
@@ -2894,50 +3247,52 @@ export interface _SERVICE {
     [bigint, string, [] | [bigint], bigint],
     Result_3
   >,
-  'attachPermitFile' : ActorMethod<[bigint, bigint], Result_9>,
+  'attachPermitFile' : ActorMethod<[bigint, bigint], Result_11>,
   'auditCount' : ActorMethod<[], bigint>,
   'auditLog' : ActorMethod<[bigint, bigint], Array<AuditEntry>>,
   'boardConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
   'boardRules' : ActorMethod<[], BoardRulesView>,
   'cancelJob' : ActorMethod<[bigint], Result_4>,
-  'checkTicket' : ActorMethod<[string], Result_37>,
-  'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_36>,
+  'checkTicket' : ActorMethod<[string], Result_41>,
+  'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_40>,
   'claimBootstrap' : ActorMethod<[string, string], Result_1>,
   'completeJob' : ActorMethod<[bigint, bigint, string], Result_4>,
   'confirmAssignment' : ActorMethod<[bigint, boolean, string], Result_4>,
   'confirmHours' : ActorMethod<[bigint, boolean, string], Result_4>,
   'confirmLink' : ActorMethod<[Principal], Result_4>,
   'createOrg' : ActorMethod<[OrgInput], Result_2>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_29>,
-  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_35>,
+  'createQuote' : ActorMethod<[QuoteNew], Result_39>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_32>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_38>,
   'createWork' : ActorMethod<[WorkInput], Result>,
   'dashboard' : ActorMethod<[bigint], DashboardView>,
   'decideProposal' : ActorMethod<[bigint, boolean, string], Result_4>,
-  'declarationDraft' : ActorMethod<[bigint], Result_34>,
+  'decideQuoteVersion' : ActorMethod<[bigint, boolean, string], Result_4>,
+  'declarationDraft' : ActorMethod<[bigint], Result_37>,
   'endMembership' : ActorMethod<[bigint], Result_4>,
-  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_33>,
+  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_36>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
   'failJob' : ActorMethod<[bigint, bigint, string, boolean], Result_4>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
-  'getLibraryItem' : ActorMethod<[bigint], Result_12>,
-  'getOa' : ActorMethod<[bigint], Result_32>,
+  'getLibraryItem' : ActorMethod<[bigint], Result_14>,
+  'getOa' : ActorMethod<[bigint], Result_35>,
   'getPlan' : ActorMethod<[bigint], PlanView>,
   'getReport' : ActorMethod<[bigint], ReportView>,
   'getReportDay' : ActorMethod<[bigint, bigint], Array<ReportView>>,
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
   'handleIssue' : ActorMethod<[bigint, string], Result_4>,
-  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_31>,
+  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_34>,
   'importPlanning' : ActorMethod<
     [boolean, string, string, Array<string>, ImportBlock],
-    Result_30
+    Result_33
   >,
-  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_29>,
-  'invitePerson' : ActorMethod<[InviteRequest], Result_29>,
+  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_32>,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_32>,
   'leaseJobs' : ActorMethod<[bigint], Array<JobLease>>,
   'libraryChapters' : ActorMethod<[boolean], Array<LibChapterView>>,
-  'libraryItemHistory' : ActorMethod<[bigint], Result_28>,
+  'libraryItemHistory' : ActorMethod<[bigint], Result_31>,
   'libraryUnits' : ActorMethod<[boolean], Array<UnitView>>,
   'listAbsences' : ActorMethod<
     [[] | [bigint], bigint, bigint],
@@ -2964,6 +3319,7 @@ export interface _SERVICE {
   'listPermitKinds' : ActorMethod<[boolean], Array<PermitKindView>>,
   'listPermits' : ActorMethod<[string, [] | [bigint]], Array<PermitView>>,
   'listPersons' : ActorMethod<[boolean], Array<PersonView>>,
+  'listQuotes' : ActorMethod<[[] | [bigint], boolean], Array<QuoteSummary>>,
   'listReports' : ActorMethod<[bigint, bigint, bigint], Array<ReportSummary>>,
   'listRobots' : ActorMethod<[], Array<RobotView>>,
   'listTemplates' : ActorMethod<[], Array<TemplateView>>,
@@ -2972,8 +3328,8 @@ export interface _SERVICE {
   'listVehicles' : ActorMethod<[boolean], Array<VehicleView>>,
   'listWorks' : ActorMethod<[], Array<WorkView>>,
   'loadLibraryStartChapters' : ActorMethod<[], Result_3>,
-  'lookupFine' : ActorMethod<[FineQuery], Result_27>,
-  'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_26>,
+  'lookupFine' : ActorMethod<[FineQuery], Result_30>,
+  'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_29>,
   'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'me' : ActorMethod<[], MeView>,
   'myBoard' : ActorMethod<[bigint, bigint], MyBoardView>,
@@ -2982,6 +3338,7 @@ export interface _SERVICE {
   'myNotifications' : ActorMethod<[boolean], Array<NotificationView>>,
   'myProposals' : ActorMethod<[], Array<ProposalView>>,
   'myWorks' : ActorMethod<[], Array<ExternalWork>>,
+  'newQuoteVersion' : ActorMethod<[bigint, [] | [bigint]], Result_3>,
   'orgAssignments' : ActorMethod<
     [[] | [bigint], bigint, bigint],
     Array<OrgAssignmentView>
@@ -2993,48 +3350,61 @@ export interface _SERVICE {
   >,
   'permitsOnSite' : ActorMethod<[bigint], Array<PermitView>>,
   'postSettings' : ActorMethod<[], PostSettingsView>,
-  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_24>,
-  'previewMail' : ActorMethod<[string, [] | [bigint], bigint], Result_25>,
-  'previewPlan' : ActorMethod<[bigint, PlanChange], Result_24>,
+  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_27>,
+  'previewMail' : ActorMethod<[string, [] | [bigint], bigint], Result_28>,
+  'previewPlan' : ActorMethod<[bigint, PlanChange], Result_27>,
   'queueReminders' : ActorMethod<[bigint], Result_3>,
   'queueTestMail' : ActorMethod<[string], Result_3>,
   'queueWeekMails' : ActorMethod<[bigint, [] | [bigint]], Result_3>,
-  'readConfidentialFile' : ActorMethod<[bigint], Result_23>,
-  'readContract' : ActorMethod<[bigint], Result_22>,
-  'readContractHistory' : ActorMethod<[bigint], Result_21>,
-  'readLibraryPriceHistory' : ActorMethod<[bigint], Result_20>,
-  'readLibraryPrices' : ActorMethod<[Array<bigint>], Result_19>,
-  'readOrgConfidential' : ActorMethod<[bigint], Result_18>,
-  'recordWithholdingCheck' : ActorMethod<[bigint, WithholdingInput], Result_17>,
-  'redeemCode' : ActorMethod<[string], Result_16>,
+  'readConfidentialFile' : ActorMethod<[bigint], Result_26>,
+  'readContract' : ActorMethod<[bigint], Result_25>,
+  'readContractHistory' : ActorMethod<[bigint], Result_24>,
+  'readLibraryPriceHistory' : ActorMethod<[bigint], Result_23>,
+  'readLibraryPrices' : ActorMethod<[Array<bigint>], Result_22>,
+  'readOrgConfidential' : ActorMethod<[bigint], Result_21>,
+  'readQuoteVersion' : ActorMethod<[bigint], Result_20>,
+  'recordWithholdingCheck' : ActorMethod<[bigint, WithholdingInput], Result_19>,
+  'redeemCode' : ActorMethod<[string], Result_18>,
   'removeDependency' : ActorMethod<[bigint, bigint, bigint], Result_3>,
   'reportSync' : ActorMethod<[Array<ReportOpInput>], Array<OpResult>>,
   'restoreBegin' : ActorMethod<[string], Result_4>,
   'restoreChunk' : ActorMethod<[string, RestorePart], Result_3>,
-  'restoreFinish' : ActorMethod<[string], Result_15>,
+  'restoreFinish' : ActorMethod<[string], Result_17>,
   'restorePerson' : ActorMethod<[bigint], Result_4>,
   'retryJob' : ActorMethod<[bigint], Result_4>,
   'revokeInvite' : ActorMethod<[bigint], Result_4>,
   'revokeLink' : ActorMethod<[Principal], Result_4>,
   'revokeRobot' : ActorMethod<[Principal], Result_4>,
-  'rollbackImport' : ActorMethod<[string, boolean], Result_14>,
+  'rollbackImport' : ActorMethod<[string, boolean], Result_16>,
   'saveAbsence' : ActorMethod<[AbsenceInput], Result_3>,
   'saveAssignment' : ActorMethod<[bigint, AssignmentInput, bigint], Result_3>,
   'saveCalendarBlock' : ActorMethod<[BlockInput], Result_3>,
-  'saveDeclaration' : ActorMethod<[bigint, DeclarationInput], Result_13>,
+  'saveDeclaration' : ActorMethod<[bigint, DeclarationInput], Result_15>,
   'saveDocument' : ActorMethod<[bigint, DocumentInput], Result_3>,
   'saveLibraryChapter' : ActorMethod<[LibChapterInput], Result_3>,
-  'saveLibraryItem' : ActorMethod<[LibItemInput, bigint], Result_12>,
-  'saveMunicipality' : ActorMethod<[MunicipalityInput], Result_8>,
-  'saveOaPerson' : ActorMethod<[bigint, OaPersonInput], Result_11>,
-  'saveOrgContact' : ActorMethod<[bigint, OrgContactInput], Result_10>,
-  'savePermit' : ActorMethod<[bigint, PermitInput], Result_9>,
-  'saveProcedure' : ActorMethod<[ProcedureInput], Result_8>,
-  'saveTask' : ActorMethod<[bigint, TaskInput, bigint], Result_7>,
+  'saveLibraryItem' : ActorMethod<[LibItemInput, bigint], Result_14>,
+  'saveMunicipality' : ActorMethod<[MunicipalityInput], Result_10>,
+  'saveOaPerson' : ActorMethod<[bigint, OaPersonInput], Result_13>,
+  'saveOrgContact' : ActorMethod<[bigint, OrgContactInput], Result_12>,
+  'savePermit' : ActorMethod<[bigint, PermitInput], Result_11>,
+  'saveProcedure' : ActorMethod<[ProcedureInput], Result_10>,
+  'saveQuoteDraft' : ActorMethod<
+    [
+      bigint,
+      bigint,
+      [] | [QuoteHeaderInput],
+      Array<QuoteChapterOp>,
+      Array<QuoteLineOp>,
+      QuoteExpect,
+    ],
+    Result_9
+  >,
+  'saveTask' : ActorMethod<[bigint, TaskInput, bigint], Result_8>,
   'saveTemplate' : ActorMethod<[TemplateInput], Result_4>,
   'saveVehicle' : ActorMethod<[VehicleInput], Result_3>,
   'scanPermits' : ActorMethod<[], bigint>,
-  'sendMailNow' : ActorMethod<[], Result_6>,
+  'sendMailNow' : ActorMethod<[], Result_7>,
+  'sendQuoteVersion' : ActorMethod<[bigint, bigint, bigint], Result_6>,
   'setBoardRules' : ActorMethod<[BoardRulesInput], Result_4>,
   'setCapacity' : ActorMethod<[string, [] | [bigint], string], Result_4>,
   'setContract' : ActorMethod<[bigint, ContractInput, bigint], Result_3>,
@@ -3060,6 +3430,8 @@ export interface _SERVICE {
     Result_4
   >,
   'setPostSettings' : ActorMethod<[PostSettingsInput], Result_5>,
+  'setQuoteArchived' : ActorMethod<[bigint, boolean, string], Result_4>,
+  'setQuoteSequence' : ActorMethod<[bigint, bigint], Result_4>,
   'setSettings' : ActorMethod<[SettingsView], Result_4>,
   'setTaskOrder' : ActorMethod<[bigint, Array<bigint>, bigint], Result_3>,
   'setTrade' : ActorMethod<[TradeInput], Result_4>,

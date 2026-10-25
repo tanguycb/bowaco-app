@@ -1181,6 +1181,119 @@ module {
     sellVersions : Map.Map<Nat, LibSellVersion>; // vertrouwelijk
   };
 
+  // ── Offertes (stap 2.4, architectuur §2.9, bouwplan §8.5; VOORLOPIG tot 0.3) ────────
+  // Eigen domein `quotes` (nieuw stabiel veld, deelvorm, OldActor = {}). Offerte → versies → hoofdstukken → lijnen zijn
+  // INTERN (tekst, hoeveelheid, eenheid, contractvorm: zonder bedrag); de aankoopprijs, de verkoopregel (marge of vaste
+  // prijs) en de reden per lijn, en de standaardmarge per versie zijn VERTROUWELIJK en staan in eigen Maps (D6): enkel
+  // admin en calculator (R20–R22), lezen via een update-call met een auditregel (R23). De bedragen worden NOOIT bewaard of
+  // getypt: lib/QuoteCalc.mo rekent ze uit de invoer (dezelfde regels als de browser). Een verzonden of aanvaarde versie
+  // is onwijzigbaar (hash + vaste rekenversie): verder werken = een nieuwe versie (bouwplan §4).
+  // Volledig vanaf het begin (D1a): een tag erbij is later een migratie.
+  public type QuoteStatus = { #draft; #sent; #accepted; #rejected; #superseded; #withdrawn };
+  // post (telt mee) · tekstregel (zonder bedrag) · optie (meer- of minprijs, telt NIET mee in het totaal)
+  public type QuoteLineKind = { #item; #text; #option };
+
+  // klasse: intern
+  public type Quote = {
+    id : Nat;
+    workId : WorkId;
+    number : Text; // "2026/231" (uniek; standaard volgnummer per jaar, B12 VOORLOPIG)
+    title : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId;
+    archiveReason : Text;
+    extra : Extra;
+  };
+
+  // klasse: intern. Wat bij het versturen vastligt: de hash van de inhoud (zoals de klant ze kreeg) en de totalen.
+  public type QuoteSent = { at : Int; by : PersonId; hash : Text; subtotalCents : Int; vatCents : Int; totalCents : Int; optionsPlusCents : Int; optionsMinusCents : Int };
+  public type QuoteDecision = { at : Int; by : PersonId; note : Text };
+
+  // klasse: intern (zonder bedragen). Enkel #draft is te bewerken; `rev` = bewerkteller (geen stil overschrijven).
+  public type QuoteVersion = {
+    id : Nat;
+    quoteId : Nat;
+    version : Nat; // 1, 2 …
+    status : QuoteStatus;
+    title : Text;
+    vatBp : Nat; // 600 of 2100: van de werf bij het aanmaken
+    clientOrgId : ?OrgId; // de klant: van de werf bij het aanmaken
+    validDays : Nat;
+    intro : Text;
+    note : Text;
+    basedOnId : ?Nat; // de versie waarvan deze een kopie is
+    rev : Nat;
+    calcVersion : Nat; // de rekenregels waarmee deze versie rekent (QuoteCalc.version); een verzonden versie houdt de hare
+    sent : ?QuoteSent;
+    decision : ?QuoteDecision;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: intern. De code is een groep en mag herhalen (B1), zoals in de bibliotheek.
+  public type QuoteChapter = { id : Nat; versionId : Nat; code : Text; title : Text; order : Nat; libChapterId : ?Nat; archivedAt : ?Int; extra : Extra };
+
+  // klasse: intern (GEEN prijs: die staat in QuoteLinePrice). qtyMilli = de (vermoedelijke) hoeveelheid in duizendsten;
+  // negatief = minwerk of minprijs, 0 = pro memorie.
+  public type QuoteLine = {
+    id : Nat;
+    versionId : Nat;
+    chapterId : Nat;
+    order : Nat;
+    kind : QuoteLineKind;
+    code : Text;
+    title : Text;
+    text : Text; // lastenboektekst
+    specRef : Text; // "OA code 6.3": verwijzing naar het lastenboek van de architect (geen onderaannemer)
+    qtyMilli : Int;
+    unit : Text;
+    form : ContractForm;
+    libItemId : ?Nat; // uit de postenbibliotheek (2.2), met de versie van de post
+    libItemVersion : ?Nat;
+    copiedFrom : ?Nat; // de lijn van de vorige versie
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. Aankoopprijs per eenheid (null = geen: eigen prestatie, budget), de verkoopregel (null = de
+  // standaardmarge van de versie; anders eigen marge of vaste verkoopprijs per eenheid) en waarom (controle 2.6).
+  public type QuoteLinePrice = {
+    lineId : Nat;
+    versionId : Nat;
+    cost : Confidential<?Int>;
+    rule : Confidential<?LibSellRule>;
+    reason : Confidential<Text>;
+    orgId : ?OrgId; // de OA of leverancier van de aankoopprijs
+    source : Text; // "bibliotheek" · "oa-offerte" · "eigen" · "handmatig" (Config.quoteCostSources)
+    libCostId : ?Nat; // de prijs uit de bibliotheek waarvan ze kwam
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. De standaardmarge van een versie (bij het aanmaken die van de bibliotheek, 20 %).
+  public type QuoteVersionConf = { versionId : Nat; standardMarginBp : Confidential<Nat>; extra : Extra };
+
+  public type QuotesState = {
+    quotes : Map.Map<Nat, Quote>;
+    versions : Map.Map<Nat, QuoteVersion>;
+    chapters : Map.Map<Nat, QuoteChapter>;
+    lines : Map.Map<Nat, QuoteLine>;
+    prices : Map.Map<Nat, QuoteLinePrice>; // vertrouwelijk; sleutel = lijn
+    versionConf : Map.Map<Nat, QuoteVersionConf>; // vertrouwelijk; sleutel = versie
+    // Indexen (herrekend bij een herstel)
+    numbers : Map.Map<Text, Nat>; // offertenummer → offerte
+    byWork : Map.Map<Nat, [Nat]>; // werf → offertes
+    byQuote : Map.Map<Nat, [Nat]>; // offerte → versies
+    chaptersByVersion : Map.Map<Nat, [Nat]>;
+    linesByVersion : Map.Map<Nat, [Nat]>;
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

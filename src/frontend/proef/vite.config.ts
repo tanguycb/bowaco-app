@@ -18,6 +18,10 @@ export default defineConfig({
     react(),
     {
       name: "bowaco-proef",
+      // De CSP van de app (1.9) laat enkel het IC toe; de proef praat met het EIGEN net op localhost (enkel hier).
+      transformIndexHtml(html) {
+        return html.replace("connect-src 'self'", `connect-src 'self' http://localhost:${process.env.BOWACO_PORT ?? "8041"}`);
+      },
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
           const url = req.url ?? "";

@@ -1,0 +1,103 @@
+/* Offerte-editor (2.4, bouwplan §8.5): rijen zoals de Excel van Alexis, kolommen strak onder elkaar (CSS-grid per rij).
+   Kleuren enkel via de tokens; bedragen in mono met vaste cijferbreedte. */
+.q-versions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--bw-line); padding-bottom: 10px; }
+.q-versions__fill { flex: 1; }
+.q-ver { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius); background: var(--bw-surface); color: var(--bw-ink); font: 500 var(--bw-fs-sm) var(--bw-font-text); cursor: pointer; }
+.q-ver[aria-selected="true"] { border-color: var(--bw-ink); box-shadow: inset 0 -2px 0 var(--bw-accent); }
+.q-small { font-size: var(--bw-fs-xs); }
+.q-when { font-family: var(--bw-font-mono); font-size: var(--bw-fs-xs); white-space: nowrap; }
+
+.a-page--wide { max-width: none; }
+.q-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; align-items: start; }
+.q-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.q-side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+.q-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); }
+.q-facts { display: flex; gap: 24px; flex-wrap: wrap; margin: 0; font-size: var(--bw-fs-sm); }
+.q-facts dt { font-family: var(--bw-font-mono); font-size: var(--bw-fs-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--bw-ink-2); }
+.q-facts dd { margin: 2px 0 0; }
+
+/* tabel */
+.q-table { border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); overflow: hidden; }
+.q-row { display: grid; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--bw-line); font-size: var(--bw-fs-sm); font-variant-numeric: tabular-nums; }
+.q-row--full { grid-template-columns: 84px minmax(180px, 1fr) 84px 76px 64px 96px 64px 92px 104px 116px; }
+.q-row--sell { grid-template-columns: 84px minmax(180px, 1fr) 84px 76px 64px 92px 104px 40px; }
+.q-row--totals { grid-template-columns: 84px minmax(180px, 1fr) 84px 76px 64px 40px; }
+/* een tekstregel: de omschrijving loopt tot de knoppen */
+.q-row--full .q-desc--wide { grid-column: 2 / span 8; }
+.q-row--sell .q-desc--wide { grid-column: 2 / span 6; }
+.q-row--totals .q-desc--wide { grid-column: 2 / span 4; }
+.q-row--head { position: sticky; top: 0; z-index: 2; background: var(--bw-surface-2); font: 500 var(--bw-fs-xs) var(--bw-font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--bw-ink-2); padding-top: 8px; padding-bottom: 8px; }
+.q-r { text-align: right; justify-self: stretch; }
+.q-row--text { background: var(--bw-surface-2); }
+.q-row--option .q-opt { color: var(--bw-ink-2); font-style: italic; }
+.q-row--removed { opacity: 0.55; }
+.q-row--removed .q-desc b, .q-row--removed .q-in { text-decoration: line-through; }
+.q-row--new { box-shadow: inset 3px 0 0 var(--bw-accent); }
+.q-row--changed { box-shadow: inset 3px 0 0 var(--bw-st-delayed); }
+.q-desc { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.q-desc b { font-weight: 600; overflow-wrap: anywhere; }
+.q-desc__sub { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-width: 0; }
+.q-first { font-size: var(--bw-fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.q-oa { display: block; font-size: 11px; color: var(--bw-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-tools { display: flex; justify-content: flex-end; gap: 0; }
+.q-tools .bw-btn--icon { width: 28px; min-height: 30px; padding: 0; }
+.q-tools .bw-icon { width: 18px; height: 18px; }
+
+/* cellen: compact, zoals een spreadsheet; de focus valt op */
+.q-in { width: 100%; min-height: 34px; padding: 4px 8px; border: 1px solid transparent; border-radius: var(--bw-radius-sm); background: transparent; color: var(--bw-ink); font: 400 var(--bw-fs-sm) var(--bw-font-text); }
+.q-in:hover { border-color: var(--bw-line); background: var(--bw-surface-2); }
+.q-in:focus { border-color: var(--bw-focus); outline: 1px solid var(--bw-focus); background: var(--bw-surface); }
+.q-in--num { text-align: right; font-family: var(--bw-font-mono); }
+.q-in--code { font-family: var(--bw-font-mono); font-size: 12.5px; padding-left: 4px; padding-right: 4px; }
+/* getalvelden in een paneel: een gewoon invoerveld met rand */
+.bw-field .q-in--num { min-height: var(--bw-tap); border-color: var(--bw-line-strong); background: var(--bw-surface); font-size: var(--bw-fs-md); }
+.q-in--sel { appearance: auto; padding-right: 2px; }
+.q-in--bad { border-color: var(--bw-st-blocked); background: var(--bw-st-blocked-bg); }
+.q-in--chapter { font: 650 var(--bw-fs-md) var(--bw-font-text); }
+
+/* hoofdstuk */
+.q-ch { border-bottom: 1px solid var(--bw-line-strong); }
+.q-ch:last-child { border-bottom: 0; }
+.q-ch__head { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 10px; background: var(--bw-sunken); }
+.q-ch__title { margin: 0; grid-column: 1 / 3; font-size: var(--bw-fs-md); }
+.q-ch__sum { font-weight: 650; font-size: var(--bw-fs-md); text-align: right; min-width: 120px; }
+.q-ch__tools { display: flex; }
+.q-ch__tools .bw-btn--icon { width: 34px; min-height: 34px; }
+.q-ch__add { display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 10px; }
+.q-empty { padding: 8px 12px; font-size: var(--bw-fs-sm); }
+
+/* totalen en aandachtspunten */
+.q-totals { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); font-size: var(--bw-fs-sm); }
+.q-totals > div, .q-totals__conf > div { display: flex; justify-content: space-between; gap: 10px; }
+.q-totals__big { padding-top: 8px; border-top: 1px solid var(--bw-line); font-size: var(--bw-fs-md); }
+.q-totals__big b { font-size: var(--bw-fs-lg); }
+.q-totals__opt { color: var(--bw-ink-2); }
+.q-totals__warn { white-space: normal; }
+.q-totals__conf { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--bw-line-strong); color: var(--bw-ink-2); }
+.q-controls { padding: 12px 14px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); font-size: var(--bw-fs-sm); }
+.q-controls h3 { margin: 0 0 6px; }
+.q-controls ul { margin: 0; padding-left: 18px; }
+.q-pending { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 6px 6px 12px; border-radius: var(--bw-radius); background: var(--bw-st-delayed-bg); color: var(--bw-ink); font-size: var(--bw-fs-sm); }
+.q-pending .bw-btn, .q-side > .a-row .bw-btn { min-height: 34px; font-size: var(--bw-fs-sm); }
+.q-ok { display: flex; align-items: center; gap: 6px; color: var(--bw-st-done); font-size: var(--bw-fs-sm); }
+.q-pick { width: 100%; }
+
+/* Onder ± 1700 px past de tabel niet naast het zijpaneel: dan staan totalen en aandachtspunten eronder, naast elkaar. */
+@media (max-width: 1699px) {
+  .q-layout { grid-template-columns: minmax(0, 1fr); }
+  .q-side { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+}
+/* gsm: de editor is een desktopscherm; op de gsm lezen (werfleider) met labels per cel, zonder horizontale scroll */
+@media (max-width: 899px) {
+  .q-row--head { display: none; }
+  .q-row, .q-row--full, .q-row--sell, .q-row--totals { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 10px; padding: 10px; }
+  .q-row > span:first-child { grid-column: 1 / 2; }
+  .q-row .q-desc, .q-row .q-desc--wide { grid-column: 1 / -1; order: -1; }
+  [data-l]::before { content: attr(data-l); display: block; font: 500 10px var(--bw-font-mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--bw-ink-2); }
+  .q-r { text-align: left; }
+  .q-tools { grid-column: 1 / -1; justify-content: flex-start; }
+  .q-ch__head { grid-template-columns: minmax(0, 1fr) auto; }
+  .q-ch__head .q-in--code { display: none; }
+  .q-ch__tools { grid-column: 1 / -1; }
+}

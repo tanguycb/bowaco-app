@@ -26,6 +26,7 @@ import Access "../lib/Access";
 import Codes "../lib/Codes";
 import Config "../lib/Config";
 import Library "../lib/Library";
+import Quotes "../lib/Quotes";
 import Reports "../lib/Reports";
 
 mixin (
@@ -45,6 +46,7 @@ mixin (
   mail : Types.MailState,
   wadm : Types.WadmState,
   library : Types.LibraryState,
+  quotes : Types.QuotesState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -103,7 +105,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -246,6 +248,12 @@ mixin (
       case (#libCosts xs) { for (c in xs.values()) { library.costs.add(c.id, c) }; xs.size() };
       case (#libSells xs) { for (x in xs.values()) { library.sells.add(x.itemId, x) }; xs.size() };
       case (#libSellVersions xs) { for (v in xs.values()) { library.sellVersions.add(v.id, v) }; xs.size() };
+      case (#quotes xs) { for (q in xs.values()) { quotes.quotes.add(q.id, q) }; xs.size() };
+      case (#quoteVersions xs) { for (v in xs.values()) { quotes.versions.add(v.id, v) }; xs.size() };
+      case (#quoteChapters xs) { for (c in xs.values()) { quotes.chapters.add(c.id, c) }; xs.size() };
+      case (#quoteLines xs) { for (l in xs.values()) { quotes.lines.add(l.id, l) }; xs.size() };
+      case (#quotePrices xs) { for (x in xs.values()) { quotes.prices.add(x.lineId, x) }; xs.size() };
+      case (#quoteVersionConf xs) { for (x in xs.values()) { quotes.versionConf.add(x.versionId, x) }; xs.size() };
     };
   };
 
@@ -368,6 +376,20 @@ mixin (
     rsAtLeast("libItemVersion", rsMaxKey(library.itemVersions));
     rsAtLeast("libCost", rsMaxKey(library.costs));
     rsAtLeast("libSellVersion", rsMaxKey(library.sellVersions));
+    // 2.4: de indexen van de offertes (nummers, per werf, per offerte, per versie) uit de records zelf.
+    rsClearText(quotes.numbers);
+    rsClearNat(quotes.byWork);
+    rsClearNat(quotes.byQuote);
+    rsClearNat(quotes.chaptersByVersion);
+    rsClearNat(quotes.linesByVersion);
+    for (q in quotes.quotes.values()) { quotes.numbers.add(q.number, q.id); Quotes.addIndex(quotes.byWork, q.workId, q.id) };
+    for (v in quotes.versions.values()) { Quotes.addIndex(quotes.byQuote, v.quoteId, v.id) };
+    for (c in quotes.chapters.values()) { Quotes.addIndex(quotes.chaptersByVersion, c.versionId, c.id) };
+    for (l in quotes.lines.values()) { Quotes.addIndex(quotes.linesByVersion, l.versionId, l.id) };
+    rsAtLeast("quote", rsMaxKey(quotes.quotes));
+    rsAtLeast("quoteVersion", rsMaxKey(quotes.versions));
+    rsAtLeast("quoteChapter", rsMaxKey(quotes.chapters));
+    rsAtLeast("quoteLine", rsMaxKey(quotes.lines));
   };
 
   func rsSummary() : Views.RestoreSummary {

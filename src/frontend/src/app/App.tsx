@@ -33,6 +33,7 @@ import { BoetesPage } from "../screens/Boetes";
 import { PostbodePage } from "../screens/Postbode";
 import { WadmPage } from "../screens/Werfadministratie";
 import { Posten } from "../screens/Posten";
+import { OffertesPage } from "../screens/Offertes";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -165,7 +166,7 @@ type NavItem = { key: string; label: string; icon: IconName };
 
 /** Welke schermen iemand ziet, volgt uit de caps van de backend (Rights.mo), nooit uit de rollen. */
 function navFor(caps: Caps): NavItem[] {
-  const homeIcon: Record<string, IconName> = { overzicht: "grid", vandaag: "home", offertes: "doc", week: "calendar", werven: "building" };
+  const homeIcon: Record<string, IconName> = { overzicht: "grid", vandaag: "home", offertes: "euro", week: "calendar", werven: "building" };
   const items: NavItem[] = [{ key: caps.home, label: t.nav[caps.home as keyof typeof t.nav] ?? t.nav.werven, icon: homeIcon[caps.home] ?? "home" }];
   // 1.6: wie verslagen schrijft maar een ander startscherm heeft (admin), krijgt Vandaag erbij.
   if (caps.writeReports && caps.home !== "vandaag") items.push({ key: "vandaag", label: t.nav.vandaag, icon: "home" });
@@ -175,6 +176,8 @@ function navFor(caps: Caps): NavItem[] {
   // 1.8: het dashboard voor kantoor (de admin heeft het op zijn startscherm Overzicht).
   if (caps.readOrgPlanning && caps.home !== "overzicht") items.push({ key: "dashboard", label: t.nav.dashboard, icon: "grid" });
   if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
+  // 2.4: de offertes (interne rollen; de werfleider ziet hoeveelheden en hoofdstuktotalen). De calculator heeft ze als start.
+  if (caps.quotes && caps.home !== "offertes") items.push({ key: "offertes", label: t.nav.offertes, icon: "euro" });
   // 2.2: de postenbibliotheek (interne rollen lezen zonder prijzen; beheerder en calculator bewerken en zien de prijzen).
   if (caps.readLibrary) items.push({ key: "posten", label: t.nav.posten, icon: "doc" });
   // 1b.1: vergunningen over alle werven (admin, werfleider) en de kennisbank per gemeente (interne rollen).
@@ -224,8 +227,10 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "verslag":
         if (route[1] && route[2] && /^\d+$/.test(route[1]) && /^\d+$/.test(route[2])) return <Werfverslag key={`${route[1]}-${route[2]}`} workId={BigInt(route[1])} day={BigInt(route[2])} go={go} />;
         return <Vandaag go={go} caps={caps} />;
-      case "week":
       case "offertes":
+        if (caps.quotes) return <OffertesPage caps={caps} go={go} route={route} />;
+        return <Home kind={page} go={go} caps={caps} />;
+      case "week":
       case "werven":
         if (route[0] === "werven" && route[1] && /^\d+$/.test(route[1])) {
           return route[2] === "planning" ? <PlanningPage id={BigInt(route[1])} caps={caps} go={go} /> : <WerfDetail id={BigInt(route[1])} caps={caps} go={go} />;

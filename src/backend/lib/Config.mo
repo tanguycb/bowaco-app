@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2.2-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2.4-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -309,6 +309,26 @@ module {
       ("10", "Binnenafwerking – Binnenschrijnwerk"),
       ("11", "Buitenaanleg en tuin"),
     ];
+  };
+
+  // ── Offertes (2.4, architectuur §2.9, bouwplan §8.5; VOORLOPIG tot 0.3) ──
+  public let maxQuotesPerWork : Nat = 100;
+  public let maxQuoteVersions : Nat = 50; // versies per offerte
+  public let maxQuoteLines : Nat = 1_000; // actieve lijnen per versie (D10)
+  public let maxQuoteChapters : Nat = 100; // actieve hoofdstukken per versie
+  public let maxQuoteOps : Nat = 300; // hoofdstukken + lijnen per bewaaroproep (blijft ver onder de berichtgrens)
+  public let maxQuoteNumber : Nat = 20; // "2026/231"
+  public let maxQuoteText : Nat = 4_000; // lastenboektekst, inleiding, notitie
+  // Alle tekst van de lijnen van één versie samen: het antwoord van readQuoteVersion blijft zo ruim onder de berichtgrens
+  // van het IC (2 MiB). 1.000 lijnen × 1.200 tekens; offerte 2026/231 heeft er 178 en samen ± 60.000 tekens.
+  public let maxQuoteTextTotal : Nat = 1_200_000;
+  public let maxQuoteQtyMilli : Int = 1_000_000_000_000; // 1 miljard eenheden: tikfoutgrens (ook negatief)
+  public let maxQuoteValidDays : Nat = 365;
+  public let quoteValidDaysDefault : Nat = 30; // "30 dagen na datum" (offerte 2026/231, B11)
+  public let maxQuoteRead : Nat = 400; // offertes in één overzicht
+  // Herkomst van een aankoopprijs in een offertelijn (sleutel, naam).
+  public func quoteCostSources() : [(Text, Text)] {
+    [("bibliotheek", "Uit de postenbibliotheek"), ("oa-offerte", "Offerte van de OA"), ("eigen", "Eigen raming"), ("handmatig", "Met de hand"), ("vorige-versie", "Uit de vorige versie")];
   };
 
   // ── Vergunningen (1b.1, bouwplan §5.3; VOORLOPIG tot Alexis bevestigt) ───

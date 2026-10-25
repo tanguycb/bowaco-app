@@ -28,6 +28,7 @@ import FinesApi "mixins/FinesApi";
 import PostApi "mixins/PostApi";
 import WadmApi "mixins/WadmApi";
 import LibraryApi "mixins/LibraryApi";
+import QuotesApi "mixins/QuotesApi";
 import Post "lib/Post";
 import Mail "lib/Mail";
 import Principal "mo:core/Principal";
@@ -49,6 +50,7 @@ persistent actor Self {
   let mail : Types.MailState; // mail-caffeine: logboek van de verstuurpogingen (geen adressen, geen inhoud)
   let wadm : Types.WadmState; // 1b.4: werfadministratie (inhoudingsplicht, aangifte van werken)
   let library : Types.LibraryState; // 2.2: postenbibliotheek (intern) + aankoopprijzen en verkoopregels (vertrouwelijk)
+  let quotes : Types.QuotesState; // 2.4: offertes, versies, hoofdstukken, lijnen (intern) + prijs per lijn (vertrouwelijk)
   let robot : Types.RobotState;
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -64,7 +66,7 @@ persistent actor Self {
   include AccessApi(settings, access, works, robot, audit, ctr, org);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
-  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, robot, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, robot, audit, ctr);
   include FilesApi(settings, access, works, files, dossier, reports, permits, audit, ctr);
   include DossierApi(settings, access, org, works, files, dossier, plan, wadm, audit, ctr);
   include OaApi(settings, access, org, works, oa, audit, ctr);
@@ -76,7 +78,7 @@ persistent actor Self {
   include DashboardApi(settings, access, org, works, plan, reports, permits);
   include TicketsApi(settings, access, works, robot, audit, ctr);
   // 1.9: herstel uit een export op een LEGE canister met de opstartcode (M9, T16).
-  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, robot, audit, ctr);
+  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, robot, audit, ctr);
   // 1b.1: vergunningenregister (R13), kennisbank per gemeente.
   include PermitsApi(settings, access, works, files, plan, permits, audit, ctr);
   // 1b.2: boete-opzoeking op de ritten van het werfverslag (R14) met de vergunningen van die dag.
@@ -87,6 +89,8 @@ persistent actor Self {
   include WadmApi(settings, access, org, works, dossier, plan, reports, permits, wadm, audit, ctr);
   // 2.2: postenbibliotheek (hoofdstukken, posten, versies; prijzen per OA en verkoopregel vertrouwelijk, R20–R23).
   include LibraryApi(settings, access, org, works, plan, library, audit, ctr);
+  // 2.4: offerte-editor (versies, hoofdstukken, lijnen; prijs per lijn vertrouwelijk; rekenen in de browser + controle hier).
+  include QuotesApi(settings, access, org, works, library, quotes, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

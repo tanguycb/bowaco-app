@@ -291,6 +291,17 @@ const table = {
   archiveLibraryCost: [["admin", "calculator"], () => [X, ""]],
   setLibrarySell: [["admin", "calculator"], () => [X, { rule: [], reason: "" }, 0n]],
   setLibraryMargin: [ADMIN, () => [99_999n]],
+  // 2.4: offertes. Lezen: interne rollen (een architect enkel met de grant op een werf: de lijst over alle werven en een
+  // onbekende versie blijven dicht). Bewerken, versturen, beslissen: admin en calculator. Volgnummer: admin (R17).
+  listQuotes: [INTERNAL, () => [[], false]],
+  readQuoteVersion: [INTERNAL, () => [X]],
+  createQuote: [["admin", "calculator"], () => [{ workId: X, number: "", title: "" }]],
+  setQuoteSequence: [ADMIN, () => [1n, 0n]],
+  newQuoteVersion: [["admin", "calculator"], () => [X, []]],
+  saveQuoteDraft: [["admin", "calculator"], () => [X, 0n, [], [], [], { subtotalCents: 0n, vatCents: 0n, totalCents: 0n, optionsPlusCents: 0n, optionsMinusCents: 0n, costCents: 0n, marginCents: 0n, chapters: [] }]],
+  sendQuoteVersion: [["admin", "calculator"], () => [X, 0n, 0n]],
+  decideQuoteVersion: [["admin", "calculator"], () => [X, true, ""]],
+  setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],
   listRobots: [ADMIN, () => []],

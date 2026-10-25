@@ -46,6 +46,10 @@ module {
     // 2.2: postenbibliotheek. Lezen (hoofdstukken, posten, teksten, eenheden: GEEN prijzen) en bewerken; de prijzen zelf
     // volgen #readCosts (aankoopprijzen, R20) en #readSellPrices (verkoopregel, R21).
     #readLibrary; #editLibrary;
+    // 2.4: offertes. #readQuotes = de offertes van een werf zien (lijst, tekst, hoeveelheden, hoofdstuktotalen); de prijs
+    // per lijn volgt #readSellPrices (R21), aankoopprijzen en marges #readCosts (R20); bewerken #editQuote, versturen
+    // #sendQuote (R22). #quotesOverview = de lijst over alle werven (menu Offertes).
+    #readQuotes; #quotesOverview;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -206,6 +210,11 @@ module {
       // werfleider die ook calculator is, mag het via die rol (rechten = som van rollen); de werfleiderrol zelf nooit.
       case (#readLibrary) internal(p);
       case (#editLibrary) admin or calc;
+      // 2.4 (R21, V7): interne rollen zien de offertes van de werven die ze zien: de werfleider hoeveelheden en
+      // hoofdstuktotalen, nooit een prijs per lijn, een aankoopprijs of een marge. Een architect enkel met de grant
+      // #readSellPrices op die werf (verkoopprijzen, nooit aankoopprijzen of marges). OA, klant (2.7) en VC: nooit.
+      case (#readQuotes) on(func w = (internal(p) and seesWork(ctx, p, w)) or (memberAs(ctx, p, w, #architect) and grant(ctx, p, w, #readSellPrices)));
+      case (#quotesOverview) internal(p);
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -468,6 +477,9 @@ module {
       readLibrary = may(ctx, p, #readLibrary, null);
       editLibrary = may(ctx, p, #editLibrary, null);
       libraryPrices = may(ctx, p, #readCosts, null) and may(ctx, p, #readSellPrices, null);
+      quotes = may(ctx, p, #quotesOverview, null);
+      editQuotes = may(ctx, p, #editQuote, null);
+      quotePrices = may(ctx, p, #readCosts, null) and may(ctx, p, #readSellPrices, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

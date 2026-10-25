@@ -39,6 +39,9 @@ const P: Record<string, string> = {
   doc: "M6 3h9l4 4v14H6z M15 3v4h4 M9 12h7 M9 16h7",
   building: "M4 21V5l8-2v18 M12 9l8 2v10 M2 21h20 M7 8h2 M7 12h2 M7 16h2 M15 14h2 M15 17h2",
   logout: "M15 4h4v16h-4 M10 8l-4 4 4 4 M6 12h10",
+  up: "M6 15l6-6 6 6",
+  down: "M6 9l6 6 6-6",
+  euro: "M17.5 6.5A7 7 0 1 0 17.5 17.5 M4 10.5h9 M4 13.5h9",
   /* statusvormen */
   "st-planned": "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
   "st-busy": "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M12 4v16",

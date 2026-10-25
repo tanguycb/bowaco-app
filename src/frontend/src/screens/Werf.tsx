@@ -8,6 +8,7 @@ import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, parsePct, unwrap, useBackend } from "../util";
 import { Loading, Page, RoleTags, useWorks, WorkBadge } from "./common";
 import { WorkConflicts } from "./Weekbord";
+import { WorkQuotes } from "./Offertes";
 import { Dossier } from "./Dossier";
 import { PlanSummary } from "./Planning";
 import { AddMember, Field, Files, NewWork } from "./Werven";
@@ -121,6 +122,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
         )}
       </section>
 
+      {caps.quotes && <WorkQuotes workId={id} caps={caps} go={go} />}
       <PlanSummary workId={id} go={go} />
       {caps.readOrgPlanning && <WorkConflicts workId={id} go={go} />}
       <WorkPermits w={w} />

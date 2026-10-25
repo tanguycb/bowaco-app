@@ -55,6 +55,9 @@ module {
     readLibrary : Bool; // 2.2: postenbibliotheek lezen (interne rollen; zonder prijzen)
     editLibrary : Bool; // 2.2: hoofdstukken en posten bewerken (admin, calculator)
     libraryPrices : Bool; // 2.2: aankoopprijzen, marges en verkoopprijzen (admin, calculator; R20, R21)
+    quotes : Bool; // 2.4: offertes zien (interne rollen; de werfleider enkel hoeveelheden en hoofdstuktotalen, R21)
+    editQuotes : Bool; // 2.4: offertes maken, bewerken, versturen (admin, calculator; R22)
+    quotePrices : Bool; // 2.4: aankoopprijzen en marges in de offerte (admin, calculator; R20)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -819,6 +822,11 @@ module {
     libChapters : [Types.LibChapter];
     libItems : [Types.LibItem];
     libItemVersions : [Types.LibItemVersion];
+    // 2.4: offertes, het INTERNE deel (offertes, versies, hoofdstukken, lijnen zonder bedrag). De prijzen staan in ExportConfidential.
+    quotes : [Types.Quote];
+    quoteVersions : [Types.QuoteVersion];
+    quoteChapters : [Types.QuoteChapter];
+    quoteLines : [Types.QuoteLine];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -892,6 +900,12 @@ module {
     #libCosts : [Types.LibCost]; // 2.2 (vertrouwelijk)
     #libSells : [Types.LibSell];
     #libSellVersions : [Types.LibSellVersion];
+    #quotes : [Types.Quote]; // 2.4 (intern)
+    #quoteVersions : [Types.QuoteVersion];
+    #quoteChapters : [Types.QuoteChapter];
+    #quoteLines : [Types.QuoteLine];
+    #quotePrices : [Types.QuoteLinePrice]; // 2.4 (vertrouwelijk)
+    #quoteVersionConf : [Types.QuoteVersionConf];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -906,6 +920,9 @@ module {
     libCosts : [Types.LibCost];
     libSells : [Types.LibSell];
     libSellVersions : [Types.LibSellVersion];
+    // 2.4: de prijs per offertelijn (aankoopprijs, verkoopregel, reden) en de standaardmarge per versie.
+    quotePrices : [Types.QuoteLinePrice];
+    quoteVersionConf : [Types.QuoteVersionConf];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────
@@ -1528,4 +1545,155 @@ module {
   public type LibSellInput = { rule : ?Types.LibSellRule; reason : Text };
   public type LibSellVersionView = { version : Nat; at : Int; byName : Text; rule : ?Types.LibSellRule; reason : Text };
   public type LibPriceHistory = { costs : [LibCostView]; sells : [LibSellVersionView] };
+
+  // ── Offertes (2.4) ──────────────────────────────────────────────────────
+  // Intern, ZONDER bedrag: de lijst, de kop van een versie, hoofdstukken en lijnen (tekst, hoeveelheid, eenheid,
+  // contractvorm). Bedragen komen enkel uit readQuoteVersion en saveQuoteDraft (update-calls met een auditregel, R23),
+  // en enkel zoveel als de beller mag zien (R20, R21): `scope`.
+  public type QuoteVersionBrief = { id : Nat; version : Nat; status : Types.QuoteStatus; createdAt : Int; createdByName : Text; updatedAt : Int; sentAt : ?Int; lines : Nat };
+  public type QuoteSummary = {
+    id : Nat;
+    workId : WorkId;
+    workCode : Text;
+    workName : Text;
+    number : Text;
+    title : Text;
+    clientName : Text;
+    archived : Bool;
+    archiveReason : Text;
+    updatedAt : Int;
+    versions : [QuoteVersionBrief]; // nieuwste eerst
+  };
+  public type QuoteVersionView = {
+    id : Nat;
+    quoteId : Nat;
+    version : Nat;
+    status : Types.QuoteStatus;
+    editable : Bool; // enkel een ontwerp (#draft) is te bewerken
+    title : Text;
+    vatBp : Nat;
+    workVatBp : Nat; // het tarief van de werf nu (markering als het verschilt)
+    clientOrgId : ?OrgId;
+    clientName : Text;
+    validDays : Nat;
+    intro : Text;
+    note : Text;
+    basedOnVersion : ?Nat;
+    rev : Nat;
+    calcVersion : Nat;
+    hash : Text; // leeg tot het versturen
+    intact : Bool; // een verzonden versie geeft nog dezelfde hash (een ontwerp: altijd waar)
+    sentAt : ?Int;
+    sentByName : Text;
+    decidedAt : ?Int;
+    decidedByName : Text;
+    decisionNote : Text;
+    createdAt : Int;
+    createdByName : Text;
+    updatedAt : Int;
+    updatedByName : Text;
+  };
+  public type QuoteChapterView = { id : Nat; code : Text; title : Text; order : Nat; libChapterId : ?Nat };
+  public type QuoteLineView = {
+    id : Nat;
+    chapterId : Nat;
+    order : Nat;
+    kind : Types.QuoteLineKind;
+    code : Text;
+    title : Text;
+    text : Text;
+    specRef : Text;
+    qtyMilli : Int; // de (vermoedelijke) hoeveelheid: ook de werfleider ziet ze (R21)
+    unit : Text;
+    unitName : Text;
+    form : Types.ContractForm;
+    libItemId : ?Nat;
+    libItemVersion : ?Nat;
+    copiedFrom : ?Nat;
+  };
+  // Verkoopkant op het niveau van het hoofdstuk: ook de werfleider ziet dit (R21, V7), geen prijs per lijn.
+  public type QuoteChapterTotal = { chapterId : Nat; sellCents : Int; noPrice : Nat };
+  public type QuoteTotalsView = {
+    chapters : [QuoteChapterTotal];
+    subtotalCents : Int;
+    vatBp : Nat;
+    vatCents : Int;
+    totalCents : Int;
+    optionsPlusCents : Int;
+    optionsMinusCents : Int;
+    noPrice : Nat; // lijnen zonder prijs (het totaal is dan onvolledig)
+    calcVersion : Nat;
+  };
+  // Verkoopprijs per lijn (admin, calculator; architect met de grant #readSellPrices).
+  public type QuoteSellLine = { lineId : Nat; unitSellCents : ?Int; lineSellCents : Int };
+  // VERTROUWELIJK per lijn (admin, calculator): aankoopprijs, regel, reden, OA, de marge die eruit volgt, markeringen.
+  public type QuoteCostLine = {
+    lineId : Nat;
+    costCents : ?Int;
+    rule : ?Types.LibSellRule;
+    reason : Text;
+    orgId : ?OrgId;
+    orgName : Text;
+    source : Text;
+    libCostId : ?Nat;
+    lineCostCents : ?Int;
+    marginBp : ?Int;
+    noPrice : Bool;
+    deviates : Bool;
+    negative : Bool;
+  };
+  public type QuoteChapterMargin = { chapterId : Nat; costCents : Int; sellWithCostCents : Int };
+  public type QuoteMarginTotals = {
+    standardMarginBp : Nat;
+    chapters : [QuoteChapterMargin];
+    costCents : Int;
+    sellWithCostCents : Int;
+    sellWithoutCostCents : Int;
+    marginCents : Int;
+    marginBp : ?Int;
+    deviating : Nat;
+    negative : Nat;
+    noReason : Nat; // afwijkend zonder reden (de controle 2.6 zal dit tegenhouden)
+  };
+  public type QuoteScope = { #full; #sell; #totals };
+  public type QuoteRead = {
+    scope : QuoteScope;
+    quote : QuoteSummary;
+    version : QuoteVersionView;
+    chapters : [QuoteChapterView];
+    lines : [QuoteLineView];
+    totals : QuoteTotalsView;
+    sell : [QuoteSellLine]; // leeg voor de werfleider
+    costs : [QuoteCostLine]; // enkel #full
+    margins : ?QuoteMarginTotals; // enkel #full
+  };
+  public type QuoteNew = { workId : WorkId; number : Text; title : Text };
+  public type QuoteCreated = { quoteId : Nat; versionId : Nat; number : Text };
+  // Bewaren in stukken (≤ Config.maxQuoteOps per oproep): wat veranderde, met de totalen die de BROWSER uitrekende. De
+  // backend rekent opnieuw (lib/QuoteCalc.mo) en bewaart niets als iets verschilt.
+  public type QuoteHeaderInput = { title : Text; vatBp : Nat; clientOrgId : ?OrgId; validDays : Nat; intro : Text; note : Text; standardMarginBp : Nat };
+  public type QuoteChapterRef = { #id : Nat; #ref : Text };
+  public type QuoteChapterOp = { id : ?Nat; ref : Text; code : Text; title : Text; order : Nat; libChapterId : ?Nat; remove : Bool };
+  public type QuotePriceInput = { costCents : ?Int; rule : ?Types.LibSellRule; reason : Text; orgId : ?OrgId; source : Text; libCostId : ?Nat };
+  public type QuoteLineOp = {
+    id : ?Nat;
+    ref : Text;
+    chapter : QuoteChapterRef;
+    order : Nat;
+    kind : Types.QuoteLineKind;
+    code : Text;
+    title : Text;
+    text : Text;
+    specRef : Text;
+    qtyMilli : Int;
+    unit : Text;
+    form : Types.ContractForm;
+    libItemId : ?Nat;
+    libItemVersion : ?Nat;
+    price : QuotePriceInput;
+    remove : Bool;
+  };
+  public type QuoteExpectChapter = { chapter : QuoteChapterRef; sellCents : Int };
+  public type QuoteExpect = { subtotalCents : Int; vatCents : Int; totalCents : Int; optionsPlusCents : Int; optionsMinusCents : Int; costCents : Int; marginCents : Int; chapters : [QuoteExpectChapter] };
+  public type QuoteSaveResult = { rev : Nat; refs : [(Text, Nat)]; totals : QuoteTotalsView; margins : QuoteMarginTotals };
 };

@@ -6,8 +6,8 @@
 import type { Backend } from "./backend";
 
 export const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
-export const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions"];
-export const CONFIDENTIAL: [string, string][] = [["orgs", "orgConfidential"], ["persons", "personConfidential"], ["files", "confidentialFiles"], ["workConfidential", "workConfidential"], ["workConfidentialHistory", "workConfidentialHistory"], ["libCosts", "libCosts"], ["libSells", "libSells"], ["libSellVersions", "libSellVersions"]];
+export const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines"];
+export const CONFIDENTIAL: [string, string][] = [["orgs", "orgConfidential"], ["persons", "personConfidential"], ["files", "confidentialFiles"], ["workConfidential", "workConfidential"], ["workConfidentialHistory", "workConfidentialHistory"], ["libCosts", "libCosts"], ["libSells", "libSells"], ["libSellVersions", "libSellVersions"], ["quotePrices", "quotePrices"], ["quoteVersionConf", "quoteVersionConf"]];
 
 type Raw = { exportChunk: (kind: string, from: bigint, limit: bigint) => Promise<unknown> };
 
@@ -29,9 +29,12 @@ async function part(b: Backend, kind: string, n = 500): Promise<unknown> {
   }
 }
 
+// Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
+const SIZE: Record<string, number> = { libItems: 100, libItemVersions: 50, quoteLines: 100 };
+
 async function partOpt(b: Backend, kind: string): Promise<unknown> {
   try {
-    return await part(b, kind);
+    return await part(b, kind, SIZE[kind] ?? 500);
   } catch (e) {
     if (/Onbekende collectie/.test(String(e))) return [];
     throw e;

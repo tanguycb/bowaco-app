@@ -1,6 +1,6 @@
 # Draaiboek: back-up en herstel van de BOWACO-app
 
-*Stap 1.9 (securityreview 0.7/1.9), 24-10-2026; bijgewerkt in stap 2.2 (25-10-2026: postenbibliotheek, back-up in stukken vanuit de app, instructie voor de eigenaar §7). Hoort bij architectuur §7 (M9) en dreiging T16. Bijwerken bij elke stap die een collectie toevoegt (de export, `tests/herstel.mjs` en `mixins/RestoreApi.mo` moeten ze alle drie kennen).*
+*Stap 1.9 (securityreview 0.7/1.9), 24-10-2026; bijgewerkt in stap 2.2 (25-10-2026: postenbibliotheek, back-up in stukken vanuit de app, instructie voor de eigenaar §7) en in stap 2.4 (25-10-2026: offertes; draftwissel naar 5vwqk en `tools/draft-opbouw.mjs` in §8). Hoort bij architectuur §7 (M9) en dreiging T16. Bijwerken bij elke stap die een collectie toevoegt (de export, `tests/herstel.mjs` en `mixins/RestoreApi.mo` moeten ze alle drie kennen).*
 
 ## 1. Wat een back-up is
 
@@ -8,8 +8,8 @@ Drie JSON-bestanden, gemaakt door een **beheerder** van de app (update-calls, du
 
 | Bestand | Backend-functie | Inhoud |
 |---|---|---|
-| `intern.json` | `exportIntern()` | personen, logins (principals), codes (enkel de hint), organisaties, werven, team, documenten, OA-database, planning, weekbord, import, verslagen, voertuigen, robots, voorstellen, meldingen, keuzelijsten, vlaggen, **tellers** (de laatst uitgegeven ids), planversies, toestelsleutels, offline-opdrachten; **sinds 1b.1** vergunningen, hun wijzigingen, de kennisbank per gemeente (gemeenten, procedures) en de al verstuurde vergunningsmeldingen (zodat niemand na een herstel opnieuw gemeld wordt); **sinds 1b.3** de werkwachtrij van de postbode (opdrachten met hun idempotentiesleutel: een herstelde app zet geen weekmail opnieuw klaar die al verstuurd was; een geleasete opdracht komt terug in de wachtrij); **sinds 1b.4** de raadplegingen van de inhoudingsplicht en de aangiftes van werken; **sinds 2.2** de postenbibliotheek (hoofdstukken, posten en al hun versies; **zonder** prijzen) |
-| `vertrouwelijk.json` | `exportConfidential()` | klantcontacten (organisaties en personen), contractparameters met hun historiek, de **opslag-URL's van vertrouwelijke bestanden**; **sinds 2.2** de aankoopprijzen per OA (ook de gearchiveerde) en de verkoopregels van de posten met hun versies (enkel voor wie ook de prijzen mag zien: `#readCosts`) |
+| `intern.json` | `exportIntern()` | personen, logins (principals), codes (enkel de hint), organisaties, werven, team, documenten, OA-database, planning, weekbord, import, verslagen, voertuigen, robots, voorstellen, meldingen, keuzelijsten, vlaggen, **tellers** (de laatst uitgegeven ids), planversies, toestelsleutels, offline-opdrachten; **sinds 1b.1** vergunningen, hun wijzigingen, de kennisbank per gemeente (gemeenten, procedures) en de al verstuurde vergunningsmeldingen (zodat niemand na een herstel opnieuw gemeld wordt); **sinds 1b.3** de werkwachtrij van de postbode (opdrachten met hun idempotentiesleutel: een herstelde app zet geen weekmail opnieuw klaar die al verstuurd was; een geleasete opdracht komt terug in de wachtrij); **sinds 1b.4** de raadplegingen van de inhoudingsplicht en de aangiftes van werken; **sinds 2.2** de postenbibliotheek (hoofdstukken, posten en al hun versies; **zonder** prijzen); **sinds 2.4** de offertes (offertes, versies met status, hash en totalen van het versturen, hoofdstukken en lijnen met tekst en hoeveelheid; **zonder** aankoopprijs of marge) |
+| `vertrouwelijk.json` | `exportConfidential()` | klantcontacten (organisaties en personen), contractparameters met hun historiek, de **opslag-URL's van vertrouwelijke bestanden**; **sinds 2.2** de aankoopprijzen per OA (ook de gearchiveerde) en de verkoopregels van de posten met hun versies (enkel voor wie ook de prijzen mag zien: `#readCosts`); **sinds 2.4** de prijs per offertelijn (aankoopprijs, OA, verkoopregel, reden) en de standaardmarge per versie (`quotePrices`, `quoteVersionConf`; ook `#readCosts`) |
 | `audit.json` | `auditLog(from, 500)` in stukken | alle auditregels, chronologisch |
 
 De bestanden bevatten persoonsgegevens en opslag-URL's die **openbaar zijn voor wie ze kent** (meetverslag 0.2c). Behandel ze als vertrouwelijk: op een versleutelde schijf of in de kluis van de eigenaar, nooit in git, e-mail of chat (`docs/privacy.md` §4).
@@ -90,3 +90,13 @@ Nooit herstellen op project `01a16859…` (de draft die in gebruik is), en nooit
 3. **Bestanden op een ander project**: de foto's en documenten blijven op het oude project staan; zie §5.
 4. Bewaar meteen een **nieuwe back-up** van na het herstel, en kijk de controlelijst van §6 na.
 
+## 8. Na een draftwissel (de draft verliep: nieuwe, lege canister)
+
+*Stap 2.4, 25-10-2026.* Een draft kan zonder aankondiging verlopen (w5pbr verliep binnen ± 2,5 dag; Caffeine publiceert geen levensduur, zie bouwplan M11). Caffeine zet de volgende draft dan op een **nieuwe, lege canister** (nu `5vwqk-vqaaa-aaaab-aadwq-cai`) met hetzelfde project en adres. Alles staat in git en in de proefscripts; niets bestaat enkel op de draft. Zo bouw je de draft opnieuw op:
+
+1. **Code**: de nieuwe canister-id in `Config.draftBackends` (de testmodus voor mail staat er dan hard aan), `tests/review.mjs` (D1), `tools/browser-sessie.mjs`, dit draaiboek en `gateway/deploy/postbode.env.voorbeeld`; `Config.mailLiveBackends` blijft leeg. Daarna een draft pushen (`tools/push.sh`).
+2. **Eigenaar** (enkel hij heeft de opstartcode): draft openen → inloggen met zijn eigen II → *Opstartcode*; dan *Team → Persoon uitnodigen* → "Testbeheerder", rol Beheerder → code kopiëren → in zijn eigen Terminal `node tools/proef-admin-koppelen.mjs <canister>` (vraagt de code onzichtbaar) → de wachtende koppeling bevestigen.
+3. **Claude**: `node tools/draft-opbouw.mjs <canister>`: de rollentest in de modus `GECLAIMD` (proefpersonen, proefwerven P-A/P-B, proeffirma's; **geen claim, geen mail**, geen proef op "de laatste beheerder"), daarna alle draftproeven en de review; logs in `~/.bowaco/opbouw-<canister>/`. Dan alleen de lektest (`node tests/lek.mjs <canister>`, ± 30 min).
+4. Generale repetitie op het eigen net: `ICP_HOST=http://localhost:<poort> node tools/draft-opbouw.mjs --proef <canister>` (een eigen sleutel "proef-eigenaar" claimt met de TEST-opstartcode en koppelt de testbeheerder zoals de eigenaar).
+
+Op de draft staan daarna enkel testgegevens ("Proef …"); de 13 echte firma's van E-0, de echte planning en de echte offerte staan er niet meer op (de oude canister is weg).

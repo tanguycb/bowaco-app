@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Alles lokaal op het EIGEN testnet (tests/net, poort 8041; raakt het gedeelde :8000 nooit):
-# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → mailproef → gateway.
+# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → mailproef → gateway.
 #   zsh tests/lokaal.sh            (start het net als het nog niet draait)
 set -e
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -46,6 +46,8 @@ icp canister settings update backend -e local --add-controller "$admin_principal
 cd "$repo"
 echo "canister $cid"
 export ICP_HOST=http://localhost:$port
+# ALLEEN_OPZET=1: enkel bouwen en een lege canister installeren (voor een losse proef op dit eigen net), geen tests.
+if [[ -n "$ALLEEN_OPZET" ]]; then echo "$cid" > "$net/canister.txt"; exit 0; fi
 node tests/rollen.mjs "$cid"
 node tests/lek.mjs "$cid"
 # 1.9: de aanvallen uit de securityreview (externen, bestanden, robot, grenzen, herstelpoort, opruiming van tellers).
@@ -59,6 +61,8 @@ if [[ -f "$posten" ]]; then
   node tools/posten-import.mjs --plan "$posten" --canister "$cid" --echt
   node tools/posten-import.mjs --plan "$posten" --canister "$cid" --echt
 fi
+# 2.4: de draftproef van de offerte-editor (verzonnen proefofferte op P-A; gebruikt de proefpost van posten-draft).
+node tests/offerte-draft.mjs "$cid"
 # mail-caffeine: de app verstuurt zelf (nep-maildienst); de gateway (fase 3) enkel nog eenheidstesten.
 node tests/mail-proef.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

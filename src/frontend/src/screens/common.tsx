@@ -6,9 +6,9 @@ import { Icon, STATUS_WORD, StatusBadge, type Status } from "../design";
 import { t } from "../texts/nl";
 import { errText, todayLabel, useBackend } from "../util";
 
-export function Page({ label, title, actions, children }: { label?: string; title: string; actions?: ReactNode; children: ReactNode }) {
+export function Page({ label, title, actions, children, wide }: { label?: string; title: string; actions?: ReactNode; children: ReactNode; wide?: boolean }) {
   return (
-    <div className="a-page">
+    <div className={wide ? "a-page a-page--wide" : "a-page"}>
       <header className="a-head">
         <div>
           <span className="bw-label">{label ?? todayLabel()}</span>

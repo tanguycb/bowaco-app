@@ -7,12 +7,18 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { backend, freshBackend, identity, KEYDIR, nepmail, resync } from "../tools/lib.mjs";
+import { M, batchArgs, expectRaw, fromRead, sameTotals, saveAll } from "./offerte-lib.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/rollen.mjs <canister-id>");
 const host = process.env.ICP_HOST || "https://icp-api.io";
 const local = host.includes("localhost") || host.includes("127.0.0.1");
 const bootstrap = readFileSync(join(KEYDIR, "test-opstartcode.txt"), "utf8").trim();
+// GECLAIMD=1 (tools/draft-opbouw.mjs): een draft die de EIGENAAR met zijn eigen opstartcode claimde en waaraan hij de
+// testbeheerder koppelde (tools/proef-admin-koppelen.mjs). Dan: geen claim (de testbeheerder is al beheerder), geen
+// mailblok (op de draft zou de klokjob het testadres echt beleveren: er gaat nooit mail weg) en geen proef op "de laatste
+// beheerder" (de eigenaar is er een tweede; de proef zou de testbeheerder echt degraderen). De rest is dezelfde test.
+const geclaimd = process.env.GECLAIMD === "1"; // lokaal ook bruikbaar als generale repetitie (tools/draft-opbouw.mjs --proef)
 
 let pass = 0;
 let fail = 0;
@@ -120,8 +126,12 @@ check("geblokkeerde kan ook de juiste opstartcode niet gebruiken", "err" in (awa
 
 await sec("── opstartcode (§3.3.1)");
 check("verkeerde lengte (uitnodigingslengte) als opstartcode faalt", "err" in (await admin2.claimBootstrap("BOW-0000-0000-0000", "x")));
-const claim = await admin.claimBootstrap(bootstrap.toLowerCase().replaceAll("-", " "), "Proef Beheerder");
-check("opstartcode (kleine letters, spaties) → eerste admin", isOk(claim), errOf(claim));
+if (geclaimd) {
+  check("draft geclaimd door de eigenaar: de testbeheerder is actief beheerder", status(await admin.me()) === "active" && (await admin.me()).caps[0]?.manageAccess === true);
+} else {
+  const claim = await admin.claimBootstrap(bootstrap.toLowerCase().replaceAll("-", " "), "Proef Beheerder");
+  check("opstartcode (kleine letters, spaties) → eerste admin", isOk(claim), errOf(claim));
+}
 check("tweede claim van de opstartcode faalt", "err" in (await oa.claimBootstrap(bootstrap, "x")));
 const ame = await admin.me();
 check("admin is actief, startscherm overzicht, mag toegang beheren", status(ame) === "active" && ame.caps[0]?.home === "overzicht" && ame.caps[0]?.manageAccess === true);
@@ -1396,6 +1406,8 @@ check("om 16:40 na vertrek terug 16:30: terugrit met de chauffeur terug (Proef W
 check("werfleider (chauffeur terug) vindt deze rit wel", ok1b(await wl.lookupFine(fqb2({ day: nowDay, plate: "2-BOE-002" }))).matches.length === 1);
 check("auditlog: 'boete-opgezocht' met dag en plaat, zonder namen", (await admin.auditLog(0n, 50n)).some((e) => e.action === "boete-opgezocht" && e.detail.includes("2-BOE-002") && !e.detail.includes("Proef")));
 
+if (geclaimd) console.log("· mailblok overgeslagen (geclaimde draft: er gaat nooit mail weg; de mailproef draait droog in tests/mail-proef.mjs)");
+else {
 await sec("── 1b.3 + mail-caffeine: postbode = de app verstuurt zelf via de maildienst van Caffeine (testmodus, logboek, nooit dubbel)");
 {
 const rPost = await as("robot-post");
@@ -1583,6 +1595,8 @@ check("postbode ingetrokken: robot leaset niets meer", isOk(await admin.revokeRo
 check("export: de werkwachtrij en het logboek; in stukken 'jobs' en 'mailLog'", (await admin.exportIntern()).jobs.length >= 3 && "jobs" in ok1b(await admin.exportChunk("jobs", 0n, 10n)) && "mailLog" in ok1b(await admin.exportChunk("mailLog", 0n, 10n)));
 }
 
+}
+
 await sec("── 1b.4 werfadministratie: 30bis (bedrag, onderaannemers, asbest), aangifte, Checkinatwork-export, inhoudingsplicht");
 {
   // Laatste bijwerking van de databank inhoudingsplicht: vrijdag na de laatste donderdag van de maand (zoals Wadm.mo).
@@ -1743,6 +1757,102 @@ await sec("── postenbibliotheek (2.2): hoofdstukken, posten, versies; prijze
   check("caps: calculator leest, bewerkt en ziet prijzen; werfleider leest enkel", meC.caps[0].readLibrary && meC.caps[0].editLibrary && meC.caps[0].libraryPrices && meW.caps[0].readLibrary && !meW.caps[0].editLibrary && !meW.caps[0].libraryPrices);
 }
 
+await sec("── offertes (2.4): versies, rekenen in de browser + controle op de server, prijzen enkel admin en calculator (R20–R23)");
+{
+  const year = new Date().getUTCFullYear();
+  const meOf = (me, k) => !!me.caps[0]?.[k];
+  const qIn = (workId, title, number = "") => ({ workId, number, title });
+  for (const [n, x] of [["werfleider", wl], ["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon]]) {
+    check(`${n}: geen offerte maken`, await denied(x.createQuote(qIn(A, "x"))));
+  }
+  const q1 = await calc.createQuote(qIn(A, "Proef rollentest A"));
+  check("calculator maakt de eerste offerte van het jaar: <jaar>/001", isOk(q1) && q1.ok.number === `${year}/001`, errOf(q1) || q1.ok?.number);
+  check("calculator zet het volgnummer niet (instelling, R17)", await denied(calc.setQuoteSequence(BigInt(year), 230n)));
+  check("admin zet het volgnummer op 230 (verder na de offertes van vóór de app)", isOk(await admin.setQuoteSequence(BigInt(year), 230n)));
+  const q2 = await calc.createQuote(qIn(B, "Proef rollentest B"));
+  check("de volgende: <jaar>/231 op P-B (btw 21 %)", isOk(q2) && q2.ok.number === `${year}/231`, q2.ok?.number);
+  check("eigen nummer kan; hetzelfde nummer nog eens: geweigerd", isOk(await calc.createQuote(qIn(B, "Proef eigen nummer", "PROEF-900"))) && /bestaat al/.test(errOf(await calc.createQuote(qIn(A, "x", "PROEF-900")))));
+  check("titel leeg, nummer > 20 tekens, onbekende werf: geweigerd", "err" in (await calc.createQuote(qIn(A, " "))) && "err" in (await calc.createQuote(qIn(A, "x", "N".repeat(21)))) && "err" in (await calc.createQuote(qIn(999_999n, "x"))));
+  const r2 = ok1b(await calc.readQuoteVersion(q2.ok.versionId));
+  check("versie 1: ontwerp, btw 21 % van P-B, standaardmarge 20 %", "draft" in r2.version.status && r2.version.vatBp === 2100n && r2.margins[0]?.standardMarginBp === 2000n);
+  // Invullen en bewaren zoals de browser
+  const m = fromRead(r2);
+  const c1 = M.addChapter(m, { code: "02", title: "Proef afbraak" });
+  const c2 = M.addChapter(m, { code: "03", title: "Proef grondwerken" });
+  const pr = (cost, rule = null, reason = "") => ({ cost, rule, reason, orgId: null, source: cost === null ? "" : "eigen", libCostId: null });
+  M.addLine(m, c1.key, { title: "Proef afbraak wand", qtyMilli: 7_260n, unit: "m3", form: "vh", price: pr(4_000n) });
+  M.addLine(m, c1.key, { title: "Proef container", qtyMilli: 1_000n, unit: "st", form: "fixed", price: pr(null, { price: 45_000n }, "proef: vaste prijs") });
+  M.addLine(m, c2.key, { title: "Proef uitgraving", qtyMilli: 18_600n, unit: "m3", form: "vh", price: pr(3_333n, { margin: 2500n }, "proef") });
+  M.addLine(m, c2.key, { kind: "text", title: "Proef: grond blijft op de werf" , unit: "" });
+  M.addLine(m, c2.key, { kind: "option", title: "Proef optie afvoer", qtyMilli: 18_600n, unit: "m3", form: "fixed", price: pr(1_500n) });
+  const s2 = await saveAll(calc, m);
+  check("bewaren: de server rekent hetzelfde (subtotaal, btw 21 %, opties apart, marge)", isOk(s2) && sameTotals(m, s2.ok.totals, s2.ok.margins), errOf(s2).slice(0, 200));
+  const t2 = M.totals(m);
+  check("70,00 aankoop (40,00/0,8 = 50,00 × 7,26 m³ = 363,00); vaste prijs 450,00; 33,33/0,75 = 44,44 × 18,6 = 826,58", t2.chapters[0].sell === 36_300n + 45_000n && t2.chapters[1].sell === 82_658n, JSON.stringify(t2.chapters.map((c) => c.sell), big));
+  const vid = q2.ok.versionId;
+  // Invoercontrole (alles of niets)
+  const r2b = ok1b(await calc.readQuoteVersion(vid));
+  const base = () => fromRead(r2b);
+  const tryOne = async (f) => { const x = base(); f(x); const b = M.nextBatch(x); return calc.saveQuoteDraft(...batchArgs(x, b)); };
+  const firstLine = (x) => x.lines.find((l) => l.title === "Proef afbraak wand").key;
+  check("tekstregel met een prijs: geweigerd", /geen prijs/.test(errOf(await tryOne((x) => M.addLine(x, x.chapters[0].key, { kind: "text", title: "t", unit: "", price: pr(100n) })))));
+  check("onbekende eenheid: geweigerd", /eenheid/.test(errOf(await tryOne((x) => M.updateLine(x, firstLine(x), { unit: "liter" })))));
+  check("negatieve aankoopprijs, marge 95 %, hoeveelheid > 1 miljard: geweigerd", /aankoopprijs/.test(errOf(await tryOne((x) => M.updateLine(x, firstLine(x), { price: pr(-1n) })))) && /90 %/.test(errOf(await tryOne((x) => M.updateLine(x, firstLine(x), { price: pr(100n, { margin: 9500n }, "x") })))) && /te groot/.test(errOf(await tryOne((x) => M.updateLine(x, firstLine(x), { qtyMilli: 1_000_000_000_001n })))));
+  check("een klant als OA van een aankoopprijs: geweigerd", /onderaannemer of leverancier/.test(errOf(await tryOne((x) => M.updateLine(x, firstLine(x), { price: { ...pr(100n), orgId: orgKlant.ok.id } })))));
+  check("btw anders dan 6/21 %, OA-firma als klant: geweigerd", /6 of 21/.test(errOf(await tryOne((x) => M.setHeader(x, { vatBp: 1200n })))) && /klant/.test(errOf(await tryOne((x) => M.setHeader(x, { clientOrgId: orgX.ok.id })))));
+  {
+    const x = base();
+    const ops = batchArgs(x, M.nextBatch((() => { M.updateChapter(x, x.chapters[0].key, { title: "Proef afbraak (weg)" }); return x; })()));
+    ops[3] = [{ ...ops[3][0], remove: true }];
+    check("hoofdstuk weg terwijl er nog lijnen in staan: geweigerd", /niet \(meer\) is|verschillen/.test(errOf(await calc.saveQuoteDraft(...ops))));
+  }
+  {
+    const x = base();
+    for (let i = 0; i < 301; i++) M.addLine(x, x.chapters[0].key, { title: `Proef ${i}`, qtyMilli: 1000n, unit: "st", price: pr(100n) });
+    const b = M.nextBatch(x, 400);
+    check("meer dan 300 wijzigingen in één oproep: geweigerd", /Te veel wijzigingen/.test(errOf(await calc.saveQuoteDraft(...batchArgs(x, b)))));
+    const big2 = await saveAll(calc, x);
+    check("… in stukken van 300 wel (2 oproepen), totalen gelijk", isOk(big2) && sameTotals(x, big2.ok.totals, big2.ok.margins), errOf(big2).slice(0, 160));
+    const after = ok1b(await calc.readQuoteVersion(vid));
+    const y = fromRead(after);
+    for (const l of y.lines.filter((l) => /^Proef \d+$/.test(l.title))) M.removeLine(y, l.key);
+    check("… en weer weg (archief, nooit gewist)", isOk(await saveAll(calc, y)) && ok1b(await calc.readQuoteVersion(vid)).lines.length === 5);
+  }
+  const fresh = fromRead(ok1b(await calc.readQuoteVersion(vid)));
+  const bad = (() => { const x = fresh; M.updateLine(x, firstLine(x), { qtyMilli: 8_000n }); const b = M.nextBatch(x); const a = batchArgs(x, b); a[5] = expectRaw({ ...b.expect, vat: b.expect.vat + 1n, total: b.expect.total + 1n }); return a; })();
+  check("btw van de browser 1 cent anders: geweigerd en niets bewaard", /verschillen/.test(errOf(await calc.saveQuoteDraft(...bad))) && ok1b(await calc.readQuoteVersion(vid)).lines.find((l) => l.title === "Proef afbraak wand").qtyMilli === 7_260n);
+  // Wie ziet wat
+  const rv = ok1b(await calc.readQuoteVersion(vid));
+  const rw = ok1b(await wl.readQuoteVersion(vid));
+  check("werfleider: scope 'totals', hoeveelheden en hoofdstuktotalen, geen prijs per lijn, aankoop of marge", "totals" in rw.scope && rw.sell.length === 0 && rw.costs.length === 0 && rw.margins.length === 0 && rw.totals.totalCents === rv.totals.totalCents && rw.lines.some((l) => l.qtyMilli === 7_260n));
+  const rwc = ok1b(await wlcalc.readQuoteVersion(vid));
+  check("werfleider die ook calculator is: alles (rechten = som van de rollen, R20)", "full" in rwc.scope && rwc.costs.length === 5);
+  for (const [n, x] of [["architect (zonder grant)", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon], ["onbekende login", vreemde]]) {
+    const rs = await Promise.all([x.readQuoteVersion(vid), x.listQuotes([B], false), x.listQuotes([], false), x.newQuoteVersion(q2.ok.quoteId, []), x.sendQuoteVersion(vid, 0n, 0n), x.decideQuoteVersion(vid, true, ""), x.setQuoteArchived(q2.ok.quoteId, true, "x")].map(denied));
+    check(`${n}: geen enkele offertefunctie (7 oproepen geweigerd)`, rs.every(Boolean), rs.map((r) => (r ? "·" : "✗")).join(""));
+  }
+  check("werfleider: lijst van de werf wel, zonder bedragen; bewaren, versturen, nieuwe versie: geweigerd", (await wl.listQuotes([B], false)).length === 2 && (await Promise.all([wl.saveQuoteDraft(...bad), wl.sendQuoteVersion(vid, 0n, 0n), wl.newQuoteVersion(q2.ok.quoteId, [])].map(denied))).every(Boolean));
+  check("caps: offertes voor interne rollen, bewerken en prijzen enkel admin en calculator", meOf(await wl.me(), "quotes") && !meOf(await wl.me(), "editQuotes") && !meOf(await wl.me(), "quotePrices") && meOf(await calc.me(), "quotePrices") && !meOf(await oa2.me(), "quotes"));
+  // Versturen en versies
+  const sent = await calc.sendQuoteVersion(vid, rv.version.rev, rv.totals.totalCents);
+  check("versturen: hash; daarna niets meer aan te passen", isOk(sent) && /kan niet meer veranderen/.test(errOf(await calc.saveQuoteDraft(...bad))));
+  check("lege offerte versturen: geweigerd", /nog geen enkele post/.test(errOf(await calc.sendQuoteVersion(q1.ok.versionId, 0n, 0n))));
+  const nv = await calc.newQuoteVersion(q2.ok.quoteId, []);
+  check("nieuwe versie v2 als kopie; een tweede ontwerp: geweigerd", isOk(nv) && /al een ontwerp/.test(errOf(await calc.newQuoteVersion(q2.ok.quoteId, []))));
+  const rv2 = ok1b(await calc.readQuoteVersion(nv.ok));
+  check("v2: zelfde lijnen, prijzen en totalen; kopieën wijzen naar v1", rv2.lines.length === 5 && rv2.totals.totalCents === rv.totals.totalCents && rv2.lines.every((l) => l.copiedFrom.length === 1) && rv2.costs.length === 5);
+  check("beslissen op een ontwerp: geweigerd; op de verzonden v1: aanvaard", "err" in (await calc.decideQuoteVersion(nv.ok, true, "")) && isOk(await calc.decideQuoteVersion(vid, true, "proef")));
+  // Export: intern zonder bedragen, prijzen enkel vertrouwelijk
+  const exI = await admin.exportIntern();
+  const exC = await admin.exportConfidential();
+  check("interne export: offertes, versies, hoofdstukken, lijnen, zonder prijsvelden", exI.quotes.length >= 3 && exI.quoteVersions.length >= 4 && exI.quoteLines.length >= 10 && !Object.keys(exI.quoteLines[0]).some((k) => /cost|sell|marg|price/i.test(k)));
+  check("vertrouwelijke export: de prijs per lijn en de standaardmarge per versie", exC.quotePrices.length === exI.quoteLines.length && exC.quoteVersionConf.length === exI.quoteVersions.length);
+  check("export in stukken: quotePrices enkel admin", isOk(await admin.exportChunk("quotePrices", 0n, 10n)) && (await rejects(calc.exportChunk("quotePrices", 0n, 10n))));
+  const log = await admin.auditLog(0n, 300n);
+  check("auditlog: offertes zonder één bedrag", log.filter((e) => /offerte/.test(e.action)).length >= 8 && !log.filter((e) => /offerte/.test(e.action)).some((e) => /\b(4000|45000|3333|36300|82658)\b|€/.test(e.detail)));
+  check("archiveren vraagt een reden; dan weg uit de lijst", "err" in (await calc.setQuoteArchived(q1.ok.quoteId, true, " ")) && isOk(await calc.setQuoteArchived(q1.ok.quoteId, true, "proef")) && !(await calc.listQuotes([A], false)).some((q) => q.id === q1.ok.quoteId));
+}
+
 await sec("── tickets en robot (§6, R28, R29)");
 check("robot zonder registratie: checkTicket geweigerd", await rejects(robot.checkTicket("TK-0")));
 check("werfleider kan geen robot toevoegen", await rejects(wl.addRobot(P("robot-test"), "Proefrobot", [])));
@@ -1781,7 +1891,7 @@ check("afzetten logt het einde van zijn lidmaatschap", (await admin.auditLog(0n,
 const admin2Id = (await admin2.me()).person[0].id;
 check("admin zet admin 2 af", isOk(await admin.archivePerson(admin2Id)));
 check("admin 2 kan niets meer", await rejects(admin2.listPersons(false)));
-check("de laatste admin kan zijn adminrol niet verliezen", "err" in (await admin.updatePerson(adminId, { name: "x", roles: roles("werfleider"), orgId: [], shortCode: [], lang: [], phone: [] })));
+if (!geclaimd) check("de laatste admin kan zijn adminrol niet verliezen", "err" in (await admin.updatePerson(adminId, { name: "x", roles: roles("werfleider"), orgId: [], shortCode: [], lang: [], phone: [] })));
 check("admin zet admin 2 terug (zonder login)", isOk(await admin.restorePerson(admin2Id)) && status(await admin2.me()) === "unlinked");
 
 await sec("── pending blijft dicht");

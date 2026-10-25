@@ -55,14 +55,18 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions"];
-  const partOpt = async (k) => { try { return await part(k); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines"];
+  // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
+  const SIZE = { libItems: 100, libItemVersions: 50, quoteLines: 100 };
+  const partOpt = async (k) => { try { return await part(k, SIZE[k] ?? 500); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
   for (const k of LATER) intern[k] = await partOpt(k);
   const vertrouwelijk = { at: intern.at, orgs: await part("orgConfidential"), persons: await part("personConfidential"), files: await part("confidentialFiles"), workConfidential: await part("workConfidential"), workConfidentialHistory: await part("workConfidentialHistory") };
   // 2.2: de prijzen van de postenbibliotheek (vertrouwelijk; een oudere canister kent ze niet → leeg).
   for (const k of ["libCosts", "libSells", "libSellVersions"]) vertrouwelijk[k] = await partOpt(k);
+  // 2.4: de prijs per offertelijn en de standaardmarge per versie (vertrouwelijk; een oudere canister kent ze niet → leeg).
+  for (const k of ["quotePrices", "quoteVersionConf"]) vertrouwelijk[k] = await partOpt(k);
   // Auditlog in stukken (nieuwste eerst) → chronologisch bewaren. De log groeit tijdens het lezen (elke
   // export-oproep schrijft een regel), dus dubbels eruit en op tijd sorteren.
   const seen = new Set();
@@ -185,6 +189,13 @@ async function restoreAll(cid, dir) {
   await send("libCosts", vertrouwelijk.libCosts ?? [], 300);
   await send("libSells", vertrouwelijk.libSells ?? [], 300);
   await send("libSellVersions", vertrouwelijk.libSellVersions ?? [], 300);
+  // 2.4: offertes (de indexen herrekent restoreFinish).
+  await send("quotes", intern.quotes ?? [], 300);
+  await send("quoteVersions", intern.quoteVersions ?? [], 200);
+  await send("quoteChapters", intern.quoteChapters ?? [], 300);
+  await send("quoteLines", intern.quoteLines ?? [], 100);
+  await send("quotePrices", vertrouwelijk.quotePrices ?? [], 300);
+  await send("quoteVersionConf", vertrouwelijk.quoteVersionConf ?? [], 300);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -270,6 +281,10 @@ function normalize(intern, vertrouwelijk, audit) {
     libChapters: byKey(intern.libChapters ?? [], id),
     libItems: byKey(intern.libItems ?? [], id),
     libItemVersions: byKey(intern.libItemVersions ?? [], id),
+    quotes: byKey(intern.quotes ?? [], id),
+    quoteVersions: byKey(intern.quoteVersions ?? [], id),
+    quoteChapters: byKey(intern.quoteChapters ?? [], id),
+    quoteLines: byKey(intern.quoteLines ?? [], id),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),
@@ -279,6 +294,8 @@ function normalize(intern, vertrouwelijk, audit) {
     "vertrouwelijk.libCosts": byKey(vertrouwelijk.libCosts ?? [], id),
     "vertrouwelijk.libSells": byKey(vertrouwelijk.libSells ?? [], (x) => x.itemId),
     "vertrouwelijk.libSellVersions": byKey(vertrouwelijk.libSellVersions ?? [], id),
+    "vertrouwelijk.quotePrices": byKey(vertrouwelijk.quotePrices ?? [], (x) => x.lineId),
+    "vertrouwelijk.quoteVersionConf": byKey(vertrouwelijk.quoteVersionConf ?? [], (x) => x.versionId),
     audit,
   };
   return out;

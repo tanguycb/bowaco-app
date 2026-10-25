@@ -5,6 +5,7 @@ import "@fontsource/ibm-plex-mono/600.css";
 import "./design/design.css";
 import "./app/app.css";
 import "./app/werf.css";
+import "./app/offerte.css";
 import { InternetIdentityProvider } from "@caffeineai/core-infrastructure";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";

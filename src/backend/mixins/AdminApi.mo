@@ -35,6 +35,7 @@ mixin (
   mail : Types.MailState,
   wadm : Types.WadmState,
   library : Types.LibraryState,
+  quotes : Types.QuotesState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -229,6 +230,10 @@ mixin (
       libChapters = library.chapters.values().toArray();
       libItems = library.items.values().toArray();
       libItemVersions = library.itemVersions.values().toArray();
+      quotes = quotes.quotes.values().toArray();
+      quoteVersions = quotes.versions.values().toArray();
+      quoteChapters = quotes.chapters.values().toArray();
+      quoteLines = quotes.lines.values().toArray();
     };
   };
 
@@ -240,9 +245,9 @@ mixin (
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #export, null);
-    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions";
-    // 2.2: de prijzen van de bibliotheek vragen daarbovenop #readCosts (aankoopprijzen, R20).
-    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions") { Rights.require(ctx, p, #readCosts, null) };
+    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf";
+    // 2.2/2.4: de prijzen van de bibliotheek en van de offertes vragen daarbovenop #readCosts (aankoopprijzen, R20).
+    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf") { Rights.require(ctx, p, #readCosts, null) };
     if (confidentialKind) { Rights.require(ctx, p, #readConfidentialContact, null) };
     if (from == 0) { Access.audit(audit, caller, ?p.id, null, if confidentialKind "bekeek:export-vertrouwelijk-deel" else "export-deel", kind) };
     func pg<T>(xs : [T]) : [T] { Access.page(xs, from, limit) };
@@ -318,6 +323,12 @@ mixin (
       case "libCosts" ?#libCosts(pg(library.costs.values().toArray()));
       case "libSells" ?#libSells(pg(library.sells.values().toArray()));
       case "libSellVersions" ?#libSellVersions(pg(library.sellVersions.values().toArray()));
+      case "quotes" ?#quotes(pg(quotes.quotes.values().toArray()));
+      case "quoteVersions" ?#quoteVersions(pg(quotes.versions.values().toArray()));
+      case "quoteChapters" ?#quoteChapters(pg(quotes.chapters.values().toArray()));
+      case "quoteLines" ?#quoteLines(pg(quotes.lines.values().toArray()));
+      case "quotePrices" ?#quotePrices(pg(quotes.prices.values().toArray()));
+      case "quoteVersionConf" ?#quoteVersionConf(pg(quotes.versionConf.values().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
@@ -344,6 +355,8 @@ mixin (
       libCosts = library.costs.values().toArray();
       libSells = library.sells.values().toArray();
       libSellVersions = library.sellVersions.values().toArray();
+      quotePrices = quotes.prices.values().toArray();
+      quoteVersionConf = quotes.versionConf.values().toArray();
     };
   };
 
