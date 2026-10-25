@@ -8,6 +8,8 @@
 .q-when { font-family: var(--bw-font-mono); font-size: var(--bw-fs-xs); white-space: nowrap; }
 
 .a-page--wide { max-width: none; }
+/* Chrome-test C1: de tussenruimte van de pagina volstaat; geen extra marge van <p> rond de meldingen */
+.a-page--wide > p { margin: 0; }
 .q-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; align-items: start; }
 .q-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .q-side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 14px; }
