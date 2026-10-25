@@ -1483,6 +1483,8 @@ export const nl = {
     seqLead: (y: number) => `Het laatste nummer dat in ${y} al gebruikt werd (ook in de offertes van vóór de app). De volgende offerte krijgt dit nummer + 1; een nummer dat al bestaat, slaat de app over.`,
     seqField: (y: number) => `Laatste nummer van ${y}`,
     seqNext: (n: string) => `Volgende: ${n}`,
+    selfOk: (n: number) => `Rekentest in deze browser: ${n} vaste gevallen in orde`,
+    selfFail: (n: number, which: string) => `De rekentest in deze browser faalt (${n}): bewaren staat uit. Meld dit aan de beheerder. ${which}`,
   },
   vehicles: {
     title: "Voertuigen",

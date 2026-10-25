@@ -9,6 +9,7 @@ import { ContractForm, OrgKind, QuoteLineKind, QuoteScope, QuoteStatus, type Cap
 import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { calcLine, type Kind, type Rule } from "../quote/calc.ts";
 import * as M from "../quote/model.ts";
+import { runSelfTest } from "../quote/selftest.ts";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
 import { Loading, Page, useWorks } from "./common";
@@ -223,7 +224,9 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   }, [actor, versionId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (on) void load(); }, [on, load]);
 
-  const editable = !!read && read.scope === QuoteScope.full && read.version.editable && caps.editQuotes && !read.quote.archived;
+  // 2.5: de rekentest in deze browser; faalt er één geval, dan wordt er niet bewaard (liever geen offerte dan een fout totaal).
+  const self = runSelfTest();
+  const editable = !!read && read.scope === QuoteScope.full && read.version.editable && caps.editQuotes && !read.quote.archived && self.failed.length === 0;
   const pending = model ? M.pendingCount(model) : 0;
 
   // Niet bewaard: waarschuwen bij sluiten, en in het geheugen houden bij een ander scherm.
@@ -444,6 +447,9 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
           {serverOk === true && <p className="q-ok"><Icon name="check" size={16} /> {O.serverOk}</p>}
           {serverOk === false && <p className="a-err" role="alert">{O.serverDiff}</p>}
           {model && <Controls m={model} />}
+          <p className={self.failed.length ? "a-err" : "q-ok q-small"} role={self.failed.length ? "alert" : undefined}>
+            {self.failed.length ? O.selfFail(self.failed.length, self.failed.join(" · ")) : O.selfOk(self.passed)}
+          </p>
           {scope === QuoteScope.full && caps.editQuotes && (
             <div className="a-row">
               {!read.quote.archived && <Button variant="quiet" onClick={() => setSheet({ kind: "archive" })}>{O.archive}</Button>}

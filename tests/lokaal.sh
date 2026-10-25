@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Alles lokaal op het EIGEN testnet (tests/net, poort 8041; raakt het gedeelde :8000 nooit):
-# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → mailproef → gateway.
+# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → mailproef → gateway.
 #   zsh tests/lokaal.sh            (start het net als het nog niet draait)
 set -e
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -63,6 +63,14 @@ if [[ -f "$posten" ]]; then
 fi
 # 2.4: de draftproef van de offerte-editor (verzonnen proefofferte op P-A; gebruikt de proefpost van posten-draft).
 node tests/offerte-draft.mjs "$cid"
+# 2.5: de rekentests (rekenmodule zelf, de fouten van 2026/231 met verzonnen posten, browser = server op 200 willekeurige
+# offertes). De ECHTE offerte enkel hier en enkel als ze er is: rapport buiten git (~/.bowaco/posten/rekentest-*.md).
+node tests/rekentest.mjs "$cid"
+echte=$(ls "$HOME"/Desktop/Split/bowaco-docs/bowaco/2026-231_Offerte_*.xlsx 2>/dev/null | head -1)
+if [[ -n "$echte" ]]; then
+  python3 -I tools/rekentest-echt.py "$echte"
+  node tests/rekentest-echt.mjs "$HOME/.bowaco/posten/rekentest-2026-231.json"
+fi
 # mail-caffeine: de app verstuurt zelf (nep-maildienst); de gateway (fase 3) enkel nog eenheidstesten.
 node tests/mail-proef.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

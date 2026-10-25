@@ -92,6 +92,7 @@ for (const [name, file] of [
   ["wadm", "tests/wadm-draft.mjs"],
   ["posten", "tests/posten-draft.mjs"],
   ["offerte", "tests/offerte-draft.mjs"],
+  ["rekentest", "tests/rekentest.mjs"], // 2.5: browser = server (op een draft 25 willekeurige offertes)
   ["mail", "tests/mail-proef.mjs"],
 ]) rood += run(name, file) ? 1 : 0;
 // De import van de planning: enkel het GEANONIMISEERDE bestand (tools/plan-anonimiseer.mjs; de proef weigert een ander).

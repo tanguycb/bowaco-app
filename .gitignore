@@ -23,3 +23,7 @@ BOWACO_validatie_*
 posten*.json
 posten-*.md
 BOWACO_posten_*
+# Stap 2.5: de rekentest op een ECHTE offerte (tools/rekentest-echt.py, tests/rekentest-echt.mjs) bevat echte prijzen:
+# standaard in ~/.bowaco/posten, nooit in git.
+rekentest-*.json
+rekentest-*.md
