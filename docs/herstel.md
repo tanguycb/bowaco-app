@@ -29,7 +29,7 @@ Alles op het **eigen** testnet (nooit het gedeelde `:8000`, nooit een draft); he
 ```bash
 cd ~/Desktop/Split/bowaco-app
 # 1. Export van de bron (een draft) als testbeheerder, buiten git
-node tests/herstel.mjs export w5pbr-raaaa-aaaal-qs3aq-cai ~/.bowaco/herstel/$(date +%Y%m%d)
+node tests/herstel.mjs export 5vwqk-vqaaa-aaaab-aadwq-cai ~/.bowaco/herstel/$(date +%Y%m%d)
 
 # 2. Een lege lokale canister met het programma van dezelfde (of een nieuwere) versie, gebouwd met de TEST-opstartcode
 #    (tests/lokaal.sh doet dat; daarna de canister leegmaken)

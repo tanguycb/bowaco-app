@@ -371,8 +371,8 @@ module {
   public let mailLogPrunePerRound : Nat = 200;
   // Markering van een lease door de app zelf (geen robot kan deze principal hebben: het is de beheercanister).
   public let appSender = "aaaaa-aa";
-  // De draftcanister(s) van dit project: daar blijft de testmodus ALTIJD aan (geen echte mail vanaf de draft, E-0).
-  public func draftBackends() : [Text] { ["w5pbr-raaaa-aaaal-qs3aq-cai"] };
+  // De draftcanister(s) van dit project (de nieuwste eerst; w5pbr verliep 25-10-2026, zie M11): daar blijft de testmodus ALTIJD aan (geen echte mail vanaf de draft, E-0).
+  public func draftBackends() : [Text] { ["5vwqk-vqaaa-aaaab-aadwq-cai", "w5pbr-raaaa-aaaal-qs3aq-cai"] };
   // 1b.5 (securityreview, M2): echte mail (testmodus uit) kan ENKEL vanaf een canister in deze lijst: de livecanister van
   // het project, in te vullen vóór de eerste echte weekmail (docs/postbode-installatie.md). Elke andere canister (een
   // nieuwe draftcanister, een herstel op een ander project) blijft in de testmodus, wat de beheerder ook instelt. Een
