@@ -59,6 +59,7 @@ export function Instellingen() {
           <div><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></div>
         </section>
       )}
+      <QuoteNumbers />
       <CompanyCalendar />
       <Templates />
       <DocKinds />
@@ -70,6 +71,36 @@ export function Instellingen() {
         <p className="bw-muted">{t.settings.robotsMoved} <a className="wb-link" href="#/postbode">{t.nav.postbode}</a></p>
       </section>
     </Page>
+  );
+}
+
+/** 2.4: het volgnummer van de offertes (verder na de nummering van vóór de app). */
+function QuoteNumbers() {
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const year = new Date().getFullYear();
+  const cur = useQuery({ queryKey: ["quoteSequence", year], queryFn: () => actor!.quoteSequence(BigInt(year)), enabled: !!actor && !isFetching });
+  const [v, setV] = useState("");
+  useEffect(() => { if (cur.data !== undefined) setV(String(cur.data)); }, [cur.data]);
+  const n = Number(v);
+  const valid = /^\d{1,5}$/.test(v);
+  const save = useMutation({
+    mutationFn: async () => unwrap(await actor!.setQuoteSequence(BigInt(year), BigInt(n))),
+    onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["quoteSequence"] }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  return (
+    <section className="a-section a-form" style={{ maxWidth: 560 }}>
+      <h2 className="bw-h2">{t.offertes.seqTitle}</h2>
+      <p className="bw-muted">{t.offertes.seqLead(year)}</p>
+      <Loading q={cur} />
+      <div className="a-row">
+        <Field label={t.offertes.seqField(year)}><input className="bw-input bw-num" style={{ maxWidth: 140 }} inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} /></Field>
+        {valid && <span className="bw-muted">{t.offertes.seqNext(`${year}/${String(n + 1).padStart(3, "0")}`)}</span>}
+      </div>
+      <div><Button variant="primary" busy={save.isPending} disabled={!valid} onClick={() => save.mutate()}>{t.common.save}</Button></div>
+    </section>
   );
 }
 

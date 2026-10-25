@@ -297,6 +297,7 @@ const table = {
   readQuoteVersion: [INTERNAL, () => [X]],
   createQuote: [["admin", "calculator"], () => [{ workId: X, number: "", title: "" }]],
   setQuoteSequence: [ADMIN, () => [1n, 0n]],
+  quoteSequence: [ADMIN, () => [2026n]],
   newQuoteVersion: [["admin", "calculator"], () => [X, []]],
   saveQuoteDraft: [["admin", "calculator"], () => [X, 0n, [], [], [], { subtotalCents: 0n, vatCents: 0n, totalCents: 0n, optionsPlusCents: 0n, optionsMinusCents: 0n, costCents: 0n, marginCents: 0n, chapters: [] }]],
   sendQuoteVersion: [["admin", "calculator"], () => [X, 0n, 0n]],

@@ -1769,6 +1769,7 @@ await sec("── offertes (2.4): versies, rekenen in de browser + controle op d
   check("calculator maakt de eerste offerte van het jaar: <jaar>/001", isOk(q1) && q1.ok.number === `${year}/001`, errOf(q1) || q1.ok?.number);
   check("calculator zet het volgnummer niet (instelling, R17)", await denied(calc.setQuoteSequence(BigInt(year), 230n)));
   check("admin zet het volgnummer op 230 (verder na de offertes van vóór de app)", isOk(await admin.setQuoteSequence(BigInt(year), 230n)));
+  check("admin leest het volgnummer (230) voor Instellingen; calculator niet", (await admin.quoteSequence(BigInt(year))) === 230n && (await rejects(calc.quoteSequence(BigInt(year)))));
   const q2 = await calc.createQuote(qIn(B, "Proef rollentest B"));
   check("de volgende: <jaar>/231 op P-B (btw 21 %)", isOk(q2) && q2.ok.number === `${year}/231`, q2.ok?.number);
   check("eigen nummer kan; hetzelfde nummer nog eens: geweigerd", isOk(await calc.createQuote(qIn(B, "Proef eigen nummer", "PROEF-900"))) && /bestaat al/.test(errOf(await calc.createQuote(qIn(A, "x", "PROEF-900")))));

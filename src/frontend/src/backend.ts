@@ -4014,6 +4014,7 @@ export interface backendInterface {
     queueReminders(monday: bigint): Promise<Result_3>;
     queueTestMail(email: string): Promise<Result_3>;
     queueWeekMails(monday: bigint, orgId: bigint | null): Promise<Result_3>;
+    quoteSequence(year: bigint): Promise<bigint>;
     readConfidentialFile(id: bigint): Promise<Result_26>;
     readContract(workId: bigint): Promise<Result_25>;
     readContractHistory(workId: bigint): Promise<Result_24>;
@@ -5793,6 +5794,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.queueWeekMails(arg0, to_candid_opt_n19(this._uploadFile, this._downloadFile, arg1));
             return from_candid_Result_3_n20(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async quoteSequence(arg0: bigint): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.quoteSequence(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.quoteSequence(arg0);
+            return result;
         }
     }
     async readConfidentialFile(arg0: bigint): Promise<Result_26> {

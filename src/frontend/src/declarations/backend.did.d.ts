@@ -3356,6 +3356,7 @@ export interface _SERVICE {
   'queueReminders' : ActorMethod<[bigint], Result_3>,
   'queueTestMail' : ActorMethod<[string], Result_3>,
   'queueWeekMails' : ActorMethod<[bigint, [] | [bigint]], Result_3>,
+  'quoteSequence' : ActorMethod<[bigint], bigint>,
   'readConfidentialFile' : ActorMethod<[bigint], Result_26>,
   'readContract' : ActorMethod<[bigint], Result_25>,
   'readContractHistory' : ActorMethod<[bigint], Result_24>,

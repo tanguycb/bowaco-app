@@ -122,6 +122,13 @@ mixin (
     #ok;
   };
 
+  // Het laatste uitgegeven volgnummer van een jaar (voor het veld in Instellingen). Enkel admin.
+  public query ({ caller }) func quoteSequence(year : Nat) : async Nat {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #manageSettings, null);
+    switch (settings.sequences.get("offerte:" # year.toText())) { case (?n) n; case null 0 };
+  };
+
   // Een nieuwe versie (ontwerp) als kopie van een bestaande (standaard de nieuwste). Er is hoogstens één ontwerp per offerte.
   public shared ({ caller }) func newQuoteVersion(quoteId : Nat, fromVersionId : ?Nat) : async Result.Result<Nat, Text> {
     let p = Access.requireActive(access, caller);

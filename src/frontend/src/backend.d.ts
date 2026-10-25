@@ -3952,6 +3952,7 @@ export interface backendInterface {
     queueReminders(monday: bigint): Promise<Result_3>;
     queueTestMail(email: string): Promise<Result_3>;
     queueWeekMails(monday: bigint, orgId: bigint | null): Promise<Result_3>;
+    quoteSequence(year: bigint): Promise<bigint>;
     readConfidentialFile(id: bigint): Promise<Result_26>;
     readContract(workId: bigint): Promise<Result_25>;
     readContractHistory(workId: bigint): Promise<Result_24>;
