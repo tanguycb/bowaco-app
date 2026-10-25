@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2.6-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2.7-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -365,6 +365,28 @@ module {
   public let maxQuoteStdKeywords : Nat = 12;
   public let maxQuoteReason : Nat = 300; // reden om door te zetten (komt in de auditlog)
   public let minQuoteReason : Nat = 5;
+
+  // ── PDF, voorwaarden en akkoord (2.7; VOORLOPIG: vragen voor Alexis en de jurist) ──
+  public let quotePaymentDaysDefault : Nat = 30;
+  public let maxQuoteIssuer : Nat = 1_000;
+  public let maxQuoteTermsText : Nat = 30_000;
+  public let maxQuoteTermsVersions : Nat = 100;
+  public let maxQuoteMails : Nat = 5; // mails per offerte-versie
+  public let defaultQuoteIssuer : Text = "BOWACO\n[Adres, ondernemingsnummer en btw-nummer van BOWACO: in te vullen in Instellingen, onder Offerte en voorwaarden]";
+  // De ingebouwde voorwaarden: enkel een geraamte om in te vullen. BOWACO heeft nog geen algemene voorwaarden aangeleverd; dit is
+  // NOOIT een juridisch geldige tekst en staat overal als VOORLOPIG gemarkeerd (in de app en op de PDF).
+  public let defaultQuoteTermsTitle : Text = "Algemene voorwaarden (voorlopige tekst)";
+  public func defaultQuoteTermsText() : Text {
+    "1. Toepassing\n[In te vullen door BOWACO: voor wie en wanneer de voorwaarden gelden.]\n\n"
+    # "2. Offerte en geldigheid\n[In te vullen door BOWACO: hoe lang de offerte geldig is en wanneer ze bindend wordt.]\n\n"
+    # "3. Prijzen en btw\n[In te vullen door BOWACO: prijzen, btw-tarief en de grond ervoor, prijsherziening.]\n\n"
+    # "4. Meer- en minwerk\n[In te vullen door BOWACO: hoe afwijkingen en vermoedelijke hoeveelheden verrekend worden.]\n\n"
+    # "5. Betaling\n[In te vullen door BOWACO: voorschotten, vorderingsstaten, betaaltermijn en verwijlinteresten.]\n\n"
+    # "6. Uitvoering en termijnen\n[In te vullen door BOWACO.]\n\n"
+    # "7. Oplevering en waarborg\n[In te vullen door BOWACO.]\n\n"
+    # "8. Aansprakelijkheid en verzekering\n[In te vullen door BOWACO.]\n\n"
+    # "9. Geschillen\n[In te vullen door BOWACO: toepasselijk recht en bevoegde rechtbank.]";
+  };
 
   // ── Vergunningen (1b.1, bouwplan §5.3; VOORLOPIG tot Alexis bevestigt) ───
   // Soorten (sleutel, naam, doorlooptijd in kalenderdagen, woorden in een taak die de vergunning vragen, openbare weg).

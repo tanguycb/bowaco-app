@@ -55,9 +55,9 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances"];
   // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
-  const SIZE = { libItems: 100, libItemVersions: 50, quoteLines: 100 };
+  const SIZE = { libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20 };
   const partOpt = async (k) => { try { return await part(k, SIZE[k] ?? 500); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
@@ -198,6 +198,10 @@ async function restoreAll(cid, dir) {
   await send("quoteRules", intern.quoteRules ?? [], 300);
   await send("quoteStdPosts", intern.quoteStdPosts ?? [], 300);
   await send("quoteChecks", intern.quoteChecks ?? [], 300);
+  // 2.7: voorwaarden, vastgelegde velden van verzonden offertes en akkoorden.
+  await send("quoteTerms", intern.quoteTerms ?? [], 50);
+  await send("quoteSendInfos", intern.quoteSendInfos ?? [], 50);
+  await send("quoteAcceptances", intern.quoteAcceptances ?? [], 300);
   await send("quotePrices", vertrouwelijk.quotePrices ?? [], 300);
   await send("quoteVersionConf", vertrouwelijk.quoteVersionConf ?? [], 300);
   await send("audit", audit, 500);
@@ -292,6 +296,9 @@ function normalize(intern, vertrouwelijk, audit) {
     quoteRules: byKey(intern.quoteRules ?? [], (x) => x.key),
     quoteStdPosts: byKey(intern.quoteStdPosts ?? [], (x) => x.key),
     quoteChecks: byKey(intern.quoteChecks ?? [], (x) => x.versionId),
+    quoteTerms: byKey(intern.quoteTerms ?? [], id),
+    quoteSendInfos: byKey(intern.quoteSendInfos ?? [], (x) => x.versionId),
+    quoteAcceptances: byKey(intern.quoteAcceptances ?? [], (x) => x.versionId),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),

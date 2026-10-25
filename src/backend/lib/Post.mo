@@ -93,7 +93,7 @@ module {
 
   // De mails verstuurt de app zelf (lib/Mail.mo); geen robot mag ze leasen.
   public func isMail(kind : Text) : Bool {
-    kind == "weekplanning" or kind == "herinnering-planning" or kind == "herinnering-uren" or kind == "proef";
+    kind == "weekplanning" or kind == "herinnering-planning" or kind == "herinnering-uren" or kind == "proef" or kind == "offerte-klant";
   };
 
   // Welke robotsoort mag een opdracht leasen. Mail: "app" (die soort kan geen robot krijgen, Config.robotKinds).
@@ -266,6 +266,24 @@ module {
         outro = tx.testOutro;
         link = link(c, "");
         tag = "proef";
+      });
+    };
+    // 2.7: een mail aan de klant met een link naar de offerte, nooit een bedrag. Het adres en de namen staan in de opdracht zelf
+    // (vastgelegd bij het klikken op "Mail naar de klant"); de klant is geen firma en heeft geen afmelding of weekmail.
+    if (j.kind == "offerte-klant") {
+      let get = func(k : Text) : Text = switch (j.extra.find(func(x : (Text, Text)) : Bool = x.0 == k)) { case (?(_, v)) v; case null "" };
+      let to = get("aan");
+      if (to == "") { return #skip("geen e-mailadres") };
+      return #mail({
+        to = [{ name = get("naam"); email = to }];
+        subject = tx.quoteSubject(get("nummer"));
+        preheader = tx.quotePre;
+        heading = tx.quoteHeading;
+        intro = tx.quoteIntro(get("naam"), get("nummer"), get("werf"));
+        sections = [];
+        outro = tx.quoteOutro;
+        link = link(c, "#/mijn-offerte");
+        tag = "offerte";
       });
     };
     let orgId = j.orgId ?? return #skip("geen firma");

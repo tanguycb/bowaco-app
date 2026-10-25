@@ -114,3 +114,31 @@
 .q-find--warn .a-tag { background: var(--bw-st-delayed-bg); color: var(--bw-st-delayed); }
 .q-sendcheck ul { margin: 4px 0 8px 18px; padding: 0; }
 .q-flash { outline: 2px solid var(--bw-accent); outline-offset: 1px; }
+
+/* 2.7: Mijn offerte (de klant): dezelfde taal als de editor, enkel verkoopprijzen, leesbaar op de gsm */
+.mq-status { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mq-head { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); }
+.mq-intro { margin: 0; max-width: 70ch; }
+.mq-ch { border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); overflow: hidden; }
+.mq-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 110px 96px 104px; gap: 8px; align-items: start; padding: 8px 12px; border-top: 1px solid var(--bw-line); font-size: var(--bw-fs-sm); font-variant-numeric: tabular-nums; }
+.mq-row--text { display: block; background: var(--bw-surface-2); }
+.mq-desc { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mq-desc b { font-weight: 600; overflow-wrap: anywhere; }
+.mq-text { font-size: var(--bw-fs-xs); white-space: pre-line; overflow-wrap: anywhere; }
+.mq-sub { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.mq-qty, .mq-unit, .mq-line { text-align: right; }
+.mq-terms { border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); padding: 10px 14px; }
+.mq-terms summary { cursor: pointer; font-weight: 600; }
+.mq-terms__text { white-space: pre-wrap; font: inherit; font-size: var(--bw-fs-sm); margin: 10px 0 0; overflow-wrap: anywhere; }
+.mq-answer { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.mq-check { align-items: flex-start; }
+.mq-accepted { border-color: var(--bw-st-done); background: var(--bw-st-done-bg); }
+@media (max-width: 720px) {
+  .q-layout { grid-template-columns: minmax(0, 1fr); }
+  .q-side { position: static; }
+  .mq-row { grid-template-columns: 1fr 1fr; }
+  .mq-code { grid-column: 1 / -1; }
+  .mq-desc { grid-column: 1 / -1; }
+  .mq-qty, .mq-unit, .mq-line { text-align: left; }
+  .mq-qty::before, .mq-unit::before, .mq-line::before { content: attr(data-l) ": "; color: var(--bw-ink-2); font-family: var(--bw-font-text); }
+}

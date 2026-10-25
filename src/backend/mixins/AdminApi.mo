@@ -37,6 +37,7 @@ mixin (
   library : Types.LibraryState,
   quotes : Types.QuotesState,
   quoteChecks : Types.QuoteChecksState,
+  quoteDocs : Types.QuoteDocsState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -238,6 +239,9 @@ mixin (
       quoteRules = quoteChecks.rules.values().toArray();
       quoteStdPosts = quoteChecks.stdPosts.values().toArray();
       quoteChecks = quoteChecks.done.values().toArray();
+      quoteTerms = quoteDocs.terms.values().toArray();
+      quoteSendInfos = quoteDocs.sendInfo.values().toArray();
+      quoteAcceptances = quoteDocs.acceptances.values().toArray();
     };
   };
 
@@ -334,6 +338,9 @@ mixin (
       case "quoteRules" ?#quoteRules(pg(quoteChecks.rules.values().toArray()));
       case "quoteStdPosts" ?#quoteStdPosts(pg(quoteChecks.stdPosts.values().toArray()));
       case "quoteChecks" ?#quoteChecks(pg(quoteChecks.done.values().toArray()));
+      case "quoteTerms" ?#quoteTerms(pg(quoteDocs.terms.values().toArray()));
+      case "quoteSendInfos" ?#quoteSendInfos(pg(quoteDocs.sendInfo.values().toArray()));
+      case "quoteAcceptances" ?#quoteAcceptances(pg(quoteDocs.acceptances.values().toArray()));
       case "quotePrices" ?#quotePrices(pg(quotes.prices.values().toArray()));
       case "quoteVersionConf" ?#quoteVersionConf(pg(quotes.versionConf.values().toArray()));
       case _ null;

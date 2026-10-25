@@ -1317,6 +1317,57 @@ module {
     done : Map.Map<Nat, QuoteCheckDone>; // sleutel = versie
   };
 
+  // ── PDF, voorwaarden en digitaal akkoord (stap 2.7, bouwplan §9 rij 2.7 ⚖; VOORLOPIG: vragen voor Alexis en de jurist) ────
+  // Eigen stabiel veld `quoteDocs` (deelvorm, OldActor = {}). De algemene voorwaarden hebben versies (append-only, de admin
+  // zet een nieuwe versie); bij het versturen wordt vastgelegd wat de klant te zien krijgt (afzender, klant, werf, btw-grond,
+  // betaaltermijn, geldigheid en de TEKST van de voorwaarden) en dat valt onder de hash: een akkoord geldt dus voor exact die
+  // inhoud. Het akkoord zelf: de klant (Internet Identity, klantrol op de werf) klikt "Akkoord" op de verzonden versie, of
+  // kantoor registreert een getekende PDF als bewijs. Volledig vanaf het begin (D1a).
+  public type QuoteTerms = {
+    id : Nat;
+    version : Nat; // 1, 2 … (0 = de ingebouwde voorlopige tekst, nooit bewaard)
+    title : Text;
+    text : Text;
+    provisional : Bool; // VOORLOPIG: nog niet gevalideerd door BOWACO en een jurist
+    note : Text; // wat er veranderde
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: intern. Wat bij het versturen vastligt naast de inhoud van de offerte (valt onder de hash).
+  public type QuoteSendInfo = {
+    versionId : Nat;
+    issuer : Text; // wie de offerte geeft: vrije tekst van de beheerder (naam, adres, ondernemingsnummer, btw)
+    clientName : Text;
+    clientAddress : ?Address;
+    clientVat : ?Text;
+    workCode : Text;
+    workName : Text;
+    workAddress : Address;
+    vatNote : Text; // de grond voor het btw-tarief (bij 6 %)
+    paymentDays : Nat;
+    validUntil : Day; // dag van verzending + geldigheid
+    termsId : Nat;
+    termsVersion : Nat;
+    termsTitle : Text;
+    termsText : Text;
+    termsProvisional : Bool;
+    extra : Extra;
+  };
+
+  // klasse: intern (persoonsgegevens: wie klikte, met welke Internet Identity). Zie docs/privacy.md.
+  public type QuoteDigitalAccept = { at : Int; personId : PersonId; principal : Principal };
+  public type QuoteSignedProof = { at : Int; by : PersonId; fileId : Nat; note : Text };
+  public type QuoteAcceptance = { versionId : Nat; hash : Text; digital : ?QuoteDigitalAccept; signed : ?QuoteSignedProof; extra : Extra };
+
+  public type QuoteDocsState = {
+    terms : Map.Map<Nat, QuoteTerms>;
+    sendInfo : Map.Map<Nat, QuoteSendInfo>; // sleutel = versie
+    acceptances : Map.Map<Nat, QuoteAcceptance>; // sleutel = versie
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

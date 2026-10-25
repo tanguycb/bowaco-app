@@ -50,6 +50,9 @@ module {
     // per lijn volgt #readSellPrices (R21), aankoopprijzen en marges #readCosts (R20); bewerken #editQuote, versturen
     // #sendQuote (R22). #quotesOverview = de lijst over alle werven (menu Offertes).
     #readQuotes; #quotesOverview;
+    // 2.7: de klant. #ownQuotes = de klantrol (zonder werf: de functies "mijn offertes"); #clientQuote = een offerte van een werf
+    // waar hij als klant lid van is (de verzonden versies met enkel verkoopprijzen lezen, aanvaarden of weigeren).
+    #ownQuotes; #clientQuote;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -215,6 +218,9 @@ module {
       // #readSellPrices op die werf (verkoopprijzen, nooit aankoopprijzen of marges). OA, klant (2.7) en VC: nooit.
       case (#readQuotes) on(func w = (internal(p) and seesWork(ctx, p, w)) or (memberAs(ctx, p, w, #architect) and grant(ctx, p, w, #readSellPrices)));
       case (#quotesOverview) internal(p);
+      // 2.7: enkel een persoon met de klantrol, en per werf enkel als hij er als klant lid van is (de fiche is "mag die rol krijgen", R2).
+      case (#ownQuotes) has(p, #klant);
+      case (#clientQuote) on(func w = memberAs(ctx, p, w, #klant));
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -480,6 +486,7 @@ module {
       quotes = may(ctx, p, #quotesOverview, null);
       editQuotes = may(ctx, p, #editQuote, null);
       quotePrices = may(ctx, p, #readCosts, null) and may(ctx, p, #readSellPrices, null);
+      myQuotes = may(ctx, p, #ownQuotes, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

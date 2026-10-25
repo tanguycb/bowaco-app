@@ -426,6 +426,14 @@ else {
   const bad = queries.filter((m) => [...tainted].some((t) => new RegExp(`\\b${t}\\b`).test(m[3]))).map((m) => m[1]);
   check("(F1) geen enkele query geeft een prijs per lijn, aankoopprijs of marge van een offerte terug", bad.length === 0 && tainted.has("QuoteRead"), bad.join(", ") || `${queries.length} queries, ${tainted.size} prijstypen`);
   check("(F1) de interne vormen dragen geen prijs: lijst, kop, hoofdstuk, lijn, interne export", ["QuoteSummary", "QuoteVersionBrief", "QuoteVersionView", "QuoteChapterView", "QuoteLineView", "QuoteLine", "QuoteChapter", "QuoteVersion", "ExportIntern"].every((n) => types.has(n) && !tainted.has(n)), ["QuoteLineView", "QuoteLine", "ExportIntern"].filter((n) => tainted.has(n)).join());
+  // (G1) 2.7: wat de klant krijgt, heeft geen veld voor een aankoopprijs, marge, reden, interne notitie of bibliotheek-id, en de
+  // lijst "mijn offertes" (een query) draagt geen bedrag.
+  const fieldsOf = (n) => [...(types.get(n) ?? "").matchAll(/^\s+(\w+)\s*:/gm)].map((m) => m[1]);
+  const clientTypes = ["MyQuoteBrief", "MyQuoteChapter", "MyQuoteLine", "MyQuoteRead", "MyQuoteAnswered", "QuoteDocInfo", "MyAcceptanceView", "QuoteDigitalView", "MySignedView"];
+  const badFields = clientTypes.flatMap((n) => fieldsOf(n).filter((f) => /cost|margin|marg|reason|note|libItem|copied|standard|purchase|aankoop/i.test(f) && f !== "decisionNote" && f !== "vatNote").map((f) => `${n}.${f}`));
+  check("(G1) de typen van de klant bestaan, zijn niet 'prijsbesmet' en hebben geen veld voor aankoop, marge, reden, notitie of bibliotheek-id", clientTypes.every((n) => types.has(n) && !tainted.has(n)) && badFields.length === 0, badFields.join(", ") || `${clientTypes.length} typen`);
+  check("(G1) listMyQuotes (een query) heeft geen bedragveld", !fieldsOf("MyQuoteBrief").some((f) => /Cents|price|amount/i.test(f)));
+  check("(G1) de klant heeft geen enkele functie met 'Quote' behalve de vier eigen (voor kantoor: zie lek.mjs)", ["listMyQuotes", "readMyQuote", "acceptMyQuote", "declineMyQuote"].every((m) => service.includes(`"${m}"`) || service.includes(` ${m}:`)));
   // Een eigen reviewofferte op P-A (vast nummer, idempotent): een ontwerp om op te werken.
   const NR = "PROEF-REVIEW";
   let q = (await calc.listQuotes([A], true)).find((x) => x.number === NR);

@@ -61,6 +61,7 @@ export function Instellingen() {
       )}
       <QuoteNumbers />
       <QuoteRulesAdmin />
+      <QuoteDocsAdmin />
       <CompanyCalendar />
       <Templates />
       <DocKinds />
@@ -216,6 +217,69 @@ function StdPostSheet({ value, isNew, busy, onSave, onClose }: { value: QuoteStd
         {!isNew && <label className="a-check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} /> {R.stdArchived}</label>}
       </div>
     </Sheet>
+  );
+}
+
+/** 2.7: afzender, betaaltermijn en de algemene voorwaarden (met versies) die op de PDF van elke offerte komen. */
+function QuoteDocsAdmin() {
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const D = t.docsAdmin;
+  const q = useQuery({ queryKey: ["quoteDocSettings"], queryFn: () => actor!.getQuoteDocSettings(), enabled: !!actor && !isFetching });
+  const [issuer, setIssuer] = useState("");
+  const [days, setDays] = useState("30");
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
+  const [note, setNote] = useState("");
+  const [prov, setProv] = useState(true);
+  useEffect(() => {
+    if (!q.data) return;
+    setIssuer(q.data.issuer);
+    setDays(String(q.data.paymentDays));
+    setTitle((x) => x || q.data!.current.title);
+    setText((x) => x || q.data!.current.text);
+    setProv(q.data.current.provisional);
+  }, [q.data]);
+  const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
+  const saveBase = useMutation({
+    mutationFn: async () => unwrap(await actor!.setQuoteDocSettings({ issuer, paymentDays: BigInt(days || "0") })),
+    onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries({ queryKey: ["quoteDocSettings"] }); },
+    onError: fail,
+  });
+  const addTerms = useMutation({
+    mutationFn: async () => unwrap(await actor!.addQuoteTerms({ title, text, provisional: prov, note })),
+    onSuccess: (v) => { toast.show({ kind: "ok", text: D.termsAdded(Number(v)) }); setNote(""); void qc.invalidateQueries({ queryKey: ["quoteDocSettings"] }); },
+    onError: fail,
+  });
+  return (
+    <section className="a-section a-form" style={{ maxWidth: 760 }} data-testid="quote-docs-admin">
+      <h2 className="bw-h2">{D.title}</h2>
+      <p className="bw-muted">{D.lead}</p>
+      <Loading q={q} />
+      {q.data && (
+        <>
+          <Field label={D.issuer}><textarea className="bw-input" rows={4} maxLength={1000} value={issuer} onChange={(e) => setIssuer(e.target.value)} /></Field>
+          <p className="bw-muted q-small">{D.issuerHelp}</p>
+          <Field label={D.payment}><input className="bw-input bw-num" style={{ maxWidth: 120 }} inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} /></Field>
+          <div><Button variant="primary" busy={saveBase.isPending} onClick={() => saveBase.mutate()}>{D.save}</Button></div>
+          <h3 className="bw-h2">{D.termsTitle}</h3>
+          <p className="bw-muted">{D.termsCurrent(Number(q.data.current.version), q.data.current.provisional)}</p>
+          {q.data.current.provisional && <p className="a-tag a-tag--warn" style={{ whiteSpace: "normal" }}>{D.termsProvisionalWarn}</p>}
+          <Field label={D.termsTitleField}><input className="bw-input" maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
+          <Field label={D.termsText}><textarea className="bw-input" rows={12} maxLength={30000} value={text} onChange={(e) => setText(e.target.value)} data-testid="terms-text" /></Field>
+          <Field label={D.termsNote}><input className="bw-input" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+          <label className="a-check"><input type="checkbox" checked={prov} onChange={(e) => setProv(e.target.checked)} /> {D.termsProvisional}</label>
+          <div><Button variant="primary" busy={addTerms.isPending} disabled={text.trim().length < 20 || !title.trim()} onClick={() => addTerms.mutate()}>{D.termsAdd}</Button></div>
+          {q.data.terms.length > 0 && (
+            <>
+              <span className="bw-label">{D.termsHistory}</span>
+              <ul className="a-list">{q.data.terms.map((x) => <li key={String(x.id)}><span className="a-list__main"><b>v{String(x.version)} · {x.title}</b><span className="bw-muted">{fmtTime(x.createdAt)} · {x.byName}{x.provisional ? " · voorlopig" : ""}{x.note ? ` · ${x.note}` : ""}</span></span></li>)}</ul>
+            </>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

@@ -148,6 +148,7 @@ check("auditlog: 'bekeek:offerteprijzen' (calculator) en 'bekeek:offerte' (werfl
 check("auditlog: gemaakt, bewaard, verstuurd, nieuwe versie, aanvaard; nooit een bedrag", ["offerte-gemaakt", "offerte-bewaard", "offerte-verstuurd", "offerte-nieuwe-versie", "offerte-aanvaard"].every((a) => log.some((e) => e.action === a)) && !mine.some((e) => /\b(4500|1800|5625|70313|90000)\b|€/.test(e.detail)));
 
 // ── Opruimen ────────────────────────────────────────────────────────
-check("proefofferte gearchiveerd (met reden)", isOk(await calc.setQuoteArchived(quoteId, true, "draftproef 2.4")) && !(await calc.listQuotes([A.id], false)).some((q) => q.id === quoteId));
+// Sinds 2.7 kan een offerte met een aanvaarde versie niet meer gearchiveerd worden (de proefofferte blijft dus staan).
+check("een offerte met een aanvaarde versie archiveren: geweigerd (2.7)", /aanvaarde versie/.test(errOf(await calc.setQuoteArchived(quoteId, true, "draftproef 2.4"))));
 console.log(`\n${pass} ✓  ${fail} ✗`);
 process.exit(fail ? 1 : 0);

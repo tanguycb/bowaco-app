@@ -48,6 +48,10 @@ function OrgSheet({ org, caps, onClose }: { org: OrgView | null; caps: Caps; onC
     vat: org?.vat ?? "",
     aliases: org?.aliases.join(", ") ?? "",
     notes: org?.notes ?? "",
+    street: org?.address?.street ?? "",
+    number: org?.address?.number ?? "",
+    zip: org?.address?.zip ?? "",
+    city: org?.address?.city ?? "",
   });
   const input = () => ({
     kind: f.kind,
@@ -56,7 +60,8 @@ function OrgSheet({ org, caps, onClose }: { org: OrgView | null; caps: Caps; onC
     vat: optText(f.vat),
     aliases: f.aliases.split(",").map((a) => a.trim()).filter(Boolean),
     trades: org?.trades ?? [],
-    address: org?.address,
+    // 2.6: het adres van de firma (een klant zonder volledig adres houdt het versturen van een offerte tegen)
+    address: [f.street, f.number, f.zip, f.city].some((x) => x.trim()) ? { street: f.street.trim(), number: f.number.trim(), zip: f.zip.trim(), city: f.city.trim(), country: org?.address?.country || "BE" } : undefined,
     notes: f.notes,
   });
   const save = useMutation({
@@ -73,6 +78,14 @@ function OrgSheet({ org, caps, onClose }: { org: OrgView | null; caps: Caps; onC
           <Field label={t.orgs.kbo}><input className="bw-input bw-mono" value={f.kbo} onChange={set("kbo")} placeholder="0123.456.789" /></Field>
           <Field label={t.orgs.vat}><input className="bw-input bw-mono" value={f.vat} onChange={set("vat")} /></Field>
         </div>
+        <Field label={t.orgs.address}>
+          <div className="a-grid2">
+            <input className="bw-input" aria-label={t.orgs.street} placeholder={t.orgs.street} value={f.street} onChange={set("street")} maxLength={80} />
+            <input className="bw-input" aria-label={t.orgs.number} placeholder={t.orgs.number} value={f.number} onChange={set("number")} maxLength={20} />
+            <input className="bw-input bw-mono" aria-label={t.orgs.zip} placeholder={t.orgs.zip} value={f.zip} onChange={set("zip")} maxLength={12} />
+            <input className="bw-input" aria-label={t.orgs.city} placeholder={t.orgs.city} value={f.city} onChange={set("city")} maxLength={60} />
+          </div>
+        </Field>
         <Field label={t.orgs.aliases}><input className="bw-input bw-mono" value={f.aliases} onChange={set("aliases")} placeholder="KEVIN, KDS" /></Field>
         <Field label={t.orgs.notes}><textarea className="bw-input" value={f.notes} onChange={set("notes")} maxLength={1000} /></Field>
         {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}

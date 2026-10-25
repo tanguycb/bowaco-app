@@ -5,12 +5,14 @@
 // geheugen van deze pagina (R23). Een verzonden of aanvaarde versie is alleen-lezen; verder werken = nieuwe versie.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ContractForm, OrgKind, QuoteLineKind, QuoteScope, QuoteStatus, type Caps, type LibChapterView, type LibItemView, type LibSellRule, type OrgView, type QuoteChapterRef, type QuoteRead, type QuoteSummary, type UnitView } from "../backend";
+import { ExternalBlob, ContractForm, OrgKind, QuoteLineKind, QuoteScope, QuoteStatus, type Caps, type LibChapterView, type LibItemView, type LibSellRule, type OrgView, type QuoteChapterRef, type QuoteRead, type QuoteSummary, type UnitView } from "../backend";
 import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { calcLine, type Kind, type Rule } from "../quote/calc.ts";
 import * as M from "../quote/model.ts";
 import { addressOk, blocks, evaluate, warnings, type Finding, type RuleSet, type StdPost } from "../quote/rules.ts";
 import { runSelfTest } from "../quote/selftest.ts";
+import { makePdf, pdfFromRead, pdfName } from "../pdf/adapt.ts";
+import { blobUrlOf } from "../offline/cached";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
 import { Loading, Page, useWorks } from "./common";
@@ -233,7 +235,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const [, bump] = useReducer((x: number) => x + 1, 0);
   const [saving, setSaving] = useState(false);
   const [serverOk, setServerOk] = useState<boolean | null>(null);
-  const [sheet, setSheet] = useState<null | { kind: "line"; key: string } | { kind: "lib"; chapter: string } | { kind: "libChapters" } | { kind: "send" } | { kind: "decide"; accepted: boolean } | { kind: "archive" } | { kind: "header" }>(null);
+  const [sheet, setSheet] = useState<null | { kind: "line"; key: string } | { kind: "lib"; chapter: string } | { kind: "libChapters" } | { kind: "send" } | { kind: "decide"; accepted: boolean } | { kind: "signed" } | { kind: "archive" } | { kind: "header" }>(null);
   // De vorige versie, één keer gelezen; het verschil zelf rekent bij elke wijziging opnieuw (Chrome-test C3).
   const [prev, setPrev] = useState<M.Model | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -334,6 +336,10 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const rulesQ = useQuery({ queryKey: ["quoteRules"], queryFn: () => actor!.getQuoteRules(), enabled: on && caps.editQuotes });
   const libUnits = useQuery({ queryKey: ["libUnits", false], queryFn: () => actor!.libraryUnits(false), enabled: on && caps.readLibrary });
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
+  // Het getekende bewijs (een opgeladen PDF van de werf) openen.
+  const signedFileId = read?.doc?.acceptance?.signed?.fileId;
+  const wfiles = useQuery({ queryKey: ["workFiles", String(read?.quote.workId)], queryFn: () => actor!.listFiles(read!.quote.workId), enabled: on && signedFileId !== undefined && caps.quotePrices });
+  const signedUrl = signedFileId === undefined ? undefined : blobUrlOf(wfiles.data?.find((f) => f.id === signedFileId)?.blob);
 
   if (error) return <Page label={O.label} title={O.title}><p className="a-err" role="alert">{errText(error)}</p><div><Button icon="back" onClick={() => go("offertes")}>{t.common.back}</Button></div></Page>;
   if (!read || versionId === undefined) return <Page label={O.label} title={O.title}><p className="bw-muted">{t.common.loading}</p></Page>;
@@ -401,10 +407,22 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
         {scope === QuoteScope.full && caps.editQuotes && !read.quote.archived && !read.quote.versions.some((x) => x.status === QuoteStatus.draft) && <Button icon="plus" onClick={() => void newVersion()}>{O.newVersion}</Button>}
         {editable && <Button icon="share" disabled={pending > 0} onClick={() => setSheet({ kind: "send" })}>{O.send}</Button>}
         {scope === QuoteScope.full && caps.editQuotes && v.status === QuoteStatus.sent && <><Button onClick={() => setSheet({ kind: "decide", accepted: true })}>{O.accept}</Button><Button variant="quiet" onClick={() => setSheet({ kind: "decide", accepted: false })}>{O.reject}</Button></>}
+        {scope === QuoteScope.full && read.doc && <Button icon="doc" disabled={pending > 0} onClick={() => void openPdf()}>{read.doc.info.frozen ? O.pdf : O.pdfPreview}</Button>}
+        {scope === QuoteScope.full && caps.editQuotes && v.status === QuoteStatus.sent && read.doc?.info.frozen && caps.readConfidentialContact && <Button variant="quiet" icon="share" title={O.mailClientHelp} onClick={() => void mailClient()}>{O.mailClient}</Button>}
+        {scope === QuoteScope.full && caps.editQuotes && (v.status === QuoteStatus.sent || v.status === QuoteStatus.accepted) && read.doc?.info.frozen && !read.doc.acceptance?.signed && <Button variant="quiet" onClick={() => setSheet({ kind: "signed" })}>{O.signed}</Button>}
         {scope === QuoteScope.full && prevId !== undefined && !diff && <Button variant="quiet" onClick={() => void showDiff()}>{O.diff(O.version(v.basedOnVersion!))}</Button>}
       </div>
 
       {!v.editable && <p className="a-note">{O.readOnly(statusWord(v.status))} {v.hash && <><span className="bw-mono">{O.hash} {v.hash.slice(0, 16)}…</span> · {v.intact ? O.intact : <b className="a-err">{O.notIntact}</b>}</>} {v.decisionNote && <>· {v.decisionNote}</>}</p>}
+      {read.doc?.acceptance && (
+        <p className="a-note" data-testid="acceptance">
+          <b>{O.acceptance}.</b>{" "}
+          {read.doc.acceptance.digital && <>{O.acceptedDigital(read.doc.acceptance.digital.byName, fmtTime(read.doc.acceptance.digital.at))} </>}
+          {read.doc.acceptance.signed && <>{O.acceptedSigned(read.doc.acceptance.signed.byName, fmtTime(read.doc.acceptance.signed.at))} {signedUrl && <a className="wb-link" href={signedUrl} target="_blank" rel="noreferrer">{O.signedOpen}</a>} </>}
+          {O.acceptedLocked}
+        </p>
+      )}
+      {read.doc?.mailed !== undefined && <p className="bw-muted q-small" data-testid="mailed">{O.mailed(fmtTime(read.doc.mailed))}</p>}
       {read.check && (
         <p className="a-note" data-testid="check-done">
           {O.checkDoneLead(read.check.byName, fmtTime(read.check.at))} {read.check.warned.map((w) => `${w.name}${w.count > 1n ? ` (${w.count})` : ""}`).join(", ")}. <b>{O.checkDoneReason}</b> {read.check.reason}
@@ -504,6 +522,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       {sheet?.kind === "libChapters" && model && <LibChapters m={model} edit={edit} onClose={() => setSheet(null)} />}
       {sheet?.kind === "header" && model && <HeaderSheet m={model} orgs={orgs.data ?? []} workVatBp={v.workVatBp} edit={edit} onClose={() => setSheet(null)} />}
       {sheet?.kind === "send" && model && totals && <SendSheet total={totals.total} findings={findings} loaded={!!ruleSet} onSend={async (reason) => { await send(reason); }} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "signed" && <SignedSheet workId={read.quote.workId} onDone={async (fileId, note) => { await registerSigned(fileId, note); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "decide" && <DecideSheet accepted={sheet.accepted} onDone={async (note) => { await decide(sheet.accepted, note); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "archive" && <ArchiveSheet onDone={async (reason) => { await archive(reason); }} onClose={() => setSheet(null)} />}
     </Page>
@@ -514,6 +533,41 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       const id = unwrap(await actor!.newQuoteVersion(quoteId, v.id));
       void qc.invalidateQueries({ queryKey: ["quotes"] });
       go(`offertes/${quoteId}/${id}`);
+    } catch (e) {
+      toast.show({ kind: "error", text: errText(e) });
+    }
+  }
+  async function openPdf() {
+    const d = pdfFromRead(read!);
+    if (!d) return;
+    try {
+      const blob = await makePdf(d);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = pdfName(d);
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      toast.show({ kind: "error", text: errText(e) });
+    }
+  }
+  async function mailClient() {
+    try {
+      unwrap(await actor!.mailQuoteToClient(v.id));
+      toast.show({ kind: "ok", text: O.mailedDone });
+      await load();
+    } catch (e) {
+      toast.show({ kind: "error", text: errText(e) });
+    }
+  }
+  async function registerSigned(fileId: bigint, note: string) {
+    try {
+      unwrap(await actor!.registerSignedQuote(v.id, fileId, note));
+      toast.show({ kind: "ok", text: O.signedDone });
+      setSheet(null);
+      void qc.invalidateQueries({ queryKey: ["quotes"] });
+      await load();
     } catch (e) {
       toast.show({ kind: "error", text: errText(e) });
     }
@@ -1021,3 +1075,40 @@ function ArchiveSheet({ onDone, onClose }: { onDone: (reason: string) => Promise
   );
 }
 
+
+function SignedSheet({ workId, onDone, onClose }: { workId: bigint; onDone: (fileId: bigint, note: string) => Promise<void>; onClose: () => void }) {
+  const { actor } = useBackend();
+  const toast = useToast();
+  const [note, setNote] = useState("");
+  const [progress, setProgress] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const upload = async (file: File) => {
+    setBusy(true);
+    try {
+      if (file.type !== "application/pdf") throw new Error(O.signedFile + ": PDF");
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      setProgress(0);
+      const blob = ExternalBlob.fromBytes(bytes, file.type, file.name).withUploadProgress(setProgress);
+      const fileId = unwrap(await actor!.addFile(file.name, file.type, BigInt(bytes.length), blob, workId, false));
+      await onDone(fileId, note.trim());
+    } catch (e) {
+      toast.show({ kind: "error", text: errText(e) });
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
+  };
+  return (
+    <Sheet title={O.signedTitle} open onClose={onClose} side>
+      <div className="a-form">
+        <p>{O.signedLead}</p>
+        <label className="bw-field"><span className="bw-label">{O.signedNote}</span><input className="bw-input" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} /></label>
+        <label className="bw-btn bw-btn--secondary" style={{ position: "relative" }}>
+          <Icon name="doc" size={20} />
+          {busy ? t.werven.uploading(progress ?? 0) : O.signedFile}
+          <input type="file" accept="application/pdf" disabled={busy} data-testid="signed-file" style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
+        </label>
+      </div>
+    </Sheet>
+  );
+}

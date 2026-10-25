@@ -34,6 +34,7 @@ import { PostbodePage } from "../screens/Postbode";
 import { WadmPage } from "../screens/Werfadministratie";
 import { Posten } from "../screens/Posten";
 import { OffertesPage } from "../screens/Offertes";
+import { MijnOffertePage } from "../screens/MijnOfferte";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -177,6 +178,8 @@ function navFor(caps: Caps): NavItem[] {
   if (caps.readOrgPlanning && caps.home !== "overzicht") items.push({ key: "dashboard", label: t.nav.dashboard, icon: "grid" });
   if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
   // 2.4: de offertes (interne rollen; de werfleider ziet hoeveelheden en hoofdstuktotalen). De calculator heeft ze als start.
+  // 2.7: de klant leest zijn verzonden offerte(s) en geeft akkoord.
+  if (caps.myQuotes) items.push({ key: "mijn-offerte", label: t.nav.mijnOfferte, icon: "euro" });
   if (caps.quotes && caps.home !== "offertes") items.push({ key: "offertes", label: t.nav.offertes, icon: "euro" });
   // 2.2: de postenbibliotheek (interne rollen lezen zonder prijzen; beheerder en calculator bewerken en zien de prijzen).
   if (caps.readLibrary) items.push({ key: "posten", label: t.nav.posten, icon: "doc" });
@@ -227,6 +230,9 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "verslag":
         if (route[1] && route[2] && /^\d+$/.test(route[1]) && /^\d+$/.test(route[2])) return <Werfverslag key={`${route[1]}-${route[2]}`} workId={BigInt(route[1])} day={BigInt(route[2])} go={go} />;
         return <Vandaag go={go} caps={caps} />;
+      case "mijn-offerte":
+        if (caps.myQuotes) return <MijnOffertePage go={go} route={route} />;
+        return null;
       case "offertes":
         if (caps.quotes) return <OffertesPage caps={caps} go={go} route={route} />;
         return <Home kind={page} go={go} caps={caps} />;

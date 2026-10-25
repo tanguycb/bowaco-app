@@ -70,6 +70,8 @@ type AccessState__192760844 =
     persons : Map__230067015<PersonId__1007515609, Person__943967885>;
     throttle : Throttle__757556494
   };
+type Address__283196853 =
+  {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__294896158 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__766490103 =
@@ -380,6 +382,7 @@ type Day__1060919207 = Nat;
 type Day__162369424 = Nat;
 type Day__315760598 = Nat;
 type Day__432051804 = Nat;
+type Day__543083322 = Nat;
 type Day__672613163 = Nat;
 type Day__728056481 = Nat;
 type Day__786034210 = Nat;
@@ -512,6 +515,7 @@ type Extra__492312138 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
 type Extra__550678138 = [(Text, Text)];
 type Extra__594079308 = [(Text, Text)];
+type Extra__646433706 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
 type Extra__911541576 = [(Text, Text)];
 type Extra__931464864 = [(Text, Text)];
@@ -1183,6 +1187,7 @@ type NewActor__1057791986 =
   };
 type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
+type NewActor__266440787 = {quoteDocs : QuoteDocsState__789711068};
 type NewActor__2917504 = {plan : PlanState__393161007};
 type NewActor__305373795 = {quoteChecks : QuoteChecksState__658482826};
 type NewActor__369284664 = {quotes : QuotesState__146412283};
@@ -1233,6 +1238,7 @@ type OldActor__376205032 = {};
 type OldActor__381654595 = {};
 type OldActor__415128861 = {};
 type OldActor__430767433 = {};
+type OldActor__485181031 = {};
 type OldActor__574962007 = {};
 type OldActor__669130419 = {};
 type OldActor__804964816 = {};
@@ -1527,6 +1533,7 @@ type PersonId__184143711 = Nat;
 type PersonId__185004052 = Nat;
 type PersonId__199562452 = Nat;
 type PersonId__253911295 = Nat;
+type PersonId__321680111 = Nat;
 type PersonId__363464289 = Nat;
 type PersonId__518727946 = Nat;
 type PersonId__580701172 = Nat;
@@ -1640,6 +1647,22 @@ type Proposal__703224334 =
     ticketId : ?Nat;
     workId : ?WorkId__111716167
   };
+type QuoteAcceptance__128591277 =
+  {
+    digital : ?QuoteDigitalAccept__482025900;
+    extra : Extra__945213800;
+    hash : Text;
+    signed : ?QuoteSignedProof__875623572;
+    versionId : Nat
+  };
+type QuoteAcceptance__375919105 =
+  {
+    digital : ?QuoteDigitalAccept__1012394441;
+    extra : Extra__646433706;
+    hash : Text;
+    signed : ?QuoteSignedProof__756053897;
+    versionId : Nat
+  };
 type QuoteChapter__897183860 =
   {
     archivedAt : ?Int;
@@ -1688,6 +1711,16 @@ type QuoteDecision__676329625 =
   {at : Int; by : PersonId__967516914; note : Text};
 type QuoteDecision__974893464 =
   {at : Int; by : PersonId__940766018; note : Text};
+type QuoteDigitalAccept__1012394441 =
+  {at : Int; personId : PersonId__321680111; principal : Principal};
+type QuoteDigitalAccept__482025900 =
+  {at : Int; personId : PersonId__967516914; principal : Principal};
+type QuoteDocsState__789711068 =
+  {
+    acceptances : Map__230067015<Nat, QuoteAcceptance__375919105>;
+    sendInfo : Map__230067015<Nat, QuoteSendInfo__228518190>;
+    terms : Map__230067015<Nat, QuoteTerms__841728569>
+  };
 type QuoteLineKind__221158815 = {#item; #option; #text};
 type QuoteLineKind__843657187 = {#item; #option; #text};
 type QuoteLinePrice__572862535 =
@@ -1772,6 +1805,46 @@ type QuoteRuleCfg__484667344 =
     updatedAt : Int;
     updatedBy : PersonId__580701172
   };
+type QuoteSendInfo__181897819 =
+  {
+    clientAddress : ?Address__766490103;
+    clientName : Text;
+    clientVat : ?Text;
+    extra : Extra__945213800;
+    issuer : Text;
+    paymentDays : Nat;
+    termsId : Nat;
+    termsProvisional : Bool;
+    termsText : Text;
+    termsTitle : Text;
+    termsVersion : Nat;
+    validUntil : Day__162369424;
+    vatNote : Text;
+    versionId : Nat;
+    workAddress : Address__766490103;
+    workCode : Text;
+    workName : Text
+  };
+type QuoteSendInfo__228518190 =
+  {
+    clientAddress : ?Address__283196853;
+    clientName : Text;
+    clientVat : ?Text;
+    extra : Extra__646433706;
+    issuer : Text;
+    paymentDays : Nat;
+    termsId : Nat;
+    termsProvisional : Bool;
+    termsText : Text;
+    termsTitle : Text;
+    termsVersion : Nat;
+    validUntil : Day__543083322;
+    vatNote : Text;
+    versionId : Nat;
+    workAddress : Address__283196853;
+    workCode : Text;
+    workName : Text
+  };
 type QuoteSent__477543433 =
   {
     at : Int;
@@ -1796,6 +1869,10 @@ type QuoteSent__872611560 =
   };
 type QuoteSeverity__1072643528 = {#block; #warn};
 type QuoteSeverity__421928908 = {#block; #warn};
+type QuoteSignedProof__756053897 =
+  {at : Int; by : PersonId__321680111; fileId : Nat; note : Text};
+type QuoteSignedProof__875623572 =
+  {at : Int; by : PersonId__967516914; fileId : Nat; note : Text};
 type QuoteStatus__578374387 =
   {#accepted; #draft; #rejected; #sent; #superseded; #withdrawn};
 type QuoteStatus__927008008 =
@@ -1823,6 +1900,32 @@ type QuoteStdPost__585345230 =
     severity : QuoteSeverity__1072643528;
     updatedAt : Int;
     updatedBy : PersonId__967516914
+  };
+type QuoteTerms__209992644 =
+  {
+    archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    id : Nat;
+    note : Text;
+    provisional : Bool;
+    text : Text;
+    title : Text;
+    version : Nat
+  };
+type QuoteTerms__841728569 =
+  {
+    archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__321680111;
+    extra : Extra__646433706;
+    id : Nat;
+    note : Text;
+    provisional : Bool;
+    text : Text;
+    title : Text;
+    version : Nat
   };
 type QuoteVersionConf__455210991 =
   {
@@ -2505,7 +2608,8 @@ type WorksState__605582232 =
   "20261024_230000" : OldActor__804964816 -> NewActor__984285705;
   "20261024_235500" : OldActor__376205032 -> NewActor__410098017;
   "20261025_090000" : OldActor__233879672 -> NewActor__369284664;
-  "20261025_130000" : OldActor__1063236522 -> NewActor__305373795
+  "20261025_130000" : OldActor__1063236522 -> NewActor__305373795;
+  "20261025_170000" : OldActor__485181031 -> NewActor__266440787
 }
 actor  {
   stable access :
@@ -2605,6 +2709,12 @@ actor  {
       done : Map__230067015<Nat, QuoteCheckDone__849522676>;
       rules : Map__230067015<Text, QuoteRuleCfg__1042695852>;
       stdPosts : Map__230067015<Text, QuoteStdPost__585345230>
+    };
+  stable quoteDocs :
+    {
+      acceptances : Map__230067015<Nat, QuoteAcceptance__128591277>;
+      sendInfo : Map__230067015<Nat, QuoteSendInfo__181897819>;
+      terms : Map__230067015<Nat, QuoteTerms__209992644>
     };
   stable quotes :
     {

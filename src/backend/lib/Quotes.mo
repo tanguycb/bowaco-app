@@ -299,15 +299,29 @@ module {
   func fi(i : Int) : Text { f(Int.toText(i)) };
   func fo(i : ?Int) : Text { switch i { case (?x) fi(x); case null f("-") } };
 
-  public func canonical(q : Types.Quote, v : Types.QuoteVersion, c : Computed) : Text {
-    var out = "bowaco-offerte-v1;" # f(q.number) # fi(v.version) # fi(v.vatBp) # fo(switch (v.clientOrgId) { case (?o) ?o; case null null }) # fi(v.calcVersion) # f(v.title) # fi(v.validDays) # f(v.intro);
+  // Zonder `info` (versies verstuurd vóór 2.7) het oude schema "v1"; met `info` (2.7) "v2": dan dekt de hash ook de afzender, de
+  // klant, de werf, de btw-grond, de betaaltermijn, de geldigheid en de tekst van de voorwaarden zoals de klant ze kreeg.
+  public func canonical(q : Types.Quote, v : Types.QuoteVersion, c : Computed, info : ?Types.QuoteSendInfo) : Text {
+    var out = (switch info { case null "bowaco-offerte-v1;"; case (?_) "bowaco-offerte-v2;" }) # f(q.number) # fi(v.version) # fi(v.vatBp) # fo(switch (v.clientOrgId) { case (?o) ?o; case null null }) # fi(v.calcVersion) # f(v.title) # fi(v.validDays) # f(v.intro);
     for (ch in c.chapters.values()) { out #= "H;" # fi(ch.id) # f(ch.code) # f(ch.title) };
     for ((i, l) in c.lines.enumerate()) {
       let o = QuoteCalc.line(calcLine(l, c.prices[i]), c.std);
       out #= "L;" # fi(l.chapterId) # f(kindText(l.kind)) # f(l.code) # f(l.title) # f(l.text) # f(l.specRef) # fi(l.qtyMilli) # f(l.unit) # f(Library.formKey(l.form)) # fo(o.unitSell) # fi(o.lineSell);
     };
     let t = c.totals;
-    out # "T;" # fi(t.subtotal) # fi(t.vat) # fi(t.total) # fi(t.optionsPlus) # fi(t.optionsMinus);
+    out #= "T;" # fi(t.subtotal) # fi(t.vat) # fi(t.total) # fi(t.optionsPlus) # fi(t.optionsMinus);
+    switch info { case (?i) { out # canonicalInfo(i) }; case null out };
+  };
+
+  func fa(a : ?Types.Address) : Text {
+    switch a { case (?x) f(x.street) # f(x.number) # f(x.zip) # f(x.city) # f(x.country); case null f("-") };
+  };
+  func fs(t : ?Text) : Text { switch t { case (?x) f(x); case null f("-") } };
+
+  // De vastgelegde velden van het versturen (2.7), elk met zijn lengte ervoor.
+  func canonicalInfo(i : Types.QuoteSendInfo) : Text {
+    "I;" # f(i.issuer) # f(i.clientName) # fa(i.clientAddress) # fs(i.clientVat) # f(i.workCode) # f(i.workName) # fa(?i.workAddress) # f(i.vatNote)
+    # fi(i.paymentDays) # fi(i.validUntil) # fi(i.termsVersion) # f(i.termsTitle) # f(i.termsText) # f(if (i.termsProvisional) "voorlopig" else "vast");
   };
 
   public func hash(text : Text) : Text { Codes.hex(Sha256.fromBlob(#sha256, text.encodeUtf8())) };

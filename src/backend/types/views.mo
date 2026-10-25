@@ -2,6 +2,7 @@
 // naam en komen alleen uit update-calls met een auditregel (R23).
 import Storage "mo:caffeineai-object-storage/Storage";
 import Types "../types";
+import DocViews "docviews";
 
 module {
   type PersonId = Types.PersonId;
@@ -58,6 +59,7 @@ module {
     quotes : Bool; // 2.4: offertes zien (interne rollen; de werfleider enkel hoeveelheden en hoofdstuktotalen, R21)
     editQuotes : Bool; // 2.4: offertes maken, bewerken, versturen (admin, calculator; R22)
     quotePrices : Bool; // 2.4: aankoopprijzen en marges in de offerte (admin, calculator; R20)
+    myQuotes : Bool; // 2.7: de klant: "Mijn offerte" (verzonden offertes van zijn werf, akkoord geven)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -830,6 +832,9 @@ module {
     quoteRules : [Types.QuoteRuleCfg]; // 2.6
     quoteStdPosts : [Types.QuoteStdPost];
     quoteChecks : [Types.QuoteCheckDone];
+    quoteTerms : [Types.QuoteTerms]; // 2.7
+    quoteSendInfos : [Types.QuoteSendInfo];
+    quoteAcceptances : [Types.QuoteAcceptance];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -910,6 +915,9 @@ module {
     #quoteRules : [Types.QuoteRuleCfg]; // 2.6 (intern)
     #quoteStdPosts : [Types.QuoteStdPost];
     #quoteChecks : [Types.QuoteCheckDone];
+    #quoteTerms : [Types.QuoteTerms]; // 2.7 (intern)
+    #quoteSendInfos : [Types.QuoteSendInfo];
+    #quoteAcceptances : [Types.QuoteAcceptance];
     #quotePrices : [Types.QuoteLinePrice]; // 2.4 (vertrouwelijk)
     #quoteVersionConf : [Types.QuoteVersionConf];
   };
@@ -1674,6 +1682,7 @@ module {
     margins : ?QuoteMarginTotals; // enkel #full
     check : ?QuoteCheckView; // enkel #full: waarschuwingen die bij het versturen doorgezet werden
     vatNote : Text; // enkel #full: de grond voor het btw-tarief op de werffiche (controleregel 2.6)
+    doc : ?DocViews.QuoteDocView; // enkel #full (2.7): de vastgelegde (of huidige) velden van de PDF, het akkoord en de mail
   };
   public type QuoteNew = { workId : WorkId; number : Text; title : Text };
   public type QuoteCreated = { quoteId : Nat; versionId : Nat; number : Text };

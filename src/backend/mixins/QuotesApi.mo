@@ -26,7 +26,9 @@ import Config "../lib/Config";
 import Ids "../lib/Ids";
 import Library "../lib/Library";
 import QuoteCalc "../lib/QuoteCalc";
+import QuoteDocs "../lib/QuoteDocs";
 import QuoteRules "../lib/QuoteRules";
+import DocViews "../types/docviews";
 import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
 
@@ -39,6 +41,7 @@ mixin (
   library : Types.LibraryState,
   quotes : Types.QuotesState,
   quoteChecks : Types.QuoteChecksState,
+  quoteDocs : Types.QuoteDocsState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -84,6 +87,7 @@ mixin (
       costs = if full Quotes.costLines(org, c) else [];
       margins = if full ?Quotes.marginTotals(c.totals, c.std, Quotes.noReason(c)) else null;
       check = if full qtCheckView(v.id) else null;
+      doc = if full qtDocView(q, v) else null;
       vatNote = if full (switch (dossier.info.get(q.workId)) { case (?i) i.vatNote; case null "" }) else "";
     });
   };
@@ -522,7 +526,11 @@ mixin (
     };
     if (expectTotalCents != c.totals.total) { return #err("Het totaal is intussen veranderd; laad opnieuw") };
     let now = Time.now();
-    let h = Quotes.hash(Quotes.canonical(q, v, c));
+    // 2.7: wat de klant te zien krijgt naast de inhoud (afzender, klant, werf, btw-grond, betaaltermijn, geldigheid, tekst van de
+    // voorwaarden) ligt mee vast en valt onder de hash.
+    let info = QuoteDocs.buildInfo(settings, org, works, dossier, quoteDocs, q, v, qtToday());
+    let h = Quotes.hash(Quotes.canonical(q, v, c, ?info));
+    quoteDocs.sendInfo.add(v.id, info);
     for (o in Quotes.versionsOf(quotes, q.id).values()) {
       if (o.id != v.id and o.status == #sent) { quotes.versions.add(o.id, { o with status = #superseded; updatedAt = now; updatedBy = p.id }) };
     };
@@ -563,6 +571,8 @@ mixin (
     let q = quotes.quotes.get(quoteId) ?? return #err("Onbekende offerte");
     Rights.require(ctx, p, #readQuotes, ?q.workId);
     if ((q.archivedAt != null) == archived) { return #ok };
+    // Een aanvaarde versie hoort bij een lopend of afgesloten contract (2.7): zo'n offerte wordt niet weggestopt.
+    if (archived and Quotes.versionsOf(quotes, quoteId).any(func v = v.status == #accepted)) { return #err("Deze offerte heeft een aanvaarde versie en kan niet gearchiveerd worden") };
     if (reason.size() > Config.maxText) { return #err("Reden te lang") };
     if (archived and reason.trim(#char ' ') == "") { return #err("Geef een reden (bv. klant haakte af, dubbel)") };
     let now = Time.now();
@@ -588,7 +598,22 @@ mixin (
 
   // Een verzonden versie: geeft de inhoud nog dezelfde hash? (Een ontwerp is altijd "intact".)
   func qtIntact(q : Types.Quote, v : Types.QuoteVersion, c : Quotes.Computed) : Bool {
-    switch (v.sent) { case (?s) Quotes.hash(Quotes.canonical(q, v, c)) == s.hash; case null true };
+    switch (v.sent) { case (?s) Quotes.hash(Quotes.canonical(q, v, c, quoteDocs.sendInfo.get(v.id))) == s.hash; case null true };
+  };
+
+  // 2.7: de velden van de PDF en het akkoord. Een verzonden versie toont wat bij het versturen vastgelegd werd; een ontwerp de
+  // huidige instellingen (voorbeeld). Een versie die vóór 2.7 verstuurd werd, heeft ze niet.
+  func qtDocView(q : Types.Quote, v : Types.QuoteVersion) : ?DocViews.QuoteDocView {
+    let acc = switch (quoteDocs.acceptances.get(v.id)) { case (?a) ?QuoteDocs.acceptanceView(access, a); case null null };
+    switch (quoteDocs.sendInfo.get(v.id)) {
+      case (?i) {
+        let mailed = switch (i.extra.find(func(x : (Text, Text)) : Bool = x.0 == "mailed")) { case (?(_, t)) Int.fromText(t); case null null };
+        ?{ info = QuoteDocs.infoView(i, true); acceptance = acc; mailed };
+      };
+      case null {
+        if (v.status == #draft) { ?{ info = QuoteDocs.infoView(QuoteDocs.buildInfo(settings, org, works, dossier, quoteDocs, q, v, qtToday()), false); acceptance = null; mailed = null } } else null;
+      };
+    };
   };
 
   // De controleregels (2.6) op de actuele inhoud van een versie.

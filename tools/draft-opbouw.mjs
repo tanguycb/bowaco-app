@@ -93,6 +93,8 @@ for (const [name, file] of [
   ["posten", "tests/posten-draft.mjs"],
   ["offerte", "tests/offerte-draft.mjs"],
   ["rekentest", "tests/rekentest.mjs"], // 2.5: browser = server (op een draft 25 willekeurige offertes)
+  ["regels", "tests/regels.mjs"], // 2.6: controleregels, browser = server
+  ["klant", "tests/klant-draft.mjs"], // 2.7: de klant, het akkoord, voorwaarden, getekend bewijs
   ["mail", "tests/mail-proef.mjs"],
 ]) rood += run(name, file) ? 1 : 0;
 // De import van de planning: enkel het GEANONIMISEERDE bestand (tools/plan-anonimiseer.mjs; de proef weigert een ander).
