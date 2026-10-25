@@ -251,6 +251,37 @@ check("(6) export: de starts (en de afwijzing) zitten in de back-up", "workStart
 check("(6) export door de werfleider: geweigerd", await denied(wl.exportChunk("workStarts", 0n, 1n)));
 check("(6) een niet-aanvaarde versie kan geen werf starten", await (async () => { const q = await mkQuote(`WS-${stamp}-E`, "Proef niet aanvaard (2.8)"); return /aanvaarde versie/.test(errOf(await wl.workStartPreview(q.versionId, base))); })());
 
+// ── (7) Digitaal akkoord van de klant (2.7) → werfstart: de checklist "getekende offerte" is ontvangen; btw 6 % zonder grond gemeld ──
+{
+  const klantId = (await klant.me()).person[0].id;
+  const mid = ok(await admin.addMembership(wid, [klantId], [], { klant: null }, []));
+  try {
+    const q5 = await mkQuote(`WS-${stamp}-F`, "Proef akkoord klant (2.8)");
+    await fill(q5.versionId, (m) => {
+      M.setHeader(m, { clientOrgId: familie });
+      const c = M.addChapter(m, { code: "01", title: "Dak" });
+      M.addLine(m, c.key, { title: iDak.title, qtyMilli: 3_000n, unit: "lm", form: "vh", price: price(4500n), ...fromLib(iDak) });
+    });
+    const r5 = ok(await calc.readQuoteVersion(q5.versionId));
+    ok(await calc.sendQuoteVersion(q5.versionId, r5.version.rev, r5.totals.totalCents, "proef: draftproef 2.8"));
+    const mine = ok(await klant.readMyQuote(q5.versionId));
+    check("(7) de klant geeft digitaal akkoord", isOk(await klant.acceptMyQuote(q5.versionId, mine.hash)));
+    check("(7) het voorstel: aanvaard met 'digitaal akkoord van de klant'", (await wl.pendingWorkStarts([wid])).some((x) => x.versionId === q5.versionId && /digitaal/.test(x.acceptedHow)));
+    const pv7 = ok(await wl.workStartPreview(q5.versionId, base));
+    ok(await wl.startWorkFromQuote(q5.versionId, base, pv7.planVersion));
+    const dos = await admin.getDossier(wid);
+    const doc = dos.documents.find((d) => d.kind === "contract");
+    check("(7) checklist: 'Aannemingsovereenkomst / getekende offerte' ontvangen, met het digitaal akkoord en de hash in de notitie", !!doc && "received" in doc.status && /digitaal akkoord/.test(doc.note) && /hash/.test(doc.note), flat(doc ?? null).slice(0, 200));
+  } finally {
+    await admin.endMembership(mid).catch(() => {});
+  }
+  const w6 = ok(await admin.createWork({ code: `${W}-G`, name: "Proefwerf btw 6 % (2.8)", address: addr, parentId: [], clientOrgId: [familie], architectOrgId: [], leaderPersonId: [wlId], vatBp: 600n }));
+  const q6 = await (async () => { const q = ok(await calc.createQuote({ workId: w6.id, number: `WS-${stamp}-G`, title: "Proef btw 6 % (2.8)" })); await fill(q.versionId, (m) => { M.setHeader(m, { clientOrgId: familie }); const c = M.addChapter(m, { code: "01", title: "Dak" }); M.addLine(m, c.key, { title: iDak.title, qtyMilli: 3_000n, unit: "lm", form: "vh", price: price(4500n), ...fromLib(iDak) }); }); await sendAccept(q.versionId); return q; })();
+  check("(7) werf op 6 % zonder grond: waarschuwing in het voorstel", ok(await wl.workStartPreview(q6.versionId, base)).warnings.some((x) => /6 % zonder grond/.test(x)));
+  ok(await wl.dismissWorkStart(q6.versionId, "proef: draftproef 2.8 opgeruimd"));
+  await admin.setWorkStatus(w6.id, { cancelled: null });
+}
+
 // ── Opruimen: de proefwerven op "geannuleerd" (archiveren van een werf bestaat niet) ──
 for (const id of [wid, nw?.id].filter(Boolean)) await admin.setWorkStatus(id, { cancelled: null });
 console.log(`\n${pass} ✓  ${fail} ✗`);

@@ -244,7 +244,7 @@ export function WerfStartPage({ versionId, caps, go }: { versionId: bigint; caps
         </div>
       </section>
 
-      {(p.skipped.length > 0 || p.changed.length > 0 || p.removed.length > 0) && (
+      {(p.skipped.length > 0 || p.changed.length > 0 || p.removed.length > 0 || p.lines.some((l) => l.option)) && (
         <section className="a-section">
           {p.skipped.length > 0 && <>
             <h2 className="bw-h2">{W.secSkipped}</h2>
@@ -260,9 +260,14 @@ export function WerfStartPage({ versionId, caps, go }: { versionId: bigint; caps
                   </li>
                 );
               })}
-              {input.options.filter((o) => !p.skipped.some((s) => s.lineId === o)).length > 0 && p.lines.filter((l) => l.option).map((l) => (
+            </ul>
+          </>}
+          {p.lines.some((l) => l.option) && <>
+            <h3 className="bw-h3">{W.secOptions}</h3>
+            <ul className="ws-notes">
+              {p.lines.filter((l) => l.option).map((l) => (
                 <li key={`o${l.lineId}`}>
-                  <span className="a-list__main"><span><span className="bw-mono">{l.code}</span> {l.title}</span><span className="bw-muted">{W.optionOk}</span></span>
+                  <span className="a-list__main"><span><span className="bw-mono">{l.code}</span> {l.title}</span><span className="bw-muted">{W.optionTask(p.groups.find((g) => g.key === l.group)?.title ?? "")}</span></span>
                   <label className="ws-check"><input type="checkbox" checked onChange={() => toggleOption(l.lineId, false)} /> {W.optionOk}</label>
                 </li>
               ))}
@@ -348,19 +353,20 @@ function MiniGantt({ p }: { p: WorkStartPreview }) {
   const origin = first - weekday(first);
   const endDay = last - weekday(last) + 6;
   const days = endDay - origin + 1;
-  const px = Math.max(4, Math.min(16, Math.floor((width - 224) / days)));
+  const label = width < 560 ? 130 : 220;
+  const px = Math.max(4, Math.min(16, Math.floor((width - label - 4) / days)));
   const weeks: number[] = [];
   for (let d = origin; d <= endDay; d += 7) weeks.push(d);
   const kindClass = (k: TaskKind) => (k === TaskKind.milestone ? " ws-bar--ms" : k === TaskKind.delivery ? " ws-bar--dl" : "");
   return (
     <div className="ws-gantt" aria-label={W.gantt} ref={box}>
-      <div className="ws-gantt__inner" style={{ width: 220 + days * px }}>
-        <div className="ws-gantt__head" style={{ marginLeft: 220 }}>
+      <div className="ws-gantt__inner" style={{ width: label + days * px }}>
+        <div className="ws-gantt__head" style={{ marginLeft: label }}>
           {weeks.map((m) => <span key={m} style={{ width: 7 * px }} className="bw-mono">{px >= 16 ? `wk ${isoWeek(m).week} · ${fmtDm(m)}` : px >= 8 ? `wk ${isoWeek(m).week}` : isoWeek(m).week}</span>)}
         </div>
         {rows.map((r) => (
           <div key={r.key} className="ws-gantt__row">
-            <span className="ws-gantt__label" title={r.title}>{r.title}</span>
+            <span className="ws-gantt__label" style={{ width: label }} title={r.title}>{r.title}</span>
             <span className="ws-gantt__track" style={{ width: days * px, backgroundSize: `${7 * px}px 100%` }}>
               <span className={`ws-bar${r.ghost ? " ws-bar--ghost" : ""}${kindClass(r.kind)}`} style={{ left: (r.start - origin) * px, width: r.kind === TaskKind.work ? Math.max(px, (r.end - r.start + 1) * px) : 12 }} title={`${r.title}: ${fmtShort(r.start)}${r.end !== r.start ? ` – ${fmtShort(r.end)}` : ""}`} />
             </span>

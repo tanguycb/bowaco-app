@@ -101,7 +101,7 @@ persistent actor Self {
   include QuoteDocsApi(settings, access, works, dossier, files, quotes, quoteDocs, post, audit, ctr);
   include QuoteClientApi(settings, access, org, works, quotes, quoteDocs, audit, ctr);
   // 2.8: een aanvaarde offerte → voorstel "Werf starten" (werf, taken uit de posten, vergunningsvoorstellen, 30bis).
-  include WorkStartApi(settings, access, org, works, dossier, plan, permits, wadm, library, quotes, quoteDocs, workStarts, audit, ctr);
+  include WorkStartApi(settings, access, org, works, dossier, files, plan, permits, wadm, library, quotes, quoteDocs, workStarts, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

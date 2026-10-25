@@ -410,7 +410,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
         {scope === QuoteScope.full && read.doc && <Button icon="doc" disabled={pending > 0} onClick={() => void openPdf()}>{read.doc.info.frozen ? O.pdf : O.pdfPreview}</Button>}
         {scope === QuoteScope.full && caps.editQuotes && v.status === QuoteStatus.sent && read.doc?.info.frozen && caps.readConfidentialContact && <Button variant="quiet" icon="share" title={O.mailClientHelp} onClick={() => void mailClient()}>{O.mailClient}</Button>}
         {scope === QuoteScope.full && caps.editQuotes && (v.status === QuoteStatus.sent || v.status === QuoteStatus.accepted) && read.doc?.info.frozen && !read.doc.acceptance?.signed && <Button variant="quiet" onClick={() => setSheet({ kind: "signed" })}>{O.signed}</Button>}
-        {caps.workStarts && v.status === QuoteStatus.accepted && <Button variant="primary" icon="building" onClick={() => go(`werfstart/${v.id}`)}>{t.werfstart.open}</Button>}
+        {caps.workStarts && v.status === QuoteStatus.accepted && <StartButton workId={read.quote.workId} versionId={v.id} go={go} />}
         {scope === QuoteScope.full && prevId !== undefined && !diff && <Button variant="quiet" onClick={() => void showDiff()}>{O.diff(O.version(v.basedOnVersion!))}</Button>}
       </div>
 
@@ -1112,4 +1112,13 @@ function SignedSheet({ workId, onDone, onClose }: { workId: bigint; onDone: (fil
       </div>
     </Sheet>
   );
+}
+
+/** 2.8: een aanvaarde versie → "Werf starten" (nog een voorstel) of "Werfstart bekijken" (al gestart of afgewezen). */
+function StartButton({ workId, versionId, go }: { workId: bigint; versionId: bigint; go: (to: string) => void }) {
+  const { actor, isFetching } = useBackend();
+  const q = useQuery({ queryKey: ["pendingWorkStarts", String(workId)], queryFn: () => actor!.pendingWorkStarts(workId), enabled: !!actor && !isFetching });
+  const open = (q.data ?? []).some((p) => p.versionId === versionId);
+  if (!q.data) return null;
+  return open ? <Button variant="primary" icon="building" onClick={() => go(`werfstart/${versionId}`)}>{t.werfstart.open}</Button> : <Button icon="building" onClick={() => go(`werfstart/${versionId}`)}>{t.werfstart.openDone}</Button>;
 }

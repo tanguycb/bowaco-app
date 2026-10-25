@@ -36,6 +36,7 @@ mixin (
   org : Types.OrgState,
   works : Types.WorksState,
   dossier : Types.DossierState,
+  files : Types.FileState,
   plan : Types.PlanState,
   permits : Types.PermitState,
   wadm : Types.WadmState,
@@ -397,6 +398,35 @@ mixin (
     // ── Contract (vertrouwelijk): aanneemsom uit de offerte(s) voor 30bis/Checkinatwork, getekende offerteversie ──
     wsContract(p.id, caller, workId, v, pr.amount);
 
+    // ── De checklist: "Aannemingsovereenkomst / getekende offerte" ontvangen bij een digitaal akkoord of een getekende PDF
+    //    (die laatste als bestand, als ze bij deze werf hoort). Een beslissing van kantoor zonder bewijs verandert niets. ──
+    switch (quoteDocs.acceptances.get(v.id)) {
+      case (?acc) {
+        let fileIds : [Nat] = switch (acc.signed) {
+          case (?s) { switch (files.files.get(s.fileId)) { case (?f) { if (f.workId == ?workId and f.archivedAt == null) [s.fileId] else [] }; case null [] } };
+          case null [];
+        };
+        let how = switch (acc.digital, acc.signed) { case (?d, _) "digitaal akkoord van de klant op " # Plan.fmtDay(Int.abs(d.at) / Int.abs(Config.day)); case (null, ?s) "getekende offerte geregistreerd op " # Plan.fmtDay(Int.abs(s.at) / Int.abs(Config.day)); case _ "" };
+        if (how != "") {
+          let existing = Dossier.docsOf(dossier, workId).find(func d = d.kind == "contract");
+          let title = "Offerte " # tag # " (aanvaard)";
+          let noteText = Text.fromIter((how # ", hash " # Text.fromIter(acc.hash.chars().take(12)) # " (werfstart)").chars().take(Config.maxNote));
+          switch existing {
+            case (?d) {
+              if (d.status != #received and d.status != #approved) {
+                dossier.documents.add(d.id, { d with status = #received; title; note = noteText; fileIds = d.fileIds.concat(fileIds); updatedAt = now; updatedBy = p.id });
+              };
+            };
+            case null {
+              let id = Ids.next(ctr, "document");
+              dossier.documents.add(id, { id; workId; kind = "contract"; title; fileIds; status = #received; dueDay = null; validUntil = null; note = noteText; ownerOrgId = null; confidential = true; createdAt = now; createdBy = p.id; updatedAt = now; updatedBy = p.id; archivedAt = null; extra = [("werfstart", v.id.toText())] });
+            };
+          };
+        };
+      };
+      case null {};
+    };
+
     // ── 30bis: de aangifte klaarzetten als ze nodig is (indienen doet een mens op het portaal) ──
     let decl : Text = if (not i.declaration) "niet gevraagd" else switch (pr.art30bis) {
       case (?true) {
@@ -503,6 +533,8 @@ mixin (
         if (w.clientOrgId != null and v.clientOrgId != null and w.clientOrgId != v.clientOrgId) { out := out.concat(["De klant van de offerte verschilt van die van de werf (de werf houdt haar klant)"]) };
         if (w.vatBp != v.vatBp) { out := out.concat(["Het btw-tarief van de offerte (" # (v.vatBp / 100).toText() # " %) verschilt van dat van de werf (" # (w.vatBp / 100).toText() # " %)"]) };
         if (w.status == #cancelled) { out := out.concat(["De werf staat op «geannuleerd»"]) };
+        let note = switch (dossier.info.get(w.id)) { case (?x) x.vatNote; case null "" };
+        if (w.vatBp == 600 and note.trim(#char ' ') == "") { out := out.concat(["Btw 6 % zonder grond bij de werf (werffiche: grond voor het btw-tarief)"]) };
       };
       case null {};
     };

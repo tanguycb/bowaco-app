@@ -181,6 +181,12 @@ function Contract({ w, works }: { w: WorkView; works: WorkView[] }) {
   useEffect(() => () => { setView(null); setHistory(null); }, [w.id]);
   const code = (id?: bigint) => works.find((x) => x.id === id)?.code ?? `#${id}`;
   const k = view?.contract;
+  // 2.8: welke offerteversie getekend is (nummer en versie uit de offertes van de werf; de werfstart zet ze).
+  const quotes = useQuery({ queryKey: ["quotes", String(w.id)], queryFn: () => actor!.listQuotes(w.id, true), enabled: !!actor && k?.signedQuoteVersionId !== undefined });
+  const signedLabel = (vid: bigint) => {
+    for (const q of quotes.data ?? []) { const v = q.versions.find((x) => x.id === vid); if (v) return `${q.number} v${v.version}`; }
+    return `#${vid}`;
+  };
   return (
     <section className="a-section a-confidential">
       <div className="a-row a-row--between">
@@ -202,6 +208,7 @@ function Contract({ w, works }: { w: WorkView; works: WorkView[] }) {
               <dt>{t.contract.guarantee}</dt><dd>{t.contract.guaranteeKinds[k.guarantee]}{k.guarantee !== GuaranteeKind.none ? ` · ${fmtBp(k.guaranteeBp)}` : ""}</dd>
               <dt>{t.contract.term}</dt><dd className="bw-num">{t.contract.days(String(k.paymentTermDays))}</dd>
               <dt>{t.contract.rhythm}</dt><dd>{k.invoicingRhythm.__kind__ === "other" ? k.invoicingRhythm.other : t.contract.rhythms[k.invoicingRhythm.__kind__]}</dd>
+              {k.signedQuoteVersionId !== undefined && <><dt>{t.werfstart.signedVersion}</dt><dd className="bw-mono">{signedLabel(k.signedQuoteVersionId)}</dd></>}
               {k.note && <><dt>{t.contract.note}</dt><dd>{k.note}</dd></>}
               {view.clientContact && view.clientContact.name && <><dt>{t.contract.contact}</dt><dd>{[view.clientContact.name, view.clientContact.phone, view.clientContact.email].filter(Boolean).join(" · ")}</dd></>}
               {view.notes && <><dt>{t.contract.notes}</dt><dd>{view.notes}</dd></>}
