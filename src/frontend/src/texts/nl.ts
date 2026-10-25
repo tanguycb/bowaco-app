@@ -1477,7 +1477,7 @@ export const nl = {
     diffNew: "nieuw",
     diffChanged: "gewijzigd",
     diffGone: (n: number) => `${n} ${n === 1 ? "lijn" : "lijnen"} uit de vorige versie weggelaten`,
-    auditNote: "Openen staat in de auditlog (bekeek: offerte). Prijzen blijven enkel in deze pagina.",
+    auditNote: "Openen staat in de auditlog (bekeek: offerteprijzen). Prijzen blijven enkel in deze pagina.",
     unsavedLeave: "Er zijn niet bewaarde wijzigingen.",
     seqTitle: "Offertenummers",
     seqLead: (y: number) => `Het laatste nummer dat in ${y} al gebruikt werd (ook in de offertes van vóór de app). De volgende offerte krijgt dit nummer + 1; een nummer dat al bestaat, slaat de app over.`,

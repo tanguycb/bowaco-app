@@ -181,6 +181,24 @@ function NewQuote({ workId, onClose, go }: { workId?: bigint; onClose: () => voi
   );
 }
 
+// Verschil met de vorige versie: nieuw of gewijzigd per lijn (via copiedFrom), en hoeveel lijnen van toen weggelaten zijn.
+function diffWith(model: M.Model, pm: M.Model, read: QuoteRead): { marks: Map<string, "new" | "changed">; gone: number } {
+  const old = new Map(pm.lines.map((l) => [String(l.id), l]));
+  const from = new Map(read.lines.map((l) => [String(l.id), l.copiedFrom]));
+  const marks = new Map<string, "new" | "changed">();
+  const used = new Set<string>();
+  for (const l of model.lines.filter((x) => !x.removed)) {
+    const src = l.id !== null ? from.get(String(l.id)) : undefined;
+    const o = src !== undefined ? old.get(String(src)) : undefined;
+    if (!o) { marks.set(l.key, "new"); continue; }
+    used.add(String(src));
+    const a = calcLine({ chapter: "", kind: l.kind, qtyMilli: l.qtyMilli, cost: l.price.cost, rule: l.price.rule }, model.header.standardMarginBp);
+    const b = calcLine({ chapter: "", kind: o.kind, qtyMilli: o.qtyMilli, cost: o.price.cost, rule: o.price.rule }, pm.header.standardMarginBp);
+    if (l.qtyMilli !== o.qtyMilli || l.title !== o.title || l.text !== o.text || l.unit !== o.unit || l.form !== o.form || l.kind !== o.kind || a.unitSell !== b.unitSell) marks.set(l.key, "changed");
+  }
+  return { marks, gone: pm.lines.filter((l) => !used.has(String(l.id))).length };
+}
+
 // ── Editor ───────────────────────────────────────────────────────────────
 function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigint; versionId?: bigint; caps: Caps; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
@@ -194,8 +212,8 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const [saving, setSaving] = useState(false);
   const [serverOk, setServerOk] = useState<boolean | null>(null);
   const [sheet, setSheet] = useState<null | { kind: "line"; key: string } | { kind: "lib"; chapter: string } | { kind: "libChapters" } | { kind: "send" } | { kind: "decide"; accepted: boolean } | { kind: "archive" } | { kind: "header" }>(null);
-  const [diff, setDiff] = useState<Map<string, "new" | "changed"> | null>(null);
-  const [diffGone, setDiffGone] = useState(0);
+  // De vorige versie, één keer gelezen; het verschil zelf rekent bij elke wijziging opnieuw (Chrome-test C3).
+  const [prev, setPrev] = useState<M.Model | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
   // Welke versie: de gevraagde, anders de nieuwste.
@@ -209,7 +227,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       const r = unwrap(await actor.readQuoteVersion(versionId));
       setRead(r);
       setServerOk(null);
-      setDiff(null);
+      setPrev(null);
       if (r.scope === QuoteScope.full) {
         const cached = unsaved.get(String(versionId));
         unsaved.delete(String(versionId));
@@ -304,27 +322,12 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const sellById = new Map(read.sell.map((s) => [String(s.lineId), s]));
   const serverChapter = new Map(read.totals.chapters.map((c) => [String(c.chapterId), c.sellCents]));
   const prevId = v.basedOnVersion !== undefined ? read.quote.versions.find((x) => x.version === v.basedOnVersion)?.id : undefined;
+  const { marks: diff, gone: diffGone } = prev && model ? diffWith(model, prev, read) : { marks: null, gone: 0 };
 
   const showDiff = async () => {
     if (!actor || prevId === undefined || !model) return;
     try {
-      const p = unwrap(await actor.readQuoteVersion(prevId));
-      const pm = M.load(toLoaded(p));
-      const old = new Map(pm.lines.map((l) => [String(l.id), l]));
-      const from = new Map(read.lines.map((l) => [String(l.id), l.copiedFrom]));
-      const out = new Map<string, "new" | "changed">();
-      const used = new Set<string>();
-      for (const l of model.lines.filter((x) => !x.removed)) {
-        const src = l.id !== null ? from.get(String(l.id)) : undefined;
-        const o = src !== undefined ? old.get(String(src)) : undefined;
-        if (!o) { out.set(l.key, "new"); continue; }
-        used.add(String(src));
-        const a = calcLine({ chapter: "", kind: l.kind, qtyMilli: l.qtyMilli, cost: l.price.cost, rule: l.price.rule }, model.header.standardMarginBp);
-        const b = calcLine({ chapter: "", kind: o.kind, qtyMilli: o.qtyMilli, cost: o.price.cost, rule: o.price.rule }, pm.header.standardMarginBp);
-        if (l.qtyMilli !== o.qtyMilli || l.title !== o.title || l.text !== o.text || l.unit !== o.unit || l.form !== o.form || l.kind !== o.kind || a.unitSell !== b.unitSell) out.set(l.key, "changed");
-      }
-      setDiff(out);
-      setDiffGone(pm.lines.filter((l) => !used.has(String(l.id))).length);
+      setPrev(M.load(toLoaded(unwrap(await actor.readQuoteVersion(prevId)))));
     } catch (e) {
       toast.show({ kind: "error", text: errText(e) });
     }
