@@ -167,7 +167,7 @@ export function PostbodePage() {
                 <li key={String(j.id)}>
                   <span className="a-list__main">
                     <b>#{String(j.id)} · {S.kinds[j.kind] ?? j.kind}{j.orgName ? ` · ${j.orgName}` : ""}</b>
-                    <span className="bw-muted">{j.ref ? `${S.week} ${fmtDayNum(BigInt(j.ref))} · ` : ""}{S.attempts(Number(j.attempts))} · {fmtTime(j.updatedAt)} · {j.createdByName}</span>
+                    <span className="bw-muted">{j.ref ? (/^\d+$/.test(j.ref) ? `${S.week} ${fmtDayNum(BigInt(j.ref))} · ` : `${j.ref} · `) : ""}{S.attempts(Number(j.attempts))} · {fmtTime(j.updatedAt)} · {j.createdByName}</span>
                   </span>
                   <span className={`a-tag ${x.tone}`}>{x.text}</span>
                   {j.state.__kind__ === "queued" && <Button variant="quiet" onClick={() => cancel.mutate(j.id)}>{S.cancel}</Button>}
