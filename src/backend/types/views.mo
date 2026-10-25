@@ -60,6 +60,7 @@ module {
     editQuotes : Bool; // 2.4: offertes maken, bewerken, versturen (admin, calculator; R22)
     quotePrices : Bool; // 2.4: aankoopprijzen en marges in de offerte (admin, calculator; R20)
     myQuotes : Bool; // 2.7: de klant: "Mijn offerte" (verzonden offertes van zijn werf, akkoord geven)
+    workStarts : Bool; // 2.8: voorstellen "Werf starten" uit aanvaarde offertes (admin, werfleider)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -515,6 +516,7 @@ module {
     warnings : [Text];
     updatedAt : Int;
     updatedByName : Text;
+    quoteLineIds : [Nat]; // 2.8: de offerteposten van deze taak (enkel interne rollen)
   };
 
   public type DependencyView = { id : Nat; fromTaskId : Nat; toTaskId : Nat; kind : Types.DependencyKind; lagDays : Int };
@@ -835,6 +837,7 @@ module {
     quoteTerms : [Types.QuoteTerms]; // 2.7
     quoteSendInfos : [Types.QuoteSendInfo];
     quoteAcceptances : [Types.QuoteAcceptance];
+    workStarts : [Types.WorkStart]; // 2.8
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -918,6 +921,7 @@ module {
     #quoteTerms : [Types.QuoteTerms]; // 2.7 (intern)
     #quoteSendInfos : [Types.QuoteSendInfo];
     #quoteAcceptances : [Types.QuoteAcceptance];
+    #workStarts : [Types.WorkStart]; // 2.8 (intern)
     #quotePrices : [Types.QuoteLinePrice]; // 2.4 (vertrouwelijk)
     #quoteVersionConf : [Types.QuoteVersionConf];
   };

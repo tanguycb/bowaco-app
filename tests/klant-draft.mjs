@@ -235,5 +235,9 @@ check("(6) elke verstuurde versie heeft haar vastgelegde velden (afzender, klant
 
 // ── Opruimen: wat nog gearchiveerd kan worden (niet aanvaarde offertes) ──
 for (const q of [q2, q3]) { try { await calc.setQuoteArchived(q.id, true, "proef 2.7 klaar"); } catch { /* aanvaarde versies blijven staan */ } }
+// 2.8 (P-08): de aanvaarde proefoffertes worden geen werf: hun voorstel "Werf starten" afwijzen (anders blijft het open staan).
+if ("pendingWorkStarts" in admin) {
+  for (const p of await admin.pendingWorkStarts([])) if (p.quoteNumber.startsWith(`PK-${stamp}`)) await admin.dismissWorkStart(p.versionId, "draftproef 2.7: proefofferte, geen werf").catch(() => {});
+}
 console.log(`\n${pass} ✓  ${fail} ✗`);
 process.exit(fail ? 1 : 0);

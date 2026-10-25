@@ -529,6 +529,74 @@ else {
 }
 
 
+// ── (H1–H6) stap 2.8: offerte → werf. Het voorstel draagt geen bedrag (de werfleider ziet het), rechten per werf,
+//    idempotent ook bij twee gelijktijdige bevestigingen, de getekende versie enkel via de werfstart, de robot nergens ──
+{
+  const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.did"), "utf8");
+  const types = new Map([...did.matchAll(/^type (\w+) =([\s\S]*?);\n(?=type |service|$)/gm)].map((m) => [m[1], m[2]]));
+  const fieldsOf = (n) => [...(types.get(n) ?? "").matchAll(/^\s+(\w+)\s*:/gm)].map((m) => m[1]);
+  const wsTypes = ["WorkStartPreview", "WorkStartGroup", "WorkStartLine", "WorkStartPermit", "WorkStartNote", "WorkStartPending", "WorkStartDone", "WorkStartExisting", "WorkStart", "WorkStartInput"];
+  const badWs = wsTypes.flatMap((n) => fieldsOf(n).filter((f) => /cents|cost|margin|marg|price|prijs|amount|bedrag|subtotal|total/i.test(f)).map((f) => `${n}.${f}`));
+  const priceTypes = ["QuoteLinePrice", "QuoteCostLine", "QuoteSellLine", "QuoteMarginTotals", "QuoteTotalsView", "LibCost", "LibSell", "ContractParams", "WorkConfidential"];
+  const refs = wsTypes.filter((n) => priceTypes.some((t) => new RegExp(`\\b${t}\\b`).test(types.get(n) ?? "")));
+  check("(H1) de typen van de werfstart bestaan en hebben geen veld en geen verwijzing naar een bedrag, prijs, marge of contract", wsTypes.every((n) => types.has(n)) && badWs.length === 0 && refs.length === 0, badWs.concat(refs).join(", ") || `${wsTypes.length} typen`);
+  const wlId = (await wl.me()).person[0].id;
+  const stamp = Date.now().toString(36).toUpperCase();
+  const addr = { street: "Proefstraat", number: "9", zip: "8670", city: "Koksijde", country: "BE" };
+  await ensureProofClientAddress(admin);
+  const mkWork = async (code, leader) => { const w = ok(await admin.createWork({ code, name: "Proefwerf review 2.8", address: addr, parentId: [], clientOrgId: [orgKlant.id], architectOrgId: [], leaderPersonId: leader ? [leader] : [], vatBp: 2100n })); return w.id; };
+  const mkAccepted = async (workId, nr) => {
+    const q = ok(await calc.createQuote({ workId, number: nr, title: "Proef review werfstart (2.8)" }));
+    const m = fromRead(ok(await calc.readQuoteVersion(q.versionId)));
+    M.setHeader(m, { clientOrgId: orgKlant.id });
+    const c = M.addChapter(m, { code: "01", title: "Afbraak" });
+    M.addLine(m, c.key, { title: "Proef afbraak review", qtyMilli: 10_000n, unit: "m2", form: "vh", price: { cost: 2000n, rule: null, reason: "", orgId: null, source: "eigen", libCostId: null } });
+    M.addLine(m, c.key, { title: "Proef container review", qtyMilli: 1_000n, unit: "st", form: "fixed", price: { cost: 30_000n, rule: null, reason: "", orgId: null, source: "eigen", libCostId: null } });
+    const r = await saveAll(calc, m);
+    if (r && "err" in r) throw new Error(errOf(r));
+    const rd = ok(await calc.readQuoteVersion(q.versionId));
+    ok(await calc.sendQuoteVersion(q.versionId, rd.version.rev, rd.totals.totalCents, "proef: review 2.8"));
+    ok(await calc.decideQuoteVersion(q.versionId, true, "proef: review 2.8"));
+    return q.versionId;
+  };
+  const inp = { target: { existing: null }, startDay: 0n, templateKey: "", leaderPersonId: [], lineSteps: [], options: [], groupDays: [], skipPermits: [], declaration: true };
+  // (H2) Een werfleider enkel op de werven die hij ziet: met "werfleider ziet alles" uit kan hij een werf zonder hem niet starten.
+  const wOther = await mkWork(`P-WR-${stamp}`, null);
+  const vOther = await mkAccepted(wOther, `WR-${stamp}`);
+  const st = await admin.getSettings();
+  ok(await admin.setSettings({ ...st, werfleiderZietAlles: false }));
+  try {
+    const rs = await Promise.all([wl.workStartPreview(vOther, inp), wl.startWorkFromQuote(vOther, inp, 0n), wl.dismissWorkStart(vOther, "proef: review"), wl.pendingWorkStarts([wOther])].map(denied));
+    check("(H2) 'werfleider ziet alles' uit: de werfleider ziet en start het voorstel van een werf zonder hem niet", rs.every(Boolean) && !(await wl.pendingWorkStarts([])).some((x) => x.versionId === vOther), rs.map((r) => (r ? "·" : "✗")).join(""));
+  } finally {
+    ok(await admin.setSettings(st));
+  }
+  // (H3) Twee gelijktijdige bevestigingen: één start, de andere geeft dezelfde start terug; niets dubbel.
+  const wMine = await mkWork(`P-WR-${stamp}-B`, wlId);
+  const vMine = await mkAccepted(wMine, `WR-${stamp}-B`);
+  const pv = ok(await wl.workStartPreview(vMine, inp));
+  const [a, b] = await Promise.all([wl.startWorkFromQuote(vMine, inp, pv.planVersion), admin.startWorkFromQuote(vMine, inp, pv.planVersion)]);
+  const plan = await admin.getPlan(wMine);
+  check("(H3) twee gelijktijdige bevestigingen: precies één start, de andere 'al gebeurd'; de taken één keer", isOk(a) && isOk(b) && [a.ok.already, b.ok.already].filter(Boolean).length === 1 && a.ok.tasks === b.ok.tasks && BigInt(plan.tasks.length) === a.ok.tasks, `${errOf(a)}${errOf(b)} ${plan.tasks.length}`);
+  // (H4) De getekende offerteversie zet enkel de werfstart: setContract (de browser) kan ze niet zetten of wissen.
+  const c0 = ok(await admin.readContract(wMine));
+  const k0 = c0.contract[0];
+  const r4 = await admin.setContract(wMine, { contract: { ...k0, signedQuoteVersionId: [999_999n], note: "proef: review H4" }, clientContact: c0.clientContact, notes: c0.notes[0] ?? "" }, c0.version);
+  const c1 = ok(await admin.readContract(wMine));
+  check("(H4) setContract met een andere getekende versie: bewaard zonder die versie (de werfstart blijft de bron)", isOk(r4) && c1.contract[0].signedQuoteVersionId[0] === vMine && c1.contract[0].note === "proef: review H4", errOf(r4) || String(c1.contract[0].signedQuoteVersionId[0]));
+  const r4b = await admin.setContract(wMine, { contract: { ...c1.contract[0], signedQuoteVersionId: [], note: "proef: review H4b" }, clientContact: c1.clientContact, notes: c1.notes[0] ?? "" }, c1.version);
+  check("(H4) … en ook niet wissen", isOk(r4b) && ok(await admin.readContract(wMine)).contract[0].signedQuoteVersionId[0] === vMine);
+  // (H5) De robot en de calculator: nergens toegang (ook niet met een echte versie).
+  const rs5 = await Promise.all([robot.pendingWorkStarts([]), robot.workStartPreview(vOther, inp), robot.startWorkFromQuote(vOther, inp, 0n), robot.dismissWorkStart(vOther, "proef: robot"), calc.startWorkFromQuote(vOther, inp, 0n), calc.workStartPreview(vOther, inp)].map(denied));
+  check("(H5) robot en calculator: de werfstart geweigerd (6 oproepen)", rs5.every(Boolean), rs5.map((r) => (r ? "·" : "✗")).join(""));
+  // (H6) Een verouderde planning: bevestigen met een oude planversie weigert, er gebeurt niets.
+  ok(await wl.saveTask(wOther, { id: [], title: "Proef taak review", note: "", kind: { work: null }, trade: [], responsibleOrgId: [], status: { planned: null }, percent: 0n, start: today + 30n, workdays: 2n, leadDays: 0n, orderDay: [], reason: "proef: review H6" }, 0n));
+  const stale = await admin.startWorkFromQuote(vOther, inp, 0n);
+  check("(H6) bevestigen met een verouderde planversie: geweigerd, geen start", /intussen gewijzigd/.test(errOf(stale)) && !(await admin.workStartPreview(vOther, inp)).ok.done.length);
+  ok(await admin.dismissWorkStart(vOther, "proef: review 2.8 opgeruimd"));
+  for (const w of [wOther, wMine]) await admin.setWorkStatus(w, { cancelled: null });
+}
+
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──
 if (local && !process.env.ZONDER_KLOK) {
   const before = (await admin.accessStats()).attemptsTracked;

@@ -23,6 +23,7 @@ import QuoteDocs "../lib/QuoteDocs";
 import Quotes "../lib/Quotes";
 import QuoteCalc "../lib/QuoteCalc";
 import Rights "../lib/Rights";
+import WorkStart "../lib/WorkStart";
 
 mixin (
   settings : Types.SettingsState,
@@ -134,6 +135,8 @@ mixin (
     quotes.quotes.add(q.id, { q with updatedAt = now; updatedBy = p.id });
     Access.audit(audit, caller, ?p.id, ?q.workId, if accepted "offerte-akkoord-klant" else "offerte-geweigerd-klant", q.number # " v" # v.version.toText() # " hash " # Text.fromIter(sent.hash.chars().take(12)));
     Access.notifyAdmins(access, audit, ctr, "offerte", (if accepted "Akkoord van de klant" else "Offerte geweigerd door de klant") # ": " # q.number # " v" # v.version.toText() # " (" # info.workName # ")");
+    // 2.8: de werfleider krijgt het voorstel "Werf starten" (de beheerders kregen net het akkoord).
+    if accepted { WorkStart.notifyAccepted(access, works, audit, ctr, q, v, null, false) };
     #ok({ status = if accepted #accepted else #rejected; at = now; hash = sent.hash });
   };
 };

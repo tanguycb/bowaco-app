@@ -141,6 +141,9 @@ const r2b = ok(await calc.readQuoteVersion(v2.ok));
 check("v2 versturen → v1 'vervangen'; v2 aanvaarden", isOk(await calc.sendQuoteVersion(v2.ok, r2b.version.rev, r2b.totals.totalCents, "proef: regels")) && "superseded" in ok(await calc.readQuoteVersion(versionId)).version.status && isOk(await calc.decideQuoteVersion(v2.ok, true, "proef: akkoord per mail")) && "accepted" in ok(await calc.readQuoteVersion(v2.ok)).version.status);
 check("een aanvaarde versie kan niet opnieuw beslist of bewerkt worden", "err" in (await calc.decideQuoteVersion(v2.ok, false, "")) && /kan niet meer veranderen/.test(errOf(await calc.saveQuoteDraft(...batchArgs({ ...fromRead(r2b), versionId: v2.ok }, stale)))));
 
+// 2.8 (P-08): een proefofferte wordt geen werf: het voorstel "Werf starten" meteen afwijzen (anders staat het bij elke run open).
+if ("dismissWorkStart" in admin) await admin.dismissWorkStart(v2.ok, "draftproef 2.4: proefofferte, geen werf").catch(() => {});
+
 // ── Auditlog: wie bekeek, nooit een bedrag ──────────────────────────
 const log = await admin.auditLog(0n, 300n);
 const mine = log.filter((e) => /offerte/.test(e.action) && (e.detail.includes(created.ok.number) || e.detail.startsWith(`offerte #${quoteId} `)));

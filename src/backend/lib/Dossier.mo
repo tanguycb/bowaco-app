@@ -101,6 +101,7 @@ module {
         if (a.paymentTermDays != b.paymentTermDays) add("betaaltermijn");
         if (a.invoicingRhythm != b.invoicingRhythm) add("facturatieritme");
         if (a.note != b.note) add("opmerking");
+        if (a.signedQuoteVersionId != b.signedQuoteVersionId) add("getekende offerteversie");
       };
       case _ add("contract");
     };

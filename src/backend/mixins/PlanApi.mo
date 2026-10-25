@@ -861,6 +861,7 @@ mixin (
       warnings = if (scope == #summary or scope == #ownOrg) [] else Plan.warnings(cal, t, deps.filter(func d = d.toTaskId == t.id), byId);
       updatedAt = t.updatedAt;
       updatedByName = if internal Access.personName(access, t.updatedBy) else "";
+      quoteLineIds = if internal t.quoteLineIds else [];
     };
   };
 

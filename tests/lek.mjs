@@ -64,6 +64,7 @@ const pmGone = ex.permits?.find((x) => x.archivedAt.length === 1);
 if (!pmB || !pmGone) throw new Error("eerst tests/rollen.mjs (lokaal) of tests/vergunning-draft.mjs (draft) draaien: geen vergunningen");
 if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone || !repA || !issDone || !attDak || !memDakB) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
+const wsIn = { target: { existing: null }, startDay: 0n, templateKey: "", leaderPersonId: [], lineSteps: [], options: [], groupDays: [], skipPermits: [], declaration: true };
 const someone = identity("proef-lek-onbekend").getPrincipal();
 const hash = "sha256:" + "c".repeat(64);
 const blob = new TextEncoder().encode("!caf!sha256:" + "c".repeat(64));
@@ -317,6 +318,12 @@ const table = {
   acceptMyQuote: [["klant"], () => [X, "x"]],
   declineMyQuote: [["klant"], () => [X, "x", ""]],
   decideQuoteVersion: [["admin", "calculator"], () => [X, true, ""]],
+  // 2.8: offerte → werf. Admin en werfleider (de werfleider enkel op de werven die hij ziet); een onbekende versie geeft hen
+  // "Onbekende versie", de anderen "Geen toegang" (geen id-orakel). Calculator, externen en de robot nooit.
+  pendingWorkStarts: [["admin", "werfleider"], () => [[]]],
+  workStartPreview: [["admin", "werfleider"], () => [X, wsIn]],
+  startWorkFromQuote: [["admin", "werfleider"], () => [X, wsIn, 0n]],
+  dismissWorkStart: [["admin", "werfleider"], () => [X, ""]],
   setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],

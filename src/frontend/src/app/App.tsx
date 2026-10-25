@@ -35,6 +35,7 @@ import { WadmPage } from "../screens/Werfadministratie";
 import { Posten } from "../screens/Posten";
 import { OffertesPage } from "../screens/Offertes";
 import { MijnOffertePage } from "../screens/MijnOfferte";
+import { WerfStartPage } from "../screens/WerfStart";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -210,6 +211,8 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const nav = navFor(caps);
   const allowed = new Set(nav.map((n) => n.key));
   if (caps.writeReports) allowed.add("verslag");
+  // 2.8: het voorstel "Werf starten" (geen menu-item: je komt er via de werf, het overzicht of de offerte).
+  if (caps.workStarts) allowed.add("werfstart");
   const ob = useOutbox();
   const [outbox, setOutbox] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -223,13 +226,16 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
 
   const screen = (() => {
     switch (page) {
-      case "overzicht": return <Overzicht go={go} />;
+      case "overzicht": return <Overzicht go={go} caps={caps} />;
       case "vandaag":
         if (caps.writeReports) return <Vandaag go={go} caps={caps} />;
         return <Home kind={page} go={go} caps={caps} />;
       case "verslag":
         if (route[1] && route[2] && /^\d+$/.test(route[1]) && /^\d+$/.test(route[2])) return <Werfverslag key={`${route[1]}-${route[2]}`} workId={BigInt(route[1])} day={BigInt(route[2])} go={go} />;
         return <Vandaag go={go} caps={caps} />;
+      case "werfstart":
+        if (caps.workStarts && route[1] && /^\d+$/.test(route[1])) return <WerfStartPage key={route[1]} versionId={BigInt(route[1])} caps={caps} go={go} />;
+        return <Home kind={caps.home} go={go} caps={caps} />;
       case "mijn-offerte":
         if (caps.myQuotes) return <MijnOffertePage go={go} route={route} />;
         return null;

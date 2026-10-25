@@ -410,6 +410,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
         {scope === QuoteScope.full && read.doc && <Button icon="doc" disabled={pending > 0} onClick={() => void openPdf()}>{read.doc.info.frozen ? O.pdf : O.pdfPreview}</Button>}
         {scope === QuoteScope.full && caps.editQuotes && v.status === QuoteStatus.sent && read.doc?.info.frozen && caps.readConfidentialContact && <Button variant="quiet" icon="share" title={O.mailClientHelp} onClick={() => void mailClient()}>{O.mailClient}</Button>}
         {scope === QuoteScope.full && caps.editQuotes && (v.status === QuoteStatus.sent || v.status === QuoteStatus.accepted) && read.doc?.info.frozen && !read.doc.acceptance?.signed && <Button variant="quiet" onClick={() => setSheet({ kind: "signed" })}>{O.signed}</Button>}
+        {caps.workStarts && v.status === QuoteStatus.accepted && <Button variant="primary" icon="building" onClick={() => go(`werfstart/${v.id}`)}>{t.werfstart.open}</Button>}
         {scope === QuoteScope.full && prevId !== undefined && !diff && <Button variant="quiet" onClick={() => void showDiff()}>{O.diff(O.version(v.basedOnVersion!))}</Button>}
       </div>
 
@@ -851,7 +852,7 @@ function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.
         {l.libItemId !== null && <p className="bw-muted">{O.fromLib(String(l.libItemVersion ?? ""))}</p>}
         {l.kind !== "text" && (
           <>
-            <div className="a-grid3">
+            <div className="a-grid3 q-sheet-qty">
               <label className="bw-field"><span className="bw-label">{O.qtyLong}</span><NumCell col="sheet-qty" label={O.qtyLong} value={fmtQty(l.qtyMilli)} onCommit={(s) => { if (ro) return true; const q = parseQty(s); if (q === null) return false; up({ qtyMilli: q }); return true; }} /></label>
               <label className="bw-field"><span className="bw-label">{O.unit}</span>
                 <select className="bw-input" disabled={ro} value={l.unit} onChange={(e) => up({ unit: e.target.value })}>{units.map((u) => <option key={u.key} value={u.key}>{u.key} · {u.name}</option>)}</select>

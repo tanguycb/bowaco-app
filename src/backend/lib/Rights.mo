@@ -53,6 +53,10 @@ module {
     // 2.7: de klant. #ownQuotes = de klantrol (zonder werf: de functies "mijn offertes"); #clientQuote = een offerte van een werf
     // waar hij als klant lid van is (de verzonden versies met enkel verkoopprijzen lezen, aanvaarden of weigeren).
     #ownQuotes; #clientQuote;
+    // 2.8: een aanvaarde offerte → werf starten (taken, vergunningsvoorstellen, 30bis). #startWork = op deze werf (de
+    // werfleider van die werf of een admin: zij plannen, beheren de vergunningen en de werfadministratie, R5/R13);
+    // #startWorkAny = de lijst van de voorstellen over alle werven (admin, werfleider).
+    #startWork; #startWorkAny;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -221,6 +225,10 @@ module {
       // 2.7: enkel een persoon met de klantrol, en per werf enkel als hij er als klant lid van is (de fiche is "mag die rol krijgen", R2).
       case (#ownQuotes) has(p, #klant);
       case (#clientQuote) on(func w = memberAs(ctx, p, w, #klant));
+      // 2.8: wie de planning, de vergunningen en de aangifte van een werf beheert (R5, R13, 1b.4), start ze ook uit een
+      // aanvaarde offerte. De calculator niet (tenzij hij ook werfleider is); externen nooit.
+      case (#startWork) on(func w = admin or leaderOn(ctx, p, w));
+      case (#startWorkAny) admin or wl;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -487,6 +495,7 @@ module {
       editQuotes = may(ctx, p, #editQuote, null);
       quotePrices = may(ctx, p, #readCosts, null) and may(ctx, p, #readSellPrices, null);
       myQuotes = may(ctx, p, #ownQuotes, null);
+      workStarts = may(ctx, p, #startWorkAny, null);
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

@@ -142,3 +142,7 @@
   .mq-qty, .mq-unit, .mq-line { text-align: left; }
   .mq-qty::before, .mq-unit::before, .mq-line::before { content: attr(data-l) ": "; color: var(--bw-ink-2); font-family: var(--bw-font-text); }
 }
+
+/* OF-12 (2.8): in het detailpaneel krijgt de eenheid de breedste kolom ("sog · som of geheel (forfait)" knipte af). */
+.q-sheet-qty { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1.3fr); }
+@media (max-width: 899px) { .q-sheet-qty { grid-template-columns: minmax(0, 1fr); } }

@@ -12,6 +12,7 @@ import { Loading, Page, WorkBadge } from "./common";
 import { IssueAttention } from "./Verslagen";
 import { BoardAttention } from "./Weekbord";
 import { PermitsOnSite } from "./Vergunningen";
+import { PendingStarts } from "./WerfStart";
 
 const V = t.vandaag;
 const ALL_KEY = "bw-vandaag-alle";
@@ -43,6 +44,7 @@ export function Vandaag({ go, caps }: { go: (to: string) => void; caps: Caps }) 
       {!q.data && <Loading q={q} />}
       {q.error && !q.data && <p className="a-err">{t.verslag.noCache}</p>}
       {q.data && works.length === 0 && <p className="a-empty">{V.noWorks}</p>}
+      <PendingStarts caps={caps} go={go} compact />
       <div className="v-cards">
         {works.map((w) => <WorkCard key={String(w.id)} w={w} day={day} go={go} />)}
       </div>

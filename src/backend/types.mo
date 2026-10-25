@@ -1368,6 +1368,41 @@ module {
     acceptances : Map.Map<Nat, QuoteAcceptance>; // sleutel = versie
   };
 
+  // ── Offerte → werf (stap 2.8, bouwplan §9 rij 2.8; VOORLOPIG: vragen voor Alexis) ────
+  // Eigen stabiel veld `workStarts` (deelvorm, OldActor = {}). Een aanvaarde offerteversie geeft een VOORSTEL "Werf starten"
+  // (werf, planningstaken uit de posten, vergunningsvoorstellen, 30bis); de werfleider of admin past het aan en bevestigt.
+  // De sleutel is de offerteversie: één start per versie, dus twee keer bevestigen maakt niets dubbel. Een nieuwe aanvaarde
+  // versie (meerwerk) rekent het verschil tegen de lijnen die al een taak kregen (`roots`: de lijn van de eerste versie
+  // waarvan ze een kopie is). Afwijzen ("geen werfstart nodig") legt ook een record vast, met een reden. Volledig vanaf het
+  // begin (D1a).
+  public type WorkStartStatus = { #started; #dismissed };
+
+  // klasse: intern (ids, data en tellingen; nooit een bedrag: het bedrag voor 30bis staat in het contract, vertrouwelijk).
+  public type WorkStart = {
+    versionId : Nat; // sleutel
+    quoteId : Nat;
+    sourceWorkId : WorkId; // de werf van de offerte
+    workId : WorkId; // de werf die gestart of aangevuld werd (dezelfde, of een nieuwe)
+    status : WorkStartStatus;
+    newWork : Bool;
+    baseVersionIds : [Nat]; // eerdere starts op die werf waartegen het verschil berekend werd (meerwerk)
+    startDay : Day;
+    templateKey : Text;
+    lineIds : [Nat]; // de offertelijnen die een taak kregen (nieuw of gekoppeld aan een bestaande)
+    roots : [Nat]; // hun oorsprong (eerste versie): zo weet een volgende versie wat al gepland is
+    taskIds : [Nat]; // nieuwe taken
+    linkedTaskIds : [Nat]; // bestaande taken waaraan lijnen gekoppeld werden
+    depIds : [Nat];
+    permitIds : [Nat];
+    declaration : Text; // "klaargezet" · "bestond al" · "niet nodig" · "onbekend" · "niet gevraagd"
+    note : Text; // reden bij afwijzen
+    at : Int;
+    by : PersonId;
+    extra : Extra;
+  };
+
+  public type WorkStartState = { starts : Map.Map<Nat, WorkStart> };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

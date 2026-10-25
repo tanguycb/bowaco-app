@@ -133,10 +133,14 @@ if (cid) {
   const ok = (r) => { if (r && "err" in r) throw new Error(r.err); return r.ok; };
   const A = (await admin.listWorks()).find((w) => w.code === "P-A");
   if (!A) throw new Error("werf P-A ontbreekt: eerst tests/rollen.mjs (lokaal) of tools/draft-opbouw.mjs (draft)");
-  // Eén vaste proefofferte (verzonnen), telkens een nieuw ontwerp als het vorige verstuurd is.
-  const NR = "PROEF-REKENTEST";
-  let q = (await calc.listQuotes([A.id], true)).find((x) => x.number === NR);
-  if (!q) { ok(await calc.createQuote({ workId: A.id, number: NR, title: "Proef rekentest 2.5 (verzonnen)" })); q = (await calc.listQuotes([A.id], true)).find((x) => x.number === NR); }
+  // Eén vaste proefofferte (verzonnen), telkens een nieuw ontwerp als het vorige verstuurd is. RT-04: een offerte heeft
+  // hoogstens 50 versies (Config.maxQuoteVersions); is de laatste vol, dan de volgende ("PROEF-REKENTEST-2", "-3" …).
+  const all = (await calc.listQuotes([A.id], true)).filter((x) => /^PROEF-REKENTEST(-\d+)?$/.test(x.number));
+  const nrOf = (x) => Number(x.number.split("-")[2] ?? 1);
+  let q = all.sort((a, b) => nrOf(b) - nrOf(a))[0];
+  const vol = (x) => x.versions.length >= 49 && !x.versions.some((v) => "draft" in v.status);
+  const NR = !q ? "PROEF-REKENTEST" : vol(q) ? `PROEF-REKENTEST-${nrOf(q) + 1}` : q.number;
+  if (!q || q.number !== NR) { ok(await calc.createQuote({ workId: A.id, number: NR, title: "Proef rekentest 2.5 (verzonnen)" })); q = (await calc.listQuotes([A.id], true)).find((x) => x.number === NR); }
   if (q.archived) ok(await calc.setQuoteArchived(q.id, false, ""));
   let d = q.versions.find((v) => "draft" in v.status);
   if (!d) { ok(await calc.newQuoteVersion(q.id, [])); d = (await calc.listQuotes([A.id], true)).find((x) => x.number === NR).versions[0]; }

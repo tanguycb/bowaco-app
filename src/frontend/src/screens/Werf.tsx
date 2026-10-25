@@ -16,6 +16,7 @@ import { ReportsSection } from "./Verslagen";
 import { GrantToggles, InviteToWork } from "./Extern";
 import { WorkPermits } from "./Vergunningen";
 import { WorkAdmin } from "./Werfadministratie";
+import { PendingStarts } from "./WerfStart";
 
 export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
@@ -122,6 +123,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
         )}
       </section>
 
+      <PendingStarts workId={id} caps={caps} go={go} />
       {caps.quotes && <WorkQuotes workId={id} caps={caps} go={go} />}
       <PlanSummary workId={id} go={go} />
       {caps.readOrgPlanning && <WorkConflicts workId={id} go={go} />}

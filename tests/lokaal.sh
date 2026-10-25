@@ -66,6 +66,8 @@ node tests/offerte-draft.mjs "$cid"
 # 2.5: de rekentests (rekenmodule zelf, de fouten van 2026/231 met verzonnen posten, browser = server op 200 willekeurige
 # offertes). De ECHTE offerte enkel hier en enkel als ze er is: rapport buiten git (~/.bowaco/posten/rekentest-*.md).
 node tests/rekentest.mjs "$cid"
+# 2.8: aanvaarde offerte → werf (voorstel, bevestigen, idempotent, meerwerk, afwijzen, nieuwe werf).
+node tests/werfstart-draft.mjs "$cid"
 echte=$(ls "$HOME"/Desktop/Split/bowaco-docs/bowaco/2026-231_Offerte_*.xlsx 2>/dev/null | head -1)
 if [[ -n "$echte" ]]; then
   python3 -I tools/rekentest-echt.py "$echte"

@@ -363,6 +363,7 @@ export interface Caps {
     readTrips: boolean;
     manageVehicles: boolean;
     readConfidentialContact: boolean;
+    workStarts: boolean;
     readAudit: boolean;
     readOa: boolean;
 }
@@ -919,6 +920,7 @@ export interface ExportIntern {
     libItemVersions: Array<LibItemVersion>;
     declarations: Array<Declaration>;
     memberships: Array<MembershipView>;
+    workStarts: Array<WorkStart>;
     quoteTerms: Array<QuoteTerms>;
     photos: Array<Photo>;
     linkHistory: Array<LinkHistory>;
@@ -3196,6 +3198,9 @@ export type RestorePart = {
     __kind__: "memberships";
     memberships: Array<MembershipView>;
 } | {
+    __kind__: "workStarts";
+    workStarts: Array<WorkStart>;
+} | {
     __kind__: "quoteTerms";
     quoteTerms: Array<QuoteTerms>;
 } | {
@@ -3222,278 +3227,292 @@ export interface RestoreSummary {
 }
 export type Result = {
     __kind__: "ok";
-    ok: WorkView;
+    ok: WorkStartPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_1 = {
     __kind__: "ok";
-    ok: PersonView;
+    ok: WorkView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_10 = {
     __kind__: "ok";
-    ok: MunicipalityView;
+    ok: PlanResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_11 = {
     __kind__: "ok";
-    ok: PermitView;
+    ok: QuoteSaveResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_12 = {
     __kind__: "ok";
-    ok: OrgContactView;
+    ok: MunicipalityView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_13 = {
     __kind__: "ok";
-    ok: OaPersonView;
+    ok: PermitView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_14 = {
     __kind__: "ok";
-    ok: LibItemView;
+    ok: OrgContactView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_15 = {
     __kind__: "ok";
-    ok: DeclarationView;
+    ok: OaPersonView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_16 = {
     __kind__: "ok";
-    ok: RollbackReport;
+    ok: LibItemView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_17 = {
     __kind__: "ok";
-    ok: RestoreSummary;
+    ok: DeclarationView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_18 = {
     __kind__: "ok";
-    ok: MeView;
+    ok: RollbackReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_19 = {
     __kind__: "ok";
-    ok: OaWithholding;
+    ok: RestoreSummary;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_2 = {
     __kind__: "ok";
-    ok: OrgView;
+    ok: PersonView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_20 = {
     __kind__: "ok";
-    ok: QuoteRead;
+    ok: MeView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_21 = {
     __kind__: "ok";
-    ok: ContactConfidentialView;
+    ok: OaWithholding;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_22 = {
     __kind__: "ok";
-    ok: MyQuoteRead;
+    ok: QuoteRead;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_23 = {
     __kind__: "ok";
-    ok: LibPrices;
+    ok: ContactConfidentialView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_24 = {
     __kind__: "ok";
-    ok: LibPriceHistory;
+    ok: MyQuoteRead;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_25 = {
     __kind__: "ok";
-    ok: Array<ContractVersionView>;
+    ok: LibPrices;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_26 = {
     __kind__: "ok";
-    ok: ContractView;
+    ok: LibPriceHistory;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_27 = {
     __kind__: "ok";
-    ok: FileView;
+    ok: Array<ContractVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_28 = {
     __kind__: "ok";
-    ok: PlanPreview;
+    ok: ContractView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_29 = {
     __kind__: "ok";
-    ok: MailOut;
+    ok: FileView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_3 = {
     __kind__: "ok";
-    ok: bigint;
+    ok: OrgView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_30 = {
     __kind__: "ok";
-    ok: MailPreview;
+    ok: PlanPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_31 = {
     __kind__: "ok";
-    ok: FineResult;
+    ok: MailOut;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_32 = {
     __kind__: "ok";
-    ok: Array<LibItemVersionView>;
+    ok: MailPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_33 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: FineResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_34 = {
     __kind__: "ok";
-    ok: PlanImportReport;
+    ok: Array<LibItemVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_35 = {
     __kind__: "ok";
-    ok: ImportReport;
+    ok: NewCode;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_36 = {
     __kind__: "ok";
-    ok: OaView;
+    ok: PlanImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_37 = {
     __kind__: "ok";
-    ok: RestorePart;
+    ok: ImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_38 = {
     __kind__: "ok";
-    ok: MyQuoteAnswered;
+    ok: OaView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_39 = {
     __kind__: "ok";
-    ok: DeclarationDraft;
+    ok: RestorePart;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_4 = {
     __kind__: "ok";
-    ok: null;
+    ok: bigint;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_40 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: MyQuoteAnswered;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_41 = {
     __kind__: "ok";
-    ok: QuoteCreated;
+    ok: DeclarationDraft;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_42 = {
     __kind__: "ok";
-    ok: CiawExport;
+    ok: NewTicket;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_43 = {
     __kind__: "ok";
-    ok: TicketInfo;
+    ok: QuoteCreated;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_44 = {
+    __kind__: "ok";
+    ok: CiawExport;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_45 = {
+    __kind__: "ok";
+    ok: TicketInfo;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_46 = {
     __kind__: "ok";
     ok: Array<QuoteFinding>;
 } | {
@@ -3502,35 +3521,35 @@ export type Result_44 = {
 };
 export type Result_5 = {
     __kind__: "ok";
-    ok: PostSettingsView;
+    ok: WorkStartDone;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_6 = {
     __kind__: "ok";
-    ok: string;
+    ok: null;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_7 = {
     __kind__: "ok";
-    ok: MailRound;
+    ok: PostSettingsView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_8 = {
     __kind__: "ok";
-    ok: PlanResult;
+    ok: string;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_9 = {
     __kind__: "ok";
-    ok: QuoteSaveResult;
+    ok: MailRound;
 } | {
     __kind__: "err";
     err: string;
@@ -3654,6 +3673,7 @@ export interface TaskView {
     order: bigint;
     kind: TaskKind;
     note: string;
+    quoteLineIds: Array<bigint>;
     responsibleName: string;
     orderBy?: Day;
     percent: bigint;
@@ -3946,6 +3966,190 @@ export interface WorkPermitsView {
     workId: WorkId;
     kinds: Array<PermitKindView>;
 }
+export interface WorkStart {
+    at: bigint;
+    by: PersonId;
+    status: WorkStartStatus;
+    versionId: bigint;
+    taskIds: Array<bigint>;
+    lineIds: Array<bigint>;
+    startDay: Day;
+    note: string;
+    quoteId: bigint;
+    declaration: string;
+    depIds: Array<bigint>;
+    extra: Extra;
+    templateKey: string;
+    baseVersionIds: Array<bigint>;
+    linkedTaskIds: Array<bigint>;
+    permitIds: Array<bigint>;
+    sourceWorkId: WorkId;
+    workId: WorkId;
+    roots: Array<bigint>;
+    newWork: boolean;
+}
+export interface WorkStartCaps {
+    start: boolean;
+    setLeader: boolean;
+    newWork: boolean;
+}
+export interface WorkStartDone {
+    at: bigint;
+    status: string;
+    versionId: bigint;
+    tasks: bigint;
+    byName: string;
+    note: string;
+    declaration: string;
+    permits: bigint;
+    dependencies: bigint;
+    workId: bigint;
+    already: boolean;
+    linked: bigint;
+    workCode: string;
+    newWork: boolean;
+}
+export interface WorkStartExisting {
+    id: bigint;
+    end: bigint;
+    title: string;
+    kind: TaskKind;
+    start: bigint;
+}
+export interface WorkStartGroup {
+    end: bigint;
+    key: string;
+    existingTaskId?: bigint;
+    title: string;
+    workdays: bigint;
+    leadDays: bigint;
+    trade?: string;
+    after: Array<string>;
+    orgName: string;
+    lineIds: Array<bigint>;
+    tradeName: string;
+    orgId?: bigint;
+    kind: TaskKind;
+    stepKey?: string;
+    extraOrgs: Array<string>;
+    start: bigint;
+    daysFrom: string;
+    companion: boolean;
+}
+export interface WorkStartInput {
+    leaderPersonId?: bigint;
+    skipPermits: Array<string>;
+    startDay: bigint;
+    declaration: boolean;
+    templateKey: string;
+    target: WorkStartTarget;
+    lineSteps: Array<[bigint, string]>;
+    groupDays: Array<[string, bigint]>;
+    options: Array<bigint>;
+}
+export interface WorkStartLine {
+    how: string;
+    title: string;
+    qtyMilli: bigint;
+    orgName: string;
+    tradeName: string;
+    option: boolean;
+    code: string;
+    days?: bigint;
+    unit: string;
+    group: string;
+    chapter: string;
+    lineId: bigint;
+}
+export interface WorkStartNote {
+    why: string;
+    title: string;
+    code: string;
+    lineId: bigint;
+}
+export interface WorkStartPending {
+    workName: string;
+    versionId: bigint;
+    title: string;
+    meerwerk: boolean;
+    acceptedHow: string;
+    quoteId: bigint;
+    quoteNumber: string;
+    version: bigint;
+    workId: bigint;
+    acceptedAt: bigint;
+    workCode: string;
+}
+export interface WorkStartPermit {
+    to?: bigint;
+    leadDays: bigint;
+    groups: Array<string>;
+    municipality: string;
+    skipped: boolean;
+    from?: bigint;
+    kind: string;
+    deadline?: bigint;
+    kindName: string;
+    exists: boolean;
+    reason: string;
+}
+export interface WorkStartPreview {
+    end?: bigint;
+    workName: string;
+    versionId: bigint;
+    art30bis?: boolean;
+    leaderPersonId?: bigint;
+    templates: Array<[string, string]>;
+    groups: Array<WorkStartGroup>;
+    templateProvisional: boolean;
+    vatBp: bigint;
+    clientName: string;
+    skipped: Array<WorkStartNote>;
+    caps: WorkStartCaps;
+    done?: WorkStartDone;
+    startDay: bigint;
+    checkinatwork?: boolean;
+    declarationExists: boolean;
+    planVersion: bigint;
+    acceptedHow: string;
+    quoteId: bigint;
+    quoteNumber: string;
+    sourceCode: string;
+    templateName: string;
+    art30bisReason: string;
+    sourceName: string;
+    lines: Array<WorkStartLine>;
+    templateKey: string;
+    leaderName: string;
+    version: bigint;
+    permits: Array<WorkStartPermit>;
+    steps: Array<[string, string]>;
+    warnings: Array<string>;
+    existingCount: bigint;
+    existing: Array<WorkStartExisting>;
+    address: Address;
+    bases: Array<string>;
+    oaCount: bigint;
+    sourceWorkId: bigint;
+    workId?: bigint;
+    changed: Array<WorkStartNote>;
+    workStatus: WorkStatus;
+    vatNote: string;
+    removed: Array<WorkStartNote>;
+    quoteTitle: string;
+    workCode: string;
+}
+export type WorkStartTarget = {
+    __kind__: "existing";
+    existing: null;
+} | {
+    __kind__: "newWork";
+    newWork: {
+        asSub: boolean;
+        code: string;
+        name: string;
+    };
+};
 export interface WorkUpdate {
     plannedEnd?: Day;
     leaderPersonId?: PersonId;
@@ -4147,6 +4351,10 @@ export enum WithholdingResult {
     fiscal = "fiscal",
     unknown = "unknown"
 }
+export enum WorkStartStatus {
+    started = "started",
+    dismissed = "dismissed"
+}
 export enum WorkStatus {
     cancelled = "cancelled",
     request = "request",
@@ -4158,59 +4366,60 @@ export enum WorkStatus {
 }
 export interface backendInterface {
     absenceHistory(orgId: bigint, from: bigint, limit: bigint): Promise<Array<AbsenceChangeView>>;
-    acceptMyQuote(versionId: bigint, hash: string): Promise<Result_38>;
+    acceptMyQuote(versionId: bigint, hash: string): Promise<Result_40>;
     accessStats(): Promise<AccessStats>;
-    addDependency(workId: bigint, i: DependencyInput, expectedVersion: bigint): Promise<Result_8>;
-    addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_3>;
-    addLibraryCost(itemId: bigint, i: LibCostInput): Promise<Result_3>;
-    addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_3>;
-    addQuoteTerms(i: QuoteTermsInput): Promise<Result_3>;
-    addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_4>;
-    applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_8>;
-    applyTemplate(workId: bigint, key: string, startDay: bigint, append: boolean, expectedVersion: bigint): Promise<Result_8>;
-    archiveAbsence(id: bigint): Promise<Result_4>;
-    archiveAssignment(workId: bigint, assignmentId: bigint, expectedVersion: bigint): Promise<Result_3>;
-    archiveCalendarBlock(id: bigint): Promise<Result_4>;
-    archiveDocument(docId: bigint): Promise<Result_4>;
-    archiveFile(id: bigint): Promise<Result_4>;
-    archiveLibraryCost(costId: bigint, reason: string): Promise<Result_4>;
-    archiveOrg(id: bigint): Promise<Result_4>;
-    archivePermit(permitId: bigint, reason: string): Promise<Result_4>;
-    archivePerson(id: bigint): Promise<Result_4>;
-    archiveTask(workId: bigint, taskId: bigint, expectedVersion: bigint): Promise<Result_3>;
-    attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_3>;
-    attachPermitFile(permitId: bigint, fileId: bigint): Promise<Result_11>;
+    addDependency(workId: bigint, i: DependencyInput, expectedVersion: bigint): Promise<Result_10>;
+    addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_4>;
+    addLibraryCost(itemId: bigint, i: LibCostInput): Promise<Result_4>;
+    addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_4>;
+    addQuoteTerms(i: QuoteTermsInput): Promise<Result_4>;
+    addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_6>;
+    applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_10>;
+    applyTemplate(workId: bigint, key: string, startDay: bigint, append: boolean, expectedVersion: bigint): Promise<Result_10>;
+    archiveAbsence(id: bigint): Promise<Result_6>;
+    archiveAssignment(workId: bigint, assignmentId: bigint, expectedVersion: bigint): Promise<Result_4>;
+    archiveCalendarBlock(id: bigint): Promise<Result_6>;
+    archiveDocument(docId: bigint): Promise<Result_6>;
+    archiveFile(id: bigint): Promise<Result_6>;
+    archiveLibraryCost(costId: bigint, reason: string): Promise<Result_6>;
+    archiveOrg(id: bigint): Promise<Result_6>;
+    archivePermit(permitId: bigint, reason: string): Promise<Result_6>;
+    archivePerson(id: bigint): Promise<Result_6>;
+    archiveTask(workId: bigint, taskId: bigint, expectedVersion: bigint): Promise<Result_4>;
+    attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_4>;
+    attachPermitFile(permitId: bigint, fileId: bigint): Promise<Result_13>;
     auditCount(): Promise<bigint>;
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
     boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
     boardRules(): Promise<BoardRulesView>;
-    cancelJob(id: bigint): Promise<Result_4>;
-    checkQuoteVersion(versionId: bigint): Promise<Result_44>;
-    checkTicket(ticket: string): Promise<Result_43>;
-    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_42>;
-    claimBootstrap(code: string, name: string): Promise<Result_1>;
-    completeJob(id: bigint, attempt: bigint, result: string): Promise<Result_4>;
-    confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_4>;
-    confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_4>;
-    confirmLink(p: Principal): Promise<Result_4>;
-    createOrg(input: OrgInput): Promise<Result_2>;
-    createQuote(i: QuoteNew): Promise<Result_41>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_33>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_40>;
-    createWork(i: WorkInput): Promise<Result>;
+    cancelJob(id: bigint): Promise<Result_6>;
+    checkQuoteVersion(versionId: bigint): Promise<Result_46>;
+    checkTicket(ticket: string): Promise<Result_45>;
+    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_44>;
+    claimBootstrap(code: string, name: string): Promise<Result_2>;
+    completeJob(id: bigint, attempt: bigint, result: string): Promise<Result_6>;
+    confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_6>;
+    confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_6>;
+    confirmLink(p: Principal): Promise<Result_6>;
+    createOrg(input: OrgInput): Promise<Result_3>;
+    createQuote(i: QuoteNew): Promise<Result_43>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_35>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_42>;
+    createWork(i: WorkInput): Promise<Result_1>;
     dashboard(day: bigint): Promise<DashboardView>;
-    decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_4>;
-    decideQuoteVersion(versionId: bigint, accepted: boolean, note: string): Promise<Result_4>;
-    declarationDraft(workId: bigint): Promise<Result_39>;
-    declineMyQuote(versionId: bigint, hash: string, note: string): Promise<Result_38>;
-    endMembership(id: bigint): Promise<Result_4>;
-    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_37>;
+    decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_6>;
+    decideQuoteVersion(versionId: bigint, accepted: boolean, note: string): Promise<Result_6>;
+    declarationDraft(workId: bigint): Promise<Result_41>;
+    declineMyQuote(versionId: bigint, hash: string, note: string): Promise<Result_40>;
+    dismissWorkStart(versionId: bigint, reason: string): Promise<Result_5>;
+    endMembership(id: bigint): Promise<Result_6>;
+    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_39>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
-    failJob(id: bigint, attempt: bigint, why: string, retry: boolean): Promise<Result_4>;
+    failJob(id: bigint, attempt: bigint, why: string, retry: boolean): Promise<Result_6>;
     getDossier(workId: bigint): Promise<DossierView>;
-    getLibraryItem(id: bigint): Promise<Result_14>;
-    getOa(id: bigint): Promise<Result_36>;
+    getLibraryItem(id: bigint): Promise<Result_16>;
+    getOa(id: bigint): Promise<Result_38>;
     getPlan(workId: bigint): Promise<PlanView>;
     getQuoteDocSettings(): Promise<QuoteDocSettings>;
     getQuoteRules(): Promise<QuoteRulesView>;
@@ -4218,14 +4427,14 @@ export interface backendInterface {
     getReportDay(workId: bigint, day: bigint): Promise<Array<ReportView>>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
-    handleIssue(issueId: bigint, note: string): Promise<Result_4>;
-    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_35>;
-    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_34>;
-    inviteExistingPerson(i: ExistingInvite): Promise<Result_33>;
-    invitePerson(req: InviteRequest): Promise<Result_33>;
+    handleIssue(issueId: bigint, note: string): Promise<Result_6>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_37>;
+    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_36>;
+    inviteExistingPerson(i: ExistingInvite): Promise<Result_35>;
+    invitePerson(req: InviteRequest): Promise<Result_35>;
     leaseJobs(max: bigint): Promise<Array<JobLease>>;
     libraryChapters(includeArchived: boolean): Promise<Array<LibChapterView>>;
-    libraryItemHistory(id: bigint): Promise<Result_32>;
+    libraryItemHistory(id: bigint): Promise<Result_34>;
     libraryUnits(includeArchived: boolean): Promise<Array<UnitView>>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
@@ -4255,10 +4464,10 @@ export interface backendInterface {
     listTrips(fromDay: bigint, toDay: bigint): Promise<Array<TripView>>;
     listVehicles(withArchived: boolean): Promise<Array<VehicleView>>;
     listWorks(): Promise<Array<WorkView>>;
-    loadLibraryStartChapters(): Promise<Result_3>;
-    lookupFine(q: FineQuery): Promise<Result_31>;
-    mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_30>;
-    mailQuoteToClient(versionId: bigint): Promise<Result_4>;
+    loadLibraryStartChapters(): Promise<Result_4>;
+    lookupFine(q: FineQuery): Promise<Result_33>;
+    mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_32>;
+    mailQuoteToClient(versionId: bigint): Promise<Result_6>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     me(): Promise<MeView>;
     myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;
@@ -4267,8 +4476,9 @@ export interface backendInterface {
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
     myWorks(): Promise<Array<ExternalWork>>;
-    newQuoteVersion(quoteId: bigint, fromVersionId: bigint | null): Promise<Result_3>;
+    newQuoteVersion(quoteId: bigint, fromVersionId: bigint | null): Promise<Result_4>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
+    pendingWorkStarts(workId: bigint | null): Promise<Array<WorkStartPending>>;
     permitHistory(permitId: bigint): Promise<Array<PermitChangeView>>;
     permitRules(): Promise<{
         expiryDays: bigint;
@@ -4276,91 +4486,92 @@ export interface backendInterface {
     }>;
     permitsOnSite(day: bigint): Promise<Array<PermitView>>;
     postSettings(): Promise<PostSettingsView>;
-    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_28>;
-    previewMail(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_29>;
-    previewPlan(workId: bigint, change: PlanChange): Promise<Result_28>;
-    queueReminders(monday: bigint): Promise<Result_3>;
-    queueTestMail(email: string): Promise<Result_3>;
-    queueWeekMails(monday: bigint, orgId: bigint | null): Promise<Result_3>;
+    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_30>;
+    previewMail(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_31>;
+    previewPlan(workId: bigint, change: PlanChange): Promise<Result_30>;
+    queueReminders(monday: bigint): Promise<Result_4>;
+    queueTestMail(email: string): Promise<Result_4>;
+    queueWeekMails(monday: bigint, orgId: bigint | null): Promise<Result_4>;
     quoteSequence(year: bigint): Promise<bigint>;
-    readConfidentialFile(id: bigint): Promise<Result_27>;
-    readContract(workId: bigint): Promise<Result_26>;
-    readContractHistory(workId: bigint): Promise<Result_25>;
-    readLibraryPriceHistory(itemId: bigint): Promise<Result_24>;
-    readLibraryPrices(ids: Array<bigint>): Promise<Result_23>;
-    readMyQuote(versionId: bigint): Promise<Result_22>;
-    readOrgConfidential(id: bigint): Promise<Result_21>;
-    readQuoteVersion(versionId: bigint): Promise<Result_20>;
-    recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_19>;
-    redeemCode(code: string): Promise<Result_18>;
-    registerSignedQuote(versionId: bigint, fileId: bigint, note: string): Promise<Result_4>;
-    removeDependency(workId: bigint, depId: bigint, expectedVersion: bigint): Promise<Result_3>;
+    readConfidentialFile(id: bigint): Promise<Result_29>;
+    readContract(workId: bigint): Promise<Result_28>;
+    readContractHistory(workId: bigint): Promise<Result_27>;
+    readLibraryPriceHistory(itemId: bigint): Promise<Result_26>;
+    readLibraryPrices(ids: Array<bigint>): Promise<Result_25>;
+    readMyQuote(versionId: bigint): Promise<Result_24>;
+    readOrgConfidential(id: bigint): Promise<Result_23>;
+    readQuoteVersion(versionId: bigint): Promise<Result_22>;
+    recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_21>;
+    redeemCode(code: string): Promise<Result_20>;
+    registerSignedQuote(versionId: bigint, fileId: bigint, note: string): Promise<Result_6>;
+    removeDependency(workId: bigint, depId: bigint, expectedVersion: bigint): Promise<Result_4>;
     reportSync(ops: Array<ReportOpInput>): Promise<Array<OpResult>>;
-    restoreBegin(code: string): Promise<Result_4>;
-    restoreChunk(code: string, part: RestorePart): Promise<Result_3>;
-    restoreFinish(code: string): Promise<Result_17>;
-    restorePerson(id: bigint): Promise<Result_4>;
-    retryJob(id: bigint): Promise<Result_4>;
-    revokeInvite(inviteId: bigint): Promise<Result_4>;
-    revokeLink(p: Principal): Promise<Result_4>;
-    revokeRobot(principal: Principal): Promise<Result_4>;
-    rollbackImport(batchId: string, dryRun: boolean): Promise<Result_16>;
-    saveAbsence(i: AbsenceInput): Promise<Result_3>;
-    saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_3>;
-    saveCalendarBlock(i: BlockInput): Promise<Result_3>;
-    saveDeclaration(workId: bigint, x: DeclarationInput): Promise<Result_15>;
-    saveDocument(workId: bigint, i: DocumentInput): Promise<Result_3>;
-    saveLibraryChapter(i: LibChapterInput): Promise<Result_3>;
-    saveLibraryItem(i: LibItemInput, expectedVersion: bigint): Promise<Result_14>;
-    saveMunicipality(m: MunicipalityInput): Promise<Result_10>;
-    saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_13>;
-    saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_12>;
-    savePermit(workId: bigint, x: PermitInput): Promise<Result_11>;
-    saveProcedure(x: ProcedureInput): Promise<Result_10>;
-    saveQuoteDraft(versionId: bigint, rev: bigint, header: QuoteHeaderInput | null, chapterOps: Array<QuoteChapterOp>, lineOps: Array<QuoteLineOp>, expect: QuoteExpect): Promise<Result_9>;
-    saveTask(workId: bigint, i: TaskInput, expectedVersion: bigint): Promise<Result_8>;
-    saveTemplate(i: TemplateInput): Promise<Result_4>;
-    saveVehicle(i: VehicleInput): Promise<Result_3>;
+    restoreBegin(code: string): Promise<Result_6>;
+    restoreChunk(code: string, part: RestorePart): Promise<Result_4>;
+    restoreFinish(code: string): Promise<Result_19>;
+    restorePerson(id: bigint): Promise<Result_6>;
+    retryJob(id: bigint): Promise<Result_6>;
+    revokeInvite(inviteId: bigint): Promise<Result_6>;
+    revokeLink(p: Principal): Promise<Result_6>;
+    revokeRobot(principal: Principal): Promise<Result_6>;
+    rollbackImport(batchId: string, dryRun: boolean): Promise<Result_18>;
+    saveAbsence(i: AbsenceInput): Promise<Result_4>;
+    saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_4>;
+    saveCalendarBlock(i: BlockInput): Promise<Result_4>;
+    saveDeclaration(workId: bigint, x: DeclarationInput): Promise<Result_17>;
+    saveDocument(workId: bigint, i: DocumentInput): Promise<Result_4>;
+    saveLibraryChapter(i: LibChapterInput): Promise<Result_4>;
+    saveLibraryItem(i: LibItemInput, expectedVersion: bigint): Promise<Result_16>;
+    saveMunicipality(m: MunicipalityInput): Promise<Result_12>;
+    saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_15>;
+    saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_14>;
+    savePermit(workId: bigint, x: PermitInput): Promise<Result_13>;
+    saveProcedure(x: ProcedureInput): Promise<Result_12>;
+    saveQuoteDraft(versionId: bigint, rev: bigint, header: QuoteHeaderInput | null, chapterOps: Array<QuoteChapterOp>, lineOps: Array<QuoteLineOp>, expect: QuoteExpect): Promise<Result_11>;
+    saveTask(workId: bigint, i: TaskInput, expectedVersion: bigint): Promise<Result_10>;
+    saveTemplate(i: TemplateInput): Promise<Result_6>;
+    saveVehicle(i: VehicleInput): Promise<Result_4>;
     scanPermits(): Promise<bigint>;
-    sendMailNow(): Promise<Result_7>;
-    sendQuoteVersion(versionId: bigint, rev: bigint, expectTotalCents: bigint, reason: string): Promise<Result_6>;
-    setBoardRules(i: BoardRulesInput): Promise<Result_4>;
-    setCapacity(key: string, maxWorks: bigint | null, note: string): Promise<Result_4>;
-    setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_3>;
-    setDocKind(k: DocKindInput): Promise<Result_4>;
-    setDocumentStatus(docId: bigint, status: DocStatus, note: string): Promise<Result_4>;
-    setLibraryChapterArchived(id: bigint, archived: boolean): Promise<Result_4>;
-    setLibraryItemArchived(id: bigint, archived: boolean, reason: string): Promise<Result_4>;
-    setLibraryMargin(bp: bigint): Promise<Result_4>;
-    setLibrarySell(itemId: bigint, i: LibSellInput, expectedVersion: bigint): Promise<Result_3>;
-    setLibraryUnit(u: UnitView): Promise<Result_4>;
-    setLinkLabel(p: Principal, tag: string): Promise<Result_4>;
-    setMailTest(on: boolean, address: string): Promise<Result_5>;
-    setMemberGrants(membershipId: bigint, grants: Array<Grant>): Promise<Result_4>;
-    setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_3>;
-    setOrgMail(orgId: bigint, on: boolean): Promise<Result_4>;
-    setOrgMailLang(orgId: bigint, lang: string): Promise<Result_4>;
-    setPermitKind(k: PermitKindView): Promise<Result_4>;
+    sendMailNow(): Promise<Result_9>;
+    sendQuoteVersion(versionId: bigint, rev: bigint, expectTotalCents: bigint, reason: string): Promise<Result_8>;
+    setBoardRules(i: BoardRulesInput): Promise<Result_6>;
+    setCapacity(key: string, maxWorks: bigint | null, note: string): Promise<Result_6>;
+    setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_4>;
+    setDocKind(k: DocKindInput): Promise<Result_6>;
+    setDocumentStatus(docId: bigint, status: DocStatus, note: string): Promise<Result_6>;
+    setLibraryChapterArchived(id: bigint, archived: boolean): Promise<Result_6>;
+    setLibraryItemArchived(id: bigint, archived: boolean, reason: string): Promise<Result_6>;
+    setLibraryMargin(bp: bigint): Promise<Result_6>;
+    setLibrarySell(itemId: bigint, i: LibSellInput, expectedVersion: bigint): Promise<Result_4>;
+    setLibraryUnit(u: UnitView): Promise<Result_6>;
+    setLinkLabel(p: Principal, tag: string): Promise<Result_6>;
+    setMailTest(on: boolean, address: string): Promise<Result_7>;
+    setMemberGrants(membershipId: bigint, grants: Array<Grant>): Promise<Result_6>;
+    setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_4>;
+    setOrgMail(orgId: bigint, on: boolean): Promise<Result_6>;
+    setOrgMailLang(orgId: bigint, lang: string): Promise<Result_6>;
+    setPermitKind(k: PermitKindView): Promise<Result_6>;
     setPermitRules(r: {
         expiryDays: bigint;
         warnDays: bigint;
-    }): Promise<Result_4>;
-    setPostSettings(x: PostSettingsInput): Promise<Result_5>;
-    setQuoteArchived(quoteId: bigint, archived: boolean, reason: string): Promise<Result_4>;
-    setQuoteDocSettings(i: QuoteDocSettingsInput): Promise<Result_4>;
-    setQuoteRule(i: QuoteRuleInput): Promise<Result_4>;
-    setQuoteSequence(year: bigint, last: bigint): Promise<Result_4>;
-    setQuoteStdPost(i: QuoteStdPostInput): Promise<Result_4>;
-    setSettings(s: SettingsView): Promise<Result_4>;
-    setTaskOrder(workId: bigint, taskIds: Array<bigint>, expectedVersion: bigint): Promise<Result_3>;
-    setTrade(t: TradeInput): Promise<Result_4>;
-    setWadmRules(r: WadmRules): Promise<Result_4>;
-    setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_4>;
-    submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_3>;
+    }): Promise<Result_6>;
+    setPostSettings(x: PostSettingsInput): Promise<Result_7>;
+    setQuoteArchived(quoteId: bigint, archived: boolean, reason: string): Promise<Result_6>;
+    setQuoteDocSettings(i: QuoteDocSettingsInput): Promise<Result_6>;
+    setQuoteRule(i: QuoteRuleInput): Promise<Result_6>;
+    setQuoteSequence(year: bigint, last: bigint): Promise<Result_6>;
+    setQuoteStdPost(i: QuoteStdPostInput): Promise<Result_6>;
+    setSettings(s: SettingsView): Promise<Result_6>;
+    setTaskOrder(workId: bigint, taskIds: Array<bigint>, expectedVersion: bigint): Promise<Result_4>;
+    setTrade(t: TradeInput): Promise<Result_6>;
+    setWadmRules(r: WadmRules): Promise<Result_6>;
+    setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_6>;
+    startWorkFromQuote(versionId: bigint, i: WorkStartInput, expectedPlanVersion: bigint): Promise<Result_5>;
+    submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_4>;
     taskHistory(workId: bigint, taskId: bigint | null, from: bigint, limit: bigint): Promise<Array<TaskChangeView>>;
-    updateOrg(id: bigint, input: OrgInput): Promise<Result_2>;
-    updatePerson(id: bigint, u: PersonUpdate): Promise<Result_1>;
-    updateWork(id: bigint, u: WorkUpdate): Promise<Result>;
+    updateOrg(id: bigint, input: OrgInput): Promise<Result_3>;
+    updatePerson(id: bigint, u: PersonUpdate): Promise<Result_2>;
+    updateWork(id: bigint, u: WorkUpdate): Promise<Result_1>;
     wadmOverview(): Promise<WadmOverview>;
     wadmRules(): Promise<WadmRules>;
     weekBoard(q: BoardQuery): Promise<BoardView>;
@@ -4368,4 +4579,5 @@ export interface backendInterface {
     workAdmin(workId: bigint): Promise<WorkAdminView>;
     workConflicts(workId: bigint, fromDay: bigint, weeks: bigint): Promise<ConflictList>;
     workPermits(workId: bigint): Promise<WorkPermitsView>;
+    workStartPreview(versionId: bigint, i: WorkStartInput): Promise<Result>;
 }

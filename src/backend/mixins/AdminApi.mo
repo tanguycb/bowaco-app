@@ -38,6 +38,7 @@ mixin (
   quotes : Types.QuotesState,
   quoteChecks : Types.QuoteChecksState,
   quoteDocs : Types.QuoteDocsState,
+  workStarts : Types.WorkStartState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -242,6 +243,7 @@ mixin (
       quoteTerms = quoteDocs.terms.values().toArray();
       quoteSendInfos = quoteDocs.sendInfo.values().toArray();
       quoteAcceptances = quoteDocs.acceptances.values().toArray();
+      workStarts = workStarts.starts.values().toArray();
     };
   };
 
@@ -341,6 +343,7 @@ mixin (
       case "quoteTerms" ?#quoteTerms(pg(quoteDocs.terms.values().toArray()));
       case "quoteSendInfos" ?#quoteSendInfos(pg(quoteDocs.sendInfo.values().toArray()));
       case "quoteAcceptances" ?#quoteAcceptances(pg(quoteDocs.acceptances.values().toArray()));
+      case "workStarts" ?#workStarts(pg(workStarts.starts.values().toArray()));
       case "quotePrices" ?#quotePrices(pg(quotes.prices.values().toArray()));
       case "quoteVersionConf" ?#quoteVersionConf(pg(quotes.versionConf.values().toArray()));
       case _ null;

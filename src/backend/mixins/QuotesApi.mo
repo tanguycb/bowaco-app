@@ -31,6 +31,7 @@ import QuoteRules "../lib/QuoteRules";
 import DocViews "../types/docviews";
 import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
+import WorkStart "../lib/WorkStart";
 
 mixin (
   settings : Types.SettingsState,
@@ -560,6 +561,7 @@ mixin (
     quotes.versions.add(v.id, { v with status = if accepted #accepted else #rejected; decision = ?{ at = now; by = p.id; note = note.trim(#char ' ') }; updatedAt = now; updatedBy = p.id });
     quotes.quotes.add(q.id, { q with updatedAt = now; updatedBy = p.id });
     Access.audit(audit, caller, ?p.id, ?q.workId, if accepted "offerte-aanvaard" else "offerte-geweigerd", q.number # " v" # v.version.toText());
+    if accepted { WorkStart.notifyAccepted(access, works, audit, ctr, q, v, ?p.id, true) };
     #ok;
   };
 

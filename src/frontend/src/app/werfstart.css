@@ -1,0 +1,53 @@
+/* 2.8: Werf starten uit een aanvaarde offerte. Zakelijk zoals de rest (design system v2): dunne lijnen, zwart voor wat
+   bevestigd wordt, kobalt voor de keuze, grijs voor wat al bestaat. Geen bedragen op dit scherm. */
+.ws-pending { border: 1px solid var(--bw-accent); border-radius: var(--bw-radius-lg); background: var(--bw-accent-soft); padding: 14px 16px; }
+.ws-pending--compact { padding: 10px 12px; }
+.ws-pending__head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+.ws-pending__head > .bw-icon { color: var(--bw-accent); margin-top: 2px; }
+.ws-pending .a-list { background: var(--bw-surface); border-radius: var(--bw-radius); }
+
+.ws-warn { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--bw-radius); background: var(--bw-st-delayed-bg); border: 1px solid color-mix(in srgb, var(--bw-st-delayed) 45%, transparent); font-size: var(--bw-fs-sm); }
+.ws-warn > .bw-icon { color: var(--bw-st-delayed); margin-top: 1px; }
+.ws-warn .a-list__main span { display: block; }
+
+.ws-check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--bw-fs-sm); min-height: 36px; cursor: pointer; }
+.ws-check input { width: 18px; height: 18px; accent-color: var(--bw-action); }
+.ws-narrow { max-width: 320px; }
+
+/* Tabel van de taken: vijf kolommen op de desktop, een kaart per taak op de gsm. */
+.ws-table { display: flex; flex-direction: column; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); }
+.ws-row { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) minmax(0, 1.4fr) minmax(0, 1.3fr) minmax(0, 1.6fr); gap: 12px; align-items: start; padding: 10px 14px; font-size: var(--bw-fs-sm); }
+.ws-row--head { color: var(--bw-ink-2); font-family: var(--bw-font-mono); font-size: var(--bw-fs-xs); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--bw-line); background: var(--bw-surface-2); border-radius: var(--bw-radius-lg) var(--bw-radius-lg) 0 0; }
+.ws-group + .ws-group { border-top: 1px solid var(--bw-line); }
+.ws-row .a-row { gap: 6px; flex-wrap: wrap; }
+.ws-days { width: 76px; min-height: 36px; padding: 4px 8px; }
+.ws-lines { list-style: none; margin: 0 14px 12px; padding: 0; border-left: 2px solid var(--bw-line); }
+.ws-lines li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 0 8px 12px; font-size: var(--bw-fs-sm); }
+.ws-lines li + li { border-top: 1px dashed var(--bw-line); }
+.ws-steppick { display: flex; flex-direction: column; gap: 2px; min-width: 220px; max-width: 280px; }
+.ws-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--bw-line); }
+.ws-notes li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--bw-line); font-size: var(--bw-fs-sm); }
+
+/* Gantt-voorvertoning: weken als raster, de nieuwe taken zwart, bestaande grijs, mijlpaal als ruit. Zijwaarts scrollen
+   enkel binnen dit vak. */
+.ws-gantt { overflow-x: auto; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); padding: 8px 0 10px; }
+.ws-gantt__inner { position: relative; }
+.ws-gantt__head { display: flex; height: 22px; align-items: center; color: var(--bw-ink-2); font-size: 11px; }
+.ws-gantt__head span { flex: none; padding-left: 4px; border-left: 1px solid var(--bw-line); white-space: nowrap; overflow: hidden; }
+.ws-gantt__row { display: flex; align-items: center; height: 26px; }
+.ws-gantt__label { flex: none; width: 220px; padding: 0 10px 0 12px; font-size: var(--bw-fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-gantt__track { position: relative; flex: none; height: 26px; background-image: linear-gradient(to right, var(--bw-line) 1px, transparent 1px); }
+.ws-bar { position: absolute; top: 7px; height: 12px; border-radius: 2px; background: var(--bw-action); }
+.ws-bar--ghost { background: var(--bw-line-strong); }
+.ws-bar--ms { width: 12px; height: 12px; top: 7px; border-radius: 1px; transform: rotate(45deg); background: var(--bw-accent); }
+.ws-bar--dl { width: 12px; height: 12px; top: 7px; border-radius: 50%; background: var(--bw-st-busy); }
+
+.ws-foot { position: sticky; bottom: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 0; background: var(--bw-bg); border-top: 1px solid var(--bw-line); }
+
+@media (max-width: 899px) {
+  .ws-row--head { display: none; }
+  .ws-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .ws-row > [data-l]:not(:first-child)::before { content: attr(data-l) " · "; color: var(--bw-ink-2); font-size: var(--bw-fs-xs); }
+  .ws-lines li, .ws-notes li { flex-direction: column; align-items: stretch; }
+  .ws-steppick { max-width: none; min-width: 0; }
+}

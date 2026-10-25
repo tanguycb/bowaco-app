@@ -11,8 +11,10 @@ import { Loading, Page } from "./common";
 import { BoardAttention } from "./Weekbord";
 import { DashboardBody, DashCounters, useDashboard } from "./Dashboard";
 import { IssueAttention } from "./Verslagen";
+import { PendingStarts } from "./WerfStart";
+import type { Caps } from "../backend";
 
-export function Overzicht({ go }: { go: (to: string) => void }) {
+export function Overzicht({ go, caps }: { go: (to: string) => void; caps: Caps }) {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -43,6 +45,7 @@ export function Overzicht({ go }: { go: (to: string) => void }) {
       <div className="a-cols">
         <section className="a-section">
           <h2 className="bw-h2">{t.overzicht.attention}</h2>
+          <PendingStarts caps={caps} go={go} compact />
           <IssueAttention go={go} />
           <BoardAttention go={go} />
           {/* Werven zonder verslag van de vorige werkdag en OA's die niet kunnen: telkens één regel met de werven. */}

@@ -34,6 +34,8 @@ Verwerkingsverantwoordelijke: **BOWACO** (zaakvoerder Alexis). Beheerder van de 
 
 Niet bewaard: e-mailadres voor de login, wachtwoorden, IP-adressen (het IC geeft er geen), locatie van foto's (EXIF wordt bij het verkleinen in de browser verwijderd).
 
+| P24 | Werfstart uit een aanvaarde offerte (2.8) | per aanvaarde offerteversie: wie de werf startte of het voorstel afwees (persoon-id) en wanneer, de reden van een afwijzing, welke taken, afhankelijkheden en vergunningsvoorstellen eruit kwamen, de offertelijnen die een taak kregen; bij de taken een notitie "Uit offerte … : posten"; de aanneemsom gaat naar het contract (P-contract, vertrouwelijk) en staat hier niet | `workStarts.starts`, `plan.tasks` (notitie, `quoteLineIds`), `permits.permits`, `wadm.declarations`, `dossier.confidential` | intern (geen bedrag); het contract blijft **vertrouwelijk** | uitvoering overeenkomst (aanneming) | zoals de werf (10 jaar na oplevering) | admin en de werfleider van de werf (voorstel en start); het voorstel toont nooit een bedrag; externen zien niets ervan (de taken zien ze volgens hun planningsrecht, zonder interne notitie) |
+
 ## 2. Ontvangers en verwerkers
 
 | Verwerker | Wat | Waar | Overeenkomst |

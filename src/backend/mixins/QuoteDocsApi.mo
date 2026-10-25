@@ -22,6 +22,7 @@ import Post "../lib/Post";
 import QuoteDocs "../lib/QuoteDocs";
 import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
+import WorkStart "../lib/WorkStart";
 
 mixin (
   settings : Types.SettingsState,
@@ -107,6 +108,7 @@ mixin (
       case null {
         quoteDocs.acceptances.add(v.id, { versionId = v.id; hash = sent.hash; digital = null; signed = ?proof; extra = [] });
         quotes.versions.add(v.id, { v with status = #accepted; decision = ?{ at = now; by = p.id; note = "Getekende offerte ontvangen" }; rev = v.rev + 1; updatedAt = now; updatedBy = p.id });
+        WorkStart.notifyAccepted(access, works, audit, ctr, q, v, ?p.id, true);
       };
     };
     quotes.quotes.add(q.id, { q with updatedAt = now; updatedBy = p.id });

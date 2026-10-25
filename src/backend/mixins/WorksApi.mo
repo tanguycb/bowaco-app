@@ -217,7 +217,6 @@ mixin (
     if (k.paymentTermDays > Config.maxPaymentTermDays) { return #err("Betaaltermijn: hoogstens 365 dagen") };
     switch (k.invoicingRhythm) { case (#other t) { if (t.size() == 0 or t.size() > Config.maxName) { return #err("Facturatieritme: omschrijving 1 tot 80 tekens") } }; case _ {} };
     if (k.note.size() > Config.maxText or i.notes.size() > Config.maxText) { return #err("Tekst te lang") };
-    if (k.signedQuoteVersionId != null) { return #err("Getekende offerteversie: komt in fase 2") };
     let contact : Types.Contact = switch (i.clientContact) {
       case (?c) {
         switch (Access.contactError(c)) { case (?e) return #err(e); case null {} };
@@ -230,9 +229,11 @@ mixin (
     if (expectedVersion != current) { return #err("Iemand anders wijzigde dit intussen (versie " # current.toText() # "); laad opnieuw") };
     switch old { case (?c) { if (Dossier.isSealed(c.contract)) { return #err("Versleuteld: wijzigen kan enkel in de browser met de werfsleutel (fase 2)") } }; case null {} };
     let now = Time.now();
+    // 2.8: de getekende offerteversie zet enkel de werfstart uit een aanvaarde offerte; wat de browser meestuurt, telt niet.
+    let signed : ?Nat = switch old { case (?c) { switch (c.contract) { case (#plain x) x.signedQuoteVersionId; case (#sealed _) null } }; case null null };
     let rec : Types.WorkConfidential = {
       workId;
-      contract = #plain(k);
+      contract = #plain({ k with signedQuoteVersionId = signed });
       clientContact = #plain(contact);
       notes = #plain(i.notes);
       version = current + 1;
