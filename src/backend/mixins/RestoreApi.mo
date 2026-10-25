@@ -50,6 +50,7 @@ mixin (
   quoteChecks : Types.QuoteChecksState,
   quoteDocs : Types.QuoteDocsState,
   workStarts : Types.WorkStartState,
+  surveys : Types.SurveyState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -108,7 +109,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -262,6 +263,11 @@ mixin (
       case (#quoteSendInfos xs) { for (x in xs.values()) { quoteDocs.sendInfo.add(x.versionId, x) }; xs.size() };
       case (#quoteAcceptances xs) { for (x in xs.values()) { quoteDocs.acceptances.add(x.versionId, x) }; xs.size() };
       case (#workStarts xs) { for (x in xs.values()) { workStarts.starts.add(x.versionId, x) }; xs.size() };
+      case (#surveys xs) { for (x in xs.values()) { surveys.surveys.add(x.id, x) }; xs.size() };
+      case (#surveyKeys xs) { for ((k, id) in xs.values()) { surveys.keys.add(k, id) }; xs.size() };
+      case (#measureEntries xs) { for (x in xs.values()) { surveys.entries.add(x.id, x) }; xs.size() };
+      case (#measureSnapshots xs) { for ((id, x) in xs.values()) { surveys.snapshots.add(id, x) }; xs.size() };
+      case (#measureOps xs) { for (x in xs.values()) { surveys.ops.add(x.opId, x) }; xs.size() };
       case (#quotePrices xs) { for (x in xs.values()) { quotes.prices.add(x.lineId, x) }; xs.size() };
       case (#quoteVersionConf xs) { for (x in xs.values()) { quotes.versionConf.add(x.versionId, x) }; xs.size() };
     };
@@ -400,6 +406,29 @@ mixin (
     rsAtLeast("quoteVersion", rsMaxKey(quotes.versions));
     rsAtLeast("quoteChapter", rsMaxKey(quotes.chapters));
     rsAtLeast("quoteLine", rsMaxKey(quotes.lines));
+    // 2.9: de indexen van de opmeting (per werf, per opmeting, bestandseigenaars, volgorde van de opId's) uit de records zelf.
+    rsClearNat(surveys.byWork);
+    rsClearNat(surveys.bySurvey);
+    rsClearNat(surveys.fileOwners);
+    rsClearNat(surveys.opOrder);
+    for (s in surveys.surveys.values()) {
+      surveys.byWork.add(s.workId, Array.concat(switch (surveys.byWork.get(s.workId)) { case (?x) x; case null [] }, [s.id]));
+      surveys.bySurvey.add(s.id, []);
+      if (not surveys.keys.containsKey(s.clientKey)) { surveys.keys.add(s.clientKey, s.id) };
+    };
+    for (e in surveys.entries.values()) {
+      surveys.bySurvey.add(e.surveyId, Array.concat(switch (surveys.bySurvey.get(e.surveyId)) { case (?x) x; case null [] }, [e.id]));
+      for (f in e.files.values()) {
+        surveys.fileOwners.add(f.fileId, e.id);
+        switch (f.thumbFileId) { case (?t) surveys.fileOwners.add(t, e.id); case null {} };
+      };
+    };
+    for (o in surveys.ops.values()) { surveys.opOrder.add(o.seq, o.opId) };
+    rsAtLeast("survey", rsMaxKey(surveys.surveys));
+    rsAtLeast("measureEntry", rsMaxKey(surveys.entries));
+    var maxOp = 0;
+    for (o in surveys.ops.values()) { if (o.seq > maxOp) { maxOp := o.seq } };
+    rsAtLeast("surveyOp", maxOp);
   };
 
   func rsSummary() : Views.RestoreSummary {

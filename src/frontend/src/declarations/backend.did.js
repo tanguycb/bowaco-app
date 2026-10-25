@@ -709,6 +709,16 @@ export const LookupView = IDL.Record({
   'extra' : Extra,
   'archivedAt' : IDL.Opt(IDL.Int),
 });
+export const SurveyOpRecord = IDL.Record({
+  'at' : IDL.Int,
+  'by' : PersonId,
+  'seq' : IDL.Nat,
+  'kind' : IDL.Text,
+  'note' : IDL.Text,
+  'opId' : IDL.Text,
+  'surveyId' : IDL.Nat,
+  'entityId' : IDL.Opt(IDL.Nat),
+});
 export const Confirmation = IDL.Variant({
   'open' : IDL.Null,
   'confirmed' : IDL.Record({ 'at' : IDL.Int, 'by' : PersonId }),
@@ -1017,6 +1027,25 @@ export const OrgContact = IDL.Record({
   'updatedAt' : IDL.Int,
   'updatedBy' : PersonId,
   'phone' : IDL.Opt(IDL.Text),
+});
+export const SurveyStatus = IDL.Variant({
+  'closed' : IDL.Record({
+    'at' : IDL.Int,
+    'by' : PersonId,
+    'note' : IDL.Text,
+    'thresholdBp' : IDL.Nat,
+  }),
+  'open' : IDL.Null,
+});
+export const Survey = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : SurveyStatus,
+  'extra' : Extra,
+  'number' : IDL.Nat,
+  'clientKey' : IDL.Text,
+  'workId' : WorkId,
+  'openedAt' : IDL.Int,
+  'openedBy' : PersonId,
 });
 export const LibSell = IDL.Record({
   'itemId' : IDL.Nat,
@@ -1487,6 +1516,45 @@ export const Quote = IDL.Record({
   'archivedAt' : IDL.Opt(IDL.Int),
   'archivedBy' : IDL.Opt(PersonId),
 });
+export const MeasureFileRole = IDL.Variant({
+  'photo' : IDL.Null,
+  'sketch' : IDL.Null,
+});
+export const MeasureFile = IDL.Record({
+  'role' : MeasureFileRole,
+  'fileId' : IDL.Nat,
+  'caption' : IDL.Text,
+  'thumbFileId' : IDL.Opt(IDL.Nat),
+});
+export const MeasureReview = IDL.Record({
+  'at' : IDL.Int,
+  'by' : PersonId,
+  'ok' : IDL.Bool,
+  'note' : IDL.Text,
+});
+export const MeasureEntry = IDL.Record({
+  'id' : IDL.Nat,
+  'day' : Day,
+  'files' : IDL.Vec(MeasureFile),
+  'review' : IDL.Opt(MeasureReview),
+  'versionId' : IDL.Nat,
+  'qtyMilli' : IDL.Int,
+  'blockKey' : IDL.Text,
+  'proposedOrgId' : IDL.Opt(OrgId),
+  'note' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'createdBy' : PersonId,
+  'root' : IDL.Nat,
+  'extra' : Extra,
+  'surveyId' : IDL.Nat,
+  'complete' : IDL.Bool,
+  'corrects' : IDL.Opt(IDL.Nat),
+  'workId' : WorkId,
+  'lineId' : IDL.Nat,
+  'reason' : IDL.Text,
+  'archivedAt' : IDL.Opt(IDL.Int),
+  'archivedBy' : IDL.Opt(PersonId),
+});
 export const PersonContact = IDL.Record({
   'note' : IDL.Text,
   'email' : IDL.Opt(IDL.Text),
@@ -1616,6 +1684,16 @@ export const LinkHistory = IDL.Record({
   'revokedAt' : IDL.Opt(IDL.Int),
   'revokedBy' : IDL.Opt(PersonId),
 });
+export const SurveyPostSnap = IDL.Record({
+  'versionId' : IDL.Nat,
+  'root' : IDL.Nat,
+  'unit' : IDL.Text,
+  'vhMilli' : IDL.Int,
+  'complete' : IDL.Bool,
+  'deltaMilli' : IDL.Int,
+  'measuredMilli' : IDL.Int,
+  'lineId' : IDL.Nat,
+});
 export const WorkDone = IDL.Record({
   'id' : IDL.Nat,
   'blockKey' : IDL.Text,
@@ -1648,6 +1726,7 @@ export const RestorePart = IDL.Variant({
   'trips' : IDL.Vec(Trip),
   'attendances' : IDL.Vec(Attendance),
   'lookups' : IDL.Vec(LookupView),
+  'measureOps' : IDL.Vec(SurveyOpRecord),
   'audit' : IDL.Vec(AuditEntry),
   'assignments' : IDL.Vec(Assignment),
   'notifications' : IDL.Vec(NotificationExport),
@@ -1669,6 +1748,7 @@ export const RestorePart = IDL.Variant({
   'calendarBlocks' : IDL.Vec(CalendarBlock),
   'hoursConfirmations' : IDL.Vec(HoursConfirmation),
   'orgContacts' : IDL.Vec(OrgContact),
+  'surveys' : IDL.Vec(Survey),
   'libSells' : IDL.Vec(LibSell),
   'libChapters' : IDL.Vec(LibChapter),
   'quotePrices' : IDL.Vec(QuoteLinePrice),
@@ -1689,6 +1769,7 @@ export const RestorePart = IDL.Variant({
   'appointments' : IDL.Vec(Appointment),
   'materials' : IDL.Vec(MaterialNote),
   'dependencies' : IDL.Vec(Dependency),
+  'surveyKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'libItems' : IDL.Vec(LibItem),
   'quoteSendInfos' : IDL.Vec(QuoteSendInfo),
   'quoteVersionConf' : IDL.Vec(QuoteVersionConf),
@@ -1704,6 +1785,7 @@ export const RestorePart = IDL.Variant({
   'quoteRules' : IDL.Vec(QuoteRuleCfg),
   'orgConfidential' : IDL.Vec(IDL.Tuple(OrgId, ContactConfidentialView)),
   'quotes' : IDL.Vec(Quote),
+  'measureEntries' : IDL.Vec(MeasureEntry),
   'personContacts' : IDL.Vec(PersonContact),
   'sequences' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'quoteAcceptances' : IDL.Vec(QuoteAcceptance),
@@ -1714,6 +1796,7 @@ export const RestorePart = IDL.Variant({
   'quoteTerms' : IDL.Vec(QuoteTerms),
   'photos' : IDL.Vec(Photo),
   'linkHistory' : IDL.Vec(LinkHistory),
+  'measureSnapshots' : IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Vec(SurveyPostSnap))),
   'workDone' : IDL.Vec(WorkDone),
   'workInfo' : IDL.Vec(WorkInfo),
 });
@@ -1749,6 +1832,7 @@ export const ExportIntern = IDL.Record({
   'trips' : IDL.Vec(Trip),
   'attendances' : IDL.Vec(Attendance),
   'lookups' : IDL.Vec(LookupView),
+  'measureOps' : IDL.Vec(SurveyOpRecord),
   'assignments' : IDL.Vec(Assignment),
   'notifications' : IDL.Vec(NotificationExport),
   'procedures' : IDL.Vec(PermitProcedure),
@@ -1768,6 +1852,7 @@ export const ExportIntern = IDL.Record({
   'calendarBlocks' : IDL.Vec(CalendarBlock),
   'hoursConfirmations' : IDL.Vec(HoursConfirmation),
   'orgContacts' : IDL.Vec(OrgContact),
+  'surveys' : IDL.Vec(Survey),
   'libChapters' : IDL.Vec(LibChapter),
   'links' : IDL.Vec(LinkView),
   'reportKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
@@ -1785,6 +1870,7 @@ export const ExportIntern = IDL.Record({
   'appointments' : IDL.Vec(Appointment),
   'materials' : IDL.Vec(MaterialNote),
   'dependencies' : IDL.Vec(Dependency),
+  'surveyKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'libItems' : IDL.Vec(LibItem),
   'quoteSendInfos' : IDL.Vec(QuoteSendInfo),
   'robots' : IDL.Vec(RobotView),
@@ -1798,6 +1884,7 @@ export const ExportIntern = IDL.Record({
   'works' : IDL.Vec(WorkView),
   'quoteRules' : IDL.Vec(QuoteRuleCfg),
   'quotes' : IDL.Vec(Quote),
+  'measureEntries' : IDL.Vec(MeasureEntry),
   'personContacts' : IDL.Vec(PersonContact),
   'sequences' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'quoteAcceptances' : IDL.Vec(QuoteAcceptance),
@@ -1809,6 +1896,7 @@ export const ExportIntern = IDL.Record({
   'quoteTerms' : IDL.Vec(QuoteTerms),
   'photos' : IDL.Vec(Photo),
   'linkHistory' : IDL.Vec(LinkHistory),
+  'measureSnapshots' : IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Vec(SurveyPostSnap))),
   'workDone' : IDL.Vec(WorkDone),
   'workInfo' : IDL.Vec(WorkInfo),
 });
@@ -1885,6 +1973,80 @@ export const LibItemView = IDL.Record({
   'unitName' : IDL.Text,
 });
 export const Result_16 = IDL.Variant({ 'ok' : LibItemView, 'err' : IDL.Text });
+export const MeasureFlag = IDL.Variant({
+  'less' : IDL.Null,
+  'more' : IDL.Null,
+  'none' : IDL.Null,
+  'open' : IDL.Null,
+});
+export const SurveyPostSnapView = IDL.Record({
+  'title' : IDL.Text,
+  'code' : IDL.Text,
+  'flag' : MeasureFlag,
+  'root' : IDL.Nat,
+  'unit' : IDL.Text,
+  'vhMilli' : IDL.Int,
+  'quoteNumber' : IDL.Text,
+  'complete' : IDL.Bool,
+  'deltaMilli' : IDL.Int,
+  'diffBp' : IDL.Opt(IDL.Int),
+  'measuredMilli' : IDL.Int,
+  'diffMilli' : IDL.Int,
+  'lineId' : IDL.Nat,
+  'chapterCode' : IDL.Text,
+});
+export const MeasureFileView = IDL.Record({
+  'thumb' : IDL.Opt(FileView),
+  'file' : FileView,
+  'role' : MeasureFileRole,
+  'caption' : IDL.Text,
+});
+export const MeasureEntryView = IDL.Record({
+  'id' : IDL.Nat,
+  'day' : IDL.Nat,
+  'files' : IDL.Vec(MeasureFileView),
+  'status' : IDL.Text,
+  'byName' : IDL.Text,
+  'canCorrect' : IDL.Bool,
+  'qtyMilli' : IDL.Int,
+  'blockKey' : IDL.Text,
+  'contributionMilli' : IDL.Int,
+  'superseded' : IDL.Bool,
+  'note' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'root' : IDL.Nat,
+  'canRemove' : IDL.Bool,
+  'surveyNumber' : IDL.Nat,
+  'reviewedByName' : IDL.Text,
+  'reviewNote' : IDL.Text,
+  'reviewedAt' : IDL.Opt(IDL.Int),
+  'surveyId' : IDL.Nat,
+  'complete' : IDL.Bool,
+  'corrects' : IDL.Opt(IDL.Nat),
+  'proposedByOrg' : IDL.Text,
+  'surveyClosed' : IDL.Bool,
+  'lineId' : IDL.Nat,
+  'archived' : IDL.Bool,
+  'reason' : IDL.Text,
+});
+export const SurveyBrief = IDL.Record({
+  'id' : IDL.Nat,
+  'pendingCount' : IDL.Nat,
+  'closeNote' : IDL.Text,
+  'entryCount' : IDL.Nat,
+  'open' : IDL.Bool,
+  'openedByName' : IDL.Text,
+  'thresholdBp' : IDL.Opt(IDL.Nat),
+  'closedAt' : IDL.Opt(IDL.Int),
+  'number' : IDL.Nat,
+  'openedAt' : IDL.Int,
+  'closedByName' : IDL.Text,
+});
+export const SurveyDetail = IDL.Record({
+  'snapshot' : IDL.Vec(SurveyPostSnapView),
+  'entries' : IDL.Vec(MeasureEntryView),
+  'survey' : SurveyBrief,
+});
 export const OrgContactView = IDL.Record({
   'contactNote' : IDL.Text,
   'email' : IDL.Opt(IDL.Text),
@@ -2391,6 +2553,20 @@ export const MailLogView = IDL.Record({
   'recipients' : IDL.Nat,
   'outcome' : MailOutcome,
 });
+export const MeasureWorkBrief = IDL.Record({
+  'lessCount' : IDL.Nat,
+  'pending' : IDL.Nat,
+  'code' : IDL.Text,
+  'name' : IDL.Text,
+  'moreCount' : IDL.Nat,
+  'openSurveyNumber' : IDL.Opt(IDL.Nat),
+  'measuredPosts' : IDL.Nat,
+  'scope' : IDL.Text,
+  'address' : Address,
+  'closedSurveys' : IDL.Nat,
+  'posts' : IDL.Nat,
+  'workId' : IDL.Nat,
+});
 export const PermitProcedureView = IDL.Record({
   'how' : IDL.Text,
   'leadDays' : IDL.Nat,
@@ -2555,9 +2731,11 @@ export const Caps = IDL.Record({
   'manageMunicipalities' : IDL.Bool,
   'importOa' : IDL.Bool,
   'manageOa' : IDL.Bool,
+  'measure' : IDL.Bool,
   'home' : IDL.Text,
   'libraryPrices' : IDL.Bool,
   'wadm' : IDL.Bool,
+  'measureRead' : IDL.Bool,
   'importPlan' : IDL.Bool,
   'managePermitKinds' : IDL.Bool,
   'readOrgPlanning' : IDL.Bool,
@@ -2601,6 +2779,116 @@ export const MeView = IDL.Record({
   'caps' : IDL.Opt(Caps),
   'version' : IDL.Text,
   'isRobot' : IDL.Bool,
+});
+export const MeasurePostView = IDL.Record({
+  'pendingCount' : IDL.Nat,
+  'versionId' : IDL.Nat,
+  'versionNo' : IDL.Nat,
+  'title' : IDL.Text,
+  'closedMilli' : IDL.Int,
+  'option' : IDL.Bool,
+  'entryCount' : IDL.Nat,
+  'code' : IDL.Text,
+  'flag' : MeasureFlag,
+  'form' : ContractForm,
+  'root' : IDL.Nat,
+  'unit' : IDL.Text,
+  'vhMilli' : IDL.Int,
+  'quoteNumber' : IDL.Text,
+  'chapterTitle' : IDL.Text,
+  'complete' : IDL.Bool,
+  'diffBp' : IDL.Opt(IDL.Int),
+  'measuredMilli' : IDL.Int,
+  'inOffer' : IDL.Bool,
+  'diffMilli' : IDL.Int,
+  'lastDay' : IDL.Opt(IDL.Nat),
+  'lineId' : IDL.Nat,
+  'chapterCode' : IDL.Text,
+});
+export const MeasurePostDetail = IDL.Record({
+  'post' : MeasurePostView,
+  'text' : IDL.Text,
+  'entries' : IDL.Vec(MeasureEntryView),
+});
+export const MeasureSettingsView = IDL.Record({
+  'externalRead' : IDL.Bool,
+  'thresholdBp' : IDL.Nat,
+  'oaPropose' : IDL.Bool,
+});
+export const MeasureTotals = IDL.Record({
+  'lessCount' : IDL.Nat,
+  'moreCount' : IDL.Nat,
+  'measuredPosts' : IDL.Nat,
+  'completePosts' : IDL.Nat,
+  'posts' : IDL.Nat,
+  'openProposals' : IDL.Nat,
+});
+export const MeasureSummaryView = IDL.Record({
+  'workName' : IDL.Text,
+  'orgName' : IDL.Text,
+  'canWrite' : IDL.Bool,
+  'note' : IDL.Text,
+  'canReview' : IDL.Bool,
+  'surveys' : IDL.Vec(SurveyBrief),
+  'thresholdBp' : IDL.Nat,
+  'scope' : IDL.Text,
+  'totals' : MeasureTotals,
+  'canPropose' : IDL.Bool,
+  'openSurveyId' : IDL.Opt(IDL.Nat),
+  'posts' : IDL.Vec(MeasurePostView),
+  'workId' : IDL.Nat,
+  'quotes' : IDL.Vec(IDL.Text),
+  'workCode' : IDL.Text,
+});
+export const FileIn = IDL.Record({
+  'blob' : ExternalBlob,
+  'mime' : IDL.Text,
+  'name' : IDL.Text,
+  'size' : IDL.Nat,
+});
+export const MeasureFileIn = IDL.Record({
+  'thumb' : IDL.Opt(FileIn),
+  'file' : FileIn,
+  'role' : MeasureFileRole,
+  'caption' : IDL.Text,
+});
+export const MeasureOp = IDL.Variant({
+  'remove' : IDL.Record({ 'entryId' : IDL.Nat }),
+  'review' : IDL.Record({
+    'ok' : IDL.Bool,
+    'note' : IDL.Text,
+    'entryId' : IDL.Nat,
+  }),
+  'close' : IDL.Record({ 'note' : IDL.Text }),
+  'open' : IDL.Record({ 'workId' : IDL.Nat }),
+  'entry' : IDL.Record({
+    'day' : IDL.Nat,
+    'files' : IDL.Vec(MeasureFileIn),
+    'qtyMilli' : IDL.Int,
+    'note' : IDL.Text,
+    'complete' : IDL.Bool,
+    'corrects' : IDL.Opt(IDL.Nat),
+    'lineId' : IDL.Nat,
+    'reason' : IDL.Text,
+  }),
+});
+export const MeasureOpInput = IDL.Record({
+  'op' : MeasureOp,
+  'opId' : IDL.Text,
+  'clientKey' : IDL.Text,
+});
+export const MeasureOutcome = IDL.Variant({
+  'err' : IDL.Text,
+  'done' : IDL.Record({
+    'note' : IDL.Text,
+    'surveyId' : IDL.Nat,
+    'entityId' : IDL.Opt(IDL.Nat),
+  }),
+});
+export const MeasureOpResult = IDL.Record({
+  'repeated' : IDL.Bool,
+  'opId' : IDL.Text,
+  'outcome' : MeasureOutcome,
 });
 export const BoardTask = IDL.Record({
   'end' : Day,
@@ -3125,12 +3413,6 @@ export const Result_21 = IDL.Variant({
   'err' : IDL.Text,
 });
 export const Result_20 = IDL.Variant({ 'ok' : MeView, 'err' : IDL.Text });
-export const FileIn = IDL.Record({
-  'blob' : ExternalBlob,
-  'mime' : IDL.Text,
-  'name' : IDL.Text,
-  'size' : IDL.Nat,
-});
 export const ReportOp = IDL.Variant({
   'ensure' : IDL.Record({ 'day' : Day, 'workId' : WorkId }),
   'remove' : IDL.Record({ 'blockKey' : IDL.Text }),
@@ -3922,6 +4204,7 @@ export const idlService = IDL.Service({
   'failJob' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text, IDL.Bool], [Result_6], []),
   'getDossier' : IDL.Func([IDL.Nat], [DossierView], ['query']),
   'getLibraryItem' : IDL.Func([IDL.Nat], [Result_16], ['query']),
+  'getMeasureSurvey' : IDL.Func([IDL.Nat], [SurveyDetail], ['query']),
   'getOa' : IDL.Func([IDL.Nat], [Result_38], ['query']),
   'getPlan' : IDL.Func([IDL.Nat], [PlanView], ['query']),
   'getQuoteDocSettings' : IDL.Func([], [QuoteDocSettings], ['query']),
@@ -3987,6 +4270,7 @@ export const idlService = IDL.Service({
       [IDL.Vec(MailLogView)],
       ['query'],
     ),
+  'listMeasureWorks' : IDL.Func([], [IDL.Vec(MeasureWorkBrief)], ['query']),
   'listMembers' : IDL.Func([IDL.Nat], [IDL.Vec(MembershipView)], ['query']),
   'listMunicipalities' : IDL.Func(
       [IDL.Bool],
@@ -4033,6 +4317,14 @@ export const idlService = IDL.Service({
   'mailQuoteToClient' : IDL.Func([IDL.Nat], [Result_6], []),
   'markNotificationsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
   'me' : IDL.Func([], [MeView], ['query']),
+  'measurePost' : IDL.Func([IDL.Nat, IDL.Nat], [MeasurePostDetail], ['query']),
+  'measureSettings' : IDL.Func([], [MeasureSettingsView], ['query']),
+  'measureSummary' : IDL.Func([IDL.Nat], [MeasureSummaryView], ['query']),
+  'measureSync' : IDL.Func(
+      [IDL.Vec(MeasureOpInput)],
+      [IDL.Vec(MeasureOpResult)],
+      [],
+    ),
   'myBoard' : IDL.Func([IDL.Nat, IDL.Nat], [MyBoardView], ['query']),
   'myDay' : IDL.Func([IDL.Nat, IDL.Bool], [MyDayView], ['query']),
   'myHours' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(HoursLine)], ['query']),
@@ -4118,6 +4410,7 @@ export const idlService = IDL.Service({
   'saveDocument' : IDL.Func([IDL.Nat, DocumentInput], [Result_4], []),
   'saveLibraryChapter' : IDL.Func([LibChapterInput], [Result_4], []),
   'saveLibraryItem' : IDL.Func([LibItemInput, IDL.Nat], [Result_16], []),
+  'saveMeasureSettings' : IDL.Func([MeasureSettingsView], [Result_6], []),
   'saveMunicipality' : IDL.Func([MunicipalityInput], [Result_12], []),
   'saveOaPerson' : IDL.Func([IDL.Nat, OaPersonInput], [Result_15], []),
   'saveOrgContact' : IDL.Func([IDL.Nat, OrgContactInput], [Result_14], []),
@@ -4922,6 +5215,16 @@ export const idlFactory = ({ IDL }) => {
     'extra' : Extra,
     'archivedAt' : IDL.Opt(IDL.Int),
   });
+  const SurveyOpRecord = IDL.Record({
+    'at' : IDL.Int,
+    'by' : PersonId,
+    'seq' : IDL.Nat,
+    'kind' : IDL.Text,
+    'note' : IDL.Text,
+    'opId' : IDL.Text,
+    'surveyId' : IDL.Nat,
+    'entityId' : IDL.Opt(IDL.Nat),
+  });
   const Confirmation = IDL.Variant({
     'open' : IDL.Null,
     'confirmed' : IDL.Record({ 'at' : IDL.Int, 'by' : PersonId }),
@@ -5218,6 +5521,25 @@ export const idlFactory = ({ IDL }) => {
     'updatedAt' : IDL.Int,
     'updatedBy' : PersonId,
     'phone' : IDL.Opt(IDL.Text),
+  });
+  const SurveyStatus = IDL.Variant({
+    'closed' : IDL.Record({
+      'at' : IDL.Int,
+      'by' : PersonId,
+      'note' : IDL.Text,
+      'thresholdBp' : IDL.Nat,
+    }),
+    'open' : IDL.Null,
+  });
+  const Survey = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : SurveyStatus,
+    'extra' : Extra,
+    'number' : IDL.Nat,
+    'clientKey' : IDL.Text,
+    'workId' : WorkId,
+    'openedAt' : IDL.Int,
+    'openedBy' : PersonId,
   });
   const LibSell = IDL.Record({
     'itemId' : IDL.Nat,
@@ -5682,6 +6004,45 @@ export const idlFactory = ({ IDL }) => {
     'archivedAt' : IDL.Opt(IDL.Int),
     'archivedBy' : IDL.Opt(PersonId),
   });
+  const MeasureFileRole = IDL.Variant({
+    'photo' : IDL.Null,
+    'sketch' : IDL.Null,
+  });
+  const MeasureFile = IDL.Record({
+    'role' : MeasureFileRole,
+    'fileId' : IDL.Nat,
+    'caption' : IDL.Text,
+    'thumbFileId' : IDL.Opt(IDL.Nat),
+  });
+  const MeasureReview = IDL.Record({
+    'at' : IDL.Int,
+    'by' : PersonId,
+    'ok' : IDL.Bool,
+    'note' : IDL.Text,
+  });
+  const MeasureEntry = IDL.Record({
+    'id' : IDL.Nat,
+    'day' : Day,
+    'files' : IDL.Vec(MeasureFile),
+    'review' : IDL.Opt(MeasureReview),
+    'versionId' : IDL.Nat,
+    'qtyMilli' : IDL.Int,
+    'blockKey' : IDL.Text,
+    'proposedOrgId' : IDL.Opt(OrgId),
+    'note' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'createdBy' : PersonId,
+    'root' : IDL.Nat,
+    'extra' : Extra,
+    'surveyId' : IDL.Nat,
+    'complete' : IDL.Bool,
+    'corrects' : IDL.Opt(IDL.Nat),
+    'workId' : WorkId,
+    'lineId' : IDL.Nat,
+    'reason' : IDL.Text,
+    'archivedAt' : IDL.Opt(IDL.Int),
+    'archivedBy' : IDL.Opt(PersonId),
+  });
   const PersonContact = IDL.Record({
     'note' : IDL.Text,
     'email' : IDL.Opt(IDL.Text),
@@ -5811,6 +6172,16 @@ export const idlFactory = ({ IDL }) => {
     'revokedAt' : IDL.Opt(IDL.Int),
     'revokedBy' : IDL.Opt(PersonId),
   });
+  const SurveyPostSnap = IDL.Record({
+    'versionId' : IDL.Nat,
+    'root' : IDL.Nat,
+    'unit' : IDL.Text,
+    'vhMilli' : IDL.Int,
+    'complete' : IDL.Bool,
+    'deltaMilli' : IDL.Int,
+    'measuredMilli' : IDL.Int,
+    'lineId' : IDL.Nat,
+  });
   const WorkDone = IDL.Record({
     'id' : IDL.Nat,
     'blockKey' : IDL.Text,
@@ -5843,6 +6214,7 @@ export const idlFactory = ({ IDL }) => {
     'trips' : IDL.Vec(Trip),
     'attendances' : IDL.Vec(Attendance),
     'lookups' : IDL.Vec(LookupView),
+    'measureOps' : IDL.Vec(SurveyOpRecord),
     'audit' : IDL.Vec(AuditEntry),
     'assignments' : IDL.Vec(Assignment),
     'notifications' : IDL.Vec(NotificationExport),
@@ -5866,6 +6238,7 @@ export const idlFactory = ({ IDL }) => {
     'calendarBlocks' : IDL.Vec(CalendarBlock),
     'hoursConfirmations' : IDL.Vec(HoursConfirmation),
     'orgContacts' : IDL.Vec(OrgContact),
+    'surveys' : IDL.Vec(Survey),
     'libSells' : IDL.Vec(LibSell),
     'libChapters' : IDL.Vec(LibChapter),
     'quotePrices' : IDL.Vec(QuoteLinePrice),
@@ -5886,6 +6259,7 @@ export const idlFactory = ({ IDL }) => {
     'appointments' : IDL.Vec(Appointment),
     'materials' : IDL.Vec(MaterialNote),
     'dependencies' : IDL.Vec(Dependency),
+    'surveyKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'libItems' : IDL.Vec(LibItem),
     'quoteSendInfos' : IDL.Vec(QuoteSendInfo),
     'quoteVersionConf' : IDL.Vec(QuoteVersionConf),
@@ -5901,6 +6275,7 @@ export const idlFactory = ({ IDL }) => {
     'quoteRules' : IDL.Vec(QuoteRuleCfg),
     'orgConfidential' : IDL.Vec(IDL.Tuple(OrgId, ContactConfidentialView)),
     'quotes' : IDL.Vec(Quote),
+    'measureEntries' : IDL.Vec(MeasureEntry),
     'personContacts' : IDL.Vec(PersonContact),
     'sequences' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'quoteAcceptances' : IDL.Vec(QuoteAcceptance),
@@ -5911,6 +6286,7 @@ export const idlFactory = ({ IDL }) => {
     'quoteTerms' : IDL.Vec(QuoteTerms),
     'photos' : IDL.Vec(Photo),
     'linkHistory' : IDL.Vec(LinkHistory),
+    'measureSnapshots' : IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Vec(SurveyPostSnap))),
     'workDone' : IDL.Vec(WorkDone),
     'workInfo' : IDL.Vec(WorkInfo),
   });
@@ -5946,6 +6322,7 @@ export const idlFactory = ({ IDL }) => {
     'trips' : IDL.Vec(Trip),
     'attendances' : IDL.Vec(Attendance),
     'lookups' : IDL.Vec(LookupView),
+    'measureOps' : IDL.Vec(SurveyOpRecord),
     'assignments' : IDL.Vec(Assignment),
     'notifications' : IDL.Vec(NotificationExport),
     'procedures' : IDL.Vec(PermitProcedure),
@@ -5965,6 +6342,7 @@ export const idlFactory = ({ IDL }) => {
     'calendarBlocks' : IDL.Vec(CalendarBlock),
     'hoursConfirmations' : IDL.Vec(HoursConfirmation),
     'orgContacts' : IDL.Vec(OrgContact),
+    'surveys' : IDL.Vec(Survey),
     'libChapters' : IDL.Vec(LibChapter),
     'links' : IDL.Vec(LinkView),
     'reportKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
@@ -5982,6 +6360,7 @@ export const idlFactory = ({ IDL }) => {
     'appointments' : IDL.Vec(Appointment),
     'materials' : IDL.Vec(MaterialNote),
     'dependencies' : IDL.Vec(Dependency),
+    'surveyKeys' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'libItems' : IDL.Vec(LibItem),
     'quoteSendInfos' : IDL.Vec(QuoteSendInfo),
     'robots' : IDL.Vec(RobotView),
@@ -5995,6 +6374,7 @@ export const idlFactory = ({ IDL }) => {
     'works' : IDL.Vec(WorkView),
     'quoteRules' : IDL.Vec(QuoteRuleCfg),
     'quotes' : IDL.Vec(Quote),
+    'measureEntries' : IDL.Vec(MeasureEntry),
     'personContacts' : IDL.Vec(PersonContact),
     'sequences' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'quoteAcceptances' : IDL.Vec(QuoteAcceptance),
@@ -6006,6 +6386,7 @@ export const idlFactory = ({ IDL }) => {
     'quoteTerms' : IDL.Vec(QuoteTerms),
     'photos' : IDL.Vec(Photo),
     'linkHistory' : IDL.Vec(LinkHistory),
+    'measureSnapshots' : IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Vec(SurveyPostSnap))),
     'workDone' : IDL.Vec(WorkDone),
     'workInfo' : IDL.Vec(WorkInfo),
   });
@@ -6082,6 +6463,80 @@ export const idlFactory = ({ IDL }) => {
     'unitName' : IDL.Text,
   });
   const Result_16 = IDL.Variant({ 'ok' : LibItemView, 'err' : IDL.Text });
+  const MeasureFlag = IDL.Variant({
+    'less' : IDL.Null,
+    'more' : IDL.Null,
+    'none' : IDL.Null,
+    'open' : IDL.Null,
+  });
+  const SurveyPostSnapView = IDL.Record({
+    'title' : IDL.Text,
+    'code' : IDL.Text,
+    'flag' : MeasureFlag,
+    'root' : IDL.Nat,
+    'unit' : IDL.Text,
+    'vhMilli' : IDL.Int,
+    'quoteNumber' : IDL.Text,
+    'complete' : IDL.Bool,
+    'deltaMilli' : IDL.Int,
+    'diffBp' : IDL.Opt(IDL.Int),
+    'measuredMilli' : IDL.Int,
+    'diffMilli' : IDL.Int,
+    'lineId' : IDL.Nat,
+    'chapterCode' : IDL.Text,
+  });
+  const MeasureFileView = IDL.Record({
+    'thumb' : IDL.Opt(FileView),
+    'file' : FileView,
+    'role' : MeasureFileRole,
+    'caption' : IDL.Text,
+  });
+  const MeasureEntryView = IDL.Record({
+    'id' : IDL.Nat,
+    'day' : IDL.Nat,
+    'files' : IDL.Vec(MeasureFileView),
+    'status' : IDL.Text,
+    'byName' : IDL.Text,
+    'canCorrect' : IDL.Bool,
+    'qtyMilli' : IDL.Int,
+    'blockKey' : IDL.Text,
+    'contributionMilli' : IDL.Int,
+    'superseded' : IDL.Bool,
+    'note' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'root' : IDL.Nat,
+    'canRemove' : IDL.Bool,
+    'surveyNumber' : IDL.Nat,
+    'reviewedByName' : IDL.Text,
+    'reviewNote' : IDL.Text,
+    'reviewedAt' : IDL.Opt(IDL.Int),
+    'surveyId' : IDL.Nat,
+    'complete' : IDL.Bool,
+    'corrects' : IDL.Opt(IDL.Nat),
+    'proposedByOrg' : IDL.Text,
+    'surveyClosed' : IDL.Bool,
+    'lineId' : IDL.Nat,
+    'archived' : IDL.Bool,
+    'reason' : IDL.Text,
+  });
+  const SurveyBrief = IDL.Record({
+    'id' : IDL.Nat,
+    'pendingCount' : IDL.Nat,
+    'closeNote' : IDL.Text,
+    'entryCount' : IDL.Nat,
+    'open' : IDL.Bool,
+    'openedByName' : IDL.Text,
+    'thresholdBp' : IDL.Opt(IDL.Nat),
+    'closedAt' : IDL.Opt(IDL.Int),
+    'number' : IDL.Nat,
+    'openedAt' : IDL.Int,
+    'closedByName' : IDL.Text,
+  });
+  const SurveyDetail = IDL.Record({
+    'snapshot' : IDL.Vec(SurveyPostSnapView),
+    'entries' : IDL.Vec(MeasureEntryView),
+    'survey' : SurveyBrief,
+  });
   const OrgContactView = IDL.Record({
     'contactNote' : IDL.Text,
     'email' : IDL.Opt(IDL.Text),
@@ -6585,6 +7040,20 @@ export const idlFactory = ({ IDL }) => {
     'recipients' : IDL.Nat,
     'outcome' : MailOutcome,
   });
+  const MeasureWorkBrief = IDL.Record({
+    'lessCount' : IDL.Nat,
+    'pending' : IDL.Nat,
+    'code' : IDL.Text,
+    'name' : IDL.Text,
+    'moreCount' : IDL.Nat,
+    'openSurveyNumber' : IDL.Opt(IDL.Nat),
+    'measuredPosts' : IDL.Nat,
+    'scope' : IDL.Text,
+    'address' : Address,
+    'closedSurveys' : IDL.Nat,
+    'posts' : IDL.Nat,
+    'workId' : IDL.Nat,
+  });
   const PermitProcedureView = IDL.Record({
     'how' : IDL.Text,
     'leadDays' : IDL.Nat,
@@ -6749,9 +7218,11 @@ export const idlFactory = ({ IDL }) => {
     'manageMunicipalities' : IDL.Bool,
     'importOa' : IDL.Bool,
     'manageOa' : IDL.Bool,
+    'measure' : IDL.Bool,
     'home' : IDL.Text,
     'libraryPrices' : IDL.Bool,
     'wadm' : IDL.Bool,
+    'measureRead' : IDL.Bool,
     'importPlan' : IDL.Bool,
     'managePermitKinds' : IDL.Bool,
     'readOrgPlanning' : IDL.Bool,
@@ -6795,6 +7266,116 @@ export const idlFactory = ({ IDL }) => {
     'caps' : IDL.Opt(Caps),
     'version' : IDL.Text,
     'isRobot' : IDL.Bool,
+  });
+  const MeasurePostView = IDL.Record({
+    'pendingCount' : IDL.Nat,
+    'versionId' : IDL.Nat,
+    'versionNo' : IDL.Nat,
+    'title' : IDL.Text,
+    'closedMilli' : IDL.Int,
+    'option' : IDL.Bool,
+    'entryCount' : IDL.Nat,
+    'code' : IDL.Text,
+    'flag' : MeasureFlag,
+    'form' : ContractForm,
+    'root' : IDL.Nat,
+    'unit' : IDL.Text,
+    'vhMilli' : IDL.Int,
+    'quoteNumber' : IDL.Text,
+    'chapterTitle' : IDL.Text,
+    'complete' : IDL.Bool,
+    'diffBp' : IDL.Opt(IDL.Int),
+    'measuredMilli' : IDL.Int,
+    'inOffer' : IDL.Bool,
+    'diffMilli' : IDL.Int,
+    'lastDay' : IDL.Opt(IDL.Nat),
+    'lineId' : IDL.Nat,
+    'chapterCode' : IDL.Text,
+  });
+  const MeasurePostDetail = IDL.Record({
+    'post' : MeasurePostView,
+    'text' : IDL.Text,
+    'entries' : IDL.Vec(MeasureEntryView),
+  });
+  const MeasureSettingsView = IDL.Record({
+    'externalRead' : IDL.Bool,
+    'thresholdBp' : IDL.Nat,
+    'oaPropose' : IDL.Bool,
+  });
+  const MeasureTotals = IDL.Record({
+    'lessCount' : IDL.Nat,
+    'moreCount' : IDL.Nat,
+    'measuredPosts' : IDL.Nat,
+    'completePosts' : IDL.Nat,
+    'posts' : IDL.Nat,
+    'openProposals' : IDL.Nat,
+  });
+  const MeasureSummaryView = IDL.Record({
+    'workName' : IDL.Text,
+    'orgName' : IDL.Text,
+    'canWrite' : IDL.Bool,
+    'note' : IDL.Text,
+    'canReview' : IDL.Bool,
+    'surveys' : IDL.Vec(SurveyBrief),
+    'thresholdBp' : IDL.Nat,
+    'scope' : IDL.Text,
+    'totals' : MeasureTotals,
+    'canPropose' : IDL.Bool,
+    'openSurveyId' : IDL.Opt(IDL.Nat),
+    'posts' : IDL.Vec(MeasurePostView),
+    'workId' : IDL.Nat,
+    'quotes' : IDL.Vec(IDL.Text),
+    'workCode' : IDL.Text,
+  });
+  const FileIn = IDL.Record({
+    'blob' : ExternalBlob,
+    'mime' : IDL.Text,
+    'name' : IDL.Text,
+    'size' : IDL.Nat,
+  });
+  const MeasureFileIn = IDL.Record({
+    'thumb' : IDL.Opt(FileIn),
+    'file' : FileIn,
+    'role' : MeasureFileRole,
+    'caption' : IDL.Text,
+  });
+  const MeasureOp = IDL.Variant({
+    'remove' : IDL.Record({ 'entryId' : IDL.Nat }),
+    'review' : IDL.Record({
+      'ok' : IDL.Bool,
+      'note' : IDL.Text,
+      'entryId' : IDL.Nat,
+    }),
+    'close' : IDL.Record({ 'note' : IDL.Text }),
+    'open' : IDL.Record({ 'workId' : IDL.Nat }),
+    'entry' : IDL.Record({
+      'day' : IDL.Nat,
+      'files' : IDL.Vec(MeasureFileIn),
+      'qtyMilli' : IDL.Int,
+      'note' : IDL.Text,
+      'complete' : IDL.Bool,
+      'corrects' : IDL.Opt(IDL.Nat),
+      'lineId' : IDL.Nat,
+      'reason' : IDL.Text,
+    }),
+  });
+  const MeasureOpInput = IDL.Record({
+    'op' : MeasureOp,
+    'opId' : IDL.Text,
+    'clientKey' : IDL.Text,
+  });
+  const MeasureOutcome = IDL.Variant({
+    'err' : IDL.Text,
+    'done' : IDL.Record({
+      'note' : IDL.Text,
+      'surveyId' : IDL.Nat,
+      'entityId' : IDL.Opt(IDL.Nat),
+    }),
+  });
+  const MeasureOpResult = IDL.Record({
+    'repeated' : IDL.Bool,
+    'opId' : IDL.Text,
+    'outcome' : MeasureOutcome,
   });
   const BoardTask = IDL.Record({
     'end' : Day,
@@ -7310,12 +7891,6 @@ export const idlFactory = ({ IDL }) => {
   });
   const Result_21 = IDL.Variant({ 'ok' : OaWithholding, 'err' : IDL.Text });
   const Result_20 = IDL.Variant({ 'ok' : MeView, 'err' : IDL.Text });
-  const FileIn = IDL.Record({
-    'blob' : ExternalBlob,
-    'mime' : IDL.Text,
-    'name' : IDL.Text,
-    'size' : IDL.Nat,
-  });
   const ReportOp = IDL.Variant({
     'ensure' : IDL.Record({ 'day' : Day, 'workId' : WorkId }),
     'remove' : IDL.Record({ 'blockKey' : IDL.Text }),
@@ -8088,6 +8663,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getDossier' : IDL.Func([IDL.Nat], [DossierView], ['query']),
     'getLibraryItem' : IDL.Func([IDL.Nat], [Result_16], ['query']),
+    'getMeasureSurvey' : IDL.Func([IDL.Nat], [SurveyDetail], ['query']),
     'getOa' : IDL.Func([IDL.Nat], [Result_38], ['query']),
     'getPlan' : IDL.Func([IDL.Nat], [PlanView], ['query']),
     'getQuoteDocSettings' : IDL.Func([], [QuoteDocSettings], ['query']),
@@ -8153,6 +8729,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(MailLogView)],
         ['query'],
       ),
+    'listMeasureWorks' : IDL.Func([], [IDL.Vec(MeasureWorkBrief)], ['query']),
     'listMembers' : IDL.Func([IDL.Nat], [IDL.Vec(MembershipView)], ['query']),
     'listMunicipalities' : IDL.Func(
         [IDL.Bool],
@@ -8199,6 +8776,18 @@ export const idlFactory = ({ IDL }) => {
     'mailQuoteToClient' : IDL.Func([IDL.Nat], [Result_6], []),
     'markNotificationsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
     'me' : IDL.Func([], [MeView], ['query']),
+    'measurePost' : IDL.Func(
+        [IDL.Nat, IDL.Nat],
+        [MeasurePostDetail],
+        ['query'],
+      ),
+    'measureSettings' : IDL.Func([], [MeasureSettingsView], ['query']),
+    'measureSummary' : IDL.Func([IDL.Nat], [MeasureSummaryView], ['query']),
+    'measureSync' : IDL.Func(
+        [IDL.Vec(MeasureOpInput)],
+        [IDL.Vec(MeasureOpResult)],
+        [],
+      ),
     'myBoard' : IDL.Func([IDL.Nat, IDL.Nat], [MyBoardView], ['query']),
     'myDay' : IDL.Func([IDL.Nat, IDL.Bool], [MyDayView], ['query']),
     'myHours' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(HoursLine)], ['query']),
@@ -8288,6 +8877,7 @@ export const idlFactory = ({ IDL }) => {
     'saveDocument' : IDL.Func([IDL.Nat, DocumentInput], [Result_4], []),
     'saveLibraryChapter' : IDL.Func([LibChapterInput], [Result_4], []),
     'saveLibraryItem' : IDL.Func([LibItemInput, IDL.Nat], [Result_16], []),
+    'saveMeasureSettings' : IDL.Func([MeasureSettingsView], [Result_6], []),
     'saveMunicipality' : IDL.Func([MunicipalityInput], [Result_12], []),
     'saveOaPerson' : IDL.Func([IDL.Nat, OaPersonInput], [Result_15], []),
     'saveOrgContact' : IDL.Func([IDL.Nat, OrgContactInput], [Result_14], []),

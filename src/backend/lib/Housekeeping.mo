@@ -10,7 +10,7 @@ import Access "Access";
 import Config "Config";
 
 module {
-  public func tick(access : Types.AccessState, robot : Types.RobotState, reports : Types.ReportState) {
+  public func tick(access : Types.AccessState, robot : Types.RobotState, reports : Types.ReportState, surveys : Types.SurveyState) {
     let now = Time.now();
     // 1.9 (T11): pogingentellers van principals die niet meer geblokkeerd zijn, in stukken.
     ignore Access.pruneAttempts(access, Config.attemptsPruneMax);
@@ -24,6 +24,17 @@ module {
       };
       reports.opOrder.remove(seq);
       n += 1;
+    };
+    // Idem voor de opId's van de opmeting (2.9).
+    var m = 0;
+    label sops for ((seq, opId) in surveys.opOrder.entries()) {
+      if (m >= 1_000) { break sops };
+      switch (surveys.ops.get(opId)) {
+        case (?o) { if (o.at >= now - Config.opKeepDays * Config.day) { break sops }; surveys.ops.remove(opId) };
+        case null {};
+      };
+      surveys.opOrder.remove(seq);
+      m += 1;
     };
     label tickets for ((_, t) in robot.tickets.reverseEntries()) {
       if (t.createdAt < now - 2 * Config.hour) { break tickets };

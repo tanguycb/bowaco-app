@@ -324,6 +324,17 @@ const table = {
   workStartPreview: [["admin", "werfleider"], () => [X, wsIn]],
   startWorkFromQuote: [["admin", "werfleider"], () => [X, wsIn, 0n]],
   dismissWorkStart: [["admin", "werfleider"], () => [X, ""]],
+  // 2.9: opmeting ter plaatse. De lijst en de samenvatting per werf volgen het bereik (measureScope): admin en calculator alles, de
+  // werfleider de werven die hij ziet, de OA zijn eigen werven (enkel zijn posten); architect, klant en veiligheid niets
+  // zonder schakelaar. De schrijfpoort: interne rollen (een OA enkel als de beheerder "OA stelt voor" aanzet). Een onbekende
+  // post of opmeting: voor iedereen "Geen toegang" (geen id-orakel). De instellingen: interne rollen lezen, enkel de admin schrijft.
+  measureSettings: [INTERNAL, () => []],
+  saveMeasureSettings: [ADMIN, () => [{ thresholdBp: 0n, oaPropose: false, externalRead: false }]],
+  listMeasureWorks: [ACTIVE, () => []],
+  measureSummary: [ON_B, () => [B]],
+  measurePost: [NONE, () => [B, X]],
+  getMeasureSurvey: [NONE, () => [X]],
+  measureSync: [INTERNAL, () => [[]]],
   setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],

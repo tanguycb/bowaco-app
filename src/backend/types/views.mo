@@ -61,6 +61,8 @@ module {
     quotePrices : Bool; // 2.4: aankoopprijzen en marges in de offerte (admin, calculator; R20)
     myQuotes : Bool; // 2.7: de klant: "Mijn offerte" (verzonden offertes van zijn werf, akkoord geven)
     workStarts : Bool; // 2.8: voorstellen "Werf starten" uit aanvaarde offertes (admin, werfleider)
+    measure : Bool; // 2.9: opmeting ter plaatse invoeren of voorstellen (admin, werfleider, calculator; OA als de beheerder het toelaat)
+    measureRead : Bool; // 2.9: het scherm Opmeting tonen (interne rollen en OA; architect en klant enkel als de beheerder het leest-mee toelaat)
     upload : Bool;
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
@@ -838,6 +840,11 @@ module {
     quoteSendInfos : [Types.QuoteSendInfo];
     quoteAcceptances : [Types.QuoteAcceptance];
     workStarts : [Types.WorkStart]; // 2.8
+    surveys : [Types.Survey]; // 2.9
+    surveyKeys : [(Text, Nat)]; // sleutel van een toestel → opmeting
+    measureEntries : [Types.MeasureEntry];
+    measureSnapshots : [(Nat, [Types.SurveyPostSnap])];
+    measureOps : [Types.SurveyOpRecord];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -922,6 +929,11 @@ module {
     #quoteSendInfos : [Types.QuoteSendInfo];
     #quoteAcceptances : [Types.QuoteAcceptance];
     #workStarts : [Types.WorkStart]; // 2.8 (intern)
+    #surveys : [Types.Survey]; // 2.9 (intern)
+    #surveyKeys : [(Text, Nat)];
+    #measureEntries : [Types.MeasureEntry];
+    #measureSnapshots : [(Nat, [Types.SurveyPostSnap])];
+    #measureOps : [Types.SurveyOpRecord];
     #quotePrices : [Types.QuoteLinePrice]; // 2.4 (vertrouwelijk)
     #quoteVersionConf : [Types.QuoteVersionConf];
   };

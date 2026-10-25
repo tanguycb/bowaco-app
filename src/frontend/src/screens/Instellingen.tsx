@@ -6,7 +6,7 @@ import { Principal } from "@icp-sdk/core/principal";
 import { QuoteSeverity, type DocKindView, type ImportBatch, type QuoteRuleView, type QuoteStdPostView, type RollbackReport, type TradeView } from "../backend";
 import { Button, Choice, Confirm, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
-import { errText, fmtEuro, fmtTime, parseEuro, unwrap, useBackend } from "../util";
+import { errText, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
 import { Field } from "./Werven";
 import { CompanyCalendar, Templates } from "./PlanSettings";
@@ -60,6 +60,7 @@ export function Instellingen() {
         </section>
       )}
       <QuoteNumbers />
+      <OpmetingAdmin />
       <QuoteRulesAdmin />
       <QuoteDocsAdmin />
       <CompanyCalendar />
@@ -73,6 +74,51 @@ export function Instellingen() {
         <p className="bw-muted">{t.settings.robotsMoved} <a className="wb-link" href="#/postbode">{t.nav.postbode}</a></p>
       </section>
     </Page>
+  );
+}
+
+/** 2.9: de opmeting: drempel voor meer- of minderwerk, mag een OA voorstellen, lezen architect en klant mee (enkel de beheerder). */
+function OpmetingAdmin() {
+  const T = t.opmeting.settings;
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const cur = useQuery({ queryKey: ["measureSettings"], queryFn: () => actor!.measureSettings(), enabled: !!actor && !isFetching });
+  const [pct, setPct] = useState("");
+  const [oa, setOa] = useState(false);
+  const [ext, setExt] = useState(false);
+  useEffect(() => {
+    if (cur.data) { setPct((Number(cur.data.thresholdBp) / 100).toLocaleString("nl-BE", { maximumFractionDigits: 2 })); setOa(cur.data.oaPropose); setExt(cur.data.externalRead); }
+  }, [cur.data]);
+  const bp = parsePct(pct);
+  const valid = bp !== null && bp > 0n && bp <= 100_000n;
+  const save = useMutation({
+    mutationFn: async () => unwrap(await actor!.saveMeasureSettings({ thresholdBp: bp!, oaPropose: oa, externalRead: ext })),
+    onSuccess: () => { toast.show({ kind: "ok", text: T.saved }); void qc.invalidateQueries({ queryKey: ["measureSettings"] }); void qc.invalidateQueries({ queryKey: ["me"] }); void qc.invalidateQueries({ queryKey: ["measureSummary"] }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  return (
+    <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="measure-settings">
+      <h2 className="bw-h2">{T.title}</h2>
+      <p className="bw-muted">{T.lead}</p>
+      <Loading q={cur} />
+      {cur.data && (
+        <>
+          <Field label={T.threshold}><input id="om-thr" className="bw-input bw-num" style={{ maxWidth: 140 }} inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} /></Field>
+          <p className="bw-muted">{T.thresholdHint}</p>
+          {!valid && <p className="a-err" role="alert">{T.bad}</p>}
+          <Field label={T.oaPropose}>
+            <Choice label={T.oaPropose} value={oa ? "ja" : "nee"} onChange={(v) => setOa(v === "ja")} options={[{ value: "ja", label: t.common.yes }, { value: "nee", label: t.common.no }]} />
+          </Field>
+          <p className="bw-muted">{T.oaProposeHint}</p>
+          <Field label={T.externalRead}>
+            <Choice label={T.externalRead} value={ext ? "ja" : "nee"} onChange={(v) => setExt(v === "ja")} options={[{ value: "ja", label: t.common.yes }, { value: "nee", label: t.common.no }]} />
+          </Field>
+          <p className="bw-muted">{T.externalReadHint}</p>
+          <div><Button variant="primary" busy={save.isPending} disabled={!valid} onClick={() => save.mutate()}>{T.save}</Button></div>
+        </>
+      )}
+    </section>
   );
 }
 

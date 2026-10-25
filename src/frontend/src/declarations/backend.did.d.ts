@@ -335,9 +335,11 @@ export interface Caps {
   'manageMunicipalities' : boolean,
   'importOa' : boolean,
   'manageOa' : boolean,
+  'measure' : boolean,
   'home' : string,
   'libraryPrices' : boolean,
   'wadm' : boolean,
+  'measureRead' : boolean,
   'importPlan' : boolean,
   'managePermitKinds' : boolean,
   'readOrgPlanning' : boolean,
@@ -800,6 +802,7 @@ export interface ExportIntern {
   'trips' : Array<Trip>,
   'attendances' : Array<Attendance>,
   'lookups' : Array<LookupView>,
+  'measureOps' : Array<SurveyOpRecord>,
   'assignments' : Array<Assignment>,
   'notifications' : Array<NotificationExport>,
   'procedures' : Array<PermitProcedure>,
@@ -819,6 +822,7 @@ export interface ExportIntern {
   'calendarBlocks' : Array<CalendarBlock>,
   'hoursConfirmations' : Array<HoursConfirmation>,
   'orgContacts' : Array<OrgContact>,
+  'surveys' : Array<Survey>,
   'libChapters' : Array<LibChapter>,
   'links' : Array<LinkView>,
   'reportKeys' : Array<[string, bigint]>,
@@ -836,6 +840,7 @@ export interface ExportIntern {
   'appointments' : Array<Appointment>,
   'materials' : Array<MaterialNote>,
   'dependencies' : Array<Dependency>,
+  'surveyKeys' : Array<[string, bigint]>,
   'libItems' : Array<LibItem>,
   'quoteSendInfos' : Array<QuoteSendInfo>,
   'robots' : Array<RobotView>,
@@ -849,6 +854,7 @@ export interface ExportIntern {
   'works' : Array<WorkView>,
   'quoteRules' : Array<QuoteRuleCfg>,
   'quotes' : Array<Quote>,
+  'measureEntries' : Array<MeasureEntry>,
   'personContacts' : Array<PersonContact>,
   'sequences' : Array<[string, bigint]>,
   'quoteAcceptances' : Array<QuoteAcceptance>,
@@ -860,6 +866,7 @@ export interface ExportIntern {
   'quoteTerms' : Array<QuoteTerms>,
   'photos' : Array<Photo>,
   'linkHistory' : Array<LinkHistory>,
+  'measureSnapshots' : Array<[bigint, Array<SurveyPostSnap>]>,
   'workDone' : Array<WorkDone>,
   'workInfo' : Array<WorkInfo>,
 }
@@ -1545,6 +1552,195 @@ export interface MeView {
   'caps' : [] | [Caps],
   'version' : string,
   'isRobot' : boolean,
+}
+export interface MeasureEntry {
+  'id' : bigint,
+  'day' : Day,
+  'files' : Array<MeasureFile>,
+  'review' : [] | [MeasureReview],
+  'versionId' : bigint,
+  'qtyMilli' : bigint,
+  'blockKey' : string,
+  'proposedOrgId' : [] | [OrgId],
+  'note' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'root' : bigint,
+  'extra' : Extra,
+  'surveyId' : bigint,
+  'complete' : boolean,
+  'corrects' : [] | [bigint],
+  'workId' : WorkId,
+  'lineId' : bigint,
+  'reason' : string,
+  'archivedAt' : [] | [bigint],
+  'archivedBy' : [] | [PersonId],
+}
+export interface MeasureEntryView {
+  'id' : bigint,
+  'day' : bigint,
+  'files' : Array<MeasureFileView>,
+  'status' : string,
+  'byName' : string,
+  'canCorrect' : boolean,
+  'qtyMilli' : bigint,
+  'blockKey' : string,
+  'contributionMilli' : bigint,
+  'superseded' : boolean,
+  'note' : string,
+  'createdAt' : bigint,
+  'root' : bigint,
+  'canRemove' : boolean,
+  'surveyNumber' : bigint,
+  'reviewedByName' : string,
+  'reviewNote' : string,
+  'reviewedAt' : [] | [bigint],
+  'surveyId' : bigint,
+  'complete' : boolean,
+  'corrects' : [] | [bigint],
+  'proposedByOrg' : string,
+  'surveyClosed' : boolean,
+  'lineId' : bigint,
+  'archived' : boolean,
+  'reason' : string,
+}
+export interface MeasureFile {
+  'role' : MeasureFileRole,
+  'fileId' : bigint,
+  'caption' : string,
+  'thumbFileId' : [] | [bigint],
+}
+export interface MeasureFileIn {
+  'thumb' : [] | [FileIn],
+  'file' : FileIn,
+  'role' : MeasureFileRole,
+  'caption' : string,
+}
+export type MeasureFileRole = { 'photo' : null } |
+  { 'sketch' : null };
+export interface MeasureFileView {
+  'thumb' : [] | [FileView],
+  'file' : FileView,
+  'role' : MeasureFileRole,
+  'caption' : string,
+}
+export type MeasureFlag = { 'less' : null } |
+  { 'more' : null } |
+  { 'none' : null } |
+  { 'open' : null };
+export type MeasureOp = { 'remove' : { 'entryId' : bigint } } |
+  { 'review' : { 'ok' : boolean, 'note' : string, 'entryId' : bigint } } |
+  { 'close' : { 'note' : string } } |
+  { 'open' : { 'workId' : bigint } } |
+  {
+    'entry' : {
+      'day' : bigint,
+      'files' : Array<MeasureFileIn>,
+      'qtyMilli' : bigint,
+      'note' : string,
+      'complete' : boolean,
+      'corrects' : [] | [bigint],
+      'lineId' : bigint,
+      'reason' : string,
+    }
+  };
+export interface MeasureOpInput {
+  'op' : MeasureOp,
+  'opId' : string,
+  'clientKey' : string,
+}
+export interface MeasureOpResult {
+  'repeated' : boolean,
+  'opId' : string,
+  'outcome' : MeasureOutcome,
+}
+export type MeasureOutcome = { 'err' : string } |
+  {
+    'done' : {
+      'note' : string,
+      'surveyId' : bigint,
+      'entityId' : [] | [bigint],
+    }
+  };
+export interface MeasurePostDetail {
+  'post' : MeasurePostView,
+  'text' : string,
+  'entries' : Array<MeasureEntryView>,
+}
+export interface MeasurePostView {
+  'pendingCount' : bigint,
+  'versionId' : bigint,
+  'versionNo' : bigint,
+  'title' : string,
+  'closedMilli' : bigint,
+  'option' : boolean,
+  'entryCount' : bigint,
+  'code' : string,
+  'flag' : MeasureFlag,
+  'form' : ContractForm,
+  'root' : bigint,
+  'unit' : string,
+  'vhMilli' : bigint,
+  'quoteNumber' : string,
+  'chapterTitle' : string,
+  'complete' : boolean,
+  'diffBp' : [] | [bigint],
+  'measuredMilli' : bigint,
+  'inOffer' : boolean,
+  'diffMilli' : bigint,
+  'lastDay' : [] | [bigint],
+  'lineId' : bigint,
+  'chapterCode' : string,
+}
+export interface MeasureReview {
+  'at' : bigint,
+  'by' : PersonId,
+  'ok' : boolean,
+  'note' : string,
+}
+export interface MeasureSettingsView {
+  'externalRead' : boolean,
+  'thresholdBp' : bigint,
+  'oaPropose' : boolean,
+}
+export interface MeasureSummaryView {
+  'workName' : string,
+  'orgName' : string,
+  'canWrite' : boolean,
+  'note' : string,
+  'canReview' : boolean,
+  'surveys' : Array<SurveyBrief>,
+  'thresholdBp' : bigint,
+  'scope' : string,
+  'totals' : MeasureTotals,
+  'canPropose' : boolean,
+  'openSurveyId' : [] | [bigint],
+  'posts' : Array<MeasurePostView>,
+  'workId' : bigint,
+  'quotes' : Array<string>,
+  'workCode' : string,
+}
+export interface MeasureTotals {
+  'lessCount' : bigint,
+  'moreCount' : bigint,
+  'measuredPosts' : bigint,
+  'completePosts' : bigint,
+  'posts' : bigint,
+  'openProposals' : bigint,
+}
+export interface MeasureWorkBrief {
+  'lessCount' : bigint,
+  'pending' : bigint,
+  'code' : string,
+  'name' : string,
+  'moreCount' : bigint,
+  'openSurveyNumber' : [] | [bigint],
+  'measuredPosts' : bigint,
+  'scope' : string,
+  'address' : Address,
+  'closedSurveys' : bigint,
+  'posts' : bigint,
+  'workId' : bigint,
 }
 export interface MembershipView {
   'id' : bigint,
@@ -2832,6 +3028,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'trips' : Array<Trip> } |
   { 'attendances' : Array<Attendance> } |
   { 'lookups' : Array<LookupView> } |
+  { 'measureOps' : Array<SurveyOpRecord> } |
   { 'audit' : Array<AuditEntry> } |
   { 'assignments' : Array<Assignment> } |
   { 'notifications' : Array<NotificationExport> } |
@@ -2853,6 +3050,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'calendarBlocks' : Array<CalendarBlock> } |
   { 'hoursConfirmations' : Array<HoursConfirmation> } |
   { 'orgContacts' : Array<OrgContact> } |
+  { 'surveys' : Array<Survey> } |
   { 'libSells' : Array<LibSell> } |
   { 'libChapters' : Array<LibChapter> } |
   { 'quotePrices' : Array<QuoteLinePrice> } |
@@ -2873,6 +3071,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'appointments' : Array<Appointment> } |
   { 'materials' : Array<MaterialNote> } |
   { 'dependencies' : Array<Dependency> } |
+  { 'surveyKeys' : Array<[string, bigint]> } |
   { 'libItems' : Array<LibItem> } |
   { 'quoteSendInfos' : Array<QuoteSendInfo> } |
   { 'quoteVersionConf' : Array<QuoteVersionConf> } |
@@ -2888,6 +3087,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'quoteRules' : Array<QuoteRuleCfg> } |
   { 'orgConfidential' : Array<[OrgId, ContactConfidentialView]> } |
   { 'quotes' : Array<Quote> } |
+  { 'measureEntries' : Array<MeasureEntry> } |
   { 'personContacts' : Array<PersonContact> } |
   { 'sequences' : Array<[string, bigint]> } |
   { 'quoteAcceptances' : Array<QuoteAcceptance> } |
@@ -2898,6 +3098,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'quoteTerms' : Array<QuoteTerms> } |
   { 'photos' : Array<Photo> } |
   { 'linkHistory' : Array<LinkHistory> } |
+  { 'measureSnapshots' : Array<[bigint, Array<SurveyPostSnap>]> } |
   { 'workDone' : Array<WorkDone> } |
   { 'workInfo' : Array<WorkInfo> };
 export interface RestoreSummary {
@@ -3053,6 +3254,79 @@ export interface ShiftView {
   'taskId' : bigint,
   'reason' : string,
 }
+export interface Survey {
+  'id' : bigint,
+  'status' : SurveyStatus,
+  'extra' : Extra,
+  'number' : bigint,
+  'clientKey' : string,
+  'workId' : WorkId,
+  'openedAt' : bigint,
+  'openedBy' : PersonId,
+}
+export interface SurveyBrief {
+  'id' : bigint,
+  'pendingCount' : bigint,
+  'closeNote' : string,
+  'entryCount' : bigint,
+  'open' : boolean,
+  'openedByName' : string,
+  'thresholdBp' : [] | [bigint],
+  'closedAt' : [] | [bigint],
+  'number' : bigint,
+  'openedAt' : bigint,
+  'closedByName' : string,
+}
+export interface SurveyDetail {
+  'snapshot' : Array<SurveyPostSnapView>,
+  'entries' : Array<MeasureEntryView>,
+  'survey' : SurveyBrief,
+}
+export interface SurveyOpRecord {
+  'at' : bigint,
+  'by' : PersonId,
+  'seq' : bigint,
+  'kind' : string,
+  'note' : string,
+  'opId' : string,
+  'surveyId' : bigint,
+  'entityId' : [] | [bigint],
+}
+export interface SurveyPostSnap {
+  'versionId' : bigint,
+  'root' : bigint,
+  'unit' : string,
+  'vhMilli' : bigint,
+  'complete' : boolean,
+  'deltaMilli' : bigint,
+  'measuredMilli' : bigint,
+  'lineId' : bigint,
+}
+export interface SurveyPostSnapView {
+  'title' : string,
+  'code' : string,
+  'flag' : MeasureFlag,
+  'root' : bigint,
+  'unit' : string,
+  'vhMilli' : bigint,
+  'quoteNumber' : string,
+  'complete' : boolean,
+  'deltaMilli' : bigint,
+  'diffBp' : [] | [bigint],
+  'measuredMilli' : bigint,
+  'diffMilli' : bigint,
+  'lineId' : bigint,
+  'chapterCode' : string,
+}
+export type SurveyStatus = {
+    'closed' : {
+      'at' : bigint,
+      'by' : PersonId,
+      'note' : string,
+      'thresholdBp' : bigint,
+    }
+  } |
+  { 'open' : null };
 export interface Task {
   'id' : bigint,
   'status' : TaskStatus,
@@ -3753,6 +4027,7 @@ export interface _SERVICE {
   'failJob' : ActorMethod<[bigint, bigint, string, boolean], Result_6>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
   'getLibraryItem' : ActorMethod<[bigint], Result_16>,
+  'getMeasureSurvey' : ActorMethod<[bigint], SurveyDetail>,
   'getOa' : ActorMethod<[bigint], Result_38>,
   'getPlan' : ActorMethod<[bigint], PlanView>,
   'getQuoteDocSettings' : ActorMethod<[], QuoteDocSettings>,
@@ -3791,6 +4066,7 @@ export interface _SERVICE {
   'listLibrary' : ActorMethod<[LibFilter], LibPage>,
   'listLinks' : ActorMethod<[], Array<LinkView>>,
   'listMailLog' : ActorMethod<[bigint, bigint], Array<MailLogView>>,
+  'listMeasureWorks' : ActorMethod<[], Array<MeasureWorkBrief>>,
   'listMembers' : ActorMethod<[bigint], Array<MembershipView>>,
   'listMunicipalities' : ActorMethod<[boolean], Array<MunicipalityView>>,
   'listMyQuotes' : ActorMethod<[], Array<MyQuoteBrief>>,
@@ -3813,6 +4089,10 @@ export interface _SERVICE {
   'mailQuoteToClient' : ActorMethod<[bigint], Result_6>,
   'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'me' : ActorMethod<[], MeView>,
+  'measurePost' : ActorMethod<[bigint, bigint], MeasurePostDetail>,
+  'measureSettings' : ActorMethod<[], MeasureSettingsView>,
+  'measureSummary' : ActorMethod<[bigint], MeasureSummaryView>,
+  'measureSync' : ActorMethod<[Array<MeasureOpInput>], Array<MeasureOpResult>>,
   'myBoard' : ActorMethod<[bigint, bigint], MyBoardView>,
   'myDay' : ActorMethod<[bigint, boolean], MyDayView>,
   'myHours' : ActorMethod<[bigint, bigint], Array<HoursLine>>,
@@ -3868,6 +4148,7 @@ export interface _SERVICE {
   'saveDocument' : ActorMethod<[bigint, DocumentInput], Result_4>,
   'saveLibraryChapter' : ActorMethod<[LibChapterInput], Result_4>,
   'saveLibraryItem' : ActorMethod<[LibItemInput, bigint], Result_16>,
+  'saveMeasureSettings' : ActorMethod<[MeasureSettingsView], Result_6>,
   'saveMunicipality' : ActorMethod<[MunicipalityInput], Result_12>,
   'saveOaPerson' : ActorMethod<[bigint, OaPersonInput], Result_15>,
   'saveOrgContact' : ActorMethod<[bigint, OrgContactInput], Result_14>,

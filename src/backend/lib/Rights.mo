@@ -57,6 +57,10 @@ module {
     // werfleider van die werf of een admin: zij plannen, beheren de vergunningen en de werfadministratie, R5/R13);
     // #startWorkAny = de lijst van de voorstellen over alle werven (admin, werfleider).
     #startWork; #startWorkAny;
+    // 2.9: opmeting ter plaatse. #measureAny = wie ergens een opmeting mag invoeren of voorstellen (poort van de offline-
+    // opdrachten: admin, werfleider, calculator; een OA enkel als de beheerder "OA mag voorstellen" aanzette). Per werf
+    // beslissen #editMeasurement (invoeren, bevestigen, afsluiten) en measureScope (wat iemand ziet en mag).
+    #measureAny;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -229,6 +233,8 @@ module {
       // aanvaarde offerte. De calculator niet (tenzij hij ook werfleider is); externen nooit.
       case (#startWork) on(func w = admin or leaderOn(ctx, p, w));
       case (#startWorkAny) admin or wl;
+      // 2.9: de poort van de opmeting. Een OA enkel met het schakelaartje van de beheerder en als hij actief OA is.
+      case (#measureAny) admin or wl or calc or (has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("measure.oaPropose") == ?"ja" and activeOa(ctx, p));
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -254,6 +260,24 @@ module {
     ctx.works.memberships.values().any(
       func m = m.endedAt == null and m.role == #onderaannemer and workExists(ctx, m.workId) and (m.personId == ?p.id or (m.personId == null and m.orgId != null and m.orgId == p.orgId))
     );
+  };
+
+  // ── Opmeting ter plaatse (2.9) ───────────────────────────────────────────
+  // #full = admin, calculator en de werfleider van de werf: alle posten en regels, invoeren, bevestigen, afsluiten.
+  // #firm(o) = een onderaannemer van die werf: enkel de posten van zijn firma o; hij mag (instelbaar) voorstellen.
+  // #closed = architect of klant met het leesrecht #readProgress ÉN de schakelaar "externen lezen mee" van de beheerder:
+  // enkel de stand van de afgesloten opmetingen, zonder regels, notities of foto's. Anders #none.
+  public type MeasureScope = { #full; #firm : Nat; #closed; #none };
+
+  public func measureScope(ctx : Ctx, p : Person, w : WorkId) : MeasureScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (has(p, #admin) or has(p, #calculator) or leaderOn(ctx, p, w)) { return #full };
+    if (memberAs(ctx, p, w, #onderaannemer)) {
+      switch (p.orgId) { case (?o) { return #firm(o) }; case null {} };
+    };
+    let ext = ctx.settings.values.get("measure.externalRead") == ?"ja";
+    if (ext and grant(ctx, p, w, #readProgress) and (memberAs(ctx, p, w, #architect) or memberAs(ctx, p, w, #klant))) { return #closed };
+    #none;
   };
 
   // ── Afwezigheden (1.4) ──────────────────────────────────────────────────
@@ -496,6 +520,8 @@ module {
       quotePrices = may(ctx, p, #readCosts, null) and may(ctx, p, #readSellPrices, null);
       myQuotes = may(ctx, p, #ownQuotes, null);
       workStarts = may(ctx, p, #startWorkAny, null);
+      measure = may(ctx, p, #measureAny, null);
+      measureRead = internal(p) or has(p, #onderaannemer) or ((has(p, #architect) or has(p, #klant)) and ctx.settings.values.get("measure.externalRead") == ?"ja");
       upload = may(ctx, p, #upload, null);
       home = home(p);
     };

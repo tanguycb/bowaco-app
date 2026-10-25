@@ -10,12 +10,16 @@
 import { createActorWithConfig, useInternetIdentity } from "@caffeineai/core-infrastructure";
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { createActor, ExternalBlob, type Backend, type OpResult, type ReportOp } from "../backend";
+import { createActor, ExternalBlob, MeasureFileRole, type Backend, type MeasureFileIn, type MeasureOp, type OpResult, type ReportOp } from "../backend";
 import { errText } from "../util";
 import * as idb from "./db";
 
-export type OpKind = ReportOp["__kind__"];
+export type OpKind = ReportOp["__kind__"] | MeasureOp["__kind__"];
 type FileSpec = { name: string; mime: string };
+/** 2.9: een foto of schets bij een regel van de opmeting (de bytes staan in de store "blobs", op volgorde). */
+export type AttachSpec = { role: "photo" | "sketch"; name: string; mime: string; caption: string; thumb?: FileSpec };
+/** Twee soorten opdrachten gebruiken dezelfde wachtrij: het werfverslag (1.6) en de opmeting (2.9). */
+export type Channel = "report" | "measure";
 
 /** Een opdracht in de wachtrij. payload = de ReportOp zonder bestanden; die staan in de store "blobs". */
 export type QueuedOp = {
@@ -24,27 +28,33 @@ export type QueuedOp = {
   clientKey: string;
   workId: bigint;
   day: bigint;
+  /** Ontbreekt bij opdrachten van vóór 2.9: dat is het werfverslag. */
+  channel?: Channel;
   kind: OpKind;
   label: string;
-  payload: ReportOp;
+  payload: ReportOp | MeasureOp;
   file?: FileSpec; // foto of foto van een bon
   thumb?: FileSpec;
+  attachments?: AttachSpec[]; // opmeting: foto's en schets bij één regel
   state: "pending" | "failed";
   tries: number;
   error?: string;
   createdAt: number;
 };
 
-type BlobRec = { full: Blob; thumb?: Blob; fullRef?: Uint8Array; thumbRef?: Uint8Array };
+type BlobItem = { full: Blob; thumb?: Blob; fullRef?: Uint8Array; thumbRef?: Uint8Array };
+type BlobRec = BlobItem & { items?: BlobItem[] };
 
 export type NewOp = {
   clientKey: string;
   workId: bigint;
   day: bigint;
   label: string;
-  op: ReportOp;
+  op: ReportOp | MeasureOp;
+  channel?: Channel;
   file?: { blob: Blob; name: string; mime: string };
   thumb?: { blob: Blob; name: string; mime: string };
+  attachments?: { blob: Blob; thumb?: { blob: Blob; name: string; mime: string }; role: "photo" | "sketch"; name: string; mime: string; caption: string }[];
 };
 
 export type OutboxApi = {
@@ -56,7 +66,7 @@ export type OutboxApi = {
   pending: number;
   failed: QueuedOp[];
   enqueue: (o: NewOp) => Promise<string>;
-  patch: (opId: string, payload: ReportOp, label?: string) => Promise<boolean>;
+  patch: (opId: string, payload: ReportOp | MeasureOp, label?: string) => Promise<boolean>;
   discard: (opId: string) => Promise<void>;
   retry: (opId: string) => Promise<void>;
   sync: () => Promise<void>;
@@ -65,6 +75,8 @@ export type OutboxApi = {
   clientKeyFor: (workId: bigint, day: bigint) => Promise<string>;
   /** Idem, en zet één keer de opdracht "verslag openen" (ensure) in de wachtrij vóór het eerste blok. */
   ensureReport: (workId: bigint, day: bigint, label: string) => Promise<string>;
+  /** 2.9: clientKey van de opmeting van deze werf op dit toestel; zet één keer de opdracht "opmeting openen" in de wachtrij. */
+  ensureSurvey: (workId: bigint, label: string) => Promise<string>;
   wipe: () => Promise<void>;
 };
 
@@ -114,7 +126,7 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
   notice.current = onNotice;
 
   // Opgeladen verwijzingen: ExternalBlob → (opId, welke). De uploader bewaart de verwijzing meteen lokaal.
-  const uploads = useRef(new WeakMap<ExternalBlob, { opId: string; which: "full" | "thumb" }>());
+  const uploads = useRef(new WeakMap<ExternalBlob, { opId: string; which: string }>());
   const known = useRef(new WeakMap<ExternalBlob, Uint8Array>());
 
   const reload = useCallback(async () => {
@@ -159,7 +171,13 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
             const who = uploads.current.get(f);
             if (who) {
               const rec = await idb.get<BlobRec>("blobs", who.opId);
-              if (rec) await idb.put("blobs", who.opId, who.which === "full" ? { ...rec, fullRef: ref } : { ...rec, thumbRef: ref });
+              if (rec) {
+                const m = /^([ft])(\d+)$/.exec(who.which);
+                if (m && rec.items) {
+                  const items = rec.items.map((it, i) => (i === Number(m[2]) ? (m[1] === "f" ? { ...it, fullRef: ref } : { ...it, thumbRef: ref }) : it));
+                  await idb.put("blobs", who.opId, { ...rec, items });
+                } else await idb.put("blobs", who.opId, who.which === "full" ? { ...rec, fullRef: ref } : { ...rec, thumbRef: ref });
+              }
             }
             return ref;
           },
@@ -172,27 +190,43 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
     return a;
   }, [identity, principal]);
 
-  /** De ReportOp met de bestanden erin (ExternalBlob uit de lokale opslag, of de bewaarde verwijzing). */
-  const materialize = useCallback(async (q: QueuedOp): Promise<ReportOp> => {
-    if (!q.file) return q.payload;
-    const rec = await idb.get<BlobRec>("blobs", q.opId);
-    if (!rec) throw new Error("De foto staat niet meer op dit toestel");
-    const eb = async (b: Blob, spec: FileSpec, ref: Uint8Array | undefined, which: "full" | "thumb") => {
+  /** De opdracht met de bestanden erin (ExternalBlob uit de lokale opslag, of de bewaarde verwijzing). */
+  const materialize = useCallback(async (q: QueuedOp): Promise<ReportOp | MeasureOp> => {
+    const eb = async (b: Blob, spec: FileSpec, ref: Uint8Array | undefined, which: string) => {
       const x = ExternalBlob.fromBytes(new Uint8Array(await b.arrayBuffer()), spec.mime, spec.name);
       if (ref) known.current.set(x, ref);
       else uploads.current.set(x, { opId: q.opId, which });
       return { blob: x, name: spec.name, mime: spec.mime, size: BigInt(b.size) };
     };
-    if (q.payload.__kind__ === "photo") {
+    if (q.channel === "measure") {
+      const p = q.payload as MeasureOp;
+      if (p.__kind__ !== "entry" || !q.attachments?.length) return p;
+      const rec = await idb.get<BlobRec>("blobs", q.opId);
+      if (!rec?.items) throw new Error("De foto staat niet meer op dit toestel");
+      const files: MeasureFileIn[] = [];
+      for (const [i, a] of q.attachments.entries()) {
+        const it = rec.items[i];
+        if (!it) throw new Error("De foto staat niet meer op dit toestel");
+        const file = await eb(it.full, a, it.fullRef, `f${i}`);
+        const thumb = it.thumb && a.thumb ? await eb(it.thumb, a.thumb, it.thumbRef, `t${i}`) : undefined;
+        files.push({ role: a.role === "sketch" ? MeasureFileRole.sketch : MeasureFileRole.photo, file, thumb, caption: a.caption });
+      }
+      return { __kind__: "entry", entry: { ...p.entry, files } };
+    }
+    const p = q.payload as ReportOp;
+    if (!q.file) return p;
+    const rec = await idb.get<BlobRec>("blobs", q.opId);
+    if (!rec) throw new Error("De foto staat niet meer op dit toestel");
+    if (p.__kind__ === "photo") {
       const file = await eb(rec.full, q.file, rec.fullRef, "full");
       const thumb = rec.thumb && q.thumb ? await eb(rec.thumb, q.thumb, rec.thumbRef, "thumb") : undefined;
-      return { __kind__: "photo", photo: { ...q.payload.photo, file, thumb } };
+      return { __kind__: "photo", photo: { ...p.photo, file, thumb } };
     }
-    if (q.payload.__kind__ === "material") {
+    if (p.__kind__ === "material") {
       const file = await eb(rec.full, q.file, rec.fullRef, "full");
-      return { __kind__: "material", material: { ...q.payload.material, file } };
+      return { __kind__: "material", material: { ...p.material, file } };
     }
-    return q.payload;
+    return p;
   }, []);
 
   const sync = useCallback(async () => {
@@ -208,28 +242,41 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
       while (rounds++ < 20) {
         const list = await reload();
         // Pakje: in volgorde; een opdracht van een verslag waarvan een eerdere opdracht mislukt staat, wacht.
+        // Een pakje bevat enkel opdrachten van hetzelfde soort (werfverslag of opmeting): de eerste bepaalt het.
         const blocked = new Set<string>();
         const batch: QueuedOp[] = [];
         let photos = 0;
+        let chan: Channel | undefined;
         for (const q of list) {
+          const c: Channel = q.channel ?? "report";
           if (q.state === "failed") {
             blocked.add(q.clientKey);
             continue;
           }
           if (blocked.has(q.clientKey)) continue;
-          if (q.file) {
-            if (photos >= PHOTOS_PER_BATCH) break;
-            photos++;
+          if (chan && c !== chan) continue;
+          const n = (q.file ? 1 : 0) + (q.attachments?.length ?? 0);
+          if (n > 0) {
+            if (photos > 0 && photos + n > PHOTOS_PER_BATCH) break;
+            photos += n;
           }
+          chan = c;
           batch.push(q);
           if (batch.length >= BATCH) break;
         }
         if (batch.length === 0) break;
-        let results: OpResult[];
+        let results: { opId: string; repeated: boolean; outcome: { __kind__: "done"; done: { note: string; entityId?: bigint; surveyId?: bigint; reportId?: bigint } } | { __kind__: "err"; err: string } }[];
         try {
-          const input = [];
-          for (const q of batch) input.push({ opId: q.opId, clientKey: q.clientKey, op: await materialize(q) });
-          results = await (await actor()).reportSync(input);
+          const a = await actor();
+          if (chan === "measure") {
+            const input = [];
+            for (const q of batch) input.push({ opId: q.opId, clientKey: q.clientKey, op: (await materialize(q)) as MeasureOp });
+            results = await a.measureSync(input);
+          } else {
+            const input = [];
+            for (const q of batch) input.push({ opId: q.opId, clientKey: q.clientKey, op: (await materialize(q)) as ReportOp });
+            results = (await a.reportSync(input)) as OpResult[];
+          }
         } catch (e) {
           if (isNetwork(e)) {
             setOnline(false);
@@ -247,12 +294,22 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
           if (!r) continue;
           if (r.outcome.__kind__ === "done") {
             const note = r.outcome.done.note;
-            if (q.kind === "ensure") {
-              const d = await idb.get<DraftRec>("drafts", draftKey(q.workId, q.day));
-              if (d) await idb.put("drafts", draftKey(q.workId, q.day), { ...d, reportId: r.outcome.done.reportId });
+            if (q.channel === "measure") {
+              if (q.kind === "open") {
+                const d = await idb.get<DraftRec>("drafts", measureDraftKey(q.workId));
+                if (d) await idb.put("drafts", measureDraftKey(q.workId), { ...d, ensured: true });
+              }
+              if (note === "samengevoegd") notice.current?.({ clientKey: q.clientKey, text: "Er liep al een opmeting op deze werf: je regels staan erbij." });
+              if (note === "volgende opmeting") notice.current?.({ clientKey: q.clientKey, text: "De opmeting was intussen afgesloten: je regel staat in de volgende opmeting." });
+              if (note === "voorstel") notice.current?.({ clientKey: q.clientKey, text: "Je opmeting staat klaar als voorstel: de werfleider bevestigt ze." });
+            } else {
+              if (q.kind === "ensure" && r.outcome.done.reportId !== undefined) {
+                const d = await idb.get<DraftRec>("drafts", draftKey(q.workId, q.day));
+                if (d) await idb.put("drafts", draftKey(q.workId, q.day), { ...d, reportId: r.outcome.done.reportId });
+              }
+              if (note === "samengevoegd") notice.current?.({ clientKey: q.clientKey, text: "Er was al een verslag van deze werf vandaag: je aanvullingen staan erbij." });
+              if (note === "correctie" && q.kind !== "ensure") notice.current?.({ clientKey: q.clientKey, text: "Het verslag was intussen afgesloten: je aanvullingen staan in een correctie." });
             }
-            if (note === "samengevoegd") notice.current?.({ clientKey: q.clientKey, text: "Er was al een verslag van deze werf vandaag: je aanvullingen staan erbij." });
-            if (note === "correctie" && q.kind !== "ensure") notice.current?.({ clientKey: q.clientKey, text: "Het verslag was intussen afgesloten: je aanvullingen staan in een correctie." });
             await idb.del("outbox", q.opId);
             await idb.del("blobs", q.opId).catch(() => {});
           } else {
@@ -260,7 +317,7 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
           }
         }
         setSyncedAt(Date.now());
-        void qc.invalidateQueries({ predicate: (x) => ["myDay", "reportDay", "reports", "issues", "plan"].includes(String(x.queryKey[0])) });
+        void qc.invalidateQueries({ predicate: (x) => ["myDay", "reportDay", "reports", "issues", "plan", "measureSummary", "measurePost", "measureSurvey", "measureWorks"].includes(String(x.queryKey[0])) });
       }
     } finally {
       busy.current = false;
@@ -314,11 +371,13 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
         clientKey: o.clientKey,
         workId: o.workId,
         day: o.day,
+        channel: o.channel,
         kind: o.op.__kind__,
         label: o.label,
         payload: o.op,
         file: o.file ? { name: o.file.name, mime: o.file.mime } : undefined,
         thumb: o.thumb ? { name: o.thumb.name, mime: o.thumb.mime } : undefined,
+        attachments: o.attachments?.map((a) => ({ role: a.role, name: a.name, mime: a.mime, caption: a.caption, thumb: a.thumb ? { name: a.thumb.name, mime: a.thumb.mime } : undefined })),
         state: "pending",
         tries: 0,
         createdAt: Date.now(),
@@ -326,6 +385,7 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
       // Grens (§8.5): geen stille groei van de lokale opslag.
       if (ops.length >= 200) throw new Error("Er wachten al 200 wijzigingen op verbinding: zoek eerst bereik");
       if (o.file) await idb.put("blobs", opId, { full: o.file.blob, thumb: o.thumb?.blob } satisfies BlobRec);
+      if (o.attachments?.length) await idb.put("blobs", opId, { full: o.attachments[0].blob, items: o.attachments.map((a) => ({ full: a.blob, thumb: a.thumb?.blob })) } satisfies BlobRec);
       await idb.put("outbox", opId, q);
       await reload();
       setTimeout(() => void sync(), 50);
@@ -335,7 +395,7 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
   );
 
   const patch = useCallback(
-    async (opId: string, payload: ReportOp, label?: string) => {
+    async (opId: string, payload: ReportOp | MeasureOp, label?: string) => {
       const q = await idb.get<QueuedOp>("outbox", opId);
       if (!q || busy.current) return false;
       await idb.put("outbox", opId, { ...q, payload, label: label ?? q.label });
@@ -393,6 +453,24 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
     [clientKeyFor, enqueue],
   );
 
+  const ensureSurvey = useCallback(
+    async (workId: bigint, label: string) => {
+      const k = measureDraftKey(workId);
+      let d = await idb.get<DraftRec>("drafts", k);
+      if (!d) {
+        d = { clientKey: uuid(), workId, day: 0n, createdAt: Date.now() } satisfies DraftRec;
+        await idb.put("drafts", k, d);
+      }
+      // "Geopend" geldt pas als de backend het bevestigde; staat de opdracht al in de wachtrij, dan niet nog eens.
+      if (!d.ensured) {
+        const queued = (await idb.all<QueuedOp>("outbox")).some((q) => q.channel === "measure" && q.kind === "open" && q.clientKey === d!.clientKey);
+        if (!queued) await enqueue({ clientKey: d.clientKey, workId, day: 0n, channel: "measure", label, op: { __kind__: "open", open: { workId } } });
+      }
+      return d.clientKey;
+    },
+    [enqueue],
+  );
+
   const wipe = useCallback(async () => {
     await idb.wipe();
     setOps([]);
@@ -400,11 +478,12 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
   }, []);
 
   const api = useMemo<OutboxApi>(
-    () => ({ ready, online, syncing, syncedAt, ops, pending: waiting, failed: ops.filter((o) => o.state === "failed"), enqueue, patch, discard, retry, sync, blobUrl, clientKeyFor, ensureReport, wipe }),
-    [ready, online, syncing, syncedAt, ops, waiting, enqueue, patch, discard, retry, sync, blobUrl, clientKeyFor, ensureReport, wipe],
+    () => ({ ready, online, syncing, syncedAt, ops, pending: waiting, failed: ops.filter((o) => o.state === "failed"), enqueue, patch, discard, retry, sync, blobUrl, clientKeyFor, ensureReport, ensureSurvey, wipe }),
+    [ready, online, syncing, syncedAt, ops, waiting, enqueue, patch, discard, retry, sync, blobUrl, clientKeyFor, ensureReport, ensureSurvey, wipe],
   );
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
 type DraftRec = { clientKey: string; workId: bigint; day: bigint; createdAt: number; reportId?: bigint; ensured?: boolean };
 const draftKey = (w: bigint, d: bigint) => `${w}:${d}`;
+const measureDraftKey = (w: bigint) => `m:${w}`;

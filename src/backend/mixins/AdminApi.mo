@@ -39,6 +39,7 @@ mixin (
   quoteChecks : Types.QuoteChecksState,
   quoteDocs : Types.QuoteDocsState,
   workStarts : Types.WorkStartState,
+  surveys : Types.SurveyState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -244,6 +245,11 @@ mixin (
       quoteSendInfos = quoteDocs.sendInfo.values().toArray();
       quoteAcceptances = quoteDocs.acceptances.values().toArray();
       workStarts = workStarts.starts.values().toArray();
+      surveys = surveys.surveys.values().toArray();
+      surveyKeys = surveys.keys.entries().toArray();
+      measureEntries = surveys.entries.values().toArray();
+      measureSnapshots = surveys.snapshots.entries().toArray();
+      measureOps = surveys.ops.values().toArray();
     };
   };
 
@@ -344,6 +350,11 @@ mixin (
       case "quoteSendInfos" ?#quoteSendInfos(pg(quoteDocs.sendInfo.values().toArray()));
       case "quoteAcceptances" ?#quoteAcceptances(pg(quoteDocs.acceptances.values().toArray()));
       case "workStarts" ?#workStarts(pg(workStarts.starts.values().toArray()));
+      case "surveys" ?#surveys(pg(surveys.surveys.values().toArray()));
+      case "surveyKeys" ?#surveyKeys(pg(surveys.keys.entries().toArray()));
+      case "measureEntries" ?#measureEntries(pg(surveys.entries.values().toArray()));
+      case "measureSnapshots" ?#measureSnapshots(pg(surveys.snapshots.entries().toArray()));
+      case "measureOps" ?#measureOps(pg(surveys.ops.values().toArray()));
       case "quotePrices" ?#quotePrices(pg(quotes.prices.values().toArray()));
       case "quoteVersionConf" ?#quoteVersionConf(pg(quotes.versionConf.values().toArray()));
       case _ null;

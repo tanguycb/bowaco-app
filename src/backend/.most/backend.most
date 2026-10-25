@@ -388,6 +388,7 @@ type Day__672613163 = Nat;
 type Day__728056481 = Nat;
 type Day__786034210 = Nat;
 type Day__821488089 = Nat;
+type Day__884237654 = Nat;
 type Day__923906744 = Nat;
 type Decision__965673210 =
   {accepted : Bool; at : Int; by : PersonId__1007515609; note : Text};
@@ -515,6 +516,7 @@ type Extra__482036894 = [(Text, Text)];
 type Extra__492312138 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
 type Extra__550678138 = [(Text, Text)];
+type Extra__554422274 = [(Text, Text)];
 type Extra__594079308 = [(Text, Text)];
 type Extra__646433706 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
@@ -1113,6 +1115,74 @@ type MaterialNote__977368341 =
     text : Text;
     workId : WorkId__929594816
   };
+type MeasureEntry__298616866 =
+  {
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__377743261;
+    blockKey : Text;
+    complete : Bool;
+    corrects : ?Nat;
+    createdAt : Int;
+    createdBy : PersonId__377743261;
+    day : Day__884237654;
+    extra : Extra__554422274;
+    files : [MeasureFile__620214940];
+    id : Nat;
+    lineId : Nat;
+    note : Text;
+    proposedOrgId : ?OrgId__464191747;
+    qtyMilli : Int;
+    reason : Text;
+    review : ?MeasureReview__81395350;
+    root : Nat;
+    surveyId : Nat;
+    versionId : Nat;
+    workId : WorkId__386895530
+  };
+type MeasureEntry__679102477 =
+  {
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__967516914;
+    blockKey : Text;
+    complete : Bool;
+    corrects : ?Nat;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    day : Day__162369424;
+    extra : Extra__945213800;
+    files : [MeasureFile__821469352];
+    id : Nat;
+    lineId : Nat;
+    note : Text;
+    proposedOrgId : ?OrgId__17031398;
+    qtyMilli : Int;
+    reason : Text;
+    review : ?MeasureReview__754305860;
+    root : Nat;
+    surveyId : Nat;
+    versionId : Nat;
+    workId : WorkId__929594816
+  };
+type MeasureFileRole__134744226 = {#photo; #sketch};
+type MeasureFileRole__857729359 = {#photo; #sketch};
+type MeasureFile__620214940 =
+  {
+    caption : Text;
+    fileId : Nat;
+    role : MeasureFileRole__857729359;
+    thumbFileId : ?Nat
+  };
+type MeasureFile__821469352 =
+  {
+    caption : Text;
+    fileId : Nat;
+    role : MeasureFileRole__134744226;
+    thumbFileId : ?Nat
+  };
+type MeasureReview__754305860 =
+  {at : Int; by : PersonId__967516914; note : Text; ok : Bool};
+type MeasureReview__81395350 =
+  {at : Int; by : PersonId__377743261; note : Text; ok : Bool};
 type Membership__271894441 =
   {
     var endedAt : ?Int;
@@ -1191,6 +1261,7 @@ type NewActor__1073511891 = {workStarts : WorkStartState__514103986};
 type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
 type NewActor__266440787 = {quoteDocs : QuoteDocsState__789711068};
+type NewActor__266457383 = {surveys : SurveyState__547744904};
 type NewActor__2917504 = {plan : PlanState__393161007};
 type NewActor__305373795 = {quoteChecks : QuoteChecksState__658482826};
 type NewActor__369284664 = {quotes : QuotesState__146412283};
@@ -1245,6 +1316,7 @@ type OldActor__430767433 = {};
 type OldActor__485181031 = {};
 type OldActor__574962007 = {};
 type OldActor__669130419 = {};
+type OldActor__675047732 = {};
 type OldActor__804964816 = {};
 type OldActor__853471898 = {};
 type OpRecord__50968246 =
@@ -1313,6 +1385,7 @@ type OrgId__208183745 = Nat;
 type OrgId__232449879 = Nat;
 type OrgId__331006062 = Nat;
 type OrgId__370186017 = Nat;
+type OrgId__464191747 = Nat;
 type OrgId__579572044 = Nat;
 type OrgId__837673520 = Nat;
 type OrgId__874222008 = Nat;
@@ -1540,6 +1613,7 @@ type PersonId__253911295 = Nat;
 type PersonId__321680111 = Nat;
 type PersonId__350725727 = Nat;
 type PersonId__363464289 = Nat;
+type PersonId__377743261 = Nat;
 type PersonId__518727946 = Nat;
 type PersonId__580701172 = Nat;
 type PersonId__677245278 = Nat;
@@ -2163,6 +2237,96 @@ type SettingsState__180579617 =
     values : Map__230067015<Text, Text>;
     var werfleiderZietAlles : Bool
   };
+type SurveyOpRecord__392605083 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    entityId : ?Nat;
+    kind : Text;
+    note : Text;
+    opId : Text;
+    seq : Nat;
+    surveyId : Nat
+  };
+type SurveyOpRecord__970945864 =
+  {
+    at : Int;
+    by : PersonId__377743261;
+    entityId : ?Nat;
+    kind : Text;
+    note : Text;
+    opId : Text;
+    seq : Nat;
+    surveyId : Nat
+  };
+type SurveyPostSnap__524852573 =
+  {
+    complete : Bool;
+    deltaMilli : Int;
+    lineId : Nat;
+    measuredMilli : Int;
+    root : Nat;
+    unit : Text;
+    versionId : Nat;
+    vhMilli : Int
+  };
+type SurveyPostSnap__802580020 =
+  {
+    complete : Bool;
+    deltaMilli : Int;
+    lineId : Nat;
+    measuredMilli : Int;
+    root : Nat;
+    unit : Text;
+    versionId : Nat;
+    vhMilli : Int
+  };
+type SurveyState__547744904 =
+  {
+    bySurvey : Map__230067015<Nat, [Nat]>;
+    byWork : Map__230067015<Nat, [Nat]>;
+    entries : Map__230067015<Nat, MeasureEntry__298616866>;
+    fileOwners : Map__230067015<Nat, Nat>;
+    keys : Map__230067015<Text, Nat>;
+    opOrder : Map__230067015<Nat, Text>;
+    ops : Map__230067015<Text, SurveyOpRecord__970945864>;
+    snapshots : Map__230067015<Nat, [SurveyPostSnap__524852573]>;
+    surveys : Map__230067015<Nat, Survey__755426336>
+  };
+type SurveyStatus__691959847 =
+  {
+    #closed :
+      {at : Int; by : PersonId__967516914; note : Text; thresholdBp : Nat};
+    #open
+  };
+type SurveyStatus__772051131 =
+  {
+    #closed :
+      {at : Int; by : PersonId__377743261; note : Text; thresholdBp : Nat};
+    #open
+  };
+type Survey__755426336 =
+  {
+    clientKey : Text;
+    extra : Extra__554422274;
+    id : Nat;
+    number : Nat;
+    openedAt : Int;
+    openedBy : PersonId__377743261;
+    status : SurveyStatus__772051131;
+    workId : WorkId__386895530
+  };
+type Survey__900328588 =
+  {
+    clientKey : Text;
+    extra : Extra__945213800;
+    id : Nat;
+    number : Nat;
+    openedAt : Int;
+    openedBy : PersonId__967516914;
+    status : SurveyStatus__691959847;
+    workId : WorkId__929594816
+  };
 type TaskChange__932628730 =
   {
     at : Int;
@@ -2508,6 +2672,7 @@ type WorkId__111716167 = Nat;
 type WorkId__171501769 = Nat;
 type WorkId__299750985 = Nat;
 type WorkId__35351127 = Nat;
+type WorkId__386895530 = Nat;
 type WorkId__642659770 = Nat;
 type WorkId__72456761 = Nat;
 type WorkId__815998652 = Nat;
@@ -2666,7 +2831,8 @@ type WorksState__605582232 =
   "20261025_090000" : OldActor__233879672 -> NewActor__369284664;
   "20261025_130000" : OldActor__1063236522 -> NewActor__305373795;
   "20261025_170000" : OldActor__485181031 -> NewActor__266440787;
-  "20261025_200000" : OldActor__293720163 -> NewActor__1073511891
+  "20261025_200000" : OldActor__293720163 -> NewActor__1073511891;
+  "20261025_220000" : OldActor__675047732 -> NewActor__266457383
 }
 actor  {
   stable access :
@@ -2820,6 +2986,18 @@ actor  {
       sequences : Map__230067015<Text, Nat>;
       values : Map__230067015<Text, Text>;
       var werfleiderZietAlles : Bool
+    };
+  stable surveys :
+    {
+      bySurvey : Map__230067015<Nat, [Nat]>;
+      byWork : Map__230067015<Nat, [Nat]>;
+      entries : Map__230067015<Nat, MeasureEntry__679102477>;
+      fileOwners : Map__230067015<Nat, Nat>;
+      keys : Map__230067015<Text, Nat>;
+      opOrder : Map__230067015<Nat, Text>;
+      ops : Map__230067015<Text, SurveyOpRecord__392605083>;
+      snapshots : Map__230067015<Nat, [SurveyPostSnap__802580020]>;
+      surveys : Map__230067015<Nat, Survey__900328588>
     };
   stable wadm :
     {

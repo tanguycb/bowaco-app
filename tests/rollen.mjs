@@ -1882,6 +1882,24 @@ const tk2 = await wl.createTicket("proef", []);
 check("admin trekt de robot in", isOk(await admin.revokeRobot(P("robot-test"))));
 check("ingetrokken robot: checkTicket geweigerd", await rejects(robot.checkTicket(tk2.ok.ticket)));
 
+await sec("── opmeting (2.9): caps en schrijfpoort per rol (de rest staat in tests/opmeting-draft.mjs en tests/review.mjs J1–J8)");
+{
+  const cp = async (x) => (await x.me()).caps[0];
+  const set = async (oaPropose, externalRead) => ok1b(await admin.saveMeasureSettings({ thresholdBp: 1000n, oaPropose, externalRead }));
+  await set(false, false);
+  const c = { admin: await cp(admin), wl: await cp(wl), calc: await cp(calc), arch: await cp(arch), oa: await cp(oa2), klant: await cp(klant), vc: await cp(vc) };
+  check("caps.measure: admin, werfleider en calculator ja; OA, architect, klant en veiligheid nee (OA-voorstellen staan uit)", c.admin.measure && c.wl.measure && c.calc.measure && !c.oa.measure && !c.arch.measure && !c.klant.measure && !c.vc.measure);
+  check("caps.measureRead: interne rollen en OA ja; architect, klant en veiligheid nee zolang de beheerder 'externen lezen mee' niet aanzet", c.admin.measureRead && c.wl.measureRead && c.calc.measureRead && c.oa.measureRead && !c.arch.measureRead && !c.klant.measureRead && !c.vc.measureRead);
+  check("de schrijfpoort van de opmeting is dicht voor OA, architect, klant, veiligheid, anoniem, de robot", (await Promise.all([oa2, arch, klant, vc, anon, robot].map((x) => denied(x.measureSync([]))))).every(Boolean));
+  await set(true, true);
+  const d = { oa: await cp(oa2), arch: await cp(arch), klant: await cp(klant), vc: await cp(vc) };
+  check("met de schakelaars aan: OA mag schrijven (voorstellen), architect en klant lezen; veiligheid nog altijd niet", d.oa.measure && d.oa.measureRead && !d.arch.measure && d.arch.measureRead && !d.klant.measure && d.klant.measureRead && !d.vc.measure && !d.vc.measureRead);
+  check("de OA komt door de poort met een lege lijst; de architect nog altijd niet", Array.isArray(await oa2.measureSync([])) && (await denied(arch.measureSync([]))));
+  await set(false, false);
+  check("terug uit: de OA is weer buiten", !(await cp(oa2)).measure && !(await cp(arch)).measureRead);
+  check("een drempel buiten bereik wordt geweigerd; enkel de beheerder wijzigt", (await denied(wl.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: true, externalRead: true }))) && "err" in (await admin.saveMeasureSettings({ thresholdBp: 0n, oaPropose: false, externalRead: false })));
+}
+
 await sec("── afzetten (R16, T7)");
 const oaId = (await oa.me()).person[0].id;
 const invOa3 = await invite(admin, "Nog een code voor OA", roles("onderaannemer"));

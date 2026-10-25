@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2.8-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2.9-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -337,6 +337,16 @@ module {
   public let workStartLeadDaysDefault : Nat = 28;
   public let workStartDefaultDays : Nat = 5;
   public let maxWorkStartReason : Nat = 300;
+
+  // ── Opmeting ter plaatse (2.9; VOORLOPIG: vragen voor Alexis) ──────────
+  // De drempel waarboven het verschil met de VH als meer- of minderwerk gemarkeerd wordt: 10 % (instelbaar door de beheerder,
+  // sleutel "measure.thresholdBp" in de instellingen). Grenzen per opmeting en per post; hoeveelheden in duizendsten.
+  public let measureThresholdBpDefault : Nat = 1_000;
+  public let measureThresholdBpMax : Nat = 100_000;
+  public let maxMeasureEntriesPerSurvey : Nat = 500;
+  public let maxMeasureEntriesPerPost : Nat = 50;
+  public let maxMeasurePhotos : Nat = 6;
+  public let maxMeasureQtyMilli : Int = 1_000_000_000_000;
 
   // ── Controleregels vóór verzending (2.6; VOORLOPIG: vragen voor Alexis) ──
   // (sleutel, naam, vast, blokkeert, drempel in basispunten). "Vast" = integriteit van de offerte: niet af te zetten en

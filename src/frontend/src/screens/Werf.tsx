@@ -124,6 +124,14 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
       </section>
 
       <PendingStarts workId={id} caps={caps} go={go} />
+      {caps.measureRead && (
+        <section className="a-section">
+          <div className="a-row a-row--between">
+            <h2 className="bw-h2">{t.opmeting.title}</h2>
+            <Button icon="ruler" onClick={() => go(`opmeting/${id}`)}>{t.opmeting.linkWerf}</Button>
+          </div>
+        </section>
+      )}
       {caps.quotes && <WorkQuotes workId={id} caps={caps} go={go} />}
       <PlanSummary workId={id} go={go} />
       {caps.readOrgPlanning && <WorkConflicts workId={id} go={go} />}

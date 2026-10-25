@@ -593,15 +593,18 @@ module {
           let taskWs = words(g.title # " " # optText(g.stepKey));
           var found = k.words.any(func w = hit(taskWs, w));
           var why = if found "taak «" # g.title # "»" else "";
-          if (not found) {
-            for (lid in g.lineIds.values()) {
-              if (not found) {
-                switch (c.quotes.lines.get(lid)) {
-                  case (?l) { if (k.words.any(func w = hit(words(l.title), w))) { found := true; why := "post «" # l.title # "»" } };
-                  case null {};
-                };
+          // WS-06 (2.8): ook de post die het woord draagt wordt genoemd, zodat duidelijk is waarom de taak bij deze stap hoort.
+          var postWhy = "";
+          for (lid in g.lineIds.values()) {
+            if (postWhy == "") {
+              switch (c.quotes.lines.get(lid)) {
+                case (?l) { if (k.words.any(func w = hit(words(l.title), w))) { postWhy := "post «" # l.title # "»" } };
+                case null {};
               };
             };
+          };
+          if (postWhy != "") {
+            if (found) { why := why # " en " # postWhy } else { found := true; why := postWhy };
           };
           if found {
             hits := hits.concat([g.key]);

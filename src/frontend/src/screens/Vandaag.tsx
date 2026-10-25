@@ -87,6 +87,7 @@ function WorkCard({ w, day, go }: { w: DayWork; day: bigint; go: (to: string) =>
         <Button variant={open || final || waiting ? "secondary" : "primary"} size="lg" block icon="edit" onClick={() => go(`verslag/${w.id}/${day}`)}>
           {open || final || waiting ? t.verslag.more : t.verslag.open}
         </Button>
+        <Button size="lg" block icon="ruler" onClick={() => go(`opmeting/${w.id}`)}>{t.opmeting.title}</Button>
         <span className="bw-muted bw-num">{fmtDayNum(day)}</span>
       </div>
     </Card>

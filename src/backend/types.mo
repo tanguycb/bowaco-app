@@ -1403,6 +1403,69 @@ module {
 
   public type WorkStartState = { starts : Map.Map<Nat, WorkStart> };
 
+  // ── Opmeting ter plaatse (stap 2.9, bouwplan §9 rij 2.9 en §5.1; VOORLOPIG: vragen voor Alexis) ────
+  // Eigen stabiel veld `surveys` (deelvorm, OldActor = {}). Een opmeting is een ronde per werf (één open tegelijk); daarin
+  // staan REGELS per post van de getekende offerte: de gemeten hoeveelheid van die keer (deelopmetingen tellen op), datum,
+  // wie mat, een notitie, foto's of een schets. Het gaat over HOEVEELHEDEN: geen veld in dit domein draagt een prijs (de
+  // views evenmin; tests/review.mjs J1 controleert het in de .did). Een regel wordt nooit overschreven: in een open opmeting
+  // kan ze weggehaald (gearchiveerd) worden; in een AFGESLOTEN opmeting enkel met een nieuwe regel (`corrects`) en een reden.
+  // Bij het afsluiten ligt de stand per post vast (`snapshots`): daarop rekent 2.10 (vorderingsstaten).
+  // Een onderaannemer mag (instelbaar) zijn eigen posten VOORSTELLEN (`proposedOrgId`); de werfleider of calculator bevestigt of
+  // wijst af (`review`). Enkel bevestigde regels tellen mee.
+  public type SurveyStatus = { #open; #closed : { by : PersonId; at : Int; note : Text; thresholdBp : Nat } };
+
+  // klasse: intern. `number` = volgnummer per werf (opmeting 1, 2 …). `clientKey` = de sleutel van het toestel dat ze opende.
+  public type Survey = { id : Nat; workId : WorkId; number : Nat; clientKey : Text; status : SurveyStatus; openedBy : PersonId; openedAt : Int; extra : Extra };
+
+  public type MeasureFileRole = { #photo; #sketch };
+  public type MeasureFile = { role : MeasureFileRole; fileId : Nat; thumbFileId : ?Nat; caption : Text };
+  public type MeasureReview = { by : PersonId; at : Int; ok : Bool; note : Text };
+
+  // klasse: intern (hoeveelheden, geen prijs). qtyMilli = de gemeten hoeveelheid van deze keer in duizendsten (bij een
+  // correctie: de nieuwe waarde van de gecorrigeerde regel). lineId = de lijn van de offerteversie op het moment van meten;
+  // root = de lijn van de eerste versie (blijft gelijk bij meerwerk-versies). `complete` = post volledig opgemeten.
+  public type MeasureEntry = {
+    id : Nat;
+    surveyId : Nat;
+    workId : WorkId;
+    lineId : Nat;
+    versionId : Nat;
+    root : Nat;
+    qtyMilli : Int;
+    day : Day;
+    complete : Bool;
+    note : Text;
+    files : [MeasureFile];
+    corrects : ?Nat;
+    reason : Text;
+    proposedOrgId : ?OrgId;
+    review : ?MeasureReview;
+    blockKey : Text; // opId van de opdracht die deze regel maakte
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId;
+    extra : Extra;
+  };
+
+  // klasse: intern. De stand van een post bij het afsluiten van een opmeting (VH op dat moment, opgemeten tot en met deze opmeting).
+  public type SurveyPostSnap = { root : Nat; lineId : Nat; versionId : Nat; vhMilli : Int; unit : Text; measuredMilli : Int; deltaMilli : Int; complete : Bool };
+
+  // klasse: technisch (D2-uitzondering): een uitgevoerde offline-opdracht. Na 30 dagen opgeruimd.
+  public type SurveyOpRecord = { opId : Text; seq : Nat; at : Int; by : PersonId; kind : Text; surveyId : Nat; entityId : ?Nat; note : Text };
+
+  public type SurveyState = {
+    surveys : Map.Map<Nat, Survey>;
+    keys : Map.Map<Text, Nat>; // clientKey → opmeting (ook de sleutel van een tweede toestel)
+    byWork : Map.Map<Nat, [Nat]>; // werf → opmetingen
+    entries : Map.Map<Nat, MeasureEntry>;
+    bySurvey : Map.Map<Nat, [Nat]>; // opmeting → regels
+    snapshots : Map.Map<Nat, [SurveyPostSnap]>; // opmeting → stand per post bij het afsluiten
+    fileOwners : Map.Map<Nat, Nat>; // bestand → regel: foto's en schetsen tonen enkel via de opmeting
+    ops : Map.Map<Text, SurveyOpRecord>;
+    opOrder : Map.Map<Nat, Text>;
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

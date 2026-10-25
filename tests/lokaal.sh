@@ -68,6 +68,8 @@ node tests/offerte-draft.mjs "$cid"
 node tests/rekentest.mjs "$cid"
 # 2.8: aanvaarde offerte → werf (voorstel, bevestigen, idempotent, meerwerk, afwijzen, nieuwe werf).
 node tests/werfstart-draft.mjs "$cid"
+# 2.9: opmeting ter plaatse (meten, deelopmeting, correctie met reden, tweede toestel, OA voorstel, afsluiten, rechten, geen prijzen).
+node tests/opmeting-draft.mjs "$cid"
 echte=$(ls "$HOME"/Desktop/Split/bowaco-docs/bowaco/2026-231_Offerte_*.xlsx 2>/dev/null | head -1)
 if [[ -n "$echte" ]]; then
   python3 -I tools/rekentest-echt.py "$echte"

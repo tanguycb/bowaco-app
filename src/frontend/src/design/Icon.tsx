@@ -41,6 +41,7 @@ const P: Record<string, string> = {
   logout: "M15 4h4v16h-4 M10 8l-4 4 4 4 M6 12h10",
   up: "M6 15l6-6 6 6",
   down: "M6 9l6 6 6-6",
+  ruler: "M3 17 17 3l4 4L7 21z M7 13l2 2 M10 10l2 2 M13 7l2 2",
   euro: "M17.5 6.5A7 7 0 1 0 17.5 17.5 M4 10.5h9 M4 13.5h9",
   /* statusvormen */
   "st-planned": "M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",

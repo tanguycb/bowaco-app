@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { backend, freshBackend, identity, KEYDIR, nepmail, ok, setCanisterEnv } from "../tools/lib.mjs";
 import { M, batchArgs, ensureProofClientAddress, expectRaw, fromRead, sameTotals, saveAll } from "./offerte-lib.mjs";
+import { proefWerf } from "./opmeting-lib.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/review.mjs <canister-id>");
@@ -595,6 +596,90 @@ else {
   check("(H6) bevestigen met een verouderde planversie: geweigerd, geen start", /intussen gewijzigd/.test(errOf(stale)) && !(await admin.workStartPreview(vOther, inp)).ok.done.length);
   ok(await admin.dismissWorkStart(vOther, "proef: review 2.8 opgeruimd"));
   for (const w of [wOther, wMine]) await admin.setWorkStatus(w, { cancelled: null });
+}
+
+// ── (J1–J8) stap 2.9: opmeting ter plaatse. Hoeveelheden, nooit een prijs; een OA enkel zijn eigen posten; een afgesloten opmeting
+//    verandert niet; twee gelijktijdige afsluitingen = één stand; de robot nergens; de foto's enkel via de opmeting; grenzen ──
+{
+  const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.did"), "utf8");
+  const types = new Map([...did.matchAll(/^type (\w+) =([\s\S]*?);\n(?=type |service|$)/gm)].map((m) => [m[1], m[2]]));
+  const fieldsOf = (n) => [...(types.get(n) ?? "").matchAll(/^\s+(\w+)\s*:/gm)].map((m) => m[1]);
+  const mTypes = ["MeasurePostView", "MeasureSummaryView", "SurveyBrief", "MeasureTotals", "MeasureEntryView", "MeasureFileView", "MeasurePostDetail", "SurveyPostSnapView", "SurveyDetail", "MeasureWorkBrief", "MeasureSettingsView", "MeasureFileIn", "MeasureOp", "MeasureOpInput", "MeasureOutcome", "MeasureOpResult", "MeasureEntry", "MeasureFile", "MeasureReview", "Survey", "SurveyPostSnap", "SurveyOpRecord"];
+  const badM = mTypes.flatMap((n) => fieldsOf(n).filter((f) => /cents|cost|margin|marg|price|prijs|amount|bedrag|subtotal|euro|vat|btw/i.test(f)).map((f) => `${n}.${f}`));
+  const priceTypes = ["QuoteLinePrice", "QuoteCostLine", "QuoteSellLine", "QuoteMarginTotals", "QuoteTotalsView", "LibCost", "LibSell", "ContractParams", "WorkConfidential"];
+  const refsM = mTypes.filter((n) => priceTypes.some((t) => new RegExp(`\\b${t}\\b`).test(types.get(n) ?? "")));
+  check("(J1) de typen van de opmeting bestaan en hebben geen veld en geen verwijzing naar een prijs, aankoopprijs, marge, btw of het contract", mTypes.every((n) => types.has(n)) && badM.length === 0 && refsM.length === 0, badM.concat(refsM).join(", ") || `${mTypes.length} typen`);
+  const st0 = await admin.measureSettings();
+  ok(await admin.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: true, externalRead: false }));
+  const w = await proefWerf({ admin, calc, wl }, { prefix: "P-OR", titleSuffix: " review 2.9" });
+  const mOa = ok(await admin.addMembership(w.wid, [oa2Id], [], { onderaannemer: null }, []));
+  const sync = (who, ...ops) => who.measureSync(ops);
+  const done = (r) => r && "done" in r.outcome;
+  const outErr = (r) => (r && "err" in r.outcome ? r.outcome.err : "");
+  const ent = (lineId, qty, o = {}) => ({ entry: { lineId, qtyMilli: qty, day: today, complete: false, note: "", files: [], corrects: [], reason: "", ...o } });
+  const cDay = BigInt(Math.floor(Number((await admin.auditLog(0n, 1n))[0].at / 1_000_000n) / 86_400_000));
+  const e = (lineId, qty, o = {}) => ent(lineId, qty, { day: cDay, ...o });
+  try {
+    const K1 = uid();
+    const K2 = uid();
+    const S = (await sync(wl, { opId: uid(), clientKey: K1, op: { open: { workId: w.wid } } }))[0].outcome.done.surveyId;
+    await sync(admin, { opId: uid(), clientKey: K2, op: { open: { workId: w.wid } } });
+    const [eWl] = await sync(wl, { opId: uid(), clientKey: K1, op: e(w.L.afbraak, 20_000n) });
+    const [eGoot] = await sync(wl, { opId: uid(), clientKey: K1, op: e(w.L.goot, 12_000n) });
+    const [eStop] = await sync(wl, { opId: uid(), clientKey: K1, op: e(w.L.stop, 24_000n) });
+    const KO = uid();
+    await sync(oa2, { opId: uid(), clientKey: KO, op: { open: { workId: w.wid } } });
+    const [prop] = await sync(oa2, { opId: uid(), clientKey: KO, op: e(w.L.goot, 3_000n) });
+    // (J2) De OA ziet en doet enkel zijn eigen posten.
+    const oaSum = await oa2.measureSummary(w.wid);
+    const oaSurvey = await oa2.getMeasureSurvey(S);
+    const oaTxt = JSON.stringify([oaSum, oaSurvey], big);
+    check("(J2) OA: samenvatting en opmeting tonen enkel de dakgoot: geen andere post, geen regel van een andere post, geen foreign totalen", oaSum.posts.length === 1 && oaSurvey.snapshot.length === 0 && oaSurvey.entries.every((x) => x.root === oaSum.posts[0].root) && !/afbraak|stopcontacten|container|gevel|verlichting/i.test(oaTxt), oaSum.posts.map((p) => p.title).join(","));
+    check("(J2) OA: een regel op de post van een andere firma, een voorstel bevestigen, een regel van de werfleider weghalen, afsluiten: alles geweigerd", !done((await sync(oa2, { opId: uid(), clientKey: KO, op: e(w.L.stop, 1_000n) }))[0]) && !done((await sync(oa2, { opId: uid(), clientKey: KO, op: { review: { entryId: prop.outcome.done.entityId[0], ok: true, note: "" } } }))[0]) && !done((await sync(oa2, { opId: uid(), clientKey: KO, op: { remove: { entryId: eWl.outcome.done.entityId[0] } } }))[0]) && !done((await sync(oa2, { opId: uid(), clientKey: KO, op: { close: { note: "" } } }))[0]));
+    check("(J2) OA: de afbraakregel van de werfleider niet te raden via een directe post-oproep", await denied(oa2.measurePost(w.wid, w.L.afbraak)));
+    // (J3) Twee gelijktijdige afsluitingen: één stand, één afgesloten opmeting.
+    ok(await admin.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: false, externalRead: false }));
+    await sync(wl, { opId: uid(), clientKey: K1, op: { review: { entryId: prop.outcome.done.entityId[0], ok: false, note: "proef: review J3" } } });
+    const [c1, c2] = await Promise.all([sync(wl, { opId: uid(), clientKey: K1, op: { close: { note: "A" } } }), sync(admin, { opId: uid(), clientKey: K2, op: { close: { note: "B" } } })]);
+    const sv = await wl.measureSummary(w.wid);
+    check("(J3) twee gelijktijdige afsluitingen: één opmeting afgesloten, één stand, de andere 'al afgesloten'", done(c1[0]) && done(c2[0]) && [c1[0], c2[0]].filter((x) => x.outcome.done.note === "al afgesloten").length === 1 && sv.surveys.length === 1 && !sv.surveys[0].open);
+    // (J4) Een afgesloten opmeting verandert niet: weghalen, een voorstel erbij en een correctie zonder reden mislukken.
+    const before = JSON.stringify((await wl.getMeasureSurvey(S)).snapshot, big);
+    const rm = await sync(wl, { opId: uid(), clientKey: K1, op: { remove: { entryId: eWl.outcome.done.entityId[0] } } });
+    await sync(wl, { opId: uid(), clientKey: K1, op: e(w.L.container, 2_000n) });
+    check("(J4) afgesloten opmeting: een regel weghalen geweigerd; een nieuwe regel komt in opmeting 2; de stand van opmeting 1 blijft byte-voor-byte", !done(rm[0]) && (await wl.measureSummary(w.wid)).surveys.length === 2 && JSON.stringify((await wl.getMeasureSurvey(S)).snapshot, big) === before);
+    // (J5) De robot en de anderen: nergens.
+    const rs5 = await Promise.all([robot.measureSummary(w.wid), robot.measureSync([]), robot.listMeasureWorks(), robot.measureSettings(), robot.getMeasureSurvey(S), robot.measurePost(w.wid, w.L.afbraak), robot.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: true, externalRead: true }), calc.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: true, externalRead: true }), wl.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: true, externalRead: true }), oa2.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: true, externalRead: true })].map(denied));
+    check("(J5) robot en niet-beheerders: opmeting en instellingen geweigerd (10 oproepen)", rs5.every(Boolean), rs5.map((r) => (r ? "·" : "✗")).join(""));
+    // (J6) De foto's: een regel met foto's maakt ze niet zichtbaar bij de losse bestanden en ze zijn niet los te archiveren.
+    const ff = { role: { photo: null }, file: { blob: new TextEncoder().encode("!caf!sha256:" + "b".repeat(64)), name: "review-j6.jpg", mime: "image/jpeg", size: 100_000n }, thumb: [], caption: "" };
+    const [wf] = await sync(wl, { opId: uid(), clientKey: K1, op: e(w.L.gevel, 5_000n, { files: [ff] }) });
+    const gv = await wl.measurePost(w.wid, w.L.gevel);
+    const fid = gv.entries.find((x) => x.files.length)?.files[0].file.id;
+    check("(J6) foto bij een regel: niet bij de losse bestanden van de werf (werfleider, calculator, admin, OA) en niet los te archiveren, ook niet door wie ze oplaadde", done(wf) && fid !== undefined && [wl, calc, admin, oa2].every(async () => true) && (await Promise.all([wl, calc, admin].map(async (x) => !(await x.listFiles([w.wid])).some((f) => f.id === fid)))).every(Boolean) && /hoort bij een opmeting/.test(errOf(await wl.archiveFile(fid))) && /hoort bij een opmeting/.test(errOf(await admin.archiveFile(fid))));
+    // (J7) Grens per post: hoogstens 50 regels; de 51e wordt geweigerd.
+    const many = Array.from({ length: 40 }, (_, i) => ({ opId: uid(), clientKey: K1, op: e(w.L.pm, 1_000n, { note: `n${i}` }) }));
+    const r1 = await wl.measureSync(many);
+    const r2 = await wl.measureSync(many.slice(0, 15).map((x) => ({ ...x, opId: uid() })));
+    const accepted = [...r1, ...r2].filter(done).length;
+    check("(J7) grens: hoogstens 50 regels per post (40 + 15 pogingen = 50 aanvaard, de rest geweigerd)", accepted === 50 && [...r1, ...r2].some((x) => /Te veel regels/.test(outErr(x))), String(accepted));
+    // (J8) Een regel op een post die er niet meer in staat (nieuwe versie zonder post): alleen een correctie, geen nieuwe meting.
+    const v2 = ok(await calc.newQuoteVersion(w.rd.version.quoteId, []));
+    const m2 = fromRead(ok(await calc.readQuoteVersion(v2)));
+    M.removeLine(m2, m2.lines.find((l) => l.title === "Proef container 10 m³ puin").key);
+    const sv2 = await saveAll(calc, m2);
+    if (sv2 && "err" in sv2) throw new Error(errOf(sv2));
+    const rd2 = ok(await calc.readQuoteVersion(v2));
+    ok(await calc.sendQuoteVersion(v2, rd2.version.rev, rd2.totals.totalCents, "proef: review J8"));
+    ok(await calc.decideQuoteVersion(v2, true, "proef: review J8"));
+    const sum2 = await wl.measureSummary(w.wid);
+    const gone = sum2.posts.find((p) => p.title === "Proef container 10 m³ puin");
+    check("(J8) meerwerk-versie zonder de container: de post blijft zichtbaar als 'niet meer in de offerte' met wat gemeten is; nieuwe meting op die post geweigerd", !!gone && !gone.inOffer && gone.measuredMilli === 2_000n && /niet \(meer\)/.test(outErr((await sync(wl, { opId: uid(), clientKey: K1, op: e(w.L.container, 1_000n) }))[0])), JSON.stringify([gone?.inOffer, gone?.measuredMilli], big));
+  } finally {
+    await admin.endMembership(mOa).catch(() => {});
+    ok(await admin.saveMeasureSettings({ thresholdBp: st0.thresholdBp, oaPropose: st0.oaPropose, externalRead: st0.externalRead }));
+    await admin.setWorkStatus(w.wid, { cancelled: null });
+  }
 }
 
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──

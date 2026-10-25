@@ -96,6 +96,7 @@ for (const [name, file] of [
   ["regels", "tests/regels.mjs"], // 2.6: controleregels, browser = server
   ["klant", "tests/klant-draft.mjs"], // 2.7: de klant, het akkoord, voorwaarden, getekend bewijs
   ["werfstart", "tests/werfstart-draft.mjs"], // 2.8: aanvaarde offerte → werf, taken, vergunningen, 30bis
+  ["opmeting", "tests/opmeting-draft.mjs"], // 2.9: opmeting ter plaatse (hoeveelheden, voorstel van een OA, afsluiten, rechten)
   ["mail", "tests/mail-proef.mjs"],
 ]) rood += run(name, file) ? 1 : 0;
 // De import van de planning: enkel het GEANONIMISEERDE bestand (tools/plan-anonimiseer.mjs; de proef weigert een ander).

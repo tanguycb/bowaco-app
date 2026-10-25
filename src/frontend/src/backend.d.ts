@@ -334,9 +334,11 @@ export interface Caps {
     manageMunicipalities: boolean;
     importOa: boolean;
     manageOa: boolean;
+    measure: boolean;
     home: string;
     libraryPrices: boolean;
     wadm: boolean;
+    measureRead: boolean;
     importPlan: boolean;
     managePermitKinds: boolean;
     readOrgPlanning: boolean;
@@ -864,6 +866,7 @@ export interface ExportIntern {
     trips: Array<Trip>;
     attendances: Array<Attendance>;
     lookups: Array<LookupView>;
+    measureOps: Array<SurveyOpRecord>;
     assignments: Array<Assignment>;
     notifications: Array<NotificationExport>;
     procedures: Array<PermitProcedure>;
@@ -883,6 +886,7 @@ export interface ExportIntern {
     calendarBlocks: Array<CalendarBlock>;
     hoursConfirmations: Array<HoursConfirmation>;
     orgContacts: Array<OrgContact>;
+    surveys: Array<Survey>;
     libChapters: Array<LibChapter>;
     links: Array<LinkView>;
     reportKeys: Array<[string, bigint]>;
@@ -900,6 +904,7 @@ export interface ExportIntern {
     appointments: Array<Appointment>;
     materials: Array<MaterialNote>;
     dependencies: Array<Dependency>;
+    surveyKeys: Array<[string, bigint]>;
     libItems: Array<LibItem>;
     quoteSendInfos: Array<QuoteSendInfo>;
     robots: Array<RobotView>;
@@ -913,6 +918,7 @@ export interface ExportIntern {
     works: Array<WorkView>;
     quoteRules: Array<QuoteRuleCfg>;
     quotes: Array<Quote>;
+    measureEntries: Array<MeasureEntry>;
     personContacts: Array<PersonContact>;
     sequences: Array<[string, bigint]>;
     quoteAcceptances: Array<QuoteAcceptance>;
@@ -924,6 +930,7 @@ export interface ExportIntern {
     quoteTerms: Array<QuoteTerms>;
     photos: Array<Photo>;
     linkHistory: Array<LinkHistory>;
+    measureSnapshots: Array<[bigint, Array<SurveyPostSnap>]>;
     workDone: Array<WorkDone>;
     workInfo: Array<WorkInfo>;
 }
@@ -1657,6 +1664,211 @@ export interface MeView {
     caps?: Caps;
     version: string;
     isRobot: boolean;
+}
+export interface MeasureEntry {
+    id: bigint;
+    day: Day;
+    files: Array<MeasureFile>;
+    review?: MeasureReview;
+    versionId: bigint;
+    qtyMilli: bigint;
+    blockKey: string;
+    proposedOrgId?: OrgId;
+    note: string;
+    createdAt: bigint;
+    createdBy: PersonId;
+    root: bigint;
+    extra: Extra;
+    surveyId: bigint;
+    complete: boolean;
+    corrects?: bigint;
+    workId: WorkId;
+    lineId: bigint;
+    reason: string;
+    archivedAt?: bigint;
+    archivedBy?: PersonId;
+}
+export interface MeasureEntryView {
+    id: bigint;
+    day: bigint;
+    files: Array<MeasureFileView>;
+    status: string;
+    byName: string;
+    canCorrect: boolean;
+    qtyMilli: bigint;
+    blockKey: string;
+    contributionMilli: bigint;
+    superseded: boolean;
+    note: string;
+    createdAt: bigint;
+    root: bigint;
+    canRemove: boolean;
+    surveyNumber: bigint;
+    reviewedByName: string;
+    reviewNote: string;
+    reviewedAt?: bigint;
+    surveyId: bigint;
+    complete: boolean;
+    corrects?: bigint;
+    proposedByOrg: string;
+    surveyClosed: boolean;
+    lineId: bigint;
+    archived: boolean;
+    reason: string;
+}
+export interface MeasureFile {
+    role: MeasureFileRole;
+    fileId: bigint;
+    caption: string;
+    thumbFileId?: bigint;
+}
+export interface MeasureFileIn {
+    thumb?: FileIn;
+    file: FileIn;
+    role: MeasureFileRole;
+    caption: string;
+}
+export interface MeasureFileView {
+    thumb?: FileView;
+    file: FileView;
+    role: MeasureFileRole;
+    caption: string;
+}
+export type MeasureOp = {
+    __kind__: "remove";
+    remove: {
+        entryId: bigint;
+    };
+} | {
+    __kind__: "review";
+    review: {
+        ok: boolean;
+        note: string;
+        entryId: bigint;
+    };
+} | {
+    __kind__: "close";
+    close: {
+        note: string;
+    };
+} | {
+    __kind__: "open";
+    open: {
+        workId: bigint;
+    };
+} | {
+    __kind__: "entry";
+    entry: {
+        day: bigint;
+        files: Array<MeasureFileIn>;
+        qtyMilli: bigint;
+        note: string;
+        complete: boolean;
+        corrects?: bigint;
+        lineId: bigint;
+        reason: string;
+    };
+};
+export interface MeasureOpInput {
+    op: MeasureOp;
+    opId: string;
+    clientKey: string;
+}
+export interface MeasureOpResult {
+    repeated: boolean;
+    opId: string;
+    outcome: MeasureOutcome;
+}
+export type MeasureOutcome = {
+    __kind__: "err";
+    err: string;
+} | {
+    __kind__: "done";
+    done: {
+        note: string;
+        surveyId: bigint;
+        entityId?: bigint;
+    };
+};
+export interface MeasurePostDetail {
+    post: MeasurePostView;
+    text: string;
+    entries: Array<MeasureEntryView>;
+}
+export interface MeasurePostView {
+    pendingCount: bigint;
+    versionId: bigint;
+    versionNo: bigint;
+    title: string;
+    closedMilli: bigint;
+    option: boolean;
+    entryCount: bigint;
+    code: string;
+    flag: MeasureFlag;
+    form: ContractForm;
+    root: bigint;
+    unit: string;
+    vhMilli: bigint;
+    quoteNumber: string;
+    chapterTitle: string;
+    complete: boolean;
+    diffBp?: bigint;
+    measuredMilli: bigint;
+    inOffer: boolean;
+    diffMilli: bigint;
+    lastDay?: bigint;
+    lineId: bigint;
+    chapterCode: string;
+}
+export interface MeasureReview {
+    at: bigint;
+    by: PersonId;
+    ok: boolean;
+    note: string;
+}
+export interface MeasureSettingsView {
+    externalRead: boolean;
+    thresholdBp: bigint;
+    oaPropose: boolean;
+}
+export interface MeasureSummaryView {
+    workName: string;
+    orgName: string;
+    canWrite: boolean;
+    note: string;
+    canReview: boolean;
+    surveys: Array<SurveyBrief>;
+    thresholdBp: bigint;
+    scope: string;
+    totals: MeasureTotals;
+    canPropose: boolean;
+    openSurveyId?: bigint;
+    posts: Array<MeasurePostView>;
+    workId: bigint;
+    quotes: Array<string>;
+    workCode: string;
+}
+export interface MeasureTotals {
+    lessCount: bigint;
+    moreCount: bigint;
+    measuredPosts: bigint;
+    completePosts: bigint;
+    posts: bigint;
+    openProposals: bigint;
+}
+export interface MeasureWorkBrief {
+    lessCount: bigint;
+    pending: bigint;
+    code: string;
+    name: string;
+    moreCount: bigint;
+    openSurveyNumber?: bigint;
+    measuredPosts: bigint;
+    scope: string;
+    address: Address;
+    closedSurveys: bigint;
+    posts: bigint;
+    workId: bigint;
 }
 export interface MembershipView {
     id: bigint;
@@ -3012,6 +3224,9 @@ export type RestorePart = {
     __kind__: "lookups";
     lookups: Array<LookupView>;
 } | {
+    __kind__: "measureOps";
+    measureOps: Array<SurveyOpRecord>;
+} | {
     __kind__: "audit";
     audit: Array<AuditEntry>;
 } | {
@@ -3075,6 +3290,9 @@ export type RestorePart = {
     __kind__: "orgContacts";
     orgContacts: Array<OrgContact>;
 } | {
+    __kind__: "surveys";
+    surveys: Array<Survey>;
+} | {
     __kind__: "libSells";
     libSells: Array<LibSell>;
 } | {
@@ -3135,6 +3353,9 @@ export type RestorePart = {
     __kind__: "dependencies";
     dependencies: Array<Dependency>;
 } | {
+    __kind__: "surveyKeys";
+    surveyKeys: Array<[string, bigint]>;
+} | {
     __kind__: "libItems";
     libItems: Array<LibItem>;
 } | {
@@ -3180,6 +3401,9 @@ export type RestorePart = {
     __kind__: "quotes";
     quotes: Array<Quote>;
 } | {
+    __kind__: "measureEntries";
+    measureEntries: Array<MeasureEntry>;
+} | {
     __kind__: "personContacts";
     personContacts: Array<PersonContact>;
 } | {
@@ -3209,6 +3433,9 @@ export type RestorePart = {
 } | {
     __kind__: "linkHistory";
     linkHistory: Array<LinkHistory>;
+} | {
+    __kind__: "measureSnapshots";
+    measureSnapshots: Array<[bigint, Array<SurveyPostSnap>]>;
 } | {
     __kind__: "workDone";
     workDone: Array<WorkDone>;
@@ -3597,6 +3824,82 @@ export interface ShiftView {
     taskId: bigint;
     reason: string;
 }
+export interface Survey {
+    id: bigint;
+    status: SurveyStatus;
+    extra: Extra;
+    number: bigint;
+    clientKey: string;
+    workId: WorkId;
+    openedAt: bigint;
+    openedBy: PersonId;
+}
+export interface SurveyBrief {
+    id: bigint;
+    pendingCount: bigint;
+    closeNote: string;
+    entryCount: bigint;
+    open: boolean;
+    openedByName: string;
+    thresholdBp?: bigint;
+    closedAt?: bigint;
+    number: bigint;
+    openedAt: bigint;
+    closedByName: string;
+}
+export interface SurveyDetail {
+    snapshot: Array<SurveyPostSnapView>;
+    entries: Array<MeasureEntryView>;
+    survey: SurveyBrief;
+}
+export interface SurveyOpRecord {
+    at: bigint;
+    by: PersonId;
+    seq: bigint;
+    kind: string;
+    note: string;
+    opId: string;
+    surveyId: bigint;
+    entityId?: bigint;
+}
+export interface SurveyPostSnap {
+    versionId: bigint;
+    root: bigint;
+    unit: string;
+    vhMilli: bigint;
+    complete: boolean;
+    deltaMilli: bigint;
+    measuredMilli: bigint;
+    lineId: bigint;
+}
+export interface SurveyPostSnapView {
+    title: string;
+    code: string;
+    flag: MeasureFlag;
+    root: bigint;
+    unit: string;
+    vhMilli: bigint;
+    quoteNumber: string;
+    complete: boolean;
+    deltaMilli: bigint;
+    diffBp?: bigint;
+    measuredMilli: bigint;
+    diffMilli: bigint;
+    lineId: bigint;
+    chapterCode: string;
+}
+export type SurveyStatus = {
+    __kind__: "closed";
+    closed: {
+        at: bigint;
+        by: PersonId;
+        note: string;
+        thresholdBp: bigint;
+    };
+} | {
+    __kind__: "open";
+    open: null;
+};
 export interface Task {
     id: bigint;
     status: TaskStatus;
@@ -4277,6 +4580,16 @@ export enum MaterialKind {
     delivered = "delivered",
     returned = "returned"
 }
+export enum MeasureFileRole {
+    photo = "photo",
+    sketch = "sketch"
+}
+export enum MeasureFlag {
+    less = "less",
+    more = "more",
+    none = "none",
+    open = "open"
+}
 export enum OrgKind {
     client = "client",
     other = "other",
@@ -4419,6 +4732,7 @@ export interface backendInterface {
     failJob(id: bigint, attempt: bigint, why: string, retry: boolean): Promise<Result_6>;
     getDossier(workId: bigint): Promise<DossierView>;
     getLibraryItem(id: bigint): Promise<Result_16>;
+    getMeasureSurvey(surveyId: bigint): Promise<SurveyDetail>;
     getOa(id: bigint): Promise<Result_38>;
     getPlan(workId: bigint): Promise<PlanView>;
     getQuoteDocSettings(): Promise<QuoteDocSettings>;
@@ -4448,6 +4762,7 @@ export interface backendInterface {
     listLibrary(f: LibFilter): Promise<LibPage>;
     listLinks(): Promise<Array<LinkView>>;
     listMailLog(from: bigint, limit: bigint): Promise<Array<MailLogView>>;
+    listMeasureWorks(): Promise<Array<MeasureWorkBrief>>;
     listMembers(workId: bigint): Promise<Array<MembershipView>>;
     listMunicipalities(withArchived: boolean): Promise<Array<MunicipalityView>>;
     listMyQuotes(): Promise<Array<MyQuoteBrief>>;
@@ -4470,6 +4785,10 @@ export interface backendInterface {
     mailQuoteToClient(versionId: bigint): Promise<Result_6>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     me(): Promise<MeView>;
+    measurePost(workId: bigint, root: bigint): Promise<MeasurePostDetail>;
+    measureSettings(): Promise<MeasureSettingsView>;
+    measureSummary(workId: bigint): Promise<MeasureSummaryView>;
+    measureSync(ops: Array<MeasureOpInput>): Promise<Array<MeasureOpResult>>;
     myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;
     myDay(day: bigint, all: boolean): Promise<MyDayView>;
     myHours(fromDay: bigint, toDay: bigint): Promise<Array<HoursLine>>;
@@ -4522,6 +4841,7 @@ export interface backendInterface {
     saveDocument(workId: bigint, i: DocumentInput): Promise<Result_4>;
     saveLibraryChapter(i: LibChapterInput): Promise<Result_4>;
     saveLibraryItem(i: LibItemInput, expectedVersion: bigint): Promise<Result_16>;
+    saveMeasureSettings(i: MeasureSettingsView): Promise<Result_6>;
     saveMunicipality(m: MunicipalityInput): Promise<Result_12>;
     saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_15>;
     saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_14>;

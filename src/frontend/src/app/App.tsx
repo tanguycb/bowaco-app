@@ -36,6 +36,7 @@ import { Posten } from "../screens/Posten";
 import { OffertesPage } from "../screens/Offertes";
 import { MijnOffertePage } from "../screens/MijnOfferte";
 import { WerfStartPage } from "../screens/WerfStart";
+import { OpmetingPage } from "../screens/Opmeting";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -182,6 +183,8 @@ function navFor(caps: Caps): NavItem[] {
   // 2.7: de klant leest zijn verzonden offerte(s) en geeft akkoord.
   if (caps.myQuotes) items.push({ key: "mijn-offerte", label: t.nav.mijnOfferte, icon: "euro" });
   if (caps.quotes && caps.home !== "offertes") items.push({ key: "offertes", label: t.nav.offertes, icon: "euro" });
+  // 2.9: opmeting ter plaatse (hoeveelheden, geen prijzen): interne rollen en OA; architect en klant enkel als de beheerder het toelaat.
+  if (caps.measureRead) items.push({ key: "opmeting", label: t.nav.opmeting, icon: "ruler" });
   // 2.2: de postenbibliotheek (interne rollen lezen zonder prijzen; beheerder en calculator bewerken en zien de prijzen).
   if (caps.readLibrary) items.push({ key: "posten", label: t.nav.posten, icon: "doc" });
   // 1b.1: vergunningen over alle werven (admin, werfleider) en de kennisbank per gemeente (interne rollen).
@@ -236,6 +239,8 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "werfstart":
         if (caps.workStarts && route[1] && /^\d+$/.test(route[1])) return <WerfStartPage key={route[1]} versionId={BigInt(route[1])} caps={caps} go={go} />;
         return <Home kind={caps.home} go={go} caps={caps} />;
+      case "opmeting":
+        return <OpmetingPage go={go} route={route} />;
       case "mijn-offerte":
         if (caps.myQuotes) return <MijnOffertePage go={go} route={route} />;
         return null;
@@ -287,7 +292,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       <aside className="a-side">
         <div className="a-side__brand"><Wordmark size={17} sub={t.app.sub} /></div>
         <div className="a-row--tight"><Bell go={go} home={caps.home} />
-        {(caps.writeReports || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}</div>
+        {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}</div>
         {navList()}
         <div className="a-me">
           <span className="a-avatar">{initials}</span>
@@ -299,7 +304,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         <header className="a-bar">
           <span className="a-bar__brand"><Wordmark size={16} sub={t.app.sub} /></span>
           <Bell go={go} home={caps.home} />
-          {(caps.writeReports || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
+          {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
           <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>
         </header>
         {screen}
