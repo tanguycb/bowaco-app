@@ -518,7 +518,7 @@ function SurveySheet({ surveyId, onClose }: { surveyId: bigint; onClose: () => v
                   <span className="bw-num">{fmtQty(x.vhMilli)} {x.unit}</span>
                   <span className="bw-num">{fmtQty(x.measuredMilli)} {x.unit}</span>
                   <span className="bw-num">{fmtSigned(x.deltaMilli)}</span>
-                  <span className={`bw-num ${flagClass(fl)}`}>{fmtSigned(x.diffMilli)} · {fmtPct(x.diffBp)}{fl !== "none" ? ` · ${T.flag[fl]}` : ""}</span>
+                  <span className={`bw-num ${flagClass(fl)}`}>{x.measuredMilli === 0n && x.deltaMilli === 0n && !x.complete ? "–" : `${fmtSigned(x.diffMilli)} · ${fmtPct(x.diffBp)}${fl !== "none" ? ` · ${T.flag[fl]}` : ""}`}</span>
                 </div>
               );
             })}
