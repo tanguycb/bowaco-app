@@ -26,7 +26,8 @@ let code = process.env.UITNODIGING_CODE; // enkel voor een test; normaal onzicht
 if (!code) {
   const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
   rl._writeToOutput = () => {};
-  process.stdout.write("Uitnodigingscode voor de testbeheerder (wordt niet getoond): ");
+  console.log(`Draft ${cid}: plak hier de uitnodigingscode van "Testbeheerder" en druk op Enter.`);
+  console.log("(Je ziet geen tekens verschijnen terwijl je plakt: dat is bewust. De code wordt niet bewaard of getoond.)");
   code = await new Promise((res) => rl.question("", (c) => { rl.close(); res(c); }));
   console.log("");
 }
