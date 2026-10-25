@@ -445,7 +445,8 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
         </div>
 
         <aside className="q-side">
-          <Totals read={read} totals={totals} />
+          {/* Chrome-test C4: het tarief van het model (de kop kan net gewijzigd zijn), niet dat van de laatste lezing */}
+          <Totals read={read} totals={totals} vatBp={model?.header.vatBp ?? v.vatBp} />
           {editable && pending > 0 && <p className="q-pending">{O.pending(pending)} <Button variant="quiet" onClick={() => { if (model) { unsaved.delete(String(model.versionId)); } void load(); }}>{O.discard}</Button></p>}
           {serverOk === true && <p className="q-ok"><Icon name="check" size={16} /> {O.serverOk}</p>}
           {serverOk === false && <p className="a-err" role="alert">{O.serverDiff}</p>}
@@ -680,7 +681,7 @@ function ReadRow({ l, scope, sell }: { l: QuoteRead["lines"][number]; scope: Quo
   );
 }
 
-function Totals({ read, totals }: { read: QuoteRead; totals: ReturnType<typeof M.totals> | null }) {
+function Totals({ read, totals, vatBp }: { read: QuoteRead; totals: ReturnType<typeof M.totals> | null; vatBp: bigint }) {
   const s = read.totals;
   const sub = totals?.subtotal ?? s.subtotalCents;
   const vat = totals?.vat ?? s.vatCents;
@@ -688,7 +689,6 @@ function Totals({ read, totals }: { read: QuoteRead; totals: ReturnType<typeof M
   const plus = totals?.optionsPlus ?? s.optionsPlusCents;
   const minus = totals?.optionsMinus ?? s.optionsMinusCents;
   const noPrice = totals?.noPrice ?? Number(s.noPrice);
-  const vatBp = read.version.vatBp;
   return (
     <section className="q-totals" aria-label={O.total}>
       <div><span>{O.subtotal}</span><b className="bw-mono">{fmtEuro(sub)}</b></div>
