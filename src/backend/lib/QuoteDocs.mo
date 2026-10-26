@@ -18,6 +18,7 @@ import Config "Config";
 import Library "Library";
 import QuoteCalc "QuoteCalc";
 import Quotes "Quotes";
+import Rights "Rights";
 
 module {
   // ── Instellingen (settings.values, D8: geen migratie) ─────────────────────
@@ -188,7 +189,7 @@ module {
       acceptance = switch accept { case (?a) ?myAcceptanceView(x.access, a); case null null };
       // De notitie van de beslissing enkel als de klant ze zelf gaf (zijn reden bij het weigeren); een notitie van kantoor niet.
       decisionNote = switch (v.decision) {
-        case (?d) { switch (x.access.persons.get(d.by)) { case (?p) { if (p.roles.find(func r = r == #klant) != null) d.note else "" }; case null "" } };
+        case (?d) { switch (x.access.persons.get(d.by)) { case (?p) { if (Rights.hasRole(p, #klant)) d.note else "" }; case null "" } };
         case null "";
       };
     };

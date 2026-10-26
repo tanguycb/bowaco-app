@@ -472,10 +472,10 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
   );
 
   const wipe = useCallback(async () => {
-    await idb.wipe();
+    await idb.wipe(principal);
     setOps([]);
     setReady(false);
-  }, []);
+  }, [principal]);
 
   const api = useMemo<OutboxApi>(
     () => ({ ready, online, syncing, syncedAt, ops, pending: waiting, failed: ops.filter((o) => o.state === "failed"), enqueue, patch, discard, retry, sync, blobUrl, clientKeyFor, ensureReport, ensureSurvey, wipe }),

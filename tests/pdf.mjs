@@ -91,6 +91,20 @@ check("(4) bedragen boven een miljard: € 1.234.567.890,12", oddText.includes("
 const keys = new Set(Object.keys(voorbeeld()).concat(Object.keys(voorbeeld().lines[0])));
 check("(5) de invoer van de PDF kent geen veld met cost, margin, marg, aankoop of purchase", ![...keys].some((k) => /cost|marg|aankoop|purchase|reason/i.test(k)), [...keys].join(","));
 
+// ── 6. Lange teksten (securityreview 2.12): één woord van 4.000 tekens zonder spaties (geplakt lastenboek) en voorwaarden van
+//    ± 27.000 tekens in één alinea: snel (was minuten: kubieke afbreeklus) en volledig zichtbaar (liep stil onder de marge) ──
+{
+  const longWord = "x".repeat(4000);
+  const longTerms = Array.from({ length: 300 }, (_, i) => `Proefzin ${i} van de lange voorwaarden zonder alinea-einde, met nog wat woorden erbij.`).join(" ");
+  const t0 = Date.now();
+  const r6 = read(await quotePdf(voorbeeld({ lines: base.lines.map((l, i) => (i === 0 ? { ...l, text: longWord } : l)), intro: longWord.slice(0, 1200), terms: { version: 1, title: "Lange voorwaarden (proef)", text: longTerms, provisional: false } }), F), "lang-woord.pdf");
+  const dt = Date.now() - t0;
+  const t6 = all(r6);
+  check("(6) een woord van 4.000 tekens in een post en 1.200 in de inleiding: de PDF in minder dan 5 s (was minuten)", dt < 5000, `${dt} ms`);
+  check("(6) de voorwaarden van ± 27.000 tekens staan volledig in de PDF (begin én einde), niets buiten de marge", t6.includes("Proefzin 0 van") && t6.includes("Proefzin 299 van") && r6.pages.every((p) => p.outside.length === 0), `${r6.pages.length} bladzijden; ${r6.pages.flatMap((p) => p.outside).join(" | ")}`);
+  check("(6) het lange woord is afgebroken over regels en volledig aanwezig (4.000 × x)", (t6.match(/x/g) ?? []).length >= 4000);
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(`\n${pass} ✓  ${fail} ✗`);
 process.exit(fail ? 1 : 0);

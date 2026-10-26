@@ -48,7 +48,9 @@ mixin (
         let vs = Quotes.versionsOf(quotes, q.id);
         let wname = switch (works.works.get(q.workId)) { case (?w) w.name; case null "" };
         for (v in vs.values()) {
-          switch (qcInfo(v)) {
+          // 2.12 (M2): enkel de versies die aan zijn eigen klantorganisatie gericht zijn (zoals qcOwn).
+          let mine = switch (v.clientOrgId) { case (?o) p.orgId == ?o; case null true };
+          switch (if mine qcInfo(v) else null) {
             case (?info) { out := out.concat([QuoteDocs.myBrief(q, v, info, wname, qcNewer(vs, v), today)]) };
             case null {};
           };
@@ -101,6 +103,9 @@ mixin (
     let v = switch (quotes.versions.get(versionId)) { case (?x) x; case null return null };
     let q = switch (quotes.quotes.get(v.quoteId)) { case (?x) x; case null return null };
     if (q.archivedAt != null or not Rights.may(ctx, p, #clientQuote, ?q.workId)) { return null };
+    // 2.12 (M2): de versie is aan een klantorganisatie gericht; een klant van een ANDERE organisatie op dezelfde werf leest en
+    // aanvaardt ze niet (zelfde antwoord als onbekend: geen id-orakel).
+    switch (v.clientOrgId) { case (?o) { if (p.orgId != ?o) { return null } }; case null {} };
     switch (qcInfo(v)) { case (?i) ?(v, q, i); case null null };
   };
 

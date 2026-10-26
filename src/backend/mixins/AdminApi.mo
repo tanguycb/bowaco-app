@@ -269,7 +269,8 @@ mixin (
     Rights.require(ctx, p, #export, null);
     let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts";
     // 2.2/2.4: de prijzen van de bibliotheek en van de offertes vragen daarbovenop #readCosts (aankoopprijzen, R20).
-    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts") { Rights.require(ctx, p, #readCosts, null) };
+    // 2.12 (review L1): ook de opslag-URL's van vertrouwelijke bestanden (contracten, OA-facturen): lezen ervan vraagt #readCosts (R12).
+    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "confidentialFiles") { Rights.require(ctx, p, #readCosts, null) };
     if (confidentialKind) { Rights.require(ctx, p, #readConfidentialContact, null) };
     if (from == 0) { Access.audit(audit, caller, ?p.id, null, if confidentialKind "bekeek:export-vertrouwelijk-deel" else "export-deel", kind) };
     func pg<T>(xs : [T]) : [T] { Access.page(xs, from, limit) };
@@ -379,6 +380,9 @@ mixin (
   public shared ({ caller }) func exportConfidential() : async Views.ExportConfidential {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #export, null);
+    // 2.12 (review L1): de vertrouwelijke export draagt aankoopprijzen, marges en de bedragen van staten en facturen: ook #readCosts,
+    // zoals exportChunk voor dezelfde collecties al vroeg (vandaag heeft elke admin dat recht; dit houdt beide paden gelijk).
+    Rights.require({ works; settings }, p, #readCosts, null);
     Rights.require({ works; settings }, p, #readConfidentialContact, null);
     Access.audit(audit, caller, ?p.id, null, "bekeek:export-vertrouwelijk", "");
     let view = func(c : Types.Confidential<Types.Contact>, n : ?Types.Confidential<Text>, v : Nat) : Views.ContactConfidentialView {

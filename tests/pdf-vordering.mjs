@@ -113,5 +113,10 @@ check("(3) creditnota: titel, wat ze crediteert, negatief totaal, geen akkoordva
 const many = Array.from({ length: 70 }, (_, i) => L({ code: `9.${i}`, title: `Proef post ${i} met een wat langere omschrijving om af te breken op twee regels in de kolom`, chapter: "09 Proef", offerQtyMilli: 1_000n, unitPriceCents: 10_000n, offerCents: 10_000n, cumQtyMilli: 1_000n, cumCents: 10_000n, periodCents: 10_000n }));
 const r4 = read(await progressPdf(sample({ lines: many }), F), "groot.pdf");
 check("(4) grote staat (70 posten): loopt over meerdere bladzijden met een kop en 'vervolg', niets buiten de marge", r4.pages.length >= 4 && r4.pages.slice(1).every((p) => /VORDERINGSSTAAT VS P-A\/2/.test(p.text)) && /\(vervolg\)/.test(all(r4)) && r4.pages.every((p) => p.outside.length === 0), `${r4.pages.length} bladzijden`);
+// ── (5) securityreview 2.12: een posttitel als één woord van 1.500 tekens (de backend laat 160 toe; de PDF mag nooit vastlopen) ──
+const t5 = Date.now();
+const r5 = read(await progressPdf(sample({ lines: [L({ code: "9.1", title: "y".repeat(1500), chapter: "09 Proef", offerQtyMilli: 1_000n, unitPriceCents: 10_000n, offerCents: 10_000n, cumQtyMilli: 1_000n, cumCents: 10_000n, periodCents: 10_000n })] }), F), "langwoord.pdf");
+check("(5) een woord van 1.500 tekens: PDF in minder dan 3 s, afgebroken over regels, niets buiten de marge", Date.now() - t5 < 3000 && (all(r5).match(/y/g) ?? []).length >= 1500 && r5.pages.every((p) => p.outside.length === 0), `${Date.now() - t5} ms, ${r5.pages.length} bladzijden; ${r5.pages.flatMap((p) => p.outside).join(" | ")}`);
+
 console.log(`\n${pass} ✓ ${fail} ✗`);
 process.exit(fail ? 1 : 0);

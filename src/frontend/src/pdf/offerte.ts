@@ -142,6 +142,32 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
   };
   const wid = (f: Font, size: number, s: string) => f.widthOfTextAtSize(clean(f, s), size);
 
+  // Breedte per teken (één keer gemeten per lettertype en grootte). Een woord breder dan de kolom wordt per teken opgeschoven in
+  // O(lengte); de vorige lus mat het hele restwoord opnieuw voor elke af te breken regel (O(lengte³)): een woord van 4.000 tekens
+  // zonder spaties (een geplakt lastenboek) legde de browser minutenlang plat (securityreview 2.12).
+  const cwCache = new Map<Font, Map<string, number>>();
+  const charW = (f: Font, size: number, ch: string) => {
+    let m = cwCache.get(f);
+    if (!m) { m = new Map(); cwCache.set(f, m); }
+    const k = `${size}|${ch}`;
+    let w = m.get(k);
+    if (w === undefined) { w = f.widthOfTextAtSize(clean(f, ch), size); m.set(k, w); }
+    return w;
+  };
+  const breakWord = (f: Font, size: number, word: string, width: number): string[] => {
+    const parts: string[] = [];
+    let cur = "";
+    let curW = 0;
+    for (const ch of word) {
+      const w = charW(f, size, ch);
+      if (cur && curW + w > width) { parts.push(cur); cur = ""; curW = 0; }
+      cur += ch;
+      curW += w;
+    }
+    if (cur) parts.push(cur);
+    return parts;
+  };
+
   // Regels afbreken op woorden (en op tekens als een woord zelf te breed is).
   const wrap = (f: Font, size: number, s: string, width: number): string[] => {
     const out: string[] = [];
@@ -150,12 +176,11 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
       let cur = "";
       for (const word of para.split(/\s+/).filter(Boolean)) {
         let w = word;
-        while (wid(f, size, w) > width) {
-          let n = w.length;
-          while (n > 1 && wid(f, size, w.slice(0, n)) > width) n--;
+        if (wid(f, size, w) > width) {
+          const parts = breakWord(f, size, w, width);
           if (cur) { out.push(cur); cur = ""; }
-          out.push(w.slice(0, n));
-          w = w.slice(n);
+          for (const p of parts.slice(0, -1)) out.push(p);
+          w = parts[parts.length - 1] ?? "";
         }
         const next = cur ? `${cur} ${w}` : w;
         if (wid(f, size, next) > width && cur) { out.push(cur); cur = w; } else cur = next;
@@ -269,8 +294,9 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     for (const l of ls) {
       if (l.kind === "text") {
         const tl = wrap(F.r, 9, `${l.title}${l.title && l.text ? "\n" : ""}${l.text}`, CW - 44);
-        need(tl.length * 12 + 6);
-        for (const t of tl) { if (t) text(t, X.desc, y, F.r, 9, GRAY); y -= 12; }
+        // Per regel naar een volgende bladzijde: een blok hoger dan een bladzijde liep anders stil onder de marge (review 2.12).
+        need(18);
+        for (const t of tl) { need(12); if (t) text(t, X.desc, y, F.r, 9, GRAY); y -= 12; }
         y -= 4;
         continue;
       }
@@ -288,9 +314,11 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
       if (l.unitSellCents !== null) right(eur(l.unitSellCents), X.price, y0, F.mono, 8.5, INK);
       right(pm ? "p.m." : eur(l.lineSellCents), X.total - 4, y0, pm ? F.mono : F.monoB, 8.5, INK);
       let yy = y0;
-      for (const t of title) { text(t, X.desc, yy, F.m, 9.5, INK); yy -= 12; }
-      for (const t of body) { if (t) text(t, X.desc, yy, F.r, 7.8, GRAY); yy -= 10; }
-      for (const t of ref) { text(t, X.desc, yy, F.mono, 6.8, GRAY); yy -= 10; }
+      // Een post langer dan een bladzijde (lastenboektekst tot 4.000 tekens): per regel naar een volgende bladzijde (review 2.12).
+      const more = (step: number) => { if (yy - step < MB) { newPage(); head(); text(`${c.code}  ${c.title} (vervolg)`, X.desc, y, F.m, 8.5, GRAY); y -= 16; yy = y; } };
+      for (const t of title) { more(12); text(t, X.desc, yy, F.m, 9.5, INK); yy -= 12; }
+      for (const t of body) { more(10); if (t) text(t, X.desc, yy, F.r, 7.8, GRAY); yy -= 10; }
+      for (const t of ref) { more(10); text(t, X.desc, yy, F.mono, 6.8, GRAY); yy -= 10; }
       y = yy - 4;
       hline(y + 2, X.desc, W - MR, LINE, 0.4);
       y -= 6;
@@ -424,9 +452,11 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     const size = isHead ? 9.5 : 8.8;
     if (para.trim() === "") { y -= 6; continue; }
     const ls = wrap(f, size, para, CW);
-    need(ls.length * 12 + (isHead ? 8 : 2));
+    // Per regel naar een volgende bladzijde: een alinea langer dan een bladzijde verdween anders stil onder de marge, terwijl de
+    // hash de hele tekst dekt (review 2.12). Een kop blijft bij zijn eerste regel.
+    need(isHead ? 24 : 14);
     if (isHead) y -= 4;
-    for (const t of ls) { text(t, ML, y, f, size, isHead ? INK : [0.18, 0.2, 0.25]); y -= 12; }
+    for (const t of ls) { need(12); text(t, ML, y, f, size, isHead ? INK : [0.18, 0.2, 0.25]); y -= 12; }
   }
 
   // ── Voet en watermerk op elke bladzijde ──────────────────────────────────

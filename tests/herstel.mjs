@@ -53,7 +53,7 @@ async function exportAll(cid, dir) {
       if (xs.length < n) return out;
     }
   };
-  const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
+  const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
   const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices"];
   // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
@@ -71,6 +71,9 @@ async function exportAll(cid, dir) {
   for (const k of ["progressConf", "progressFrozen", "progressRevisions"]) vertrouwelijk[k] = await partOpt(k);
   // 2.11: de bedragen en regels van de OA-facturen.
   vertrouwelijk.oaInvoiceAmounts = await partOpt("oaInvoiceAmounts");
+  // 2.12 (review M1): de tellers als ALLERLAATSTE: op een levende canister kan tussen twee stukken nog een staat verstuurd of
+  // een record gemaakt worden; een teller die ouder is dan de records geeft na een herstel hetzelfde nummer nog eens.
+  intern.counters = await part("counters");
   // Auditlog in stukken (nieuwste eerst) → chronologisch bewaren. De log groeit tijdens het lezen (elke
   // export-oproep schrijft een regel), dus dubbels eruit en op tijd sorteren.
   const seen = new Set();

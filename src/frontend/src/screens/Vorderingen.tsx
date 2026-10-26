@@ -750,6 +750,7 @@ function MyStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
       <Sheet title={MV.agreeTitle} open={sheet === "ok"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} onClick={() => void answer(true)} data-testid="my-vs-ok-go">{MV.agree}</Button></>}>
         <p>{MV.agreeLead}</p>
         <p className="bw-mono">{T.tot.total}: {fmtEuro(tt.totalCents)}</p>
+        <p className="bw-muted q-small">{MV.exact} <span className="bw-mono">{r.hash.slice(0, 16)}…</span></p>
       </Sheet>
       <Sheet title={MV.remarkTitle} open={sheet === "no"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={note.trim().length < 5} onClick={() => void answer(false)}>{MV.remark}</Button></>}>
         <p>{MV.remarkLead}</p>

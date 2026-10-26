@@ -12,15 +12,17 @@ import * as M from "../quote/model.ts";
 import { addressOk, blocks, evaluate, warnings, type Finding, type RuleSet, type StdPost } from "../quote/rules.ts";
 import { runSelfTest } from "../quote/selftest.ts";
 import { makePdf, pdfFromRead, pdfName } from "../pdf/adapt.ts";
-import { blobUrlOf } from "../offline/cached";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
 import { Loading, Page, useWorks } from "./common";
+import { OpenConfidential } from "./Dossier";
 
 const O = t.offertes;
 const FORMS: ContractForm[] = [ContractForm.vh, ContractForm.fixed, ContractForm.regie, ContractForm.estimate, ContractForm.budget, ContractForm.perAttachment];
 // Niet bewaarde wijzigingen blijven in het geheugen van de pagina als je even naar een ander scherm gaat (nooit opgeslagen).
 const unsaved = new Map<string, M.Model>();
+/** Bij uitloggen (review 2.12): de niet-bewaarde modellen (mét aankoopprijzen en marges) horen niet bij de volgende login in dezelfde tab. */
+export function forgetUnsaved() { unsaved.clear(); }
 
 // ── Kleine hulp ──────────────────────────────────────────────────────────
 const qtyFmt = new Intl.NumberFormat("nl-BE", { maximumFractionDigits: 3 });
@@ -197,7 +199,7 @@ function NewQuote({ workId, onClose, go }: { workId?: bigint; onClose: () => voi
             </select>
           </label>
         )}
-        <label className="bw-field"><span className="bw-label">{O.titleField}</span><input className="bw-input" value={title} placeholder={O.titlePh} onChange={(e) => setTitle(e.target.value)} /></label>
+        <label className="bw-field"><span className="bw-label">{O.titleField}</span><input className="bw-input" maxLength={160} value={title} placeholder={O.titlePh} onChange={(e) => setTitle(e.target.value)} /></label>
         <label className="bw-field"><span className="bw-label">{O.number}</span><input className="bw-input" value={number} placeholder="2026/…" onChange={(e) => setNumber(e.target.value)} /><span className="bw-muted">{O.numberHelp}</span></label>
         {err && <p className="a-err" role="alert">{err}</p>}
       </div>
@@ -336,10 +338,8 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const rulesQ = useQuery({ queryKey: ["quoteRules"], queryFn: () => actor!.getQuoteRules(), enabled: on && caps.editQuotes });
   const libUnits = useQuery({ queryKey: ["libUnits", false], queryFn: () => actor!.libraryUnits(false), enabled: on && caps.readLibrary });
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
-  // Het getekende bewijs (een opgeladen PDF van de werf) openen.
-  const signedFileId = read?.doc?.acceptance?.signed?.fileId;
-  const wfiles = useQuery({ queryKey: ["workFiles", String(read?.quote.workId)], queryFn: () => actor!.listFiles(read!.quote.workId), enabled: on && signedFileId !== undefined && caps.quotePrices });
-  const signedUrl = signedFileId === undefined ? undefined : blobUrlOf(wfiles.data?.find((f) => f.id === signedFileId)?.blob);
+  // Het getekende bewijs (een vertrouwelijke PDF van de werf, 2.12 M1) opent via readConfidentialFile (update-call met auditregel):
+  // zie <OpenConfidential> bij het akkoord hieronder.
 
   if (error) return <Page label={O.label} title={O.title}><p className="a-err" role="alert">{errText(error)}</p><div><Button icon="back" onClick={() => go("offertes")}>{t.common.back}</Button></div></Page>;
   if (!read || versionId === undefined) return <Page label={O.label} title={O.title}><p className="bw-muted">{t.common.loading}</p></Page>;
@@ -419,7 +419,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
         <p className="a-note" data-testid="acceptance">
           <b>{O.acceptance}.</b>{" "}
           {read.doc.acceptance.digital && <>{O.acceptedDigital(read.doc.acceptance.digital.byName, fmtTime(read.doc.acceptance.digital.at))} </>}
-          {read.doc.acceptance.signed && <>{O.acceptedSigned(read.doc.acceptance.signed.byName, fmtTime(read.doc.acceptance.signed.at))} {signedUrl && <a className="wb-link" href={signedUrl} target="_blank" rel="noreferrer">{O.signedOpen}</a>} </>}
+          {read.doc.acceptance.signed && <>{O.acceptedSigned(read.doc.acceptance.signed.byName, fmtTime(read.doc.acceptance.signed.at))} {caps.quotePrices && <OpenConfidential fileId={read.doc.acceptance.signed.fileId} />} </>}
           {O.acceptedLocked}
         </p>
       )}
@@ -848,7 +848,7 @@ function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.
           <label className="bw-field"><span className="bw-label">{O.specRef}</span><input className="bw-input" disabled={ro} value={l.specRef} onChange={(e) => up({ specRef: e.target.value })} /></label>
         </div>
         <label className="bw-field"><span className="bw-label">{O.item}</span><input className="bw-input" disabled={ro} value={l.title} onChange={(e) => up({ title: e.target.value })} /></label>
-        <label className="bw-field"><span className="bw-label">{O.lineText}</span><textarea className="bw-input" rows={6} disabled={ro} value={l.text} onChange={(e) => up({ text: e.target.value })} /></label>
+        <label className="bw-field"><span className="bw-label">{O.lineText}</span><textarea className="bw-input" rows={6} maxLength={4000} disabled={ro} value={l.text} onChange={(e) => up({ text: e.target.value })} /></label>
         {l.libItemId !== null && <p className="bw-muted">{O.fromLib(String(l.libItemVersion ?? ""))}</p>}
         {l.kind !== "text" && (
           <>
@@ -915,8 +915,8 @@ function HeaderSheet({ m, orgs, workVatBp, edit, onClose }: { m: M.Model; orgs: 
           <label className="bw-field"><span className="bw-label">{O.standardMargin} (%)</span><NumCell col="h-margin" label={O.standardMargin} value={(Number(h.standardMarginBp) / 100).toLocaleString("nl-BE")} onCommit={(s) => { const bp = parsePct(s); if (bp === null || bp > 9000n) return false; up({ standardMarginBp: bp }); return true; }} /></label>
         </div>
         <p className="bw-muted">{O.standardMarginHelp}</p>
-        <label className="bw-field"><span className="bw-label">{O.intro}</span><textarea className="bw-input" rows={4} value={h.intro} onChange={(e) => up({ intro: e.target.value })} /></label>
-        <label className="bw-field"><span className="bw-label">{O.note}</span><textarea className="bw-input" rows={3} value={h.note} onChange={(e) => up({ note: e.target.value })} /></label>
+        <label className="bw-field"><span className="bw-label">{O.intro}</span><textarea className="bw-input" rows={4} maxLength={4000} value={h.intro} onChange={(e) => up({ intro: e.target.value })} /></label>
+        <label className="bw-field"><span className="bw-label">{O.note}</span><textarea className="bw-input" rows={3} maxLength={4000} value={h.note} onChange={(e) => up({ note: e.target.value })} /></label>
       </div>
     </Sheet>
   );
@@ -1090,7 +1090,8 @@ function SignedSheet({ workId, onDone, onClose }: { workId: bigint; onDone: (fil
       const bytes = new Uint8Array(await file.arrayBuffer());
       setProgress(0);
       const blob = ExternalBlob.fromBytes(bytes, file.type, file.name).withUploadProgress(setProgress);
-      const fileId = unwrap(await actor!.addFile(file.name, file.type, BigInt(bytes.length), blob, workId, false));
+      // 2.12 (M1): de getekende offerte is een VERTROUWELIJK bestand (verkoopprijzen en klantgegevens): nooit een URL voor de werfleider.
+      const fileId = unwrap(await actor!.addFile(file.name, file.type, BigInt(bytes.length), blob, workId, true));
       await onDone(fileId, note.trim());
     } catch (e) {
       toast.show({ kind: "error", text: errText(e) });

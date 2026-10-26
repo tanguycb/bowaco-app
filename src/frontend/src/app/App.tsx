@@ -28,6 +28,7 @@ import { OutboxSheet } from "../screens/Verslagen";
 import { MijnUren } from "../screens/Extern";
 import { Bell } from "../screens/Meldingen";
 import { DashboardPage } from "../screens/Dashboard";
+import { forgetUnsaved } from "../screens/Offertes";
 import { GemeentenPage, VergunningenPage } from "../screens/Vergunningen";
 import { BoetesPage } from "../screens/Boetes";
 import { PostbodePage } from "../screens/Postbode";
@@ -120,6 +121,7 @@ function AppInner() {
     // Uitloggen wist de lokale gegevens van deze principal (§8.5); de wachtrij is dan al verzonden of bewust weg.
     await ob.wipe().catch(() => {});
     qc.clear();
+    forgetUnsaved();
     clear();
   };
 

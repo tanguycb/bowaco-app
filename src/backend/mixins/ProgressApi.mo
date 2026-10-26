@@ -344,6 +344,8 @@ mixin (
     let key = (if (st.kind == #credit) "progress:cn:" else "progress:vs:") # st.workId.toText();
     let n = Ids.next(ctr, key);
     let code = (if (st.kind == #credit) "CN " else "VS ") # pgWorkCode(st.workId) # "/" # n.toText();
+    // 2.12 (review M1): een nummer bestaat per werf maar één keer, ook als de teller na een herstel zou achterlopen.
+    if (Progress.statementsOf(progress, st.workId).any(func s = s.id != st.id and s.status == #sent and s.kind == st.kind and s.number == n)) { return #err("Nummer " # code # " bestaat al op deze werf: probeer opnieuw") };
     let now = Time.now();
     let base : Types.ProgressStatement = { st with number = n; code };
     let h = Progress.hash(Progress.canonical(base, fr));
@@ -604,10 +606,10 @@ mixin (
     };
   };
 
-  // Admin en calculator krijgen een melding (niet de afzender zelf).
+  // Admin en calculator krijgen een melding (niet de afzender zelf). Wie dat is, zegt Rights.mo (2.12: nooit zelf op een rol testen).
   func pgNotifyOffice(kind : Text, text : Text, workId : Nat, except : Nat) {
     for (q in access.persons.values()) {
-      if (q.archivedAt == null and q.id != except and Access.hasActiveLink(access, q.id) and q.roles.find(func r = r == #admin or r == #calculator) != null) {
+      if (q.archivedAt == null and q.id != except and Access.hasActiveLink(access, q.id) and Rights.isOffice(q)) {
         Access.notify(audit, ctr, q.id, kind, text, ?workId);
       };
     };

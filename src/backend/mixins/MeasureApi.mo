@@ -402,9 +402,11 @@ mixin (
     let e = surveys.entries.get(entryId) ?? return #err("Onbekende regel");
     let s = surveys.surveys.get(e.surveyId) ?? return #err("Onbekende opmeting");
     let sc = Rights.measureScope({ works; settings }, p, e.workId);
+    // 2.12 (M3): een OA haalt enkel zijn EIGEN voorstel weg zolang het wacht; een bevestigd voorstel is een geldige regel van
+    // de werfleider geworden en gaat enkel nog weg via kantoor (of met een correctie en een reden).
     let allowed = switch sc {
       case (#full) Rights.may({ works; settings }, p, #editMeasurement, ?e.workId);
-      case (#firm _) e.createdBy == p.id and Measure.oaPropose(settings);
+      case (#firm _) e.createdBy == p.id and Measure.oaPropose(settings) and (e.archivedAt != null or Measure.isPending(e));
       case _ false;
     };
     if (not allowed) { return #err("Geen toegang") };

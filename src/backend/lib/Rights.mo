@@ -67,11 +67,19 @@ module {
     // 2.11: OA-facturen. #oaInvoicesAny = het menu (admin, calculator: registreren, controleren, goedkeuren; werfleider:
     // hoeveelheden en uren zien). Per werf beslist oaInvoiceScope.
     #oaInvoicesAny;
+    // 2.12: #ownOaInvoices = de OA ziet de status van de facturen van zijn eigen firma ("Mijn facturen"): enkel met de
+    // schakelaar van de beheerder, en enkel zolang hij ergens actief OA is (R31: een beëindigd lidmaatschap sluit meteen).
+    #ownOaInvoices;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
 
   func has(p : Person, r : Role) : Bool { p.roles.find(func x = x == r) != null };
+  // 2.12: de enige manier buiten dit bestand om naar een rol op een fiche te kijken (tests/review.mjs M5 kijkt mechanisch na
+  // dat geen enkel ander bestand zelf op `roles` test).
+  public func hasRole(p : Person, r : Role) : Bool { has(p, r) };
+  // Kantoor dat bedragen ziet (admin, calculator): voor meldingen over offertes, vorderingsstaten en facturen.
+  public func isOffice(p : Person) : Bool { has(p, #admin) or has(p, #calculator) };
 
   public func isInternalRole(r : Role) : Bool { r == #admin or r == #werfleider or r == #calculator };
   public func isExternalRole(r : Role) : Bool { not isInternalRole(r) };
@@ -244,6 +252,7 @@ module {
       // 2.10: wie ergens een vorderingsstaat maakt of voorbereidt.
       case (#progressAny) admin or calc or wl;
       case (#oaInvoicesAny) admin or calc or wl;
+      case (#ownOaInvoices) has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("oaInvoice.oaView") == ?"ja" and activeOa(ctx, p);
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -562,7 +571,7 @@ module {
       progress = may(ctx, p, #progressAny, null);
       myProgress = has(p, #klant);
       oaInvoices = may(ctx, p, #oaInvoicesAny, null);
-      myOaInvoices = has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("oaInvoice.oaView") == ?"ja";
+      myOaInvoices = may(ctx, p, #ownOaInvoices, null);
       home = home(p);
     };
   };

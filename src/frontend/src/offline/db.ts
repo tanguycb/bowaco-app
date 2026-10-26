@@ -89,14 +89,17 @@ export async function all<T>(store: Store): Promise<T[]> {
   return req<T[]>(d.transaction(store).objectStore(store).getAll());
 }
 
-/** Alles van deze principal weg (uitloggen, andere principal). */
-export async function wipe(): Promise<void> {
-  if (!current) return;
-  const name = current.name;
-  try {
-    (await current.db).close();
-  } catch {
-    /* al dicht */
+/** Alles van deze principal weg (uitloggen, andere principal). Zonder open verbinding (openDb gaf op, review 2.12) wist het
+ *  de databank op naam, als de principal meegegeven is. */
+export async function wipe(principal?: string): Promise<void> {
+  const name = current ? current.name : principal ? PREFIX + principal : null;
+  if (!name) return;
+  if (current) {
+    try {
+      (await current.db).close();
+    } catch {
+      /* al dicht */
+    }
   }
   current = null;
   await new Promise<void>((ok) => {

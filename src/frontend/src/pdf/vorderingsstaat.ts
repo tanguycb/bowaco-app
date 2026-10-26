@@ -132,6 +132,29 @@ export async function progressPdf(d: ProgressPdfData, fonts: PdfFonts): Promise<
     return out;
   };
   const wid = (f: Font, size: number, s: string) => f.widthOfTextAtSize(clean(f, s), size);
+  // Zoals pdf/offerte.ts (review 2.12): een te breed woord per teken opschuiven in O(lengte), breedte per teken gecached.
+  const cwCache = new Map<Font, Map<string, number>>();
+  const charW = (f: Font, size: number, ch: string) => {
+    let m = cwCache.get(f);
+    if (!m) { m = new Map(); cwCache.set(f, m); }
+    const k = `${size}|${ch}`;
+    let w = m.get(k);
+    if (w === undefined) { w = f.widthOfTextAtSize(clean(f, ch), size); m.set(k, w); }
+    return w;
+  };
+  const breakWord = (f: Font, size: number, word: string, width: number): string[] => {
+    const parts: string[] = [];
+    let cur = "";
+    let curW = 0;
+    for (const ch of word) {
+      const w = charW(f, size, ch);
+      if (cur && curW + w > width) { parts.push(cur); cur = ""; curW = 0; }
+      cur += ch;
+      curW += w;
+    }
+    if (cur) parts.push(cur);
+    return parts;
+  };
   const wrap = (f: Font, size: number, s: string, width: number): string[] => {
     const out: string[] = [];
     for (const para of s.split(/\r?\n/)) {
@@ -139,12 +162,11 @@ export async function progressPdf(d: ProgressPdfData, fonts: PdfFonts): Promise<
       let cur = "";
       for (const word of para.split(/\s+/).filter(Boolean)) {
         let w = word;
-        while (wid(f, size, w) > width) {
-          let n = w.length;
-          while (n > 1 && wid(f, size, w.slice(0, n)) > width) n--;
+        if (wid(f, size, w) > width) {
+          const parts = breakWord(f, size, w, width);
           if (cur) { out.push(cur); cur = ""; }
-          out.push(w.slice(0, n));
-          w = w.slice(n);
+          for (const p of parts.slice(0, -1)) out.push(p);
+          w = parts[parts.length - 1] ?? "";
         }
         const next = cur ? `${cur} ${w}` : w;
         if (wid(f, size, next) > width && cur) { out.push(cur); cur = w; } else cur = next;
@@ -253,7 +275,8 @@ export async function progressPdf(d: ProgressPdfData, fonts: PdfFonts): Promise<
       const tl = wrap(F.m, 8.8, l.title, DESC_W);
       const sub = [l.chapter, l.basis === "percent" ? "% uitgevoerd" : l.basis === "hours" ? "regie-uren" : "volgens opmeting"].filter(Boolean).join(" · ");
       const h = tl.length * 11 + 18;
-      if (need(h)) { head(); text(`${SECTION[sec]} (vervolg)`, X.desc, y, F.m, 8.5, GRAY); y -= 14; }
+      // Hoogstens een halve bladzijde vooruit vragen; een langere titel gaat per regel verder (more, hieronder; review 2.12).
+      if (need(Math.min(h, 120))) { head(); text(`${SECTION[sec]} (vervolg)`, X.desc, y, F.m, 8.5, GRAY); y -= 14; }
       const y0 = y;
       if (l.code) text(l.code, X.code + 4, y0, F.mono, 7.5, GRAY);
       text(l.unit, X.unit, y0, F.r, 8, GRAY);
@@ -265,7 +288,9 @@ export async function progressPdf(d: ProgressPdfData, fonts: PdfFonts): Promise<
       right(eur(l.cumCents), X.cum, y0, F.mono, 8, INK);
       right(eur(l.periodCents), X.period - 4, y0, F.monoB, 8.2, INK);
       let yy = y0;
-      for (const t of tl) { text(t, X.desc, yy, F.m, 8.8, INK); yy -= 11; }
+      const more = (step: number) => { if (yy - step < MB) { newPage(); head(); text(`${SECTION[sec]} (vervolg)`, X.desc, y, F.m, 8.5, GRAY); y -= 14; yy = y; } };
+      for (const t of tl) { more(11); text(t, X.desc, yy, F.m, 8.8, INK); yy -= 11; }
+      more(9);
       text(sub, X.desc, yy, F.mono, 6.5, GRAY);
       yy -= 9;
       y = yy - 2;

@@ -444,6 +444,12 @@ mixin (
     rsClearNat(progress.byWork);
     for (st in progress.statements.values()) { Quotes.addIndex(progress.byWork, st.workId, st.id) };
     rsAtLeast("progress", rsMaxKey(progress.statements));
+    // 2.12 (review M1): de volgnummers per werf ("VS <werf>/n", "CN <werf>/n") en de voorwaardenversies vallen ook onder het
+    // vangnet: een back-up waarin de tellers vóór de staten gelezen werden, geeft anders na een herstel hetzelfde nummer nog eens.
+    for (st in progress.statements.values()) {
+      if (st.status == #sent) { rsAtLeast((if (st.kind == #credit) "progress:cn:" else "progress:vs:") # st.workId.toText(), st.number) };
+    };
+    rsAtLeast("quoteTerms", rsMaxKey(quoteDocs.terms));
     // 2.11: de indexen van de OA-facturen (firma + nummer, per werf) uit de records zelf.
     rsClearText(oaInvoices.keys);
     rsClearNat(oaInvoices.byWork);

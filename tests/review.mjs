@@ -637,6 +637,15 @@ else {
     check("(J2) OA: samenvatting en opmeting tonen enkel de dakgoot: geen andere post, geen regel van een andere post, geen foreign totalen", oaSum.posts.length === 1 && oaSurvey.snapshot.length === 0 && oaSurvey.entries.every((x) => x.root === oaSum.posts[0].root) && !/afbraak|stopcontacten|container|gevel|verlichting/i.test(oaTxt), oaSum.posts.map((p) => p.title).join(","));
     check("(J2) OA: een regel op de post van een andere firma, een voorstel bevestigen, een regel van de werfleider weghalen, afsluiten: alles geweigerd", !done((await sync(oa2, { opId: uid(), clientKey: KO, op: e(w.L.stop, 1_000n) }))[0]) && !done((await sync(oa2, { opId: uid(), clientKey: KO, op: { review: { entryId: prop.outcome.done.entityId[0], ok: true, note: "" } } }))[0]) && !done((await sync(oa2, { opId: uid(), clientKey: KO, op: { remove: { entryId: eWl.outcome.done.entityId[0] } } }))[0]) && !done((await sync(oa2, { opId: uid(), clientKey: KO, op: { close: { note: "" } } }))[0]));
     check("(J2) OA: de afbraakregel van de werfleider niet te raden via een directe post-oproep", await denied(oa2.measurePost(w.wid, w.L.afbraak)));
+    // (M3, 2.12) Een OA haalt enkel zijn eigen WACHTENDE voorstel weg; een voorstel dat de werfleider al bevestigde, is een geldige
+    // regel geworden en gaat enkel nog weg via kantoor.
+    const [prop2] = await sync(oa2, { opId: uid(), clientKey: KO, op: e(w.L.goot, 1_000n) });
+    const [prop3] = await sync(oa2, { opId: uid(), clientKey: KO, op: e(w.L.goot, 500n) });
+    await sync(wl, { opId: uid(), clientKey: K1, op: { review: { entryId: prop2.outcome.done.entityId[0], ok: true, note: "" } } });
+    const rmOk = (await sync(oa2, { opId: uid(), clientKey: KO, op: { remove: { entryId: prop2.outcome.done.entityId[0] } } }))[0];
+    const rmPend = (await sync(oa2, { opId: uid(), clientKey: KO, op: { remove: { entryId: prop3.outcome.done.entityId[0] } } }))[0];
+    check("(M3) OA: een bevestigd eigen voorstel weghalen geweigerd; een wachtend eigen voorstel weghalen mag", !done(rmOk) && /Geen toegang/.test(outErr(rmOk)) && done(rmPend), outErr(rmOk));
+    await sync(wl, { opId: uid(), clientKey: K1, op: { remove: { entryId: prop2.outcome.done.entityId[0] } } });
     // (J3) Twee gelijktijdige afsluitingen: één stand, één afgesloten opmeting.
     ok(await admin.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: false, externalRead: false }));
     await sync(wl, { opId: uid(), clientKey: K1, op: { review: { entryId: prop.outcome.done.entityId[0], ok: false, note: "proef: review J3" } } });
@@ -808,10 +817,100 @@ else {
     // (L6) Een goedgekeurde factuur verandert niet: ook niet via een nieuwe registratie met hetzelfde nummer, of via de werf.
     const after = ok(await calc.readOaInvoice(id));
     check("(L6) goedgekeurd: verbeteren, intrekken en een tweede registratie met hetzelfde nummer geweigerd; bedragen ongewijzigd", /Enkel een geregistreerde/.test(errOf(await calc.saveOaInvoice({ ...inv, id: [id], netCents: 1n }, after.brief.rev))) && /goedgekeurd/.test(errOf(await calc.withdrawOaInvoice(id, after.brief.rev, "proef: review L6"))) && /al geregistreerd/.test(errOf(await calc.saveOaInvoice(inv, 0n))) && after.netCents === 32_000n);
+    // (M6, 2.12) Goedkeuren met een gemotiveerde uitzondering (zonder raadpleging): de motivering staat in de auditlog.
+    const nr2 = `${nr}-M6`;
+    const id2 = ok(await calc.saveOaInvoice({ ...inv, number: nr2 }, 0n));
+    const v2 = ok(await calc.readOaInvoice(id2));
+    const r6 = await calc.approveOaInvoice(id2, v2.brief.rev, { exception: `proef M6: geen raadpleging mogelijk (${nr})` }, "proef: review M6");
+    const a6 = (await admin.auditLog(0n, 8n)).find((x) => x.action === "oa-factuur-goedgekeurd" && x.detail.includes(nr2));
+    check("(M6) goedkeuren met een uitzondering: de motivering staat in de auditlog", isOk(r6) && !!a6 && a6.detail.includes("uitzondering op de inhoudingsplicht: proef M6"), errOf(r6) || a6?.detail || "geen auditregel");
   } finally {
     await admin.setWorkStatus(V.wid, { cancelled: null }).catch(() => {});
     await admin.saveOaInvoiceSettings(s0).catch(() => {});
   }
+}
+
+// ── (M1, M2, M4, M5) securityreview 2.12: de getekende offerte enkel als vertrouwelijk bestand (geen opslag-URL voor de werfleider,
+//    niets voor een externe); een klant van een ANDERE organisatie op dezelfde werf leest en aanvaardt een versie niet; de poort
+//    "Mijn facturen" via Rights.mo (schakelaar én nog ergens actief OA, R31); geen enkel bestand buiten Rights.mo test zelf op een rol ──
+{
+  const stamp = Date.now().toString(36).toUpperCase();
+  const addr = { street: "Proefstraat", number: "12", zip: "8670", city: "Koksijde", country: "BE" };
+  await ensureProofClientAddress(admin);
+  const wlId = (await wl.me()).person[0].id;
+  const klantId = (await klant.me()).person[0].id;
+  const wid = ok(await admin.createWork({ code: `P-SR-${stamp}`, name: "Proefwerf review 2.12", address: addr, parentId: [], clientOrgId: [orgKlant.id], architectOrgId: [], leaderPersonId: [wlId], vatBp: 2100n })).id;
+  const mkSent = async (nr, clientOrgId) => {
+    const q = ok(await calc.createQuote({ workId: wid, number: nr, title: "Proef review 2.12 (verzonnen)" }));
+    const m = fromRead(ok(await calc.readQuoteVersion(q.versionId)));
+    M.setHeader(m, { clientOrgId });
+    const c = M.addChapter(m, { code: "01", title: "Proef" });
+    M.addLine(m, c.key, { title: "Proef reviewlijn 2.12", qtyMilli: 2_000n, unit: "st", form: "fixed", price: { cost: 5_000n, rule: null, reason: "", orgId: null, source: "eigen", libCostId: null } });
+    const r = await saveAll(calc, m);
+    if (r && "err" in r) throw new Error(errOf(r));
+    const rd = ok(await calc.readQuoteVersion(q.versionId));
+    return { vid: q.versionId, hash: ok(await calc.sendQuoteVersion(q.versionId, rd.version.rev, rd.totals.totalCents, "proef: review 2.12")) };
+  };
+  const pdfRef = (h) => new TextEncoder().encode("!caf!sha256:" + h.repeat(64));
+  const mOa = ok(await admin.addMembership(wid, [oa2Id], [], { onderaannemer: null }, []));
+  const mKl = ok(await admin.addMembership(wid, [klantId], [], { klant: null }, []));
+  try {
+    // (M1) De getekende offerte-PDF draagt alle verkoopprijzen en de klantgegevens: enkel als vertrouwelijk bestand.
+    const s1 = await mkSent(`SR-${stamp}-A`, orgKlant.id);
+    const fOpen = ok(await calc.addFile("getekend-open.pdf", "application/pdf", 10_000n, pdfRef("d"), [wid], false));
+    const rOpen = await calc.registerSignedQuote(s1.vid, fOpen, "proef M1");
+    check("(M1) getekende offerte als gewoon (niet-vertrouwelijk) bestand registreren: geweigerd, de versie blijft verstuurd", /vertrouwelijk/.test(errOf(rOpen)) && "sent" in ok(await calc.readQuoteVersion(s1.vid)).version.status, errOf(rOpen));
+    ok(await admin.archiveFile(fOpen));
+    const fConf = ok(await calc.addFile("getekend-vertrouwelijk.pdf", "application/pdf", 10_000n, pdfRef("e"), [wid], true));
+    const rConf = await calc.registerSignedQuote(s1.vid, fConf, "proef M1");
+    check("(M1) als vertrouwelijk bestand: aanvaard, de versie is aanvaard", isOk(rConf) && "accepted" in ok(await calc.readQuoteVersion(s1.vid)).version.status, errOf(rConf));
+    const wlSigned = (await wl.listFiles([wid])).find((f) => f.id === fConf);
+    check("(M1) werfleider: het getekende bestand zonder verwijzing (geen opslag-URL) en readConfidentialFile geweigerd", !!wlSigned && wlSigned.blob.length === 0 && (await denied(wl.readConfidentialFile(fConf))), JSON.stringify(wlSigned?.blob?.length));
+    check("(M1) OA op de werf: ziet het getekende bestand niet, ook niet via readConfidentialFile; kantoor opent het met een auditregel", !(await oa2.listFiles([wid])).some((f) => f.id === fConf) && (await denied(oa2.readConfidentialFile(fConf))) && isOk(await calc.readConfidentialFile(fConf)));
+    await admin.dismissWorkStart(s1.vid, "proef: review 2.12 opgeruimd").catch(() => {});
+    // (M2) Een versie gericht aan een andere klantorganisatie: voor deze klant onbekend, ook al is hij klant-lid van de werf.
+    let org2 = (await admin.listOrgs(true)).find((o) => o.name === "Proef Klant Twee (review 2.12)");
+    if (!org2) org2 = ok(await admin.createOrg({ kind: { client: null }, name: "Proef Klant Twee (review 2.12)", kbo: [], vat: [], aliases: [], trades: [], address: [addr], notes: "verzonnen, enkel voor tests/review.mjs" }));
+    const s2 = await mkSent(`SR-${stamp}-B`, org2.id);
+    const r2a = await klant.readMyQuote(s2.vid);
+    const r2b = await klant.acceptMyQuote(s2.vid, s2.hash);
+    check("(M2) klant op de werf: een versie aan een ANDERE klantorganisatie = 'Onbekende offerte' bij lezen én aanvaarden; niet in zijn lijst; de versie blijft verstuurd", errOf(r2a) === "Onbekende offerte" && errOf(r2b) === "Onbekende offerte" && !(await klant.listMyQuotes()).some((x) => x.versionId === s2.vid) && "sent" in ok(await calc.readQuoteVersion(s2.vid)).version.status, `${errOf(r2a)} | ${errOf(r2b)}`);
+    check("(M2) … en de versie aan zijn eigen organisatie leest hij wel", isOk(await klant.readMyQuote(s1.vid)));
+  } finally {
+    await admin.endMembership(mOa).catch(() => {});
+    await admin.endMembership(mKl).catch(() => {});
+    await admin.setWorkStatus(wid, { cancelled: null }).catch(() => {});
+  }
+  // (M4) De poort "Mijn facturen": enkel een OA die nog ergens actief lid is (R31). Enkel lokaal: op een draft maakt dit een
+  // persoon en een melding bij de beheerders.
+  if (local) {
+    const s0 = await admin.oaInvoiceSettings();
+    ok(await admin.saveOaInvoiceSettings({ ...s0, oaView: true }));
+    try {
+      // Een firma ZONDER lidmaatschappen (een persoon van Proef Dak NV is via zijn firma al OA op P-B: rechten = som van persoon en firma, R2).
+      let orgLos = (await admin.listOrgs(true)).find((o) => o.name === "Proef OA Los (review 2.12)");
+      if (!orgLos) orgLos = ok(await admin.createOrg({ kind: { subcontractor: null }, name: "Proef OA Los (review 2.12)", kbo: [], vat: [], aliases: [], trades: [], address: [], notes: "verzonnen, zonder werven" }));
+      const inv = ok(await admin.invitePerson({ name: "Proef OA zonder werf (review 2.12)", roles: [{ onderaannemer: null }], orgId: [orgLos.id], shortCode: [], lang: [], phone: [], workIds: [], validDays: 1n, tag: "review" }));
+      const x = await freshBackend(cid);
+      ok(await x.redeemCode(inv.code));
+      check("(M4) OA zonder actief lidmaatschap: 'Mijn facturen' geweigerd en caps.myOaInvoices nee, ook met de schakelaar aan", (await denied(x.myOaInvoices())) && !(await x.me()).caps[0].myOaInvoices);
+      const m = ok(await admin.addMembership(B, [inv.personId], [], { onderaannemer: null }, []));
+      check("(M4) met een lidmaatschap op P-B: toegelaten (caps ja)", Array.isArray(await x.myOaInvoices()) && (await x.me()).caps[0].myOaInvoices);
+      ok(await admin.endMembership(m));
+      check("(M4) lidmaatschap beëindigd: meteen weer geweigerd (R31)", await denied(x.myOaInvoices()));
+      ok(await admin.archivePerson(inv.personId));
+    } finally {
+      ok(await admin.saveOaInvoiceSettings(s0));
+    }
+  }
+  // (M5) Mechanisch op de broncode: geen enkel bestand buiten lib/Rights.mo test zelf op een rol (architectuur §4.1).
+  const { readdirSync, statSync } = await import("node:fs");
+  const root = join(import.meta.dirname, "../src/backend");
+  const files = [];
+  const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== "dist" && n !== ".most") walk(p); } else if (n.endsWith(".mo")) files.push(p); } };
+  walk(root);
+  const badRoles = files.filter((p) => !p.endsWith("/lib/Rights.mo") && /\broles\s*\.\s*(find|any|all|some)\s*\(\s*func\s+\w+\s*=\s*\w+\s*==\s*#/.test(readFileSync(p, "utf8"))).map((p) => p.slice(root.length + 1));
+  check("(M5) geen enkel bestand buiten lib/Rights.mo test zelf op een rol (roles.find/any/all … == #rol)", files.length > 60 && badRoles.length === 0, badRoles.join(", ") || `${files.length} bestanden`);
 }
 
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──

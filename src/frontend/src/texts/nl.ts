@@ -1994,6 +1994,7 @@ export const nl = {
     remark: "Opmerking",
     agreeTitle: "Akkoord met deze vorderingsstaat",
     agreeLead: "U geeft akkoord met exact deze staat (deze inhoud). Dat kan niet ongedaan gemaakt worden.",
+    exact: "Het akkoord geldt voor exact de staat met vingerafdruk",
     remarkTitle: "Opmerking bij deze vorderingsstaat",
     remarkLead: "Schrijf wat er volgens u niet klopt. BOWACO krijgt uw opmerking.",
     remarkPh: "Wat klopt er niet?",

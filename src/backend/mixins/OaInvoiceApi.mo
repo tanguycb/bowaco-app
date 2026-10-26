@@ -11,6 +11,7 @@
 // Geen await in deze mixin: elke oproep is één atomische stap (R33).
 import Array "mo:core/Array";
 import Int "mo:core/Int";
+import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
@@ -106,8 +107,9 @@ mixin (
   // De OA: de status van zijn eigen facturen, als de beheerder dat aanzette.
   public query ({ caller }) func myOaInvoices() : async [OV.MyOaInvoice] {
     let p = Access.requireActive(access, caller);
+    // 2.12 (M4): de poort staat in Rights.mo (schakelaar van de beheerder én nog ergens actief OA, R31); nooit zelf op een rol testen.
+    Rights.require({ works; settings }, p, #ownOaInvoices, null);
     let own = switch (p.orgId) { case (?o) o; case null Runtime.trap("Geen toegang") };
-    if (p.roles.find(func r = r == #onderaannemer) == null or not OaInvoice.oaView(settings)) { Runtime.trap("Geen toegang") };
     let notice = OaInvoice.disputeNotice(settings);
     let out = List.empty<OV.MyOaInvoice>();
     for (i in oaInvoices.invoices.values()) {
@@ -231,7 +233,8 @@ mixin (
     if (k.flagCount > 0 and why.size() < Config.minQuoteReason) { return #err(k.flagCount.toText() # " markering(en): geef een reden om toch goed te keuren") };
     let now = Time.now();
     oaInvoices.invoices.add(id, { i with status = #approved; decision = ?{ at = now; by = p.id; approved = true; reason = why; withholding = ?w; flags = k.flagCount }; rev = i.rev + 1; updatedAt = now; updatedBy = p.id });
-    let wText = switch w { case (#check c) "inhoudingsplicht " # Wadm.resultWord(c.result) # " (" # c.reference # ")"; case (#exception _) "uitzondering op de inhoudingsplicht" };
+    // 2.12 (M6): de motivering van een uitzondering hoort in de auditlog (het is de enige grond om zonder raadpleging goed te keuren).
+    let wText = switch w { case (#check c) "inhoudingsplicht " # Wadm.resultWord(c.result) # " (" # c.reference # ")"; case (#exception e) "uitzondering op de inhoudingsplicht: " # Text.fromIter(e.chars().take(120)) };
     Access.audit(audit, caller, ?p.id, ?i.workId, "oa-factuur-goedgekeurd", oiOrgName(i.orgId) # " " # i.number # ": " # wText # (if (k.flagCount > 0) ", " # k.flagCount.toText() # " markering(en), reden: " # why else ""));
     switch w { case (#check c) { if (c.result != #clear) { Access.notifyAdmins(access, audit, ctr, "inhoudingsplicht", oiOrgName(i.orgId) # " " # i.number # ": goedgekeurd met inhoudingsplicht (" # Wadm.resultWord(c.result) # "): bij de betaling inhouden") } }; case _ {} };
     #ok;

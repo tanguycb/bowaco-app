@@ -97,6 +97,9 @@ mixin (
     let f = files.files.get(fileId) ?? return #err("Onbekend bestand");
     if (f.workId != ?q.workId or f.archivedAt != null) { return #err("Dit bestand hoort niet bij de werf van deze offerte") };
     if (f.mime != "application/pdf") { return #err("Het getekende bewijs is een PDF") };
+    // 2.12 (M1): de getekende offerte draagt alle verkoopprijzen en de klantgegevens: enkel als VERTROUWELIJK bestand (R12, R21),
+    // zodat de verwijzing (opslag-URL) nooit via listFiles of het dossier bij de werfleider of een externe komt.
+    if (not f.confidential) { return #err("Het getekende bewijs moet als vertrouwelijk bestand opgeladen zijn (addFile met vertrouwelijk = ja)") };
     if (note.size() > Config.maxText) { return #err("Notitie te lang") };
     let now = Time.now();
     let proof : Types.QuoteSignedProof = { at = now; by = p.id; fileId; note = note.trim(#char ' ') };

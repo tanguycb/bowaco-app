@@ -55,8 +55,9 @@ export function Posten({ caps }: { caps: Caps }) {
     queryKey: ["libPrices", ids.map(String).join(",")],
     queryFn: async () => unwrap(await actor!.readLibraryPrices(ids)),
     enabled: !!actor && !isFetching && caps.libraryPrices && prices && ids.length > 0,
+    // R23: prijzen enkel in het geheugen van het scherm; wie terugkeert, leest opnieuw (met een nieuwe auditregel; review 2.12).
     staleTime: Infinity,
-    gcTime: 60_000,
+    gcTime: 0,
     refetchOnWindowFocus: false,
   });
   const priceOf = new Map((priceQ.data?.prices ?? []).map((p) => [String(p.itemId), p]));
@@ -248,7 +249,8 @@ function ItemForm({ it, canEdit, chapters, units, defaultChapter, onCreated }: {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const perDayMilli = f.perDay.trim() === "" ? undefined : Math.round(Number(f.perDay.replace(",", ".")) * 1000);
   const durationOk = f.durationDays.trim() === "" || /^\d{1,3}$/.test(f.durationDays.trim());
-  const perDayOk = perDayMilli === undefined || (Number.isFinite(perDayMilli) && perDayMilli > 0);
+  // Review 2.12: enkel een gewoon getal met hoogstens 3 decimalen ("1e3" of "0x10" wordt niet stil een ander getal).
+  const perDayOk = perDayMilli === undefined || (/^\d{1,6}([.,]\d{1,3})?$/.test(f.perDay.trim()) && Number.isFinite(perDayMilli) && perDayMilli > 0);
   const save = useMutation({
     mutationFn: async () =>
       unwrap(
@@ -418,7 +420,7 @@ function PricesSection({ it, canEdit, canMargin }: { it: LibItemView; canEdit: b
 
 function PriceDetail({ it, canEdit, canMargin }: { it: LibItemView; canEdit: boolean; canMargin: boolean }) {
   const { actor, isFetching } = useBackend();
-  const opts = { staleTime: Infinity, gcTime: 60_000, refetchOnWindowFocus: false } as const;
+  const opts = { staleTime: Infinity, gcTime: 0, refetchOnWindowFocus: false } as const;
   const cur = useQuery({ queryKey: ["libPrice", String(it.id)], queryFn: async () => unwrap(await actor!.readLibraryPrices([it.id])), enabled: !!actor && !isFetching, ...opts });
   const hist = useQuery({ queryKey: ["libPriceHist", String(it.id)], queryFn: async () => unwrap(await actor!.readLibraryPriceHistory(it.id)), enabled: !!actor && !isFetching, ...opts });
   const p = cur.data?.prices[0];
