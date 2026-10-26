@@ -682,6 +682,89 @@ else {
   }
 }
 
+// ── (K1–K8) stap 2.10: vorderingsstaten. Nooit een bedrag naar de werfleider of externen; een verzonden staat verandert nooit
+//    (ook niet als de offerte of het model later wijzigt); twee gelijktijdige verzendingen = één nummer; geen id-orakel voor de
+//    klant; de robot nergens; grenzen; crediteren enkel de laatste staat ──
+{
+  const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.did"), "utf8");
+  const types = new Map([...did.matchAll(/^type (\w+) =([\s\S]*?);\n(?=type |service|$)/gm)].map((m) => [m[1], m[2]]));
+  const fieldsOf = (n) => [...(types.get(n) ?? "").matchAll(/^\s+(\w+)\s*:/gm)].map((m) => m[1]);
+  const qTypes = ["ProgressQtyLine", "ProgressQtyView", "ProgressHints", "ProgressBrief", "ProgressWorkBrief", "ProgressStatement", "ProgressInput", "ProgressInputOp", "MyProgressBrief"];
+  const badQ = qTypes.flatMap((n) => fieldsOf(n).filter((f) => /cents|cost|margin|price|prijs|amount|bedrag|total|euro|payable|retention|revision/i.test(f)).map((f) => `${n}.${f}`));
+  const moneyTypes = ["ProgressMoney", "ProgressLineView", "ProgressTotals", "ProgressLineFrozen", "ProgressFrozen", "ProgressFullView", "ProgressInvoiceData", "RevisionModel", "QuoteLinePrice", "ContractParams"];
+  const refsQ = qTypes.filter((n) => moneyTypes.some((t) => new RegExp(`\\b${t}\\b`).test(types.get(n) ?? "")));
+  check("(K1) de typen die de werfleider leest (en de interne records) hebben geen bedragveld en verwijzen niet naar een bedragtype", qTypes.every((n) => types.has(n)) && badQ.length === 0 && refsQ.length === 0, badQ.concat(refsQ).join(", ") || `${qTypes.length} typen`);
+  const { proefVordering, saveAs } = await import("./vordering-lib.mjs");
+  const ps0 = await admin.progressSettings();
+  const V = await proefVordering({ admin, calc, wl }, { prefix: "P-VR", titleSuffix: " review 2.10" });
+  try {
+    const id = ok(await calc.newProgress(V.wid));
+    const sv = await saveAs(calc, id, new Map(), { sIndex: 100_000n, iIndex: 200_000n });
+    if ("err" in sv.r) throw new Error(sv.r.err);
+    // (K2) Elk kanaal naar de bedragen is dicht voor de werfleider.
+    const k2 = await Promise.all([wl.readProgressStatement(id), wl.progressInvoiceData(id), wl.readProgressRevision(V.wid), wl.exportChunk("progressFrozen", 0n, 10n), wl.exportChunk("progressConf", 0n, 10n), wl.exportChunk("progressRevisions", 0n, 10n), wl.readMyProgress(id)].map(denied));
+    const q = await wl.progressQty(id);
+    const keys = new Set();
+    const walk = (x) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") for (const [k, v] of Object.entries(x)) { keys.add(k); walk(v); } };
+    walk(q);
+    check("(K2) werfleider: staat met bedragen, factuurgegevens, rekenmodel, vertrouwelijke export en de klantlezing geweigerd; zijn eigen lezing draagt geen bedragsleutel", k2.every(Boolean) && ![...keys].some((k) => /cents|price|cost|margin|total|payable|retention|revision/i.test(k)), k2.map((x) => (x ? "·" : "✗")).join(""));
+    // (K6) De robot nergens.
+    check("(K6) de robot: menu, lijst, nieuw, lezen, bewaren, versturen en de klantfuncties geweigerd", (await Promise.all([robot.progressWorks(), robot.listProgress(V.wid), robot.newProgress(V.wid), robot.progressQty(id), robot.readProgressStatement(id), robot.sendProgress(id, 0n, 0n, "x"), robot.listMyProgress(), robot.readMyProgress(id)].map(denied))).every(Boolean));
+    // (K7) Grenzen.
+    const v0 = ok(await calc.readProgressStatement(id));
+    const root = v0.lines[0].q.root;
+    const many = Array.from({ length: 401 }, () => ({ root, cumPctBp: [], cumQtyMilli: [1n], note: "", clear: false }));
+    const lim = await calc.saveProgressDraft(id, v0.brief.rev, { periodTo: [], note: [], setIndexes: false, sIndex: [], iIndex: [], lines: many, expect: [{ periodCents: 0n, revisionCents: 0n, vatCents: 0n, totalCents: 0n, payableCents: 0n }] });
+    const big = await calc.saveProgressDraft(id, v0.brief.rev, { periodTo: [], note: ["x".repeat(1001)], setIndexes: false, sIndex: [], iIndex: [], lines: [], expect: [{ periodCents: 0n, revisionCents: 0n, vatCents: 0n, totalCents: 0n, payableCents: 0n }] });
+    const idx = await calc.saveProgressDraft(id, v0.brief.rev, { periodTo: [], note: [], setIndexes: true, sIndex: [0n], iIndex: [1n], lines: [], expect: [{ periodCents: 0n, revisionCents: 0n, vatCents: 0n, totalCents: 0n, payableCents: 0n }] });
+    const fut = await calc.saveProgressDraft(id, v0.brief.rev, { periodTo: [v0.brief.periodTo + 30n], note: [], setIndexes: false, sIndex: [], iIndex: [], lines: [], expect: [{ periodCents: 0n, revisionCents: 0n, vatCents: 0n, totalCents: 0n, payableCents: 0n }] });
+    check("(K7) grenzen: 401 regels, een te lange notitie, indexwaarde 0, een periode in de toekomst: geweigerd", /Te veel/.test(errOf(lim)) && /te lang/.test(errOf(big)) && /Indexwaarde/.test(errOf(idx)) && /toekomst/.test(errOf(fut)), [lim, big, idx, fut].map(errOf).join(" | "));
+    // (K4) Twee gelijktijdige verzendingen met dezelfde bewerkteller: één nummer.
+    const v1 = ok(await calc.readProgressStatement(id));
+    const [s1, s2] = await Promise.all([calc.sendProgress(id, v1.brief.rev, v1.totals.totalCents, "proef: review K4"), admin.sendProgress(id, v1.brief.rev, v1.totals.totalCents, "proef: review K4")]);
+    const okCount = [s1, s2].filter(isOk).length;
+    const vs = (await calc.listProgress(V.wid)).filter((b) => b.code.startsWith("VS "));
+    check("(K4) twee gelijktijdige verzendingen: precies één verstuurd, één nummer (VS …/1)", okCount === 1 && vs.length === 1 && vs[0].code.endsWith("/1"), [s1, s2].map((x) => (isOk(x) ? x.ok : x.err)).join(" | "));
+    // (K5) Een verzonden staat verandert niet als de offerte (nieuwe aanvaarde versie met andere prijzen) of het model later wijzigt.
+    const before = ok(await calc.readProgressStatement(id));
+    const nv = ok(await calc.newQuoteVersion(V.q1.quoteId, []));
+    {
+      const m = fromRead(ok(await calc.readQuoteVersion(nv)));
+      for (const l of M.activeLines(m)) M.updateLine(m, l.key, { price: { ...l.price, cost: (l.price.cost ?? 0n) * 2n } });
+      const r = await saveAll(calc, m);
+      if (r && "err" in r) throw new Error(errOf(r));
+      const rd = ok(await calc.readQuoteVersion(nv));
+      ok(await calc.sendQuoteVersion(nv, rd.version.rev, rd.totals.totalCents, "proef: review K5"));
+      ok(await calc.decideQuoteVersion(nv, true, "proef: review K5"));
+    }
+    ok(await calc.saveProgressRevision(V.wid, { aBp: 10_000n, bBp: 0n, cBp: 0n, sBase: 1n, iBase: 1n, sLabel: "", iLabel: "", note: "proef K5" }));
+    const after = ok(await calc.readProgressStatement(id));
+    check("(K5) na een nieuwe aanvaarde versie met dubbele prijzen en een ander model: zelfde hash, zelfde totalen, intact", after.hash === before.hash && after.totals.totalCents === before.totals.totalCents && after.lines[0].m.unitPriceCents === before.lines[0].m.unitPriceCents && after.intact);
+    const n2 = ok(await calc.newProgress(V.wid));
+    const d2 = ok(await calc.readProgressStatement(n2));
+    check("(K5) een nieuwe staat rekent wel met de nieuwe prijzen, en de vorige staten blijven die van de verzonden staat", d2.lines.find((l) => l.q.root === before.lines[0].q.root).m.unitPriceCents === before.lines[0].m.unitPriceCents * 2n && d2.lines.find((l) => l.q.root === before.lines[0].q.root).m.prevCents === before.lines[0].m.cumCents);
+    // (K3) Geen id-orakel voor de klant: een staat van een werf waar hij geen klant is = een onbekende staat.
+    const r3a = await klant.readMyProgress(id);
+    const r3b = await klant.readMyProgress(999_999_999n);
+    const r3c = await klant.answerMyProgress(id, before.hash, true, "");
+    check("(K3) klant zonder lidmaatschap: dezelfde 'Onbekende staat' als voor een onbestaande staat, ook bij antwoorden", errOf(r3a) === "Onbekende staat" && errOf(r3b) === "Onbekende staat" && errOf(r3c) === "Onbekende staat" && !(await klant.listMyProgress()).some((x) => x.id === id));
+    // (K8) Crediteren: een ontwerp op de werf blokkeert, enkel de laatste staat; na de creditnota telt de volgende verder op de staat ervoor.
+    check("(K8) crediteren terwijl er een ontwerp open is: geweigerd", /ontwerp open/.test(errOf(await calc.creditProgress(id, "proef: review K8"))));
+    ok(await calc.cancelProgressDraft(n2, "proef: review K8"));
+    const cn = ok(await calc.creditProgress(id, "proef: review K8"));
+    check("(K8) een tweede creditnota-ontwerp naast het eerste: geweigerd", /ontwerp open/.test(errOf(await calc.creditProgress(id, "proef: review K8 nog eens"))));
+    const cv = ok(await calc.readProgressStatement(cn));
+    ok(await calc.sendProgress(cn, cv.brief.rev, cv.totals.totalCents, ""));
+    const n3 = ok(await calc.newProgress(V.wid));
+    const d3 = ok(await calc.readProgressStatement(n3));
+    check("(K8) na de creditnota: geen vorige staten meer (de enige staat is gecrediteerd)", d3.totals.prevCents === 0n && d3.lines.every((l) => l.m.prevCents === 0n));
+    ok(await calc.cancelProgressDraft(n3, "proef: review opgeruimd"));
+  } finally {
+    await admin.setWorkStatus(V.wid, { cancelled: null }).catch(() => {});
+    await admin.saveProgressSettings(ps0).catch(() => {});
+  }
+}
+
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──
 if (local && !process.env.ZONDER_KLOK) {
   const before = (await admin.accessStats()).attemptsTracked;

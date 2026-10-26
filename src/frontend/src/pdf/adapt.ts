@@ -109,3 +109,88 @@ export async function makePdf(d: QuotePdfData): Promise<Blob> {
 export function pdfName(d: QuotePdfData): string {
   return `BOWACO offerte ${d.number.replace(/[^\w.-]+/g, "-")} v${d.version}${d.frozen ? "" : " ontwerp"}.pdf`;
 }
+
+// ── 2.10: de vorderingsstaat ──────────────────────────────────────────────
+// Twee bronnen: kantoor (readProgressStatement: een ontwerp wordt een voorbeeld met watermerk) en de klant (readMyProgress).
+// Beide enkel met verkoopprijzen: er bestaat in dit domein geen aankoopprijs of marge.
+import type { MyProgressRead, ProgressDocInfo, ProgressFullView, ProgressLineFrozen, ProgressTotals } from "../backend";
+import type { ProgressPdfData, ProgressPdfLine } from "./vorderingsstaat.ts";
+
+function progressHead(i: ProgressDocInfo) {
+  const r = i.revision;
+  return {
+    issuer: i.issuer,
+    clientName: i.clientName,
+    clientAddress: addr(i.clientAddress),
+    clientVat: i.clientVat ?? "",
+    workCode: i.workCode,
+    workName: i.workName,
+    workAddress: addr(i.workAddress),
+    quoteRefs: i.quoteRefs,
+    vatNote: i.vatNote,
+    paymentDays: Number(i.paymentDays),
+    guarantee: i.guarantee as string,
+    retentionOnIncl: i.retentionOnIncl,
+    revision: r ? { formula: r.formula, aBp: r.aBp, bBp: r.bBp, cBp: r.cBp, sBase: r.sBase, iBase: r.iBase, sIndex: r.sIndex, iIndex: r.iIndex, sLabel: r.sLabel, iLabel: r.iLabel } : null,
+  };
+}
+function progressTot(t: ProgressTotals): ProgressPdfData["totals"] {
+  return { ...t, sections: t.sections.map((s) => ({ ...s, section: s.section as string })) };
+}
+const pLine = (l: Pick<ProgressLineFrozen, "section" | "basis" | "code" | "title" | "chapter" | "unit" | "offerQtyMilli" | "unitPriceCents" | "offerCents" | "prevPctBp" | "prevQtyMilli" | "prevCents" | "cumPctBp" | "cumQtyMilli" | "cumCents" | "periodCents">): ProgressPdfLine => ({
+  section: l.section as ProgressPdfLine["section"], basis: l.basis as ProgressPdfLine["basis"], code: l.code, title: l.title, chapter: l.chapter, unit: l.unit,
+  offerQtyMilli: l.offerQtyMilli, unitPriceCents: l.unitPriceCents, offerCents: l.offerCents, prevPctBp: l.prevPctBp, prevQtyMilli: l.prevQtyMilli, prevCents: l.prevCents, cumPctBp: l.cumPctBp, cumQtyMilli: l.cumQtyMilli, cumCents: l.cumCents, periodCents: l.periodCents,
+});
+
+/** Voor kantoor. `live` = de totalen en lijnen zoals de browser ze nu rekent (ontwerp), anders die van de server. */
+export function pdfFromProgress(v: ProgressFullView, note: string, live?: { lines: ProgressPdfLine[]; totals: ProgressPdfData["totals"] }): ProgressPdfData | null {
+  if (!v.doc) return null;
+  const i = v.doc;
+  return {
+    code: v.brief.code,
+    credit: (v.brief.kind as string) === "credit",
+    creditsCode: v.brief.creditsCode,
+    frozen: v.frozen,
+    hash: v.hash,
+    periodFrom: Number(v.brief.periodFrom),
+    periodTo: Number(v.brief.periodTo),
+    sendDay: v.frozen ? Number(i.sendDay) : null,
+    dueDay: v.frozen ? Number(i.dueDay) : null,
+    vatBp: v.header.vatBp,
+    note,
+    ...progressHead(i),
+    lines: live?.lines ?? v.lines.map((x) => pLine({ ...x.q, ...x.m })),
+    totals: live?.totals ?? progressTot(v.totals),
+    answer: v.answer ? { ok: v.answer.ok, atDay: dayOfNs(v.answer.at), byName: v.answer.byName, note: v.answer.note } : null,
+  };
+}
+
+export function pdfFromMyProgress(r: MyProgressRead): ProgressPdfData {
+  return {
+    code: r.code,
+    credit: (r.kind as string) === "credit",
+    creditsCode: r.creditsCode,
+    frozen: true,
+    hash: r.hash,
+    periodFrom: Number(r.periodFrom),
+    periodTo: Number(r.periodTo),
+    sendDay: Number(r.doc.sendDay),
+    dueDay: Number(r.doc.dueDay),
+    vatBp: r.totals.vatBp,
+    note: r.note,
+    ...progressHead(r.doc),
+    lines: r.lines.map(pLine),
+    totals: progressTot(r.totals),
+    answer: r.answer ? { ok: r.answer.ok, atDay: dayOfNs(r.answer.at), byName: r.answer.byName, note: r.answer.note } : null,
+  };
+}
+
+export async function makeProgressPdf(d: ProgressPdfData): Promise<Blob> {
+  const [{ progressPdf }, { loadPdfFonts }] = await Promise.all([import("./vorderingsstaat.ts"), import("./fonts.ts")]);
+  const bytes = await progressPdf(d, await loadPdfFonts());
+  return new Blob([bytes as BlobPart], { type: "application/pdf" });
+}
+
+export function progressPdfName(d: ProgressPdfData): string {
+  return `BOWACO ${d.credit ? "creditnota" : "vorderingsstaat"} ${(d.code || `${d.workCode} ontwerp`).replace(/[^\w.-]+/g, "-")}.pdf`;
+}

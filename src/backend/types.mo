@@ -1466,6 +1466,144 @@ module {
     opOrder : Map.Map<Nat, Text>;
   };
 
+  // ── Vorderingsstaten (stap 2.10, bouwplan §9 rij 2.10, §5.1 en §7; VOORLOPIG: vragen voor Alexis en de boekhouder) ────
+  // Eigen stabiel veld `progress` (deelvorm, OldActor = {}). Een vorderingsstaat rekent per werf en per periode wat uitgevoerd of
+  // opgemeten is tegen de posten van de getekende offerte (2.8): vaste prijs per % uitgevoerd, VH volgens de opmeting (2.9), regie
+  // volgens de regie-uren van de werfverslagen (1.6), meer- en minderwerk apart, CUMULATIEF (vorige staten, deze periode, totaal,
+  // rest). De contractparameters (1.1) gelden vanzelf: prijsherziening (rekenmodel hieronder, indexwaarden met de hand), waarborg,
+  // betaaltermijn en vervaldag, het btw-tarief van de werf. Een totaal wordt NOOIT bewaard of getypt zolang de staat een ontwerp is:
+  // enkel de invoer (% en hoeveelheden); bij het versturen ligt alles vast (`frozen`, onder een hash) en verandert de staat nooit
+  // meer: verbeteren = een creditnota of een volgende staat. Volledig vanaf het begin (D1a): een tag erbij is later een migratie.
+  public type ProgressKind = { #statement; #credit }; // vorderingsstaat · creditnota (van een verzonden staat)
+  public type ProgressStatus = { #draft; #sent; #cancelled }; // ontwerp · verzonden (vast) · ontwerp weggedaan
+  // De haak naar de facturatie (fase 3): open · klaar voor factuur · gefactureerd (door het pakket; ref = factuurnummer daar).
+  public type ProgressBilling = { #open; #ready : { at : Int; by : PersonId }; #invoiced : { at : Int; by : ?PersonId; ref : Text } };
+  // aanneming (getekende offerte) · meerwerk · minderwerk · regie
+  public type ProgressSection = { #contract; #extra; #less; #regie };
+  // vaste prijs per % uitgevoerd · hoeveelheid (VH volgens opmeting) · regie-uren
+  public type ProgressBasis = { #percent; #quantity; #hours };
+
+  // klasse: intern (hoeveelheden en %, geen bedrag). De invoer van één post, CUMULATIEF tot en met deze staat. null = de
+  // voorstelwaarde volgen (opmeting, regie-uren, planning of de vorige staat).
+  public type ProgressInput = { root : Nat; cumPctBp : ?Nat; cumQtyMilli : ?Int; note : Text; at : Int; by : PersonId };
+
+  // klasse: intern (zonder bedragen). Enkel #draft is te bewerken; `rev` = bewerkteller (geen stil overschrijven).
+  public type ProgressStatement = {
+    id : Nat;
+    workId : WorkId;
+    kind : ProgressKind;
+    number : Nat; // volgnummer per werf en soort, gegeven bij het versturen (0 = ontwerp)
+    code : Text; // "VS P-A/1" of "CN P-A/1" bij het versturen; "" = ontwerp
+    credits : ?Nat; // creditnota: de staat die ze crediteert
+    creditedBy : ?Nat; // een verzonden staat die gecrediteerd werd (telt dan niet meer mee als vorige staat)
+    periodFrom : Day;
+    periodTo : Day;
+    status : ProgressStatus;
+    billing : ProgressBilling;
+    prepared : ?{ by : PersonId; at : Int }; // de werfleider meldde "voorbereid"
+    note : Text; // voor de klant (komt op de PDF)
+    rev : Nat;
+    calcVersion : Nat; // ProgressCalc.version bij het aanmaken; een verzonden staat houdt de hare
+    sentAt : ?Int;
+    sentBy : ?PersonId;
+    hash : Text; // "" tot het versturen
+    cancelReason : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. Per staat: de indexwaarden van de prijsherziening (duizendsten) en de reden om waarschuwingen door te zetten.
+  public type ProgressConf = { statementId : Nat; sIndex : Confidential<?Nat>; iIndex : Confidential<?Nat>; reason : Confidential<Text>; extra : Extra };
+
+  // klasse: vertrouwelijk. Het rekenmodel van de prijsherziening van een werf: p = P × (a·s/S + b·i/I + c), a + b + c = 100 %
+  // (basispunten); S en I = de indexwaarden van de basismaand (duizendsten); de formule als tekst staat in het contract (1.1).
+  public type RevisionModel = { aBp : Nat; bBp : Nat; cBp : Nat; sBase : Nat; iBase : Nat; sLabel : Text; iLabel : Text; note : Text };
+  public type ProgressRevision = { workId : WorkId; model : Confidential<RevisionModel>; version : Nat; at : Int; by : PersonId; extra : Extra };
+
+  // klasse: vertrouwelijk (bedragen). Wat bij het versturen vastligt, per post.
+  public type ProgressLineFrozen = {
+    root : Nat;
+    lineId : Nat;
+    versionId : Nat;
+    quoteNumber : Text;
+    section : ProgressSection;
+    basis : ProgressBasis;
+    chapter : Text;
+    code : Text;
+    title : Text;
+    unit : Text;
+    offerQtyMilli : Int;
+    unitPriceCents : Int;
+    offerCents : Int;
+    prevPctBp : Nat;
+    prevQtyMilli : Int;
+    prevCents : Int;
+    cumPctBp : Nat;
+    cumQtyMilli : Int;
+    cumCents : Int;
+    periodCents : Int;
+    note : Text;
+  };
+  public type ProgressSectionTotals = { section : ProgressSection; offerCents : Int; prevCents : Int; cumCents : Int; periodCents : Int };
+  public type ProgressTotals = {
+    sections : [ProgressSectionTotals];
+    offerCents : Int;
+    prevCents : Int;
+    cumCents : Int;
+    periodCents : Int; // deze periode, excl. prijsherziening en btw
+    restCents : Int; // offerte − totaal tot nu
+    overVhCents : Int; // waarvan boven de VH (meerhoeveelheden)
+    revisionBaseCents : Int;
+    revisionCents : Int;
+    subtotalCents : Int; // deze periode + prijsherziening, excl. btw
+    vatBp : Nat;
+    vatCents : Int;
+    totalCents : Int; // incl. btw
+    retentionBp : Nat;
+    retentionCents : Int; // inhouding waarborg
+    payableCents : Int; // te betalen = totaal − inhouding
+  };
+  public type ProgressRevisionFrozen = { formula : Text; aBp : Nat; bBp : Nat; cBp : Nat; sBase : Nat; iBase : Nat; sIndex : Nat; iIndex : Nat; sLabel : Text; iLabel : Text };
+  public type ProgressFrozen = {
+    statementId : Nat;
+    issuer : Text;
+    clientName : Text;
+    clientAddress : ?Address;
+    clientVat : ?Text;
+    workCode : Text;
+    workName : Text;
+    workAddress : Address;
+    analyticCode : Text;
+    vatNote : Text;
+    quoteRefs : [Text]; // "2026/231 v2"
+    sendDay : Day;
+    dueDay : Day;
+    paymentDays : Nat;
+    guarantee : GuaranteeKind;
+    retentionOnIncl : Bool; // inhouding op het bedrag incl. btw (anders excl.)
+    revision : ?ProgressRevisionFrozen;
+    lines : [ProgressLineFrozen];
+    totals : ProgressTotals;
+    extra : Extra;
+  };
+
+  // klasse: intern (persoonsgegevens: wie antwoordde, met welke Internet Identity). Het akkoord of de opmerking van de klant op
+  // de exacte verzonden staat (hash). Zie docs/privacy.md.
+  public type ProgressAnswer = { statementId : Nat; hash : Text; ok : Bool; note : Text; at : Int; personId : PersonId; principal : Principal; extra : Extra };
+
+  public type ProgressState = {
+    statements : Map.Map<Nat, ProgressStatement>;
+    byWork : Map.Map<Nat, [Nat]>; // werf → staten (index, herrekend bij een herstel)
+    inputs : Map.Map<Nat, [ProgressInput]>; // staat → invoer per post
+    conf : Map.Map<Nat, ProgressConf>; // vertrouwelijk; sleutel = staat
+    frozen : Map.Map<Nat, Confidential<ProgressFrozen>>; // vertrouwelijk; sleutel = staat
+    revisions : Map.Map<Nat, ProgressRevision>; // vertrouwelijk; sleutel = werf
+    answers : Map.Map<Nat, ProgressAnswer>; // sleutel = staat
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

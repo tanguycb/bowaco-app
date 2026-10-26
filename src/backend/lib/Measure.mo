@@ -120,12 +120,13 @@ module {
     closed : Int;
     count : Nat;
     pending : Nat;
+    pendingMilli : Int; // OM-02: wat de wachtende voorstellen zouden toevoegen
     lastDay : ?Nat;
     complete : Bool;
     lastId : Nat;
   };
 
-  func emptyAgg() : Agg { { measured = 0; closed = 0; count = 0; pending = 0; lastDay = null; complete = false; lastId = 0 } };
+  func emptyAgg() : Agg { { measured = 0; closed = 0; count = 0; pending = 0; pendingMilli = 0; lastDay = null; complete = false; lastId = 0 } };
 
   // Over alle opmetingen van de werf (of tot en met `upto` = het volgnummer van een opmeting) per post.
   public func aggregate(ss : Types.SurveyState, workId : Nat, upto : ?Nat) : Map.Map<Nat, Agg> {
@@ -137,7 +138,7 @@ module {
         for (e in entriesOf(ss, s.id).values()) {
           let a = switch (m.get(e.root)) { case (?x) x; case null emptyAgg() };
           if (isPending(e)) {
-            m.add(e.root, { a with pending = a.pending + 1 });
+            m.add(e.root, { a with pending = a.pending + 1; pendingMilli = a.pendingMilli + contribution(ss, e) });
           } else if (isValid(e)) {
             let c = contribution(ss, e);
             let last = e.id > a.lastId;
@@ -148,6 +149,7 @@ module {
                 closed = if closed (a.closed + c) else a.closed;
                 count = a.count + 1;
                 pending = a.pending;
+                pendingMilli = a.pendingMilli;
                 lastDay = switch (a.lastDay) { case (?d) { if (e.day > d) ?e.day else ?d }; case null ?e.day };
                 complete = if last e.complete else a.complete;
                 lastId = if last e.id else a.lastId;

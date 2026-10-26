@@ -40,6 +40,7 @@ mixin (
   quoteDocs : Types.QuoteDocsState,
   workStarts : Types.WorkStartState,
   surveys : Types.SurveyState,
+  progress : Types.ProgressState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -250,6 +251,9 @@ mixin (
       measureEntries = surveys.entries.values().toArray();
       measureSnapshots = surveys.snapshots.entries().toArray();
       measureOps = surveys.ops.values().toArray();
+      progressStatements = progress.statements.values().toArray();
+      progressInputs = progress.inputs.entries().toArray();
+      progressAnswers = progress.answers.values().toArray();
     };
   };
 
@@ -261,9 +265,9 @@ mixin (
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #export, null);
-    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf";
+    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions";
     // 2.2/2.4: de prijzen van de bibliotheek en van de offertes vragen daarbovenop #readCosts (aankoopprijzen, R20).
-    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf") { Rights.require(ctx, p, #readCosts, null) };
+    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions") { Rights.require(ctx, p, #readCosts, null) };
     if (confidentialKind) { Rights.require(ctx, p, #readConfidentialContact, null) };
     if (from == 0) { Access.audit(audit, caller, ?p.id, null, if confidentialKind "bekeek:export-vertrouwelijk-deel" else "export-deel", kind) };
     func pg<T>(xs : [T]) : [T] { Access.page(xs, from, limit) };
@@ -357,6 +361,12 @@ mixin (
       case "measureOps" ?#measureOps(pg(surveys.ops.values().toArray()));
       case "quotePrices" ?#quotePrices(pg(quotes.prices.values().toArray()));
       case "quoteVersionConf" ?#quoteVersionConf(pg(quotes.versionConf.values().toArray()));
+      case "progressStatements" ?#progressStatements(pg(progress.statements.values().toArray()));
+      case "progressInputs" ?#progressInputs(pg(progress.inputs.entries().toArray()));
+      case "progressAnswers" ?#progressAnswers(pg(progress.answers.values().toArray()));
+      case "progressConf" ?#progressConf(pg(progress.conf.values().toArray()));
+      case "progressFrozen" ?#progressFrozen(pg(progress.frozen.entries().toArray()));
+      case "progressRevisions" ?#progressRevisions(pg(progress.revisions.values().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
@@ -385,6 +395,9 @@ mixin (
       libSellVersions = library.sellVersions.values().toArray();
       quotePrices = quotes.prices.values().toArray();
       quoteVersionConf = quotes.versionConf.values().toArray();
+      progressConf = progress.conf.values().toArray();
+      progressFrozen = progress.frozen.entries().toArray();
+      progressRevisions = progress.revisions.values().toArray();
     };
   };
 

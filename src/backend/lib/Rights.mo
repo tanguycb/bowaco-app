@@ -61,6 +61,9 @@ module {
     // opdrachten: admin, werfleider, calculator; een OA enkel als de beheerder "OA mag voorstellen" aanzette). Per werf
     // beslissen #editMeasurement (invoeren, bevestigen, afsluiten) en measureScope (wat iemand ziet en mag).
     #measureAny;
+    // 2.10: vorderingsstaten. #progressAny = het menu Vorderingen (admin, calculator: maken en versturen; werfleider:
+    // voorbereiden). Per werf beslist progressScope (wie wat ziet; bedragen enkel admin en calculator).
+    #progressAny;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -235,6 +238,8 @@ module {
       case (#startWorkAny) admin or wl;
       // 2.9: de poort van de opmeting. Een OA enkel met het schakelaartje van de beheerder en als hij actief OA is.
       case (#measureAny) admin or wl or calc or (has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("measure.oaPropose") == ?"ja" and activeOa(ctx, p));
+      // 2.10: wie ergens een vorderingsstaat maakt of voorbereidt.
+      case (#progressAny) admin or calc or wl;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -277,6 +282,20 @@ module {
     };
     let ext = ctx.settings.values.get("measure.externalRead") == ?"ja";
     if (ext and grant(ctx, p, w, #readProgress) and (memberAs(ctx, p, w, #architect) or memberAs(ctx, p, w, #klant))) { return #closed };
+    #none;
+  };
+
+  // ── Vorderingsstaten (2.10) ─────────────────────────────────────────────
+  // #full = admin en calculator: maken, bedragen zien, versturen, crediteren, klaar voor factuur. #prepare = de werfleider van de
+  // werf: hoeveelheden en % voorbereiden, NOOIT een bedrag of eenheidsprijs. #client = de klant van de werf: enkel zijn
+  // VERZONDEN staten (met verkoopprijzen) en zijn akkoord. Architect, OA, veiligheidscoördinator: niets (#none).
+  public type ProgressScope = { #full; #prepare; #client; #none };
+
+  public func progressScope(ctx : Ctx, p : Person, w : WorkId) : ProgressScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (has(p, #admin) or has(p, #calculator)) { return #full };
+    if (leaderOn(ctx, p, w)) { return #prepare };
+    if (memberAs(ctx, p, w, #klant)) { return #client };
     #none;
   };
 
@@ -523,6 +542,8 @@ module {
       measure = may(ctx, p, #measureAny, null);
       measureRead = internal(p) or has(p, #onderaannemer) or ((has(p, #architect) or has(p, #klant)) and ctx.settings.values.get("measure.externalRead") == ?"ja");
       upload = may(ctx, p, #upload, null);
+      progress = may(ctx, p, #progressAny, null);
+      myProgress = has(p, #klant);
       home = home(p);
     };
   };

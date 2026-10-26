@@ -32,6 +32,7 @@ module {
     complete : Bool; // de laatste geldige regel zegt "volledig opgemeten"
     entryCount : Nat;
     pendingCount : Nat; // voorstellen van een OA die nog beslist moeten worden
+    pendingMilli : Int; // 2.10 (OM-02): wat die voorstellen samen zouden toevoegen (telt pas na bevestiging)
     lastDay : ?Nat;
   };
 

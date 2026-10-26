@@ -64,6 +64,8 @@ module {
     measure : Bool; // 2.9: opmeting ter plaatse invoeren of voorstellen (admin, werfleider, calculator; OA als de beheerder het toelaat)
     measureRead : Bool; // 2.9: het scherm Opmeting tonen (interne rollen en OA; architect en klant enkel als de beheerder het leest-mee toelaat)
     upload : Bool;
+    progress : Bool; // 2.10: menu Vorderingen (admin, calculator, werfleider)
+    myProgress : Bool; // 2.10: de klant ziet zijn verzonden vorderingsstaten
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
 
@@ -845,6 +847,9 @@ module {
     measureEntries : [Types.MeasureEntry];
     measureSnapshots : [(Nat, [Types.SurveyPostSnap])];
     measureOps : [Types.SurveyOpRecord];
+    progressStatements : [Types.ProgressStatement]; // 2.10 (intern: zonder bedragen)
+    progressInputs : [(Nat, [Types.ProgressInput])];
+    progressAnswers : [Types.ProgressAnswer];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -936,6 +941,12 @@ module {
     #measureOps : [Types.SurveyOpRecord];
     #quotePrices : [Types.QuoteLinePrice]; // 2.4 (vertrouwelijk)
     #quoteVersionConf : [Types.QuoteVersionConf];
+    #progressStatements : [Types.ProgressStatement]; // 2.10 (intern)
+    #progressInputs : [(Nat, [Types.ProgressInput])];
+    #progressAnswers : [Types.ProgressAnswer];
+    #progressConf : [Types.ProgressConf]; // 2.10 (vertrouwelijk)
+    #progressFrozen : [(Nat, Types.Confidential<Types.ProgressFrozen>)];
+    #progressRevisions : [Types.ProgressRevision];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -953,6 +964,10 @@ module {
     // 2.4: de prijs per offertelijn (aankoopprijs, verkoopregel, reden) en de standaardmarge per versie.
     quotePrices : [Types.QuoteLinePrice];
     quoteVersionConf : [Types.QuoteVersionConf];
+    // 2.10: de indexwaarden en redenen per staat, de vastgelegde bedragen van verzonden staten, het model van de prijsherziening.
+    progressConf : [Types.ProgressConf];
+    progressFrozen : [(Nat, Types.Confidential<Types.ProgressFrozen>)];
+    progressRevisions : [Types.ProgressRevision];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────

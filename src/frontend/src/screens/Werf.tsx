@@ -132,6 +132,14 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
           </div>
         </section>
       )}
+      {caps.progress && (
+        <section className="a-section">
+          <div className="a-row a-row--between">
+            <h2 className="bw-h2">{t.vorderingen.label}</h2>
+            <Button icon="euro" onClick={() => go(`vorderingen/w/${id}`)} data-testid="werf-vorderingen">{t.vorderingen.linkWerf}</Button>
+          </div>
+        </section>
+      )}
       {caps.quotes && <WorkQuotes workId={id} caps={caps} go={go} />}
       <PlanSummary workId={id} go={go} />
       {caps.readOrgPlanning && <WorkConflicts workId={id} go={go} />}

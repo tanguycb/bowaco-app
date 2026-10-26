@@ -215,7 +215,7 @@ function OpmetingWerf({ workId, go }: { workId: bigint; go: (to: string) => void
                       <span className="om-post__tags">
                         {fl !== "none" && <span className={`a-tag ${flagClass(fl)}`}>{T.flag[fl]}</span>}
                         {p.complete && <span className="a-tag a-tag--ok">{T.complete}</span>}
-                        {p.pendingCount > 0n && <span className="a-tag a-tag--warn">{T.pendingTag} ({String(p.pendingCount)})</span>}
+                        {p.pendingCount > 0n && <span className="a-tag a-tag--warn" data-testid="om-pending">{T.pendingTag} ({String(p.pendingCount)}){p.pendingMilli !== 0n ? ` · ${T.proposedQty(`${fmtSigned(p.pendingMilli)} ${unitOf(p)}`)}` : ""}</span>}
                         {wait.length > 0 && <span className="m-tag m-tag--warn"><Icon name="clock" size={12} />{T.waitTag}</span>}
                       </span>
                     </span>

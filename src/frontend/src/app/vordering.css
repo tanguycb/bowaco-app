@@ -1,0 +1,32 @@
+/* 2.10: Vorderingsstaten. Zakelijk zoals de rest (design system v2): dunne lijnen, monoletter voor bedragen, één accent. */
+.vs-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-bottom: 8px; font-size: var(--bw-fs-sm); }
+.vs-top { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; margin: 12px 0; align-items: start; }
+@media (max-width: 900px) { .vs-top { grid-template-columns: minmax(0, 1fr); } }
+.vs-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); }
+.vs-card .bw-h3 { margin: 0; }
+.vs-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: var(--bw-fs-sm); }
+.vs-period { max-width: 220px; }
+.vs-dl { display: flex; flex-direction: column; margin: 0; font-size: var(--bw-fs-sm); }
+.vs-dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--bw-line); }
+.vs-dl dt { color: var(--bw-ink-2, inherit); }
+.vs-dl dd { margin: 0; text-align: right; white-space: nowrap; }
+.vs-dl__sum { font-weight: 600; }
+.vs-dl__big { font-weight: 700; font-size: var(--bw-fs-md, 1rem); border-bottom: 1px solid var(--bw-ink, currentColor) !important; }
+.vs-dl--small { opacity: 0.85; font-size: var(--bw-fs-xs); }
+.vs-findings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--bw-fs-sm); }
+.vs-section { margin: 16px 0 8px; display: flex; flex-direction: column; gap: 6px; }
+.vs-section .bw-h3 { margin: 0; }
+.vs-table td { vertical-align: top; }
+.vs-post { display: flex; flex-direction: column; gap: 2px; min-width: 220px; }
+.vs-sub { display: block; font-size: var(--bw-fs-xs); }
+.vs-flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.vs-val { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.vs-input { width: 96px; text-align: right; }
+.vs-input--set { border-color: var(--bw-accent); }
+.vs-input--bad { border-color: var(--bw-st-blocked, #b42318); background: var(--bw-st-blocked-bg, #fef3f2); }
+.vs-unit { min-width: 22px; text-align: left; }
+.vs-note { margin-top: 4px; max-width: 320px; font-size: var(--bw-fs-xs); }
+@media (max-width: 640px) {
+  .vs-post { min-width: 0; }
+  .vs-input { width: 110px; }
+}

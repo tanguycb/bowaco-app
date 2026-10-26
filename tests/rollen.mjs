@@ -1320,7 +1320,9 @@ const pm = await wl.savePermit(B, pmIn({ tasks: [contId], cost: 2500n, note: "in
 check("werfleider maakt de vergunning uit de suggestie", isOk(pm), errOf(pm));
 const pmId = pm.ok.id;
 check("periode = de taak, deadline = start − 10, gemeente automatisch", pm.ok.neededFrom[0] === cStart && pm.ok.deadline[0] === cStart - 10n && pm.ok.municipalityName === "Proefgemeente" && pm.ok.leadDays === 10n, JSON.stringify({ f: pm.ok.neededFrom, d: pm.ok.deadline, m: pm.ok.municipalityName }, big));
-check("waarschuwing: aanvragen binnen 2 dagen", pm.ok.warnings.some((x) => "deadlineSoon" in x && x.deadlineSoon === 2n), JSON.stringify(pm.ok.warnings, big));
+// Valt vandaag + 12 in een weekend, dan schuift de start naar maandag: de deadline ligt dan 3 of 4 dagen verder (2.10: was datumafhankelijk).
+const soon = cStart - 10n - today1b;
+check(`waarschuwing: aanvragen binnen ${soon} dagen`, pm.ok.warnings.some((x) => "deadlineSoon" in x && x.deadlineSoon === soon), JSON.stringify(pm.ok.warnings, big));
 check("de suggestie is weg (taak heeft een vergunning)", !(await wl.workPermits(B)).suggestions.some((x) => x.taskId === contId && x.kind === "container"));
 check("onmogelijke periode geweigerd (geldig tot vóór geldig van)", "err" in (await wl.savePermit(B, pmIn({ id: pmId, tasks: [contId], vFrom: today1b + 5n, vTo: today1b }))));
 check("taak van een andere werf geweigerd", "err" in (await wl.savePermit(A, pmIn({ tasks: [contId] }))));
@@ -1329,7 +1331,7 @@ const n1 = await admin.scanPermits();
 check("meldingen: de ronde meldt de nakende deadline", n1 >= 1n, String(n1));
 const leaderB = wB1b.leaderPersonId[0];
 const who1b = leaderB !== undefined && leaderB === (await wl.me()).person[0].id ? wl : admin;
-check("melding 'vergunning' bij de werfleider van B (of de beheerders)", (await who1b.myNotifications(false)).some((x) => x.kind === "vergunning" && x.text.includes("aanvragen binnen 2 dagen")));
+check("melding 'vergunning' bij de werfleider van B (of de beheerders)", (await who1b.myNotifications(false)).some((x) => x.kind === "vergunning" && x.text.includes(`aanvragen binnen ${soon} dagen`)));
 check("een tweede ronde meldt niets opnieuw", (await admin.scanPermits()) === 0n);
 check("meldingen nakijken: enkel admin", await rejects(wl.scanPermits()));
 // Aangevraagd en toegekend voor de periode van de taak, dan schuift de planning: waarschuwing + melding.
@@ -1898,6 +1900,19 @@ await sec("── opmeting (2.9): caps en schrijfpoort per rol (de rest staat in
   await set(false, false);
   check("terug uit: de OA is weer buiten", !(await cp(oa2)).measure && !(await cp(arch)).measureRead);
   check("een drempel buiten bereik wordt geweigerd; enkel de beheerder wijzigt", (await denied(wl.saveMeasureSettings({ thresholdBp: 1000n, oaPropose: true, externalRead: true }))) && "err" in (await admin.saveMeasureSettings({ thresholdBp: 0n, oaPropose: false, externalRead: false })));
+}
+
+await sec("── vorderingsstaten (2.10): caps en poorten per rol (de rest staat in tests/vordering-draft.mjs en tests/review.mjs K1–K8)");
+{
+  const cp = async (x) => (await x.me()).caps[0];
+  const c = { admin: await cp(admin), wl: await cp(wl), calc: await cp(calc), arch: await cp(arch), oa: await cp(oa2), klant: await cp(klant), vc: await cp(vc) };
+  check("caps.progress: admin, werfleider en calculator ja; OA, architect, klant en veiligheid nee", c.admin.progress && c.wl.progress && c.calc.progress && !c.oa.progress && !c.arch.progress && !c.klant.progress && !c.vc.progress);
+  check("caps.myProgress: enkel de klant", c.klant.myProgress && !c.admin.myProgress && !c.wl.myProgress && !c.calc.myProgress && !c.oa.myProgress && !c.arch.myProgress && !c.vc.myProgress);
+  check("caps.quotePrices (bedragen in de vorderingsstaat): admin en calculator, nooit de werfleider", c.admin.quotePrices && c.calc.quotePrices && !c.wl.quotePrices);
+  check("het menu Vorderingen is dicht voor OA, architect, klant, veiligheid, anoniem en de robot", (await Promise.all([oa2, arch, klant, vc, anon, robot].map((x) => denied(x.progressWorks())))).every(Boolean));
+  check("de klantfuncties zijn dicht voor wie geen klant is (ook de beheerder)", (await Promise.all([admin, wl, calc, oa2, arch, vc, anon, robot].map((x) => denied(x.listMyProgress())))).every(Boolean));
+  check("de werfleider leest geen staat met bedragen, geen rekenmodel en geen factuurgegevens", (await denied(wl.readProgressStatement(1n))) && (await denied(wl.readProgressRevision(A))) && (await denied(wl.progressInvoiceData(1n))));
+  check("instellingen van de vorderingsstaten: interne rollen lezen, enkel de beheerder schrijft", (await Promise.all([admin, wl, calc].map((x) => x.progressSettings()))).every((x) => typeof x.client === "string") && (await denied(wl.saveProgressSettings({ client: "uit", retentionOnIncl: false }))) && (await denied(calc.saveProgressSettings({ client: "uit", retentionOnIncl: false }))));
 }
 
 await sec("── afzetten (R16, T7)");

@@ -78,6 +78,8 @@ type Address__766490103 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__963656299 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
+type Address__997510852 =
+  {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Appointment__3400962 =
   {
     archivedAt : ?Int;
@@ -293,6 +295,7 @@ type CodeState__574295970 =
     #revoked : {at : Int; by : PersonId__1007515609};
     #used : {at : Int; by : Principal}
   };
+type Confidential__201657688<T> = {#plain : T; #sealed : Sealed__938300689};
 type Confidential__546665525<T> = {#plain : T; #sealed : Sealed__69262316};
 type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
 type Confidential__675319516<T> = {#plain : T; #sealed : Sealed__1041298352};
@@ -389,6 +392,7 @@ type Day__728056481 = Nat;
 type Day__786034210 = Nat;
 type Day__821488089 = Nat;
 type Day__884237654 = Nat;
+type Day__91681558 = Nat;
 type Day__923906744 = Nat;
 type Decision__965673210 =
   {accepted : Bool; at : Int; by : PersonId__1007515609; note : Text};
@@ -517,6 +521,7 @@ type Extra__492312138 = [(Text, Text)];
 type Extra__50648088 = [(Text, Text)];
 type Extra__550678138 = [(Text, Text)];
 type Extra__554422274 = [(Text, Text)];
+type Extra__593670818 = [(Text, Text)];
 type Extra__594079308 = [(Text, Text)];
 type Extra__646433706 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
@@ -570,6 +575,7 @@ type Grant__365704929 =
     #uploadDocs
   };
 type GuaranteeKind__187207818 = {#bankGuarantee; #none; #retention};
+type GuaranteeKind__270617737 = {#bankGuarantee; #none; #retention};
 type GuaranteeKind__391074589 = {#bankGuarantee; #none; #retention};
 type HoursConfirmation__133173562 =
   {
@@ -1270,6 +1276,7 @@ type NewActor__410098017 = {library : LibraryState__89257550};
 type NewActor__473839593 = {wadm : WadmState__864899804};
 type NewActor__542837279 = {reports : ReportState__211051397};
 type NewActor__914032600 = {oa : OaState__978871092};
+type NewActor__915174763 = {progress : ProgressState__159614730};
 type NewActor__918578615 = {permits : PermitState__160097102};
 type NewActor__984285705 = {mail : MailState__347325858};
 type Node__204828119<K, V> =
@@ -1316,6 +1323,7 @@ type OldActor__430767433 = {};
 type OldActor__485181031 = {};
 type OldActor__574962007 = {};
 type OldActor__669130419 = {};
+type OldActor__673165591 = {};
 type OldActor__675047732 = {};
 type OldActor__804964816 = {};
 type OldActor__853471898 = {};
@@ -1609,6 +1617,7 @@ type PersonId__1012124006 = Nat;
 type PersonId__184143711 = Nat;
 type PersonId__185004052 = Nat;
 type PersonId__199562452 = Nat;
+type PersonId__24135035 = Nat;
 type PersonId__253911295 = Nat;
 type PersonId__321680111 = Nat;
 type PersonId__350725727 = Nat;
@@ -1700,6 +1709,339 @@ type PostState__600695864 =
   };
 type PriceRevision__20189774 = {#formula : Text; #none};
 type PriceRevision__412682838 = {#formula : Text; #none};
+type ProgressAnswer__376515360 =
+  {
+    at : Int;
+    extra : Extra__593670818;
+    hash : Text;
+    note : Text;
+    ok : Bool;
+    personId : PersonId__24135035;
+    principal : Principal;
+    statementId : Nat
+  };
+type ProgressAnswer__977505148 =
+  {
+    at : Int;
+    extra : Extra__945213800;
+    hash : Text;
+    note : Text;
+    ok : Bool;
+    personId : PersonId__967516914;
+    principal : Principal;
+    statementId : Nat
+  };
+type ProgressBasis__331323794 = {#hours; #percent; #quantity};
+type ProgressBasis__521368675 = {#hours; #percent; #quantity};
+type ProgressBilling__405491976 =
+  {
+    #invoiced : {at : Int; by : ?PersonId__24135035; ref : Text};
+    #open;
+    #ready : {at : Int; by : PersonId__24135035}
+  };
+type ProgressBilling__473606145 =
+  {
+    #invoiced : {at : Int; by : ?PersonId__967516914; ref : Text};
+    #open;
+    #ready : {at : Int; by : PersonId__967516914}
+  };
+type ProgressConf__843119685 =
+  {
+    extra : Extra__593670818;
+    iIndex : Confidential__201657688<?Nat>;
+    reason : Confidential__201657688<Text>;
+    sIndex : Confidential__201657688<?Nat>;
+    statementId : Nat
+  };
+type ProgressConf__994838895 =
+  {
+    extra : Extra__945213800;
+    iIndex : Confidential__546665525<?Nat>;
+    reason : Confidential__546665525<Text>;
+    sIndex : Confidential__546665525<?Nat>;
+    statementId : Nat
+  };
+type ProgressFrozen__192644913 =
+  {
+    analyticCode : Text;
+    clientAddress : ?Address__997510852;
+    clientName : Text;
+    clientVat : ?Text;
+    dueDay : Day__91681558;
+    extra : Extra__593670818;
+    guarantee : GuaranteeKind__270617737;
+    issuer : Text;
+    lines : [ProgressLineFrozen__295798692];
+    paymentDays : Nat;
+    quoteRefs : [Text];
+    retentionOnIncl : Bool;
+    revision : ?ProgressRevisionFrozen__49672590;
+    sendDay : Day__91681558;
+    statementId : Nat;
+    totals : ProgressTotals__99627624;
+    vatNote : Text;
+    workAddress : Address__997510852;
+    workCode : Text;
+    workName : Text
+  };
+type ProgressFrozen__527246476 =
+  {
+    analyticCode : Text;
+    clientAddress : ?Address__766490103;
+    clientName : Text;
+    clientVat : ?Text;
+    dueDay : Day__162369424;
+    extra : Extra__945213800;
+    guarantee : GuaranteeKind__187207818;
+    issuer : Text;
+    lines : [ProgressLineFrozen__177561934];
+    paymentDays : Nat;
+    quoteRefs : [Text];
+    retentionOnIncl : Bool;
+    revision : ?ProgressRevisionFrozen__833907486;
+    sendDay : Day__162369424;
+    statementId : Nat;
+    totals : ProgressTotals__315499988;
+    vatNote : Text;
+    workAddress : Address__766490103;
+    workCode : Text;
+    workName : Text
+  };
+type ProgressInput__653906876 =
+  {
+    at : Int;
+    by : PersonId__24135035;
+    cumPctBp : ?Nat;
+    cumQtyMilli : ?Int;
+    note : Text;
+    root : Nat
+  };
+type ProgressInput__929691709 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    cumPctBp : ?Nat;
+    cumQtyMilli : ?Int;
+    note : Text;
+    root : Nat
+  };
+type ProgressKind__1002603362 = {#credit; #statement};
+type ProgressKind__1066476226 = {#credit; #statement};
+type ProgressLineFrozen__177561934 =
+  {
+    basis : ProgressBasis__331323794;
+    chapter : Text;
+    code : Text;
+    cumCents : Int;
+    cumPctBp : Nat;
+    cumQtyMilli : Int;
+    lineId : Nat;
+    note : Text;
+    offerCents : Int;
+    offerQtyMilli : Int;
+    periodCents : Int;
+    prevCents : Int;
+    prevPctBp : Nat;
+    prevQtyMilli : Int;
+    quoteNumber : Text;
+    root : Nat;
+    section : ProgressSection__118675031;
+    title : Text;
+    unit : Text;
+    unitPriceCents : Int;
+    versionId : Nat
+  };
+type ProgressLineFrozen__295798692 =
+  {
+    basis : ProgressBasis__521368675;
+    chapter : Text;
+    code : Text;
+    cumCents : Int;
+    cumPctBp : Nat;
+    cumQtyMilli : Int;
+    lineId : Nat;
+    note : Text;
+    offerCents : Int;
+    offerQtyMilli : Int;
+    periodCents : Int;
+    prevCents : Int;
+    prevPctBp : Nat;
+    prevQtyMilli : Int;
+    quoteNumber : Text;
+    root : Nat;
+    section : ProgressSection__769555635;
+    title : Text;
+    unit : Text;
+    unitPriceCents : Int;
+    versionId : Nat
+  };
+type ProgressRevisionFrozen__49672590 =
+  {
+    aBp : Nat;
+    bBp : Nat;
+    cBp : Nat;
+    formula : Text;
+    iBase : Nat;
+    iIndex : Nat;
+    iLabel : Text;
+    sBase : Nat;
+    sIndex : Nat;
+    sLabel : Text
+  };
+type ProgressRevisionFrozen__833907486 =
+  {
+    aBp : Nat;
+    bBp : Nat;
+    cBp : Nat;
+    formula : Text;
+    iBase : Nat;
+    iIndex : Nat;
+    iLabel : Text;
+    sBase : Nat;
+    sIndex : Nat;
+    sLabel : Text
+  };
+type ProgressRevision__1045399138 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    extra : Extra__945213800;
+    model : Confidential__546665525<RevisionModel__139645490>;
+    version : Nat;
+    workId : WorkId__929594816
+  };
+type ProgressRevision__483955449 =
+  {
+    at : Int;
+    by : PersonId__24135035;
+    extra : Extra__593670818;
+    model : Confidential__201657688<RevisionModel__770937522>;
+    version : Nat;
+    workId : WorkId__547794872
+  };
+type ProgressSectionTotals__334648881 =
+  {
+    cumCents : Int;
+    offerCents : Int;
+    periodCents : Int;
+    prevCents : Int;
+    section : ProgressSection__118675031
+  };
+type ProgressSectionTotals__563542830 =
+  {
+    cumCents : Int;
+    offerCents : Int;
+    periodCents : Int;
+    prevCents : Int;
+    section : ProgressSection__769555635
+  };
+type ProgressSection__118675031 = {#contract; #extra; #less; #regie};
+type ProgressSection__769555635 = {#contract; #extra; #less; #regie};
+type ProgressState__159614730 =
+  {
+    answers : Map__230067015<Nat, ProgressAnswer__376515360>;
+    byWork : Map__230067015<Nat, [Nat]>;
+    conf : Map__230067015<Nat, ProgressConf__843119685>;
+    frozen :
+      Map__230067015<Nat, Confidential__201657688<ProgressFrozen__192644913>>;
+    inputs : Map__230067015<Nat, [ProgressInput__653906876]>;
+    revisions : Map__230067015<Nat, ProgressRevision__483955449>;
+    statements : Map__230067015<Nat, ProgressStatement__221689467>
+  };
+type ProgressStatement__221689467 =
+  {
+    billing : ProgressBilling__405491976;
+    calcVersion : Nat;
+    cancelReason : Text;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__24135035;
+    creditedBy : ?Nat;
+    credits : ?Nat;
+    extra : Extra__593670818;
+    hash : Text;
+    id : Nat;
+    kind : ProgressKind__1002603362;
+    note : Text;
+    number : Nat;
+    periodFrom : Day__91681558;
+    periodTo : Day__91681558;
+    prepared : ?{at : Int; by : PersonId__24135035};
+    rev : Nat;
+    sentAt : ?Int;
+    sentBy : ?PersonId__24135035;
+    status : ProgressStatus__966142661;
+    updatedAt : Int;
+    updatedBy : PersonId__24135035;
+    workId : WorkId__547794872
+  };
+type ProgressStatement__884260518 =
+  {
+    billing : ProgressBilling__473606145;
+    calcVersion : Nat;
+    cancelReason : Text;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    creditedBy : ?Nat;
+    credits : ?Nat;
+    extra : Extra__945213800;
+    hash : Text;
+    id : Nat;
+    kind : ProgressKind__1066476226;
+    note : Text;
+    number : Nat;
+    periodFrom : Day__162369424;
+    periodTo : Day__162369424;
+    prepared : ?{at : Int; by : PersonId__967516914};
+    rev : Nat;
+    sentAt : ?Int;
+    sentBy : ?PersonId__967516914;
+    status : ProgressStatus__627053557;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    workId : WorkId__929594816
+  };
+type ProgressStatus__627053557 = {#cancelled; #draft; #sent};
+type ProgressStatus__966142661 = {#cancelled; #draft; #sent};
+type ProgressTotals__315499988 =
+  {
+    cumCents : Int;
+    offerCents : Int;
+    overVhCents : Int;
+    payableCents : Int;
+    periodCents : Int;
+    prevCents : Int;
+    restCents : Int;
+    retentionBp : Nat;
+    retentionCents : Int;
+    revisionBaseCents : Int;
+    revisionCents : Int;
+    sections : [ProgressSectionTotals__334648881];
+    subtotalCents : Int;
+    totalCents : Int;
+    vatBp : Nat;
+    vatCents : Int
+  };
+type ProgressTotals__99627624 =
+  {
+    cumCents : Int;
+    offerCents : Int;
+    overVhCents : Int;
+    payableCents : Int;
+    periodCents : Int;
+    prevCents : Int;
+    restCents : Int;
+    retentionBp : Nat;
+    retentionCents : Int;
+    revisionBaseCents : Int;
+    revisionCents : Int;
+    sections : [ProgressSectionTotals__563542830];
+    subtotalCents : Int;
+    totalCents : Int;
+    vatBp : Nat;
+    vatCents : Int
+  };
 type Proposal__579039857 =
   {
     at : Int;
@@ -2176,6 +2518,28 @@ type ReportStatus__805613159 =
     #draft;
     #final : {at : Int; by : PersonId__967516914}
   };
+type RevisionModel__139645490 =
+  {
+    aBp : Nat;
+    bBp : Nat;
+    cBp : Nat;
+    iBase : Nat;
+    iLabel : Text;
+    note : Text;
+    sBase : Nat;
+    sLabel : Text
+  };
+type RevisionModel__770937522 =
+  {
+    aBp : Nat;
+    bBp : Nat;
+    cBp : Nat;
+    iBase : Nat;
+    iLabel : Text;
+    note : Text;
+    sBase : Nat;
+    sLabel : Text
+  };
 type RobotState__201362633 =
   {
     proposalByTicket : Map__230067015<Nat, Nat>;
@@ -2229,6 +2593,7 @@ type Sealed__56403581 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__566922365 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__69262316 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__901946251 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__938300689 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type SettingsState__180579617 =
   {
     var inviteDays : Nat;
@@ -2673,6 +3038,7 @@ type WorkId__171501769 = Nat;
 type WorkId__299750985 = Nat;
 type WorkId__35351127 = Nat;
 type WorkId__386895530 = Nat;
+type WorkId__547794872 = Nat;
 type WorkId__642659770 = Nat;
 type WorkId__72456761 = Nat;
 type WorkId__815998652 = Nat;
@@ -2832,7 +3198,8 @@ type WorksState__605582232 =
   "20261025_130000" : OldActor__1063236522 -> NewActor__305373795;
   "20261025_170000" : OldActor__485181031 -> NewActor__266440787;
   "20261025_200000" : OldActor__293720163 -> NewActor__1073511891;
-  "20261025_220000" : OldActor__675047732 -> NewActor__266457383
+  "20261025_220000" : OldActor__675047732 -> NewActor__266457383;
+  "20261026_100000" : OldActor__673165591 -> NewActor__915174763
 }
 actor  {
   stable access :
@@ -2926,6 +3293,18 @@ actor  {
       keys : Map__230067015<Text, Nat>;
       open : Map__230067015<Nat, ()>;
       seen : Map__230067015<Principal, Int>
+    };
+  stable progress :
+    {
+      answers : Map__230067015<Nat, ProgressAnswer__977505148>;
+      byWork : Map__230067015<Nat, [Nat]>;
+      conf : Map__230067015<Nat, ProgressConf__994838895>;
+      frozen :
+        Map__230067015<Nat,
+                        Confidential__546665525<ProgressFrozen__527246476>>;
+      inputs : Map__230067015<Nat, [ProgressInput__929691709]>;
+      revisions : Map__230067015<Nat, ProgressRevision__1045399138>;
+      statements : Map__230067015<Nat, ProgressStatement__884260518>
     };
   stable quoteChecks :
     {

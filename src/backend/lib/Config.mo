@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2.9-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2.10-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -347,6 +347,15 @@ module {
   public let maxMeasureEntriesPerPost : Nat = 50;
   public let maxMeasurePhotos : Nat = 6;
   public let maxMeasureQtyMilli : Int = 1_000_000_000_000;
+
+  // ── Vorderingsstaten (2.10; VOORLOPIG: vragen voor Alexis en de boekhouder) ──
+  // Hoeveelheden in duizendsten (zoals de opmeting), % in basispunten (≤ 100 %), indexwaarden in duizendsten. Een staat telt
+  // hoogstens zoveel posten als de getekende offerte(s); per bewaring hoogstens maxProgressOps invoerregels.
+  public let maxProgressQtyMilli : Int = 1_000_000_000_000;
+  public let maxProgressPctBp : Nat = 10_000;
+  public let maxRevisionIndex : Nat = 100_000_000; // 100.000,000
+  public let maxProgressOps : Nat = 400;
+  public let maxProgressPerWork : Nat = 200;
 
   // ── Controleregels vóór verzending (2.6; VOORLOPIG: vragen voor Alexis) ──
   // (sleutel, naam, vast, blokkeert, drempel in basispunten). "Vast" = integriteit van de offerte: niet af te zetten en

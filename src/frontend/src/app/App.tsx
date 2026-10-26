@@ -37,6 +37,7 @@ import { OffertesPage } from "../screens/Offertes";
 import { MijnOffertePage } from "../screens/MijnOfferte";
 import { WerfStartPage } from "../screens/WerfStart";
 import { OpmetingPage } from "../screens/Opmeting";
+import { MijnVorderingPage, VorderingenPage } from "../screens/Vorderingen";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -185,6 +186,9 @@ function navFor(caps: Caps): NavItem[] {
   if (caps.quotes && caps.home !== "offertes") items.push({ key: "offertes", label: t.nav.offertes, icon: "euro" });
   // 2.9: opmeting ter plaatse (hoeveelheden, geen prijzen): interne rollen en OA; architect en klant enkel als de beheerder het toelaat.
   if (caps.measureRead) items.push({ key: "opmeting", label: t.nav.opmeting, icon: "ruler" });
+  // 2.10: vorderingsstaten (admin en calculator met bedragen; de werfleider bereidt de hoeveelheden voor) en die van de klant.
+  if (caps.progress) items.push({ key: "vorderingen", label: t.nav.vorderingen, icon: "receipt" });
+  if (caps.myProgress) items.push({ key: "mijn-vordering", label: t.nav.mijnVordering, icon: "receipt" });
   // 2.2: de postenbibliotheek (interne rollen lezen zonder prijzen; beheerder en calculator bewerken en zien de prijzen).
   if (caps.readLibrary) items.push({ key: "posten", label: t.nav.posten, icon: "doc" });
   // 1b.1: vergunningen over alle werven (admin, werfleider) en de kennisbank per gemeente (interne rollen).
@@ -241,6 +245,12 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "opmeting":
         return <OpmetingPage go={go} route={route} />;
+      case "vorderingen":
+        if (caps.progress) return <VorderingenPage caps={caps} go={go} route={route} />;
+        return <Home kind={caps.home} go={go} caps={caps} />;
+      case "mijn-vordering":
+        if (caps.myProgress) return <MijnVorderingPage go={go} route={route} />;
+        return <Home kind={caps.home} go={go} caps={caps} />;
       case "mijn-offerte":
         if (caps.myQuotes) return <MijnOffertePage go={go} route={route} />;
         return null;

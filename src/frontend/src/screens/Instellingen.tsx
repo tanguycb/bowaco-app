@@ -61,6 +61,7 @@ export function Instellingen() {
       )}
       <QuoteNumbers />
       <OpmetingAdmin />
+      <VorderingAdmin />
       <QuoteRulesAdmin />
       <QuoteDocsAdmin />
       <CompanyCalendar />
@@ -116,6 +117,42 @@ function OpmetingAdmin() {
           </Field>
           <p className="bw-muted">{T.externalReadHint}</p>
           <div><Button variant="primary" busy={save.isPending} disabled={!valid} onClick={() => save.mutate()}>{T.save}</Button></div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** 2.10: de vorderingsstaten: klantakkoord (uit, mogelijk, vereist) en de basis van de inhouding (excl. of incl. btw). */
+function VorderingAdmin() {
+  const T = t.vorderingen.settings;
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const cur = useQuery({ queryKey: ["progressSettings"], queryFn: () => actor!.progressSettings(), enabled: !!actor && !isFetching });
+  const [client, setClient] = useState("mogelijk");
+  const [incl, setIncl] = useState(false);
+  useEffect(() => { if (cur.data) { setClient(cur.data.client); setIncl(cur.data.retentionOnIncl); } }, [cur.data]);
+  const save = useMutation({
+    mutationFn: async () => unwrap(await actor!.saveProgressSettings({ client, retentionOnIncl: incl })),
+    onSuccess: () => { toast.show({ kind: "ok", text: T.saved }); void qc.invalidateQueries({ queryKey: ["progressSettings"] }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  return (
+    <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="progress-settings">
+      <h2 className="bw-h2">{T.title}</h2>
+      <p className="bw-muted">{T.lead}</p>
+      <Loading q={cur} />
+      {cur.data && (
+        <>
+          <Field label={T.client}>
+            <Choice label={T.client} value={client} onChange={setClient} options={["uit", "mogelijk", "vereist"].map((k) => ({ value: k, label: T.clientOpts[k] }))} />
+          </Field>
+          <p className="bw-muted">{T.clientHint}</p>
+          <Field label={T.retentionIncl}>
+            <Choice label={T.retentionIncl} value={incl ? "incl" : "excl"} onChange={(v) => setIncl(v === "incl")} options={["excl", "incl"].map((k) => ({ value: k, label: T.retentionOpts[k] }))} />
+          </Field>
+          <div><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{T.save}</Button></div>
         </>
       )}
     </section>

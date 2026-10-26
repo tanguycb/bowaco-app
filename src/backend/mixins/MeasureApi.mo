@@ -84,7 +84,7 @@ mixin (
             var less = 0;
             var pending = 0;
             for (x in ps.values()) {
-              let a = switch (agg.get(x.root)) { case (?a) a; case null { { measured = 0; closed = 0; count = 0; pending = 0; lastDay = null; complete = false; lastId = 0 } } };
+              let a = switch (agg.get(x.root)) { case (?a) a; case null { { measured = 0; closed = 0; count = 0; pending = 0; pendingMilli = 0; lastDay = null; complete = false; lastId = 0 } } };
               let m = if (sc == #closed) a.closed else a.measured;
               if (a.count > 0) { measured += 1 };
               pending += a.pending;
@@ -436,7 +436,7 @@ mixin (
     let snap = List.empty<Types.SurveyPostSnap>();
     let seen = Map.empty<Nat, Bool>();
     for (x in ps.values()) {
-      let a = switch (agg.get(x.root)) { case (?a) a; case null { { measured = 0; closed = 0; count = 0; pending = 0; lastDay = null; complete = false; lastId = 0 } } };
+      let a = switch (agg.get(x.root)) { case (?a) a; case null { { measured = 0; closed = 0; count = 0; pending = 0; pendingMilli = 0; lastDay = null; complete = false; lastId = 0 } } };
       seen.add(x.root, true);
       snap.add({ root = x.root; lineId = x.line.id; versionId = x.version.id; vhMilli = x.line.qtyMilli; unit = x.line.unit; measuredMilli = a.measured; deltaMilli = switch (delta.get(x.root)) { case (?d) d; case null 0 }; complete = a.complete });
     };
@@ -509,7 +509,7 @@ mixin (
     var less = 0;
     var pendingAll = 0;
     func add(root : Nat, line : Types.QuoteLine, versionId : Nat, qlabel : Text, versionNo : Nat, chapter : ?Types.QuoteChapter, option : Bool, inOffer : Bool) {
-      let a = switch (agg.get(root)) { case (?a) a; case null { { measured = 0; closed = 0; count = 0; pending = 0; lastDay = null; complete = false; lastId = 0 } } };
+      let a = switch (agg.get(root)) { case (?a) a; case null { { measured = 0; closed = 0; count = 0; pending = 0; pendingMilli = 0; lastDay = null; complete = false; lastId = 0 } } };
       let m = if (closedScope) a.closed else a.measured;
       let (diff, bp, flag) = Measure.compare(line.qtyMilli, m, a.count, a.complete, thr);
       if (a.count > 0) { measuredPosts += 1 };
@@ -539,6 +539,7 @@ mixin (
         complete = a.complete;
         entryCount = a.count;
         pendingCount = if (closedScope) 0 else a.pending;
+        pendingMilli = if (closedScope) 0 else a.pendingMilli;
         lastDay = a.lastDay;
       });
     };

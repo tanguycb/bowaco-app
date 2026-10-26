@@ -351,6 +351,7 @@ export interface Caps {
     readTeam: boolean;
     permits: boolean;
     manageTemplates: boolean;
+    progress: boolean;
     upload: boolean;
     readLibrary: boolean;
     editQuotes: boolean;
@@ -366,6 +367,7 @@ export interface Caps {
     manageVehicles: boolean;
     readConfidentialContact: boolean;
     workStarts: boolean;
+    myProgress: boolean;
     readAudit: boolean;
     readOa: boolean;
 }
@@ -432,6 +434,13 @@ export type Confidential_1 = {
     __kind__: "plain";
     plain: string;
 };
+export type Confidential_10 = {
+    __kind__: "sealed";
+    sealed: Sealed;
+} | {
+    __kind__: "plain";
+    plain: ContractParams;
+};
 export type Confidential_2 = {
     __kind__: "sealed";
     sealed: Sealed;
@@ -451,28 +460,42 @@ export type Confidential_4 = {
     sealed: Sealed;
 } | {
     __kind__: "plain";
-    plain: LibSellRule | null;
+    plain: ProgressFrozen;
 };
 export type Confidential_5 = {
     __kind__: "sealed";
     sealed: Sealed;
 } | {
     __kind__: "plain";
-    plain: bigint;
+    plain: RevisionModel;
 };
 export type Confidential_6 = {
     __kind__: "sealed";
     sealed: Sealed;
 } | {
     __kind__: "plain";
-    plain: Contact;
+    plain: bigint | null;
 };
 export type Confidential_7 = {
     __kind__: "sealed";
     sealed: Sealed;
 } | {
     __kind__: "plain";
-    plain: ContractParams;
+    plain: LibSellRule | null;
+};
+export type Confidential_8 = {
+    __kind__: "sealed";
+    sealed: Sealed;
+} | {
+    __kind__: "plain";
+    plain: bigint;
+};
+export type Confidential_9 = {
+    __kind__: "sealed";
+    sealed: Sealed;
+} | {
+    __kind__: "plain";
+    plain: Contact;
 };
 export type Confirmation = {
     __kind__: "open";
@@ -852,7 +875,10 @@ export interface ExportConfidential {
     workConfidentialHistory: Array<WorkConfidentialVersion>;
     persons: Array<[PersonId, ContactConfidentialView]>;
     workConfidential: Array<WorkConfidential>;
+    progressConf: Array<ProgressConf>;
     quoteVersionConf: Array<QuoteVersionConf>;
+    progressFrozen: Array<[bigint, Confidential_4]>;
+    progressRevisions: Array<ProgressRevision>;
 }
 export interface ExportIntern {
     at: bigint;
@@ -867,6 +893,7 @@ export interface ExportIntern {
     attendances: Array<Attendance>;
     lookups: Array<LookupView>;
     measureOps: Array<SurveyOpRecord>;
+    progressStatements: Array<ProgressStatement>;
     assignments: Array<Assignment>;
     notifications: Array<NotificationExport>;
     procedures: Array<PermitProcedure>;
@@ -882,6 +909,7 @@ export interface ExportIntern {
     importKeys: Array<ImportKey>;
     values: Array<[string, string]>;
     planVersions: Array<[WorkId, bigint]>;
+    progressAnswers: Array<ProgressAnswer>;
     quoteLines: Array<QuoteLine>;
     calendarBlocks: Array<CalendarBlock>;
     hoursConfirmations: Array<HoursConfirmation>;
@@ -903,6 +931,7 @@ export interface ExportIntern {
     counters: Array<[string, bigint]>;
     appointments: Array<Appointment>;
     materials: Array<MaterialNote>;
+    progressInputs: Array<[bigint, Array<ProgressInput>]>;
     dependencies: Array<Dependency>;
     surveyKeys: Array<[string, bigint]>;
     libItems: Array<LibItem>;
@@ -1814,6 +1843,7 @@ export interface MeasurePostView {
     complete: boolean;
     diffBp?: bigint;
     measuredMilli: bigint;
+    pendingMilli: bigint;
     inOffer: boolean;
     diffMilli: bigint;
     lastDay?: bigint;
@@ -1944,6 +1974,36 @@ export interface MyDayView {
     writer: boolean;
     drivers: Array<PersonRef>;
     works: Array<DayWork>;
+}
+export interface MyProgressBrief {
+    id: bigint;
+    workName: string;
+    periodFrom: bigint;
+    creditedBy: boolean;
+    code: string;
+    kind: ProgressKind;
+    answered?: boolean;
+    sentAt: bigint;
+    periodTo: bigint;
+}
+export interface MyProgressRead {
+    id: bigint;
+    doc: ProgressDocInfo;
+    periodFrom: bigint;
+    creditedByCode: string;
+    clientMode: string;
+    code: string;
+    hash: string;
+    kind: ProgressKind;
+    note: string;
+    answer?: ProgressAnswerView;
+    sentAt: bigint;
+    lines: Array<ProgressLineFrozen>;
+    totals: ProgressTotals;
+    intact: boolean;
+    canAnswer: boolean;
+    periodTo: bigint;
+    creditsCode: string;
 }
 export interface MyQuoteAnswered {
     at: bigint;
@@ -2510,6 +2570,398 @@ export interface ProcedureInput {
     archived: boolean;
     portal?: string;
 }
+export interface ProgressAnswer {
+    at: bigint;
+    ok: boolean;
+    principal: Principal;
+    hash: string;
+    note: string;
+    statementId: bigint;
+    extra: Extra;
+    personId: PersonId;
+}
+export interface ProgressAnswerView {
+    at: bigint;
+    ok: boolean;
+    byName: string;
+    note: string;
+}
+export type ProgressBilling = {
+    __kind__: "open";
+    open: null;
+} | {
+    __kind__: "invoiced";
+    invoiced: {
+        at: bigint;
+        by?: PersonId;
+        ref: string;
+    };
+} | {
+    __kind__: "ready";
+    ready: {
+        at: bigint;
+        by: PersonId;
+    };
+};
+export interface ProgressBrief {
+    id: bigint;
+    rev: bigint;
+    workName: string;
+    periodFrom: bigint;
+    status: ProgressStatus;
+    credits?: bigint;
+    creditedByCode: string;
+    creditedBy?: bigint;
+    code: string;
+    kind: ProgressKind;
+    billing: string;
+    answer?: {
+        at: bigint;
+        ok: boolean;
+    };
+    preparedByName: string;
+    sentAt?: bigint;
+    updatedByName: string;
+    updatedAt: bigint;
+    number: bigint;
+    prepared: boolean;
+    periodTo: bigint;
+    workId: bigint;
+    creditsCode: string;
+    workCode: string;
+}
+export interface ProgressConf {
+    statementId: bigint;
+    sIndex: Confidential_3;
+    iIndex: Confidential_3;
+    extra: Extra;
+    reason: Confidential_1;
+}
+export interface ProgressDocInfo {
+    workName: string;
+    quoteRefs: Array<string>;
+    analyticCode: string;
+    clientName: string;
+    clientAddress?: Address;
+    guarantee: GuaranteeKind;
+    issuer: string;
+    retentionOnIncl: boolean;
+    workAddress: Address;
+    dueDay: bigint;
+    paymentDays: bigint;
+    sendDay: bigint;
+    clientVat?: string;
+    revision?: ProgressRevisionFrozen;
+    vatNote: string;
+    workCode: string;
+}
+export interface ProgressExpect {
+    payableCents: bigint;
+    totalCents: bigint;
+    vatCents: bigint;
+    revisionCents: bigint;
+    periodCents: bigint;
+}
+export interface ProgressFinding {
+    key: string;
+    count: bigint;
+    text: string;
+    block: boolean;
+}
+export interface ProgressFrozen {
+    workName: string;
+    quoteRefs: Array<string>;
+    analyticCode: string;
+    clientName: string;
+    statementId: bigint;
+    clientAddress?: Address;
+    lines: Array<ProgressLineFrozen>;
+    extra: Extra;
+    guarantee: GuaranteeKind;
+    issuer: string;
+    retentionOnIncl: boolean;
+    workAddress: Address;
+    totals: ProgressTotals;
+    dueDay: Day;
+    paymentDays: bigint;
+    sendDay: Day;
+    clientVat?: string;
+    revision?: ProgressRevisionFrozen;
+    vatNote: string;
+    workCode: string;
+}
+export interface ProgressFullView {
+    doc?: ProgressDocInfo;
+    canCancel: boolean;
+    clientMode: string;
+    clientNote: string;
+    hash: string;
+    note: string;
+    canReady: boolean;
+    canEdit: boolean;
+    canSend: boolean;
+    answer?: ProgressAnswerView;
+    lines: Array<ProgressLineView>;
+    totals: ProgressTotals;
+    intact: boolean;
+    findings: Array<ProgressFinding>;
+    frozen: boolean;
+    brief: ProgressBrief;
+    unassignedRegieMilli: bigint;
+    canCredit: boolean;
+    openSurvey?: bigint;
+    reason: string;
+    header: ProgressHeader;
+}
+export interface ProgressHeader {
+    model?: RevisionModel;
+    vatBp: bigint;
+    sIndex?: bigint;
+    iIndex?: bigint;
+    retentionBp: bigint;
+    guarantee: GuaranteeKind;
+    retentionOnIncl: boolean;
+    signedVersion: string;
+    contractFound: boolean;
+    paymentDays: bigint;
+    originalContractCents?: bigint;
+    formula: string;
+    vatNote: string;
+}
+export interface ProgressHints {
+    hoursOpenMilli: bigint;
+    planPctBp?: bigint;
+    measuredSurvey?: bigint;
+    measuredMilli?: bigint;
+    hoursMilli?: bigint;
+    hoursDisputedMilli: bigint;
+}
+export interface ProgressInput {
+    at: bigint;
+    by: PersonId;
+    cumPctBp?: bigint;
+    note: string;
+    root: bigint;
+    cumQtyMilli?: bigint;
+}
+export interface ProgressInputOp {
+    cumPctBp?: bigint;
+    clear: boolean;
+    note: string;
+    root: bigint;
+    cumQtyMilli?: bigint;
+}
+export interface ProgressInvoiceData {
+    periodFrom: bigint;
+    buyerAddress?: Address;
+    payableCents: bigint;
+    documentType: string;
+    lineTotalCents: bigint;
+    vatBp: bigint;
+    hash: string;
+    totalCents: bigint;
+    chargeCents: bigint;
+    vatCents: bigint;
+    taxableCents: bigint;
+    billing: string;
+    retentionCents: bigint;
+    contractRef: string;
+    billingRef: string;
+    seller: string;
+    lines: Array<ProgressInvoiceLine>;
+    currency: string;
+    dueDay: bigint;
+    number: string;
+    paymentDays: bigint;
+    taxCategory: string;
+    buyerVat?: string;
+    issueDay: bigint;
+    periodTo: bigint;
+    projectRef: string;
+    buyerName: string;
+    taxNote: string;
+}
+export interface ProgressInvoiceLine {
+    id: string;
+    quantityMilli: bigint;
+    section: string;
+    description: string;
+    amountCents: bigint;
+    priceCents: bigint;
+    unitCode: string;
+}
+export interface ProgressLineFrozen {
+    cumPctBp: bigint;
+    offerCents: bigint;
+    versionId: bigint;
+    title: string;
+    unitPriceCents: bigint;
+    prevQtyMilli: bigint;
+    prevCents: bigint;
+    code: string;
+    note: string;
+    root: bigint;
+    unit: string;
+    section: ProgressSection;
+    quoteNumber: string;
+    cumQtyMilli: bigint;
+    periodCents: bigint;
+    offerQtyMilli: bigint;
+    cumCents: bigint;
+    prevPctBp: bigint;
+    basis: ProgressBasis;
+    chapter: string;
+    lineId: bigint;
+}
+export interface ProgressLineView {
+    m: ProgressMoney;
+    q: ProgressQtyLine;
+}
+export interface ProgressMoney {
+    offerCents: bigint;
+    unitPriceCents: bigint;
+    prevCents: bigint;
+    restCents: bigint;
+    periodCents: bigint;
+    cumCents: bigint;
+    overVhCents: bigint;
+    noPrice: boolean;
+}
+export interface ProgressQtyLine {
+    flags: Array<string>;
+    cumPctBp: bigint;
+    versionId: bigint;
+    title: string;
+    hints: ProgressHints;
+    prevQtyMilli: bigint;
+    code: string;
+    form: ContractForm;
+    note: string;
+    hasInput: boolean;
+    root: bigint;
+    unit: string;
+    section: ProgressSection;
+    quoteNumber: string;
+    cumQtyMilli: bigint;
+    offerQtyMilli: bigint;
+    prevPctBp: bigint;
+    basis: ProgressBasis;
+    inOffer: boolean;
+    chapter: string;
+    lineId: bigint;
+}
+export interface ProgressQtyView {
+    note: string;
+    canEdit: boolean;
+    lines: Array<ProgressQtyLine>;
+    scope: string;
+    brief: ProgressBrief;
+    unassignedRegieMilli: bigint;
+    canPrepare: boolean;
+    openSurvey?: bigint;
+}
+export interface ProgressRevision {
+    at: bigint;
+    by: PersonId;
+    model: Confidential_5;
+    extra: Extra;
+    version: bigint;
+    workId: WorkId;
+}
+export interface ProgressRevisionFrozen {
+    aBp: bigint;
+    bBp: bigint;
+    cBp: bigint;
+    sIndex: bigint;
+    iIndex: bigint;
+    sBase: bigint;
+    iBase: bigint;
+    formula: string;
+    sLabel: string;
+    iLabel: string;
+}
+export interface ProgressSaveInput {
+    setIndexes: boolean;
+    note?: string;
+    sIndex?: bigint;
+    iIndex?: bigint;
+    lines: Array<ProgressInputOp>;
+    periodTo?: bigint;
+    expect?: ProgressExpect;
+}
+export interface ProgressSaved {
+    rev: bigint;
+}
+export interface ProgressSectionTotals {
+    offerCents: bigint;
+    prevCents: bigint;
+    section: ProgressSection;
+    periodCents: bigint;
+    cumCents: bigint;
+}
+export interface ProgressSettings {
+    client: string;
+    retentionOnIncl: boolean;
+}
+export interface ProgressStatement {
+    id: bigint;
+    rev: bigint;
+    periodFrom: Day;
+    status: ProgressStatus;
+    credits?: bigint;
+    calcVersion: bigint;
+    creditedBy?: bigint;
+    code: string;
+    hash: string;
+    kind: ProgressKind;
+    note: string;
+    createdAt: bigint;
+    createdBy: PersonId;
+    billing: ProgressBilling;
+    sentAt?: bigint;
+    sentBy?: PersonId;
+    extra: Extra;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    number: bigint;
+    prepared?: {
+        at: bigint;
+        by: PersonId;
+    };
+    periodTo: Day;
+    cancelReason: string;
+    workId: WorkId;
+}
+export interface ProgressTotals {
+    subtotalCents: bigint;
+    offerCents: bigint;
+    payableCents: bigint;
+    revisionBaseCents: bigint;
+    prevCents: bigint;
+    vatBp: bigint;
+    totalCents: bigint;
+    vatCents: bigint;
+    revisionCents: bigint;
+    retentionCents: bigint;
+    retentionBp: bigint;
+    restCents: bigint;
+    periodCents: bigint;
+    cumCents: bigint;
+    overVhCents: bigint;
+    sections: Array<ProgressSectionTotals>;
+}
+export interface ProgressWorkBrief {
+    code: string;
+    name: string;
+    sent: bigint;
+    lastTo?: bigint;
+    scope: string;
+    posts: bigint;
+    workId: bigint;
+    lastCode: string;
+    ready: bigint;
+    draftId?: bigint;
+}
 export interface ProposalView {
     at: bigint;
     by: Principal;
@@ -2741,8 +3193,8 @@ export interface QuoteLinePrice {
     versionId: bigint;
     source: string;
     orgId?: OrgId;
-    cost: Confidential_3;
-    rule: Confidential_4;
+    cost: Confidential_6;
+    rule: Confidential_7;
     libCostId?: bigint;
     extra: Extra;
     lineId: bigint;
@@ -2998,7 +3450,7 @@ export interface QuoteVersionBrief {
 }
 export interface QuoteVersionConf {
     versionId: bigint;
-    standardMarginBp: Confidential_5;
+    standardMarginBp: Confidential_8;
     extra: Extra;
 }
 export interface QuoteVersionView {
@@ -3230,6 +3682,9 @@ export type RestorePart = {
     __kind__: "audit";
     audit: Array<AuditEntry>;
 } | {
+    __kind__: "progressStatements";
+    progressStatements: Array<ProgressStatement>;
+} | {
     __kind__: "assignments";
     assignments: Array<Assignment>;
 } | {
@@ -3274,6 +3729,9 @@ export type RestorePart = {
 } | {
     __kind__: "planVersions";
     planVersions: Array<[WorkId, bigint]>;
+} | {
+    __kind__: "progressAnswers";
+    progressAnswers: Array<ProgressAnswer>;
 } | {
     __kind__: "quoteLines";
     quoteLines: Array<QuoteLine>;
@@ -3350,6 +3808,12 @@ export type RestorePart = {
     __kind__: "materials";
     materials: Array<MaterialNote>;
 } | {
+    __kind__: "progressInputs";
+    progressInputs: Array<[bigint, Array<ProgressInput>]>;
+} | {
+    __kind__: "progressConf";
+    progressConf: Array<ProgressConf>;
+} | {
     __kind__: "dependencies";
     dependencies: Array<Dependency>;
 } | {
@@ -3364,6 +3828,9 @@ export type RestorePart = {
 } | {
     __kind__: "quoteVersionConf";
     quoteVersionConf: Array<QuoteVersionConf>;
+} | {
+    __kind__: "progressFrozen";
+    progressFrozen: Array<[bigint, Confidential_4]>;
 } | {
     __kind__: "robots";
     robots: Array<RobotView>;
@@ -3431,6 +3898,9 @@ export type RestorePart = {
     __kind__: "photos";
     photos: Array<Photo>;
 } | {
+    __kind__: "progressRevisions";
+    progressRevisions: Array<ProgressRevision>;
+} | {
     __kind__: "linkHistory";
     linkHistory: Array<LinkHistory>;
 } | {
@@ -3482,56 +3952,56 @@ export type Result_11 = {
 };
 export type Result_12 = {
     __kind__: "ok";
-    ok: MunicipalityView;
+    ok: ProgressSaved;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_13 = {
     __kind__: "ok";
-    ok: PermitView;
+    ok: MunicipalityView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_14 = {
     __kind__: "ok";
-    ok: OrgContactView;
+    ok: PermitView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_15 = {
     __kind__: "ok";
-    ok: OaPersonView;
+    ok: OrgContactView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_16 = {
     __kind__: "ok";
-    ok: LibItemView;
+    ok: OaPersonView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_17 = {
     __kind__: "ok";
-    ok: DeclarationView;
+    ok: LibItemView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_18 = {
     __kind__: "ok";
-    ok: RollbackReport;
+    ok: DeclarationView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_19 = {
     __kind__: "ok";
-    ok: RestoreSummary;
+    ok: RollbackReport;
 } | {
     __kind__: "err";
     err: string;
@@ -3545,70 +4015,70 @@ export type Result_2 = {
 };
 export type Result_20 = {
     __kind__: "ok";
-    ok: MeView;
+    ok: RestoreSummary;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_21 = {
     __kind__: "ok";
-    ok: OaWithholding;
+    ok: MeView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_22 = {
     __kind__: "ok";
-    ok: QuoteRead;
+    ok: OaWithholding;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_23 = {
     __kind__: "ok";
-    ok: ContactConfidentialView;
+    ok: QuoteRead;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_24 = {
     __kind__: "ok";
-    ok: MyQuoteRead;
+    ok: ProgressFullView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_25 = {
     __kind__: "ok";
-    ok: LibPrices;
+    ok: RevisionModel | null;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_26 = {
     __kind__: "ok";
-    ok: LibPriceHistory;
+    ok: ContactConfidentialView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_27 = {
     __kind__: "ok";
-    ok: Array<ContractVersionView>;
+    ok: MyQuoteRead;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_28 = {
     __kind__: "ok";
-    ok: ContractView;
+    ok: MyProgressRead;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_29 = {
     __kind__: "ok";
-    ok: FileView;
+    ok: LibPrices;
 } | {
     __kind__: "err";
     err: string;
@@ -3622,70 +4092,70 @@ export type Result_3 = {
 };
 export type Result_30 = {
     __kind__: "ok";
-    ok: PlanPreview;
+    ok: LibPriceHistory;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_31 = {
     __kind__: "ok";
-    ok: MailOut;
+    ok: Array<ContractVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_32 = {
     __kind__: "ok";
-    ok: MailPreview;
+    ok: ContractView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_33 = {
     __kind__: "ok";
-    ok: FineResult;
+    ok: FileView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_34 = {
     __kind__: "ok";
-    ok: Array<LibItemVersionView>;
+    ok: ProgressInvoiceData;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_35 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: PlanPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_36 = {
     __kind__: "ok";
-    ok: PlanImportReport;
+    ok: MailOut;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_37 = {
     __kind__: "ok";
-    ok: ImportReport;
+    ok: MailPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_38 = {
     __kind__: "ok";
-    ok: OaView;
+    ok: FineResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_39 = {
     __kind__: "ok";
-    ok: RestorePart;
+    ok: Array<LibItemVersionView>;
 } | {
     __kind__: "err";
     err: string;
@@ -3699,49 +4169,70 @@ export type Result_4 = {
 };
 export type Result_40 = {
     __kind__: "ok";
-    ok: MyQuoteAnswered;
+    ok: NewCode;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_41 = {
     __kind__: "ok";
-    ok: DeclarationDraft;
+    ok: PlanImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_42 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: ImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_43 = {
     __kind__: "ok";
-    ok: QuoteCreated;
+    ok: OaView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_44 = {
     __kind__: "ok";
-    ok: CiawExport;
+    ok: RestorePart;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_45 = {
     __kind__: "ok";
-    ok: TicketInfo;
+    ok: MyQuoteAnswered;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_46 = {
     __kind__: "ok";
-    ok: Array<QuoteFinding>;
+    ok: DeclarationDraft;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_47 = {
+    __kind__: "ok";
+    ok: NewTicket;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_48 = {
+    __kind__: "ok";
+    ok: QuoteCreated;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_49 = {
+    __kind__: "ok";
+    ok: CiawExport;
 } | {
     __kind__: "err";
     err: string;
@@ -3749,6 +4240,20 @@ export type Result_46 = {
 export type Result_5 = {
     __kind__: "ok";
     ok: WorkStartDone;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_50 = {
+    __kind__: "ok";
+    ok: TicketInfo;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_51 = {
+    __kind__: "ok";
+    ok: Array<QuoteFinding>;
 } | {
     __kind__: "err";
     err: string;
@@ -3781,6 +4286,16 @@ export type Result_9 = {
     __kind__: "err";
     err: string;
 };
+export interface RevisionModel {
+    aBp: bigint;
+    bBp: bigint;
+    cBp: bigint;
+    note: string;
+    sBase: bigint;
+    iBase: bigint;
+    sLabel: string;
+    iLabel: string;
+}
 export interface RobotSeen {
     name: string;
     lastSeen?: bigint;
@@ -4190,24 +4705,24 @@ export interface WorkCaps {
     setLeader: boolean;
 }
 export interface WorkConfidential {
-    contract: Confidential_7;
+    contract: Confidential_10;
     extra: Extra;
     version: bigint;
     updatedAt: bigint;
     updatedBy: PersonId;
     notes: Confidential_1;
     workId: WorkId;
-    clientContact: Confidential_6;
+    clientContact: Confidential_9;
 }
 export interface WorkConfidentialVersion {
     at: bigint;
     by: PersonId;
     id: bigint;
-    contract: Confidential_7;
+    contract: Confidential_10;
     version: bigint;
     notes: Confidential_1;
     workId: WorkId;
-    clientContact: Confidential_6;
+    clientContact: Confidential_9;
 }
 export interface WorkDone {
     id: bigint;
@@ -4608,6 +5123,26 @@ export enum PermitStatus {
     extended = "extended",
     refused = "refused"
 }
+export enum ProgressBasis {
+    hours = "hours",
+    percent = "percent",
+    quantity = "quantity"
+}
+export enum ProgressKind {
+    statement = "statement",
+    credit = "credit"
+}
+export enum ProgressSection {
+    contract = "contract",
+    less = "less",
+    extra = "extra",
+    regie = "regie"
+}
+export enum ProgressStatus {
+    cancelled = "cancelled",
+    sent = "sent",
+    draft = "draft"
+}
 export enum QuoteLineKind {
     option = "option",
     item = "item",
@@ -4679,7 +5214,7 @@ export enum WorkStatus {
 }
 export interface backendInterface {
     absenceHistory(orgId: bigint, from: bigint, limit: bigint): Promise<Array<AbsenceChangeView>>;
-    acceptMyQuote(versionId: bigint, hash: string): Promise<Result_40>;
+    acceptMyQuote(versionId: bigint, hash: string): Promise<Result_45>;
     accessStats(): Promise<AccessStats>;
     addDependency(workId: bigint, i: DependencyInput, expectedVersion: bigint): Promise<Result_10>;
     addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_4>;
@@ -4687,6 +5222,7 @@ export interface backendInterface {
     addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_4>;
     addQuoteTerms(i: QuoteTermsInput): Promise<Result_4>;
     addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_6>;
+    answerMyProgress(id: bigint, hash: string, ok: boolean, note: string): Promise<Result_6>;
     applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_10>;
     applyTemplate(workId: bigint, key: string, startDay: bigint, append: boolean, expectedVersion: bigint): Promise<Result_10>;
     archiveAbsence(id: bigint): Promise<Result_6>;
@@ -4700,40 +5236,42 @@ export interface backendInterface {
     archivePerson(id: bigint): Promise<Result_6>;
     archiveTask(workId: bigint, taskId: bigint, expectedVersion: bigint): Promise<Result_4>;
     attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_4>;
-    attachPermitFile(permitId: bigint, fileId: bigint): Promise<Result_13>;
+    attachPermitFile(permitId: bigint, fileId: bigint): Promise<Result_14>;
     auditCount(): Promise<bigint>;
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
     boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
     boardRules(): Promise<BoardRulesView>;
     cancelJob(id: bigint): Promise<Result_6>;
-    checkQuoteVersion(versionId: bigint): Promise<Result_46>;
-    checkTicket(ticket: string): Promise<Result_45>;
-    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_44>;
+    cancelProgressDraft(id: bigint, reason: string): Promise<Result_6>;
+    checkQuoteVersion(versionId: bigint): Promise<Result_51>;
+    checkTicket(ticket: string): Promise<Result_50>;
+    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_49>;
     claimBootstrap(code: string, name: string): Promise<Result_2>;
     completeJob(id: bigint, attempt: bigint, result: string): Promise<Result_6>;
     confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_6>;
     confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_6>;
     confirmLink(p: Principal): Promise<Result_6>;
     createOrg(input: OrgInput): Promise<Result_3>;
-    createQuote(i: QuoteNew): Promise<Result_43>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_35>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_42>;
+    createQuote(i: QuoteNew): Promise<Result_48>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_40>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_47>;
     createWork(i: WorkInput): Promise<Result_1>;
+    creditProgress(id: bigint, reason: string): Promise<Result_4>;
     dashboard(day: bigint): Promise<DashboardView>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_6>;
     decideQuoteVersion(versionId: bigint, accepted: boolean, note: string): Promise<Result_6>;
-    declarationDraft(workId: bigint): Promise<Result_41>;
-    declineMyQuote(versionId: bigint, hash: string, note: string): Promise<Result_40>;
+    declarationDraft(workId: bigint): Promise<Result_46>;
+    declineMyQuote(versionId: bigint, hash: string, note: string): Promise<Result_45>;
     dismissWorkStart(versionId: bigint, reason: string): Promise<Result_5>;
     endMembership(id: bigint): Promise<Result_6>;
-    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_39>;
+    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_44>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
     failJob(id: bigint, attempt: bigint, why: string, retry: boolean): Promise<Result_6>;
     getDossier(workId: bigint): Promise<DossierView>;
-    getLibraryItem(id: bigint): Promise<Result_16>;
+    getLibraryItem(id: bigint): Promise<Result_17>;
     getMeasureSurvey(surveyId: bigint): Promise<SurveyDetail>;
-    getOa(id: bigint): Promise<Result_38>;
+    getOa(id: bigint): Promise<Result_43>;
     getPlan(workId: bigint): Promise<PlanView>;
     getQuoteDocSettings(): Promise<QuoteDocSettings>;
     getQuoteRules(): Promise<QuoteRulesView>;
@@ -4742,13 +5280,13 @@ export interface backendInterface {
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
     handleIssue(issueId: bigint, note: string): Promise<Result_6>;
-    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_37>;
-    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_36>;
-    inviteExistingPerson(i: ExistingInvite): Promise<Result_35>;
-    invitePerson(req: InviteRequest): Promise<Result_35>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_42>;
+    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_41>;
+    inviteExistingPerson(i: ExistingInvite): Promise<Result_40>;
+    invitePerson(req: InviteRequest): Promise<Result_40>;
     leaseJobs(max: bigint): Promise<Array<JobLease>>;
     libraryChapters(includeArchived: boolean): Promise<Array<LibChapterView>>;
-    libraryItemHistory(id: bigint): Promise<Result_34>;
+    libraryItemHistory(id: bigint): Promise<Result_39>;
     libraryUnits(includeArchived: boolean): Promise<Array<UnitView>>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
@@ -4765,12 +5303,14 @@ export interface backendInterface {
     listMeasureWorks(): Promise<Array<MeasureWorkBrief>>;
     listMembers(workId: bigint): Promise<Array<MembershipView>>;
     listMunicipalities(withArchived: boolean): Promise<Array<MunicipalityView>>;
+    listMyProgress(): Promise<Array<MyProgressBrief>>;
     listMyQuotes(): Promise<Array<MyQuoteBrief>>;
     listOas(f: OaFilter): Promise<Array<OaView>>;
     listOrgs(includeArchived: boolean): Promise<Array<OrgView>>;
     listPermitKinds(withArchived: boolean): Promise<Array<PermitKindView>>;
     listPermits(filter: string, workId: bigint | null): Promise<Array<PermitView>>;
     listPersons(includeArchived: boolean): Promise<Array<PersonView>>;
+    listProgress(workId: bigint): Promise<Array<ProgressBrief>>;
     listQuotes(workId: bigint | null, includeArchived: boolean): Promise<Array<QuoteSummary>>;
     listReports(workId: bigint, offset: bigint, limit: bigint): Promise<Array<ReportSummary>>;
     listRobots(): Promise<Array<RobotView>>;
@@ -4780,10 +5320,11 @@ export interface backendInterface {
     listVehicles(withArchived: boolean): Promise<Array<VehicleView>>;
     listWorks(): Promise<Array<WorkView>>;
     loadLibraryStartChapters(): Promise<Result_4>;
-    lookupFine(q: FineQuery): Promise<Result_33>;
-    mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_32>;
+    lookupFine(q: FineQuery): Promise<Result_38>;
+    mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_37>;
     mailQuoteToClient(versionId: bigint): Promise<Result_6>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
+    markProgressPrepared(id: bigint): Promise<Result_6>;
     me(): Promise<MeView>;
     measurePost(workId: bigint, root: bigint): Promise<MeasurePostDetail>;
     measureSettings(): Promise<MeasureSettingsView>;
@@ -4795,6 +5336,7 @@ export interface backendInterface {
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
     myProposals(): Promise<Array<ProposalView>>;
     myWorks(): Promise<Array<ExternalWork>>;
+    newProgress(workId: bigint): Promise<Result_4>;
     newQuoteVersion(quoteId: bigint, fromVersionId: bigint | null): Promise<Result_4>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
     pendingWorkStarts(workId: bigint | null): Promise<Array<WorkStartPending>>;
@@ -4805,54 +5347,65 @@ export interface backendInterface {
     }>;
     permitsOnSite(day: bigint): Promise<Array<PermitView>>;
     postSettings(): Promise<PostSettingsView>;
-    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_30>;
-    previewMail(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_31>;
-    previewPlan(workId: bigint, change: PlanChange): Promise<Result_30>;
+    previewDependency(workId: bigint, i: DependencyInput): Promise<Result_35>;
+    previewMail(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_36>;
+    previewPlan(workId: bigint, change: PlanChange): Promise<Result_35>;
+    progressInvoiceData(id: bigint): Promise<Result_34>;
+    progressQty(id: bigint): Promise<ProgressQtyView>;
+    progressSettings(): Promise<ProgressSettings>;
+    progressWorks(): Promise<Array<ProgressWorkBrief>>;
     queueReminders(monday: bigint): Promise<Result_4>;
     queueTestMail(email: string): Promise<Result_4>;
     queueWeekMails(monday: bigint, orgId: bigint | null): Promise<Result_4>;
     quoteSequence(year: bigint): Promise<bigint>;
-    readConfidentialFile(id: bigint): Promise<Result_29>;
-    readContract(workId: bigint): Promise<Result_28>;
-    readContractHistory(workId: bigint): Promise<Result_27>;
-    readLibraryPriceHistory(itemId: bigint): Promise<Result_26>;
-    readLibraryPrices(ids: Array<bigint>): Promise<Result_25>;
-    readMyQuote(versionId: bigint): Promise<Result_24>;
-    readOrgConfidential(id: bigint): Promise<Result_23>;
-    readQuoteVersion(versionId: bigint): Promise<Result_22>;
-    recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_21>;
-    redeemCode(code: string): Promise<Result_20>;
+    readConfidentialFile(id: bigint): Promise<Result_33>;
+    readContract(workId: bigint): Promise<Result_32>;
+    readContractHistory(workId: bigint): Promise<Result_31>;
+    readLibraryPriceHistory(itemId: bigint): Promise<Result_30>;
+    readLibraryPrices(ids: Array<bigint>): Promise<Result_29>;
+    readMyProgress(id: bigint): Promise<Result_28>;
+    readMyQuote(versionId: bigint): Promise<Result_27>;
+    readOrgConfidential(id: bigint): Promise<Result_26>;
+    readProgressRevision(workId: bigint): Promise<Result_25>;
+    readProgressStatement(id: bigint): Promise<Result_24>;
+    readQuoteVersion(versionId: bigint): Promise<Result_23>;
+    recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_22>;
+    redeemCode(code: string): Promise<Result_21>;
     registerSignedQuote(versionId: bigint, fileId: bigint, note: string): Promise<Result_6>;
     removeDependency(workId: bigint, depId: bigint, expectedVersion: bigint): Promise<Result_4>;
     reportSync(ops: Array<ReportOpInput>): Promise<Array<OpResult>>;
     restoreBegin(code: string): Promise<Result_6>;
     restoreChunk(code: string, part: RestorePart): Promise<Result_4>;
-    restoreFinish(code: string): Promise<Result_19>;
+    restoreFinish(code: string): Promise<Result_20>;
     restorePerson(id: bigint): Promise<Result_6>;
     retryJob(id: bigint): Promise<Result_6>;
     revokeInvite(inviteId: bigint): Promise<Result_6>;
     revokeLink(p: Principal): Promise<Result_6>;
     revokeRobot(principal: Principal): Promise<Result_6>;
-    rollbackImport(batchId: string, dryRun: boolean): Promise<Result_18>;
+    rollbackImport(batchId: string, dryRun: boolean): Promise<Result_19>;
     saveAbsence(i: AbsenceInput): Promise<Result_4>;
     saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_4>;
     saveCalendarBlock(i: BlockInput): Promise<Result_4>;
-    saveDeclaration(workId: bigint, x: DeclarationInput): Promise<Result_17>;
+    saveDeclaration(workId: bigint, x: DeclarationInput): Promise<Result_18>;
     saveDocument(workId: bigint, i: DocumentInput): Promise<Result_4>;
     saveLibraryChapter(i: LibChapterInput): Promise<Result_4>;
-    saveLibraryItem(i: LibItemInput, expectedVersion: bigint): Promise<Result_16>;
+    saveLibraryItem(i: LibItemInput, expectedVersion: bigint): Promise<Result_17>;
     saveMeasureSettings(i: MeasureSettingsView): Promise<Result_6>;
-    saveMunicipality(m: MunicipalityInput): Promise<Result_12>;
-    saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_15>;
-    saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_14>;
-    savePermit(workId: bigint, x: PermitInput): Promise<Result_13>;
-    saveProcedure(x: ProcedureInput): Promise<Result_12>;
+    saveMunicipality(m: MunicipalityInput): Promise<Result_13>;
+    saveOaPerson(orgId: bigint, i: OaPersonInput): Promise<Result_16>;
+    saveOrgContact(orgId: bigint, i: OrgContactInput): Promise<Result_15>;
+    savePermit(workId: bigint, x: PermitInput): Promise<Result_14>;
+    saveProcedure(x: ProcedureInput): Promise<Result_13>;
+    saveProgressDraft(id: bigint, rev: bigint, i: ProgressSaveInput): Promise<Result_12>;
+    saveProgressRevision(workId: bigint, m: RevisionModel): Promise<Result_6>;
+    saveProgressSettings(i: ProgressSettings): Promise<Result_6>;
     saveQuoteDraft(versionId: bigint, rev: bigint, header: QuoteHeaderInput | null, chapterOps: Array<QuoteChapterOp>, lineOps: Array<QuoteLineOp>, expect: QuoteExpect): Promise<Result_11>;
     saveTask(workId: bigint, i: TaskInput, expectedVersion: bigint): Promise<Result_10>;
     saveTemplate(i: TemplateInput): Promise<Result_6>;
     saveVehicle(i: VehicleInput): Promise<Result_4>;
     scanPermits(): Promise<bigint>;
     sendMailNow(): Promise<Result_9>;
+    sendProgress(id: bigint, rev: bigint, expectTotalCents: bigint, reason: string): Promise<Result_8>;
     sendQuoteVersion(versionId: bigint, rev: bigint, expectTotalCents: bigint, reason: string): Promise<Result_8>;
     setBoardRules(i: BoardRulesInput): Promise<Result_6>;
     setCapacity(key: string, maxWorks: bigint | null, note: string): Promise<Result_6>;
@@ -4876,6 +5429,7 @@ export interface backendInterface {
         warnDays: bigint;
     }): Promise<Result_6>;
     setPostSettings(x: PostSettingsInput): Promise<Result_7>;
+    setProgressReady(id: bigint): Promise<Result_6>;
     setQuoteArchived(quoteId: bigint, archived: boolean, reason: string): Promise<Result_6>;
     setQuoteDocSettings(i: QuoteDocSettingsInput): Promise<Result_6>;
     setQuoteRule(i: QuoteRuleInput): Promise<Result_6>;
