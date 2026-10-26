@@ -10,7 +10,7 @@ import { makePdf, pdfName } from "../pdf/adapt.ts";
 import { pdfFromMine } from "../pdf/adapt.ts";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, unwrap, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { Frame, Loading, Page } from "./common";
 import { fmtQty } from "./Offertes";
 
 const T = t.mijnOfferte;
@@ -22,12 +22,13 @@ export function MijnOffertePage({ go, route }: { go: (to: string) => void; route
   return <MyQuotes go={go} />;
 }
 
-function MyQuotes({ go }: { go: (to: string) => void }) {
+/** De offertes van de klant; 2b.3: in het tabblad Offerte van zijn werf enkel die van die werf (workName). */
+export function MyQuotes({ go, embedded, workName }: { go: (to: string) => void; embedded?: boolean; workName?: string }) {
   const { actor, isFetching } = useBackend();
   const list = useQuery({ queryKey: ["myQuotes"], queryFn: () => actor!.listMyQuotes(), enabled: !!actor && !isFetching });
-  const rows: MyQuoteBrief[] = list.data ?? [];
+  const rows: MyQuoteBrief[] = (list.data ?? []).filter((x) => workName === undefined || x.workName === workName);
   return (
-    <Page label={T.label} title={T.title}>
+    <Frame embedded={embedded} label={T.label} title={T.title}>
       <p className="bw-muted" style={{ maxWidth: 680 }}>{T.lead}</p>
       <Loading q={list} />
       {list.data && rows.length === 0 && <p className="a-empty">{T.none}</p>}
@@ -48,7 +49,7 @@ function MyQuotes({ go }: { go: (to: string) => void }) {
           ))}
         </ul>
       )}
-    </Page>
+    </Frame>
   );
 }
 

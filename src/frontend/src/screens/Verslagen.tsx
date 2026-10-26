@@ -1,7 +1,7 @@
 // Werfverslagen lezen (stap 1.6, R8): de tijdlijn op de werfpagina, één verslag in detail, de open problemen en
 // vertragingen ("Vraagt aandacht") en de wachtrij van de gsm. Wat iemand ziet, beslist de backend (reportScope).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Caps, ConfirmationView, IssueView, ReportSummary, ReportView } from "../backend";
 import { Button, Icon, Sheet, useToast } from "../design";
 import { blobUrlOf } from "../offline/cached";
@@ -19,11 +19,11 @@ function statusWord(s: ReportView["status"]): string {
 }
 
 /** Werfpagina: de verslagen van deze werf, nieuwste eerst. */
-export function ReportsSection({ workId, caps, go }: { workId: bigint; caps: Caps; go: (to: string) => void }) {
+export function ReportsSection({ workId, caps, go, fallback = null }: { workId: bigint; caps: Caps; go: (to: string) => void; fallback?: ReactNode }) {
   const { actor, isFetching } = useBackend();
   const q = useQuery({ queryKey: ["reports", String(workId)], queryFn: () => actor!.listReports(workId, 0n, 30n), enabled: !!actor && !isFetching, retry: 0 });
   const [open, setOpen] = useState<bigint | null>(null);
-  if (q.error && !caps.writeReports) return null; // geen leesrecht (bv. OA): de sectie valt weg
+  if (q.error && !caps.writeReports) return <>{fallback}</>; // geen leesrecht (bv. OA): de sectie valt weg (2b.3: of de uitleg van het tabblad)
   return (
     <section className="a-section">
       <div className="a-row a-row--between">
@@ -43,7 +43,7 @@ export function ReportsSection({ workId, caps, go }: { workId: bigint; caps: Cap
   );
 }
 
-function SummaryRow({ r, onOpen }: { r: ReportSummary; onOpen: () => void }) {
+export function SummaryRow({ r, onOpen }: { r: ReportSummary; onOpen: () => void }) {
   return (
     <li>
       <button type="button" className="a-list__btn" onClick={onOpen}>
@@ -212,7 +212,7 @@ function IssueRow({ i, showWork, onHandle }: { i: IssueView; showWork?: boolean;
 }
 
 /** Open problemen van één werf (werfpagina) met afhandelen. */
-function IssueList({ workId }: { workId: bigint }) {
+export function IssueList({ workId }: { workId: bigint }) {
   const { actor, isFetching } = useBackend();
   const q = useQuery({ queryKey: ["issues", String(workId)], queryFn: () => actor!.listIssues(workId, true, 50n), enabled: !!actor && !isFetching, retry: 0 });
   const [handle, setHandle] = useState<IssueView | null>(null);

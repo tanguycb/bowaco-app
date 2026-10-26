@@ -9,12 +9,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(join(repo, "package.json"));
 
-export async function loadNav() {
+async function load(file) {
   const esbuild = require(join(repo, "node_modules/.pnpm/esbuild@0.25.12/node_modules/esbuild"));
-  const out = join(mkdtempSync(join(tmpdir(), "bowaco-nav-")), "nav.mjs");
-  await esbuild.build({ entryPoints: [join(repo, "src/frontend/src/app/nav.ts")], bundle: true, format: "esm", platform: "node", outfile: out, logLevel: "silent" });
+  const out = join(mkdtempSync(join(tmpdir(), "bowaco-nav-")), "mod.mjs");
+  await esbuild.build({ entryPoints: [join(repo, "src/frontend/src/app", file)], bundle: true, format: "esm", platform: "node", outfile: out, logLevel: "silent" });
   return import(pathToFileURL(out).href);
 }
+
+export const loadNav = () => load("nav.ts");
+/** 2b.3: de faseregels, de tabbladen per rol en de volgende stap (src/frontend/src/app/fase.ts). */
+export const loadFase = () => load("fase.ts");
 
 /** De 21 menu-items van de beheerder tot en met draft 49, de oude adressen en wat ze nu openen (tabel oud → nieuw). */
 export const OUD_NAAR_NIEUW = [

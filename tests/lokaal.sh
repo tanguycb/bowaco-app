@@ -77,6 +77,12 @@ node tests/vordering-rekentest.mjs "$cid"
 node tests/pdf-vordering.mjs
 # 2.11: OA-facturen (registreren, controle per regel, inhoudingsplicht bij goedkeuring, betwisten, geen bedragen voor de werfleider).
 node tests/oafactuur-draft.mjs "$cid"
+# 2.12 (Y-08): ook de klantproef en de controleregels op het eigen net.
+node tests/klant-draft.mjs "$cid"
+node tests/regels.mjs "$cid"
+# 2b.3: de faseregels (alle combinaties, tabbladen per rol, volgende stap) en één proefwerf door alle fases.
+node tests/fase.mjs
+node tests/fase-draft.mjs "$cid"
 echte=$(ls "$HOME"/Desktop/Split/bowaco-docs/bowaco/2026-231_Offerte_*.xlsx 2>/dev/null | head -1)
 if [[ -n "$echte" ]]; then
   python3 -I tools/rekentest-echt.py "$echte"

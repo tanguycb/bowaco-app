@@ -11,7 +11,7 @@ import { useOutbox, type QueuedOp } from "../offline/outbox";
 import { shrink } from "../offline/photos";
 import { t } from "../texts/nl";
 import { errText, fmtDay, fmtDayNum, inputToDay, dayToInput, todayDay, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { Frame, Loading, Page } from "./common";
 
 const T = t.opmeting;
 
@@ -67,7 +67,7 @@ function OpmetingLijst({ go }: { go: (to: string) => void }) {
       <ul className="a-list">
         {list.map((w) => (
           <li key={keyOf(w.workId)}>
-            <button type="button" className="a-list__btn" onClick={() => go(`opmeting/${w.workId}`)}>
+            <button type="button" className="a-list__btn" onClick={() => go(`werven/${w.workId}/opmeting`)}>
               <span className="a-tag">{w.code}</span>
               <span className="a-list__main">
                 <b>{w.name}</b>
@@ -93,7 +93,8 @@ function OpmetingLijst({ go }: { go: (to: string) => void }) {
 }
 
 // ═════════════ Eén werf ═════════════
-function OpmetingWerf({ workId, go }: { workId: bigint; go: (to: string) => void }) {
+/** De opmeting van één werf; 2b.3: ook als tabblad Opmeting van de werf (embedded, zonder eigen kop). */
+export function OpmetingWerf({ workId, go, embedded }: { workId: bigint; go: (to: string) => void; embedded?: boolean }) {
   const { actor } = useBackend();
   const ob = useOutbox();
   const toast = useToast();
@@ -144,16 +145,16 @@ function OpmetingWerf({ workId, go }: { workId: bigint; go: (to: string) => void
 
   if (!s) {
     return (
-      <Page title={T.title} label={T.label}>
+      <Frame embedded={embedded} title={T.title} label={T.label}>
         <Loading q={sum} />
-        <Button variant="quiet" icon="back" onClick={() => go("opmeting")}>{T.title}</Button>
-      </Page>
+        {!embedded && <Button variant="quiet" icon="back" onClick={() => go("opmeting")}>{T.title}</Button>}
+      </Frame>
     );
   }
   const closedSurveys = s.surveys.filter((x) => !x.open);
   const openSurvey = s.surveys.find((x) => x.open);
   return (
-    <Page title={`${s.workCode} · ${s.workName}`} label={T.label} actions={<Button variant="quiet" icon="back" onClick={() => go("opmeting")}>{T.title}</Button>}>
+    <Frame embedded={embedded} title={`${s.workCode} · ${s.workName}`} label={T.label} actions={embedded ? undefined : <Button variant="quiet" icon="back" onClick={() => go("opmeting")}>{T.title}</Button>}>
       {sum.data?.fromCache && <p className="m-banner"><Icon name="offline" size={18} />{T.offlineStand(new Date(sum.data.at).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }))}</p>}
       <div className="om-head">
         <span className="bw-muted">{s.scope === "firm" ? T.scope.firm(s.orgName) : s.scope === "closed" ? T.scope.closed : T.scope.full}</span>
@@ -260,7 +261,7 @@ function OpmetingWerf({ workId, go }: { workId: bigint; go: (to: string) => void
         }} />
       )}
       {viewSurvey !== null && <SurveySheet surveyId={viewSurvey} onClose={() => setViewSurvey(null)} />}
-    </Page>
+    </Frame>
   );
 }
 

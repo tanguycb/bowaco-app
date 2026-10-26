@@ -35,6 +35,7 @@ import WorkStartApi "mixins/WorkStartApi";
 import MeasureApi "mixins/MeasureApi";
 import ProgressApi "mixins/ProgressApi";
 import OaInvoiceApi "mixins/OaInvoiceApi";
+import StageApi "mixins/StageApi";
 import Post "lib/Post";
 import Mail "lib/Mail";
 import Principal "mo:core/Principal";
@@ -117,6 +118,9 @@ persistent actor Self {
 
   // 2.11: OA-facturen registreren en controleren (afspraken, regie-uren, opmeting, al gefactureerd; inhoudingsplicht bij goedkeuring).
   include OaInvoiceApi(settings, access, org, works, files, plan, reports, quotes, workStarts, surveys, wadm, oaInvoices, audit, ctr);
+
+  // 2b.3: de stand van de werf (stappenbalk en volgende stap); enkel lezen, de fase rekent de browser.
+  include StageApi(settings, access, works, plan, reports, quotes, workStarts, surveys, progress);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

@@ -4379,6 +4379,21 @@ export interface WorkPermitsView {
   'workId' : WorkId,
   'kinds' : Array<PermitKindView>,
 }
+export interface WorkStageView {
+  'tasks' : bigint,
+  'startedAt' : [] | [bigint],
+  'quoteWaiting' : boolean,
+  'measuredAt' : [] | [bigint],
+  'invoicedAt' : [] | [bigint],
+  'quoteSentAt' : [] | [bigint],
+  'startPending' : boolean,
+  'progressDraft' : boolean,
+  'surveyOpen' : boolean,
+  'progressSent' : bigint,
+  'workId' : WorkId,
+  'acceptedAt' : [] | [bigint],
+  'firstReportAt' : [] | [bigint],
+}
 export interface WorkStart {
   'at' : bigint,
   'by' : PersonId,
@@ -4769,6 +4784,7 @@ export interface _SERVICE {
   'listTrades' : ActorMethod<[boolean], Array<TradeView>>,
   'listTrips' : ActorMethod<[bigint, bigint], Array<TripView>>,
   'listVehicles' : ActorMethod<[boolean], Array<VehicleView>>,
+  'listWorkStages' : ActorMethod<[], Array<WorkStageView>>,
   'listWorks' : ActorMethod<[], Array<WorkView>>,
   'loadLibraryStartChapters' : ActorMethod<[], Result_5>,
   'lookupFine' : ActorMethod<[FineQuery], Result_39>,

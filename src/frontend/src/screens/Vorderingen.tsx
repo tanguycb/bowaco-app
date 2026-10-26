@@ -16,7 +16,7 @@ import { progressLine } from "../progress/calc.ts";
 import * as PM from "../progress/model.ts";
 import { t } from "../texts/nl";
 import { dayToInput, downloadJson, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, parsePct, todayDay, unwrap, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { Frame, Loading, Page } from "./common";
 import { fmtQty, parseQty } from "./Offertes";
 import "../app/vordering.css";
 
@@ -52,7 +52,7 @@ function ProgressWorks({ go }: { go: (to: string) => void }) {
         <ul className="a-list" data-testid="vs-works">
           {rows.map((w) => (
             <li key={String(w.workId)}>
-              <button type="button" className="a-list__btn" onClick={() => go(`vorderingen/w/${w.workId}`)}>
+              <button type="button" className="a-list__btn" onClick={() => go(`werven/${w.workId}/facturatie`)}>
                 <span className="a-tag">{w.code}</span>
                 <span className="a-list__main">
                   <b>{w.name}</b>
@@ -74,7 +74,8 @@ function ProgressWorks({ go }: { go: (to: string) => void }) {
 }
 
 // ── Staten van één werf ────────────────────────────────────────────────────
-function WorkStatements({ workId, caps, go }: { workId: bigint; caps: Caps; go: (to: string) => void }) {
+/** De vorderingsstaten van één werf; 2b.3: ook in het tabblad Facturatie van de werf (embedded). */
+export function WorkStatements({ workId, caps, go, embedded }: { workId: bigint; caps: Caps; go: (to: string) => void; embedded?: boolean }) {
   const { actor, isFetching } = useBackend();
   const toast = useToast();
   const qc = useQueryClient();
@@ -97,11 +98,12 @@ function WorkStatements({ workId, caps, go }: { workId: bigint; caps: Caps; go: 
     }
   };
   return (
-    <Page
+    <Frame
+      embedded={embedded}
       label={`${T.label}${w ? ` · ${w.code}` : ""}`}
       title={w ? w.name : T.title}
       actions={<>
-        <Button icon="back" onClick={() => go("vorderingen")}>{t.common.back}</Button>
+        {!embedded && <Button icon="back" onClick={() => go("vorderingen")}>{t.common.back}</Button>}
         {draft ? <Button variant="primary" icon="next" onClick={() => go(`vorderingen/s/${draft.id}`)}>{T.openDraft}</Button> : <Button variant="primary" icon="plus" busy={busy} onClick={() => void start()} data-testid="vs-new">{caps.quotePrices ? T.newStatement : T.startPrepare}</Button>}
       </>}
     >
@@ -129,7 +131,7 @@ function WorkStatements({ workId, caps, go }: { workId: bigint; caps: Caps; go: 
           ))}
         </ul>
       )}
-    </Page>
+    </Frame>
   );
 }
 
@@ -301,7 +303,7 @@ function StatementHead({ b, go }: { b: ProgressBrief; go: (to: string) => void }
       {b.status === ProgressStatus.draft && b.kind === ProgressKind.statement && <span className="bw-muted">· {b.prepared ? T.prepared(b.preparedByName) : T.notPrepared}</span>}
       {b.creditsCode && <span className="bw-muted">· {T.credits(b.creditsCode)}</span>}
       {b.creditedByCode && <span className="a-tag a-tag--bad">{T.creditedBy(b.creditedByCode)}</span>}
-      <Button variant="quiet" onClick={() => go(`vorderingen/w/${b.workId}`)}>{b.workCode}</Button>
+      <Button variant="quiet" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
     </div>
   );
 }
@@ -351,7 +353,7 @@ function QtyStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
       label={`${T.label} · ${v.brief.workCode} ${v.brief.workName}`}
       title={briefTitle(v.brief)}
       actions={<>
-        <Button icon="back" onClick={() => go(`vorderingen/w/${v.brief.workId}`)}>{t.common.back}</Button>
+        <Button icon="back" onClick={() => go(`werven/${v.brief.workId}/facturatie`)}>{t.common.back}</Button>
         {v.canEdit && <Button variant="primary" icon="check" busy={busy} disabled={dirty === 0} onClick={() => void save()} data-testid="vs-save">{T.save}</Button>}
         {v.canEdit && v.canPrepare && <Button busy={busy} disabled={dirty > 0} onClick={() => void prepared()} data-testid="vs-prepared">{T.prepare}</Button>}
       </>}
@@ -448,7 +450,7 @@ function FullStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
     toast.show({ kind: "ok", text: T.cancelOk });
     setSheet(null);
     void qc.invalidateQueries({ queryKey: ["progressWorks"] });
-    go(`vorderingen/w/${v.brief.workId}`);
+    go(`werven/${v.brief.workId}/facturatie`);
   });
   const credit = () => run(async () => {
     const nid = unwrap(await actor!.creditProgress(id, reason));
@@ -493,7 +495,7 @@ function FullStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
       label={`${T.label} · ${v.brief.workCode} ${v.brief.workName}`}
       title={briefTitle(v.brief)}
       actions={<>
-        <Button icon="back" onClick={() => go(`vorderingen/w/${v.brief.workId}`)}>{t.common.back}</Button>
+        <Button icon="back" onClick={() => go(`werven/${v.brief.workId}/facturatie`)}>{t.common.back}</Button>
         <Button icon="doc" busy={busy} onClick={() => void pdf()} data-testid="vs-pdf">{v.frozen ? T.pdf : T.pdfPreview}</Button>
         {editable && <Button variant="primary" icon="check" busy={busy} disabled={dirty === 0 || idxBad} onClick={() => void save()} data-testid="vs-save">{T.save}</Button>}
         {v.canSend && <Button variant="primary" icon="share" disabled={dirty > 0} onClick={() => { setReason(""); setSheet("send"); }} data-testid="vs-send">{dirty > 0 ? T.saveFirst : T.send}</Button>}
@@ -653,12 +655,12 @@ export function MijnVorderingPage({ go, route }: { go: (to: string) => void; rou
   return <MyStatements go={go} />;
 }
 
-function MyStatements({ go }: { go: (to: string) => void }) {
+export function MyStatements({ go, embedded, workName }: { go: (to: string) => void; embedded?: boolean; workName?: string }) {
   const { actor, isFetching } = useBackend();
   const list = useQuery({ queryKey: ["myProgress"], queryFn: () => actor!.listMyProgress(), enabled: !!actor && !isFetching });
-  const rows: MyProgressBrief[] = list.data ?? [];
+  const rows: MyProgressBrief[] = (list.data ?? []).filter((x) => workName === undefined || x.workName === workName);
   return (
-    <Page label={MV.label} title={MV.title}>
+    <Frame embedded={embedded} label={MV.label} title={MV.title}>
       <p className="bw-muted" style={{ maxWidth: 680 }}>{MV.lead}</p>
       <Loading q={list} />
       {list.data && rows.length === 0 && <p className="a-empty">{MV.none}</p>}
@@ -679,7 +681,7 @@ function MyStatements({ go }: { go: (to: string) => void }) {
           ))}
         </ul>
       )}
-    </Page>
+    </Frame>
   );
 }
 

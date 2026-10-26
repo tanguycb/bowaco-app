@@ -2,12 +2,15 @@
 // werfpagina (Werf.tsx) gebruikt. Wat iemand mag, beslist de backend (Rights.mo).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ExternalBlob, type Caps, type FileView, type WorkView } from "../backend";
-import { Button, Choice, Icon, Sheet, useToast } from "../design";
+import { ExternalBlob, OrgKind, type Caps, type FileView, type WorkView } from "../backend";
+import { Button, Choice, Icon, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { OpenConfidential } from "./Dossier";
-import { errText, fmtBytes, fmtTime, unwrap, useBackend } from "../util";
-import { Loading, Page, RoleTags, useWorks, WorkList } from "./common";
+import { errText, fmtBytes, fmtTime, optText, unwrap, useBackend } from "../util";
+import { factsOf, Loading, Page, PhaseLabel, useStages, useWorks, WorkList } from "./common";
+import { DashCounters, useDashboard } from "./Dashboard";
+import { isClient } from "../app/nav";
+import { volgendeStap, werfFase, werfGroep } from "../app/fase";
 
 /** Hoofdwerven met hun deelwerven er meteen onder; zoeken op code, naam of gemeente. */
 function nested(works: WorkView[], q: string): WorkView[] {
@@ -23,18 +26,190 @@ function nested(works: WorkView[], q: string): WorkView[] {
   return out;
 }
 
-export function Werven({ caps, go }: { caps: Caps; go: (to: string) => void }) {
+const GROUPS = ["aanvragen", "lopend", "afgerond", "alle"] as const;
+type Group = (typeof GROUPS)[number];
+
+/**
+ * 2b.3: Werven met tabbladen per fase (Aanvragen & offertes · Lopend · Afgerond · Alle, vraag 15), de fase als eigen label
+ * en de kolom Volgende stap. Geannuleerde werven enkel met het vinkje. Lopend toont bovenaan de tellers van het vroegere
+ * Dashboard (AD-08) en een filter op werfleider. Externen (architect, klant, OA) zien hun werven zonder tabbladen.
+ */
+export function Werven({ caps, go, route }: { caps: Caps; go: (to: string) => void; route?: string[] }) {
   const works = useWorks();
+  const stages = useStages();
+  const { actor, isFetching } = useBackend();
+  const on = !!actor && !isFetching;
+  const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
+  const persons = useQuery({ queryKey: ["persons", false], queryFn: () => actor!.listPersons(false), enabled: on && caps.readTeam });
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const list = works.data ? nested(works.data, q) : [];
+  const [leader, setLeader] = useState("all");
+  const [cancelled, setCancelled] = useState(false);
+  const W = t.wervenFase;
+  const group: Group = (GROUPS as readonly string[]).includes(route?.[1] ?? "") ? (route![1] as Group) : "lopend";
+  const newBtn = caps.createWork && <Button variant="primary" icon="plus" onClick={() => setOpen(true)}>{W.newRequest}</Button>;
+  if (!caps.readTeam) {
+    const list = works.data ? nested(works.data, q) : [];
+    return (
+      <Page title={t.werven.title}>
+        {works.data && works.data.length > 6 && <input className="bw-input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.werven.search} aria-label={t.werven.search} />}
+        <Loading q={works} />
+        {works.data && <WorkList works={list} go={go} empty={q ? t.werven.noMatch : t.werven.empty} client={isClient(caps)} />}
+      </Page>
+    );
+  }
+  const all = (works.data ?? []).filter((w) => w.archivedAt === undefined);
+  const rows = all.map((w) => { const f = factsOf(w, stages.data); return { w, f, fase: werfFase(f) }; });
+  const inGroup = (r: (typeof rows)[number], g: Group) => (cancelled || !r.fase.cancelled) && (g === "alle" || werfGroep(r.fase) === g);
+  const counts = Object.fromEntries(GROUPS.map((g) => [g, rows.filter((r) => inGroup(r, g)).length])) as Record<Group, number>;
+  const leaders = [...new Set(all.map((w) => w.leaderPersonId).filter((x): x is bigint => x !== undefined).map(String))];
+  const pname = (id?: bigint) => (id === undefined ? "" : persons.data?.find((p) => p.id === id)?.name ?? `#${id}`);
+  const oname = (id?: bigint) => (id === undefined ? "" : orgs.data?.find((o) => o.id === id)?.name ?? "");
+  const shownIds = new Set(rows.filter((r) => inGroup(r, group) && (leader === "all" || (leader === "none" ? r.w.leaderPersonId === undefined : String(r.w.leaderPersonId) === leader))).map((r) => r.w.id));
+  // Hoofdwerven met hun deelwerven eronder; zoeken op code, naam, gemeente of klant.
+  const s = q.trim().toLowerCase();
+  const byId = new Map(rows.map((r) => [r.w.id, r]));
+  const list = nested(all.filter((w) => shownIds.has(w.id)), "").filter((w) => !s || [w.code, w.name, w.address.city, w.analyticCode ?? "", oname(w.clientOrgId)].some((x) => x.toLowerCase().includes(s))).map((w) => byId.get(w.id)!);
   return (
-    <Page title={t.werven.title} actions={caps.createWork && <Button variant="primary" icon="plus" onClick={() => setOpen(true)}>{t.werven.new}</Button>}>
-      {works.data && works.data.length > 6 && <input className="bw-input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.werven.search} aria-label={t.werven.search} />}
+    <Page title={t.werven.title} actions={newBtn}>
+      <nav className="a-tabs a-tabs--inline" aria-label={t.werven.title}>
+        {GROUPS.map((g) => (
+          <a key={g} href={`#/werven/${g}`} className="a-tab" aria-current={g === group ? "page" : undefined} onClick={(e) => { e.preventDefault(); go(`werven/${g}`); }}>
+            {W.tabs[g]} <span className="a-tag">{counts[g]}</span>
+          </a>
+        ))}
+      </nav>
+      {group === "lopend" && caps.readOrgPlanning && <LopendTellers />}
+      <div className="a-wfilter">
+        <input className="bw-input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.werven.search} aria-label={t.werven.search} />
+        {leaders.length > 0 && (
+          <select className="bw-input" value={leader} onChange={(e) => setLeader(e.target.value)} aria-label={W.leaderFilter} style={{ maxWidth: 240 }}>
+            <option value="all">{W.leaderAll}</option>
+            {leaders.map((l) => <option key={l} value={l}>{pname(BigInt(l))}</option>)}
+            <option value="none">{W.leaderNone}</option>
+          </select>
+        )}
+        <label className="a-check"><input type="checkbox" checked={cancelled} onChange={(e) => setCancelled(e.target.checked)} />{W.showCancelled}</label>
+      </div>
       <Loading q={works} />
-      {works.data && <WorkList works={list} go={go} empty={q ? t.werven.noMatch : t.werven.empty} />}
-      {open && <NewWork onClose={() => setOpen(false)} go={go} />}
+      {works.data && (list.length === 0 ? <p className="a-empty">{q ? t.werven.noMatch : W.empty[group]}</p> : (
+        <Table
+          rows={list}
+          rowKey={(r) => String(r.w.id)}
+          onRow={(r) => go(`werven/${r.w.id}`)}
+          columns={[
+            { key: "code", label: W.cols.code, width: "110px", render: (r) => <span className="bw-mono">{r.w.parentId !== undefined ? "↳ " : ""}{r.w.code}</span> },
+            { key: "werf", label: W.cols.werf, render: (r) => <span className="a-list__main"><b>{r.w.name}</b><span className="bw-muted">{r.w.parentId !== undefined ? `${W.sub} · ` : ""}{r.w.address.city}</span></span> },
+            { key: "klant", label: W.cols.klant, render: (r) => oname(r.w.clientOrgId) || <span className="bw-muted">–</span> },
+            { key: "fase", label: W.cols.fase, render: (r) => <PhaseLabel fase={r.fase} /> },
+            { key: "leider", label: W.cols.leider, render: (r) => pname(r.w.leaderPersonId) || <span className="bw-muted">{t.werven.noLeader}</span> },
+            { key: "volgende", label: W.cols.volgende, render: (r) => { const s = volgendeStap(r.fase, r.f, caps, r.w.caps.edit); return s ? t.stap[s.key].t : ""; } },
+          ]}
+        />
+      ))}
+      <p className="bw-muted">{W.note}</p>
+      {open && <NewRequest caps={caps} onClose={() => setOpen(false)} go={go} />}
     </Page>
+  );
+}
+
+/** Lopend: de tellers van het vroegere Dashboard (werven bezig, vertraagd, bevestigingen, problemen, verslagen, vergunningen). */
+function LopendTellers() {
+  const q = useDashboard();
+  return q.data ? <DashCounters v={q.data} /> : null;
+}
+
+/**
+ * 2b.3: + Nieuwe aanvraag (vraag 1): een klant belt of mailt → klant (bestaand of nieuw) + adres → een werf in de fase Aanvraag.
+ * De klant hoeft niet eerst in het adresboek (B4/B5). Het vertrouwelijk klantcontact (e-mail, telefoon) enkel voor wie het mag
+ * (R23: beheerder); de backend controleert elke stap (createOrg, setOrgConfidential, createWork).
+ */
+function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => void; go: (to: string) => void }) {
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const W = t.wervenFase;
+  const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: !!actor && !isFetching });
+  const clients = (orgs.data ?? []).filter((o) => o.kind === OrgKind.client).sort((a, b) => a.name.localeCompare(b.name, "nl"));
+  const [mode, setMode] = useState<"new" | "existing">("new");
+  const [f, setF] = useState({ client: "", clientName: "", email: "", phone: "", code: "", name: "", street: "", number: "", zip: "", city: "", vat: 600 });
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const autoName = [f.street, f.number].filter(Boolean).join(" ");
+  // Review 2b.3: de nieuwe klant wordt maar één keer gemaakt; weigert de werf daarna (code al in gebruik …), dan gebruikt een
+  // tweede poging dezelfde firma (geen dubbele "Familie …" in het adresboek).
+  const [madeOrg, setMadeOrg] = useState<bigint | null>(null);
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!f.code.trim()) throw new Error(W.needCode);
+      if (!(f.name.trim() || autoName)) throw new Error(W.needAddress);
+      let clientOrgId: bigint;
+      if (mode === "existing") {
+        if (!f.client) throw new Error(W.needClient);
+        clientOrgId = BigInt(f.client);
+      } else if (madeOrg !== null) {
+        clientOrgId = madeOrg;
+      } else {
+        if (!f.clientName.trim()) throw new Error(W.needClient);
+        clientOrgId = unwrap(await actor!.createOrg({ kind: OrgKind.client, name: f.clientName.trim(), kbo: undefined, vat: undefined, aliases: [], trades: [], address: undefined, notes: "" })).id;
+        setMadeOrg(clientOrgId);
+        if (caps.readConfidentialContact && (f.email.trim() || f.phone.trim())) {
+          const r = await actor!.setOrgConfidential(clientOrgId, { name: f.clientName.trim(), phone: optText(f.phone), email: optText(f.email) }, "");
+          if ("err" in r) throw new Error(`${W.clientMade(f.clientName.trim())}: ${r.err}`);
+        }
+      }
+      return unwrap(await actor!.createWork({
+        code: f.code,
+        name: f.name.trim() || autoName,
+        address: { street: f.street, number: f.number, zip: f.zip, city: f.city, country: "BE" },
+        parentId: undefined,
+        clientOrgId,
+        architectOrgId: undefined,
+        leaderPersonId: undefined,
+        vatBp: BigInt(f.vat),
+      }));
+    },
+    onSuccess: (w) => { toast.show({ kind: "ok", text: W.made }); void qc.invalidateQueries({ queryKey: ["works"] }); void qc.invalidateQueries({ queryKey: ["stages"] }); void qc.invalidateQueries({ queryKey: ["orgs"] }); onClose(); go(`werven/${w.id}`); },
+  });
+  return (
+    <Sheet title={W.newRequest} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></>}>
+      <div className="a-form">
+        <p className="bw-muted">{W.requestLead}</p>
+        <Field label={W.clientPick}>
+          <Choice label={W.clientPick} value={mode} onChange={setMode} options={[{ value: "new", label: W.clientNew }, { value: "existing", label: W.clientExisting }]} />
+        </Field>
+        {mode === "existing" ? (
+          <Field label={W.clientExisting}>
+            <select className="bw-input" value={f.client} onChange={set("client")}>
+              <option value="">{t.werven.noOrgPick}</option>
+              {clients.map((o) => <option key={String(o.id)} value={String(o.id)}>{o.name}</option>)}
+            </select>
+          </Field>
+        ) : (
+          <>
+            <Field label={W.clientName}><input className="bw-input" value={f.clientName} onChange={set("clientName")} placeholder={W.clientNamePh} maxLength={80} disabled={madeOrg !== null} /></Field>
+            {caps.readConfidentialContact && (
+              <div className="a-grid2">
+                <Field label={W.clientEmail}><input className="bw-input" value={f.email} onChange={set("email")} inputMode="email" /></Field>
+                <Field label={W.clientPhone}><input className="bw-input" value={f.phone} onChange={set("phone")} inputMode="tel" /></Field>
+              </div>
+            )}
+          </>
+        )}
+        <div className="a-grid3">
+          <Field label={t.werven.street}><input className="bw-input" value={f.street} onChange={set("street")} /></Field>
+          <Field label={t.werven.number}><input className="bw-input" value={f.number} onChange={set("number")} /></Field>
+          <Field label={t.werven.zip}><input className="bw-input" value={f.zip} onChange={set("zip")} inputMode="numeric" /></Field>
+        </div>
+        <Field label={t.werven.city}><input className="bw-input" value={f.city} onChange={set("city")} /></Field>
+        <div className="a-grid2">
+          <Field label={t.werven.code}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} placeholder="2026-231" /></Field>
+          <Field label={t.werven.vat}><Choice label={t.werven.vat} value={f.vat} onChange={(v) => setF({ ...f, vat: v })} options={[{ value: 600, label: "6 %" }, { value: 2100, label: "21 %" }]} /></Field>
+        </div>
+        <p className="bw-muted">{W.codeHelp}</p>
+        <Field label={t.werven.name}><input className="bw-input" value={f.name} onChange={set("name")} placeholder={autoName || W.whatPh} maxLength={80} /></Field>
+        {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
+      </div>
+    </Sheet>
   );
 }
 

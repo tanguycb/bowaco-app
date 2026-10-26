@@ -62,11 +62,45 @@ function ListPage({ caps, go }: { caps: Caps; go: (to: string) => void }) {
                 <span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span>
                 <Icon name="next" size={18} />
               </button>
+              {/* 2b.3: werklijst → de werf, op het tabblad Facturatie */}
+              <Button variant="quiet" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
             </li>
           ))}
         </ul>
       )}
     </Page>
+  );
+}
+
+/** 2b.3: de facturen van onderaannemers van één werf (tabblad Facturatie). De werfleider ziet de status, geen bedragen. */
+export function WorkOaInvoices({ workId, caps, go }: { workId: bigint; caps: Caps; go: (to: string) => void }) {
+  const { actor, isFetching } = useBackend();
+  const q = useQuery({ queryKey: ["oaInvoices", "werf", String(workId)], queryFn: () => actor!.listOaInvoices(workId, null), enabled: !!actor && !isFetching, retry: 0 });
+  if (q.error) return null;
+  const rows = q.data ?? [];
+  return (
+    <section className="a-section">
+      <div className="a-row a-row--between">
+        <h2 className="bw-h2">{t.fase.oaInvoices}</h2>
+        {caps.quotePrices && <Button icon="plus" onClick={() => go(`oa-facturen/nieuw?w=${workId}`)}>{T.register}</Button>}
+      </div>
+      <Loading q={q} />
+      {q.data && rows.length === 0 && <p className="a-empty">{T.none}</p>}
+      {rows.length > 0 && (
+        <ul className="a-list">
+          {rows.map((b) => (
+            <li key={String(b.id)}>
+              <button type="button" className="a-list__btn" onClick={() => go(`oa-facturen/${b.id}`)}>
+                <span className="a-tag bw-mono">{b.number}</span>
+                <span className="a-list__main"><b>{b.orgName}</b><span className="bw-muted">{fmtDayNum(b.invoiceDay)}{b.hasFile ? "" : ` · ${T.noFile}`}</span></span>
+                <span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span>
+                <Icon name="next" size={18} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -81,7 +115,7 @@ function InvoiceForm({ id, go }: { id?: bigint; go: (to: string) => void }) {
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: !!actor && !isFetching });
   const works = useQuery({ queryKey: ["works"], queryFn: () => actor!.listWorks(), enabled: !!actor && !isFetching });
   const cur = useQuery({ queryKey: ["oaInvoiceFull", String(id ?? "")], queryFn: async () => unwrap(await actor!.readOaInvoice(id!)), enabled: !!actor && !isFetching && id !== undefined, staleTime: 0, gcTime: 0 });
-  const [f, setF] = useState({ orgId: "", workId: "", number: "", day: dayToInput(todayDay()), due: "", from: "", to: "", regime: "reverse", mention: true, net: "", vat: "", total: "", note: "" });
+  const [f, setF] = useState({ orgId: "", workId: window.location.hash.match(/[?&]w=(\d+)/)?.[1] ?? "", number: "", day: dayToInput(todayDay()), due: "", from: "", to: "", regime: "reverse", mention: true, net: "", vat: "", total: "", note: "" });
   const [lines, setLines] = useState<LineForm[]>([emptyLine()]);
   const [fileId, setFileId] = useState<bigint | null>(null);
   const [fileName, setFileName] = useState("");
@@ -269,6 +303,7 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
       title={`${b.orgName} · ${b.number}`}
       actions={<>
         <Button icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button>
+        <Button icon="building" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
         {v.canEdit && <Button icon="edit" onClick={() => go(`oa-facturen/${id}/wijzigen`)} data-testid="oi-edit">{T.edit}</Button>}
         {v.canDecide && <Button variant="primary" icon="check" onClick={() => { setReason(""); setSheet("approve"); }} data-testid="oi-approve">{T.approve}</Button>}
         {v.canEdit && <Button icon="alert" onClick={() => { setReason(""); setSheet("dispute"); }} data-testid="oi-dispute">{T.dispute}</Button>}
@@ -401,7 +436,7 @@ function QtyInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
   if (!v) return <Page label={T.label} title={T.title}><Loading q={q} /></Page>;
   const b = v.brief;
   return (
-    <Page wide label={`${T.label} · ${b.workCode} ${b.workName}`} title={`${b.orgName} · ${b.number}`} actions={<Button icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button>}>
+    <Page wide label={`${T.label} · ${b.workCode} ${b.workName}`} title={`${b.orgName} · ${b.number}`} actions={<><Button icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button><Button icon="building" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button></>}>
       <div className="vs-head"><span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span><span className="bw-muted">{T.dayLine(fmtDayNum(b.invoiceDay), b.dueDay !== undefined ? fmtDayNum(b.dueDay) : "–")}</span></div>
       <p className="a-note">{T.qtyOnly}</p>
       {!v.oaOnWork && <p className="a-note">{T.flags["oa-niet-op-werf"]}</p>}

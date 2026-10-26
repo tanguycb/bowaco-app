@@ -151,6 +151,7 @@ const addr = (street) => ({ street, number: "1", zip: "8670", city: "Koksijde", 
 const workA = await admin.createWork({ code: "P-A", name: "Proefstraat 1", address: addr("Proefstraat"), parentId: [], clientOrgId: [orgKlant.ok.id], architectOrgId: [orgArch.ok.id], leaderPersonId: [], vatBp: 600n });
 const workB = await admin.createWork({ code: "P-B", name: "Andere werf 2", address: addr("Anderestraat"), parentId: [], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 2100n });
 check("admin maakt twee werven", isOk(workA) && isOk(workB));
+check("2b.3: een nieuwe werf begint als aanvraag (fase Aanvraag, vraag 1)", isOk(workA) && "request" in workA.ok.status && "request" in workB.ok.status);
 check("dubbele werfcode geweigerd", "err" in (await admin.createWork({ code: "P-A", name: "x", address: addr("x"), parentId: [], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 600n })));
 const A = workA.ok.id;
 const B = workB.ok.id;
@@ -236,7 +237,7 @@ check("calculator kan geen werfstatus wijzigen", await rejects(calc.setWorkStatu
 check("werfleider wijzigt werfstatus", isOk(await wl.setWorkStatus(A, { running: null })));
 const nAudit = await admin.auditCount();
 check("dezelfde status nog eens: ok maar geen auditregel", isOk(await wl.setWorkStatus(A, { running: null })) && (await admin.auditCount()) === nAudit);
-check("auditregel werfstatus toont oud → nieuw", (await admin.auditLog(0n, 20n)).some((e) => e.action === "werf-status" && e.detail.includes("gepland → bezig")));
+check("auditregel werfstatus toont oud → nieuw", (await admin.auditLog(0n, 20n)).some((e) => e.action === "werf-status" && e.detail.includes("aanvraag → bezig")));
 check("werfleider mag geen instellingen wijzigen", await rejects(wl.setSettings({ werfleiderZietAlles: false, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n })));
 check("admin zet 'werfleider ziet alles' uit", isOk(await admin.setSettings({ werfleiderZietAlles: false, inviteDays: 7n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n })));
 check("werfleider (alles-zien uit) ziet enkel A (zijn werf)", eq(await ids(wl), [Number(A)]));
@@ -409,6 +410,7 @@ check("btw-tarief enkel 6 of 21 %", "err" in (await wl.updateWork(A, { ...upd0, 
 const wA1 = await admin.createWork({ code: "P-A1", name: "Proefstraat 1 Gevel", address: addr("Proefstraat"), parentId: [A], clientOrgId: [orgKlant.ok.id], architectOrgId: [], leaderPersonId: [], vatBp: 600n });
 check("admin maakt een deelwerf van A", isOk(wA1) && wA1.ok.parentId[0] === A, errOf(wA1));
 const A1 = wA1.ok.id;
+check("2b.3: een deelwerf van een lopende werf begint als gepland (vergunningen, 30bis en dashboard zien haar)", isOk(wA1) && ("planned" in wA1.ok.status) === (("running" in (await admin.getWork(A)).status) || ("planned" in (await admin.getWork(A)).status)));
 check("deelwerf van een deelwerf geweigerd", "err" in (await admin.createWork({ code: "P-A1b", name: "x", address: addr("x"), parentId: [A1], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 600n })));
 check("een werf met deelwerven wordt zelf geen deelwerf", "err" in (await admin.updateWork(A, { ...upd0, leaderPersonId: [wlId], parentId: [B] })));
 check("een werf is niet haar eigen hoofdwerf", "err" in (await admin.updateWork(A1, { ...upd0, code: "P-A1", parentId: [A1] })));
@@ -2126,6 +2128,62 @@ await sec("── 2b.2 menu per rol: welke menu-items en welke Beheer-tabbladen 
   check("oude adressen met een deel erachter blijven bewaard (#/boetes/… → beheer/voertuigen/…)", nav.resolveRoute(["boetes", "x"], caps.admin).redirect === "beheer/voertuigen/x" && nav.resolveRoute(["postbode"], caps.admin).redirect === "beheer/mail");
   check("een oud adres zonder recht valt terug op het startscherm (geen blanco scherm)", nav.resolveRoute(["weekbord"], caps.klant).page === "werven" && nav.resolveRoute(["beheer"], caps.calculator).page === "offertes" && nav.resolveRoute(["onbekend"], caps.oa).page === "week");
   check("Boete opzoeken blijft bereikbaar voor de werfleider (Meer → Ritten & boetes) maar niet voor de calculator", nav.resolveRoute(["boetes"], caps.werfleider).page === "beheer" && nav.resolveRoute(["beheer", "voertuigen"], caps.calculator).page === caps.calculator.home);
+}
+
+await sec("── 2b.3 de werf als centrum: stand van de werf (listWorkStages), fase, tabbladen per rol, volgende stap, oude adressen");
+{
+  const { loadNav, loadFase } = await import("./menu-lib.mjs");
+  const nav = await loadNav();
+  const F = await loadFase();
+  const rolesAll = { admin, werfleider: wl, calculator: calc, oa: oa2, architect: arch, klant, vc, "werfleider+calculator": wlcalc };
+  const caps = {};
+  for (const [k, x] of Object.entries(rolesAll)) caps[k] = (await x.me()).caps[0];
+  // Dezelfde werven als listWorks, per rol; enkel momenten, tellingen en vlaggen (geen bedrag, geen naam)
+  let zelfde = true;
+  const verschil = [];
+  for (const [k, x] of Object.entries(rolesAll)) {
+    const ws = (await x.listWorks()).map((w) => String(w.id)).sort();
+    const st = (await x.listWorkStages()).map((s) => String(s.workId)).sort();
+    if (JSON.stringify(ws) !== JSON.stringify(st)) { zelfde = false; verschil.push(`${k}: ${ws.length} werven, ${st.length} standen`); }
+  }
+  check("listWorkStages: elke rol krijgt de stand van precies de werven die ze ziet (zelfde als listWorks)", zelfde, verschil.join(" | "));
+  const velden = Object.keys((await admin.listWorkStages())[0] ?? {}).sort().join(",");
+  check("listWorkStages: enkel momenten, tellingen en vlaggen (geen bedrag, naam of inhoud)", velden === "acceptedAt,firstReportAt,invoicedAt,measuredAt,progressDraft,progressSent,quoteSentAt,quoteWaiting,startPending,startedAt,surveyOpen,tasks,workId", velden);
+  const leeg = (s) => s.quoteSentAt.length + s.acceptedAt.length + s.startedAt.length + s.firstReportAt.length + s.measuredAt.length + s.invoicedAt.length === 0 && s.tasks === 0n && s.progressSent === 0n && !s.quoteWaiting && !s.startPending && !s.surveyOpen && !s.progressDraft;
+  check("listWorkStages: OA, architect en VC krijgen een lege stand (niets van offertes, staten of planning)", (await Promise.all([oa2, arch, vc].map((x) => x.listWorkStages()))).every((l) => l.every(leeg)));
+  check("listWorkStages: de klant krijgt geen interne vlaggen (aantal taken, ontwerp, open opmeting)", (await klant.listWorkStages()).every((s) => s.tasks === 0n && !s.progressDraft && !s.surveyOpen && !s.startPending));
+  check("listWorkStages: anoniem en een ongekoppelde login geweigerd", (await rejects(anon.listWorkStages())) && (await rejects(nieuw.listWorkStages())));
+  const stA = (await admin.listWorkStages()).find((s) => s.workId === A);
+  const ex3 = await admin.exportIntern();
+  const tA = ex3.tasks.filter((x) => x.workId === A && x.archivedAt.length === 0).length;
+  const rA = (ex3.dayReports ?? []).filter((x) => x.workId === A);
+  const firstA = rA.length ? rA.map((x) => x.createdAt).sort((a, b) => (a < b ? -1 : 1))[0] : null;
+  check("stand van P-A klopt met de export: taken, eerste werfverslag, geen offerte", !!stA && Number(stA.tasks) === tA && (firstA === null ? stA.firstReportAt.length === 0 : stA.firstReportAt[0] === firstA) && stA.quoteSentAt.length === 0, JSON.stringify(stA, (k, v) => (typeof v === "bigint" ? String(v) : v)));
+  // De fase van P-A volgt uit de stand + de status die de rollentest zette (bezig): in uitvoering, offerte en akkoord overgeslagen
+  const wA = (await admin.listWorks()).find((w) => w.id === A);
+  const toFacts = (s, w) => ({ ...Object.fromEntries(Object.entries(s).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])), status: Object.keys(w.status)[0] });
+  const fA = F.werfFase(toFacts(stA, wA));
+  check("fase van P-A (bezig, geen offerte): In uitvoering, Offerte en Akkoord overgeslagen (opdracht zonder offerte, vraag 2)", "running" in wA.status && fA.index === 4 && fA.steps[1] === "skipped" && fA.steps[2] === "skipped" && fA.steps[3] === "done", JSON.stringify(fA.steps) + Object.keys(wA.status));
+  // Tabbladen per rol (echte caps): enkel wat de rol mag
+  const tabs = (k) => F.werfTabs(caps[k], fA, toFacts(stA, wA)).map((x) => x.key).join(",");
+  check("tabbladen beheerder: alle negen", tabs("admin") === "overzicht,offerte,planning,verslagen,opmeting,facturatie,vergunningen,documenten,wie", tabs("admin"));
+  check("tabbladen werfleider: alle negen (offerte en facturatie zonder bedragen, zoals vroeger)", tabs("werfleider") === "overzicht,offerte,planning,verslagen,opmeting,facturatie,vergunningen,documenten,wie", tabs("werfleider"));
+  check("tabbladen calculator: alle negen (vergunningen & admin voor de werfadministratie)", tabs("calculator") === "overzicht,offerte,planning,verslagen,opmeting,facturatie,vergunningen,documenten,wie", tabs("calculator"));
+  check("tabbladen klant: Voortgang · Offerte · Vorderingsstaten · Documenten", tabs("klant") === "overzicht,offerte,facturatie,documenten" && F.werfTabs(caps.klant, fA, {}).map((x) => x.label).join("|") === "Voortgang|Offerte|Vorderingsstaten|Documenten", tabs("klant"));
+  check("tabbladen onderaannemer: geen offerte, verslagen, facturatie of wie werkt mee", ["offerte", "verslagen", "facturatie", "wie"].every((k) => !tabs("oa").split(",").includes(k)) && tabs("oa").startsWith("overzicht,planning"), tabs("oa"));
+  check("tabbladen architect en VC: geen offerte, facturatie of wie werkt mee", ["architect", "vc"].every((r) => ["offerte", "facturatie", "wie"].every((k) => !tabs(r).split(",").includes(k))), `${tabs("architect")} / ${tabs("vc")}`);
+  check("tabbladen: niemand buiten kantoor ziet Wie werkt mee", ["oa", "architect", "klant", "vc"].every((r) => !tabs(r).includes("wie")));
+  // Volgende stap per rol
+  const stap = (k, f, s, edit) => F.volgendeStap(f, s, caps[k], edit)?.key ?? null;
+  const f0 = F.werfFase({ status: "request" });
+  check("volgende stap in Aanvraag: calculator en beheerder 'Offerte maken', werfleider 'Wacht op de offerte', architect/OA geen kaart", stap("calculator", f0, { status: "request" }) === "offerteMaken" && stap("admin", f0, { status: "request" }) === "offerteMaken" && stap("werfleider", f0, { status: "request" }) === "wachtOfferte" && stap("architect", f0, { status: "request" }) === null && stap("oa", f0, { status: "request" }) === null);
+  const s2 = { status: "quoting", quoteSentAt: 1n, acceptedAt: 2n, startPending: true };
+  check("volgende stap in Akkoord: werfleider en beheerder 'Werf starten', calculator wacht", stap("werfleider", F.werfFase(s2), s2) === "werfStarten" && stap("admin", F.werfFase(s2), s2) === "werfStarten" && stap("calculator", F.werfFase(s2), s2) === "wachtStart");
+  const s1 = { status: "quoting", quoteSentAt: 1n, quoteWaiting: true };
+  check("volgende stap van de klant met een verstuurde offerte: 'Uw offerte bekijken' (Mijn offerte)", F.volgendeStap(F.werfFase(s1), s1, caps.klant, false)?.action?.to === "mijn-offerte");
+  // Oude adressen van de werfpagina
+  check("oud adres #/vorderingen/w/<id> → tabblad Facturatie van de werf", nav.resolveRoute(["vorderingen", "w", String(A)], caps.admin).redirect === `werven/${A}/facturatie` && nav.resolveRoute(["vorderingen", "w", String(A)], caps.calculator).redirect === `werven/${A}/facturatie`);
+  check("#/werven/<id>/planning en #/opmeting/<id> blijven openen (tabblad Planning; opmeting werkt ook zonder bereik)", nav.resolveRoute(["werven", String(A), "planning"], caps.werfleider).page === "werven" && nav.resolveRoute(["opmeting", String(A)], caps.werfleider).page === "opmeting");
 }
 
 // De test laat niets achter dat iemand later per vergissing kan bevestigen of gebruiken

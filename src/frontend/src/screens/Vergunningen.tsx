@@ -2,7 +2,7 @@
 // (kantoor), de vergunning op de gsm als bewijs bij controle (ook zonder bereik, als ze op het toestel bewaard is),
 // de soorten (admin) en de kennisbank per gemeente. De backend zegt wat iemand mag (canEdit, caps).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ExternalBlob, PermitStatus, type Caps, type MunicipalityView, type PermitKindView, type PermitSuggestion, type PermitView, type PermitWarning, type WorkView } from "../backend";
 import { Button, Choice, Confirm, Icon, Sheet, useToast } from "../design";
 import { blobUrlOf, useCached } from "../offline/cached";
@@ -58,12 +58,12 @@ function PermitLine({ p, onOpen, showWork }: { p: PermitView; onOpen: (p: Permit
 }
 
 // ── Op de werfpagina ───────────────────────────────────────────────────────
-export function WorkPermits({ w }: { w: WorkView }) {
+export function WorkPermits({ w, fallback = null }: { w: WorkView; fallback?: ReactNode }) {
   const { actor, isFetching } = useBackend();
   const q = useQuery({ queryKey: ["workPermits", String(w.id)], queryFn: () => actor!.workPermits(w.id), enabled: !!actor && !isFetching, refetchOnWindowFocus: true, retry: 0 });
   const [open, setOpen] = useState<PermitView | null>(null);
   const [preset, setPreset] = useState<PermitSuggestion | "new" | null>(null);
-  if (q.error) return null; // geen recht (klant): de sectie bestaat dan niet
+  if (q.error) return <>{fallback}</>; // geen recht (klant): de sectie bestaat dan niet
   const v = q.data;
   return (
     <section className="a-section">
@@ -423,16 +423,17 @@ export function VergunningenPage({ caps, go }: { caps: Caps; go: (to: string) =>
         {q.data && q.data.length === 0 && <p className="a-empty">{P.overviewEmpty}</p>}
         {q.data && q.data.length > 0 && <ul className="a-list">{q.data.map((p) => <PermitLine key={String(p.id)} p={p} onOpen={setOpen} showWork />)}</ul>}
       </section>
-      {caps.managePermitKinds && <PermitKindsSettings />}
+      {caps.managePermitKinds && <p className="a-note">{P.kindsMoved} <a href="#/beheer/documenten">{t.beheer.tabs.documenten}</a></p>}
       {open && kinds.data && (
         <PermitSheet workId={open.workId} permit={open} kinds={kinds.data} canEdit={open.canEdit} onClose={() => setOpen(null)} />
       )}
-      {open && !open.canEdit && <Button onClick={() => go(`werven/${open.workId}`)}>{P.work}</Button>}
+      {open && !open.canEdit && <Button onClick={() => go(`werven/${open.workId}/vergunningen`)}>{P.work}</Button>}
     </Page>
   );
 }
 
-function PermitKindsSettings() {
+/** De vergunningsoorten; sinds 2b.3 in Beheer → Documenten (AD-07). */
+export function PermitKindsSettings() {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();

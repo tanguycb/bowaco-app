@@ -8,7 +8,7 @@ import { WorkStatus, type DashTask, type DashWork, type DashboardView } from "..
 import { Choice, Icon, StatusBadge, type Status } from "../design";
 import { t } from "../texts/nl";
 import { fmtDayNum, todayDay, useBackend } from "../util";
-import { Loading, Page, WorkBadge } from "./common";
+import { Loading, Page, WorkPhase } from "./common";
 
 const D = t.dash;
 const N = Number;
@@ -151,7 +151,7 @@ function WorkCard({ w, go }: { w: DashWork; go: (to: string) => void }) {
     <button type="button" className={`d-card${w.delayed ? " d-card--late" : ""}`} onClick={() => go(`werven/${w.id}`)}>
       <span className="d-card__head">
         <span className="a-tag">{w.code}</span>
-        <WorkBadge status={w.status} />
+        <WorkPhase w={w} />
         {w.delayed && <StatusBadge status="delayed" small />}
       </span>
       <b className="d-card__name">{w.name}</b>

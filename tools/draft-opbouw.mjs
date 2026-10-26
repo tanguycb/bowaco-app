@@ -101,6 +101,7 @@ for (const [name, file] of [
   ["oafactuur", "tests/oafactuur-draft.mjs"], // 2.11: OA-facturen (controle, inhoudingsplicht verplicht, betwisten, geen bedragen voor de werfleider)
   ["vrekentest", "tests/vordering-rekentest.mjs"], // 2.10: browser = server op de vorderingsstaat (op een draft 25 willekeurige invullingen)
   ["mail", "tests/mail-proef.mjs"],
+  ["fase", "tests/fase-draft.mjs"], // 2b.3: één proefwerf door alle fases (stand van de werf, fase per rol)
 ]) rood += run(name, file) ? 1 : 0;
 // De import van de planning: enkel het GEANONIMISEERDE bestand (tools/plan-anonimiseer.mjs; de proef weigert een ander).
 const anon = join(KEYDIR, "plan/plan-anoniem.json");

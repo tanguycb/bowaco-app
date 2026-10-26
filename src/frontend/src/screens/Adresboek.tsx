@@ -8,7 +8,7 @@ import { OrgKind, WorkStatus, type Caps, type ContactConfidentialView, type Mail
 import { Button, Choice, Icon, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, optText, todayDay, unwrap, useBackend } from "../util";
-import { Loading, Page, useWorks, WorkBadge } from "./common";
+import { Loading, Page, useWorks, WorkPhase } from "./common";
 import { Field } from "./Werven";
 import { PersonSheet } from "./Team";
 import { NieuwMetToegang, ToegangGeven, useLoginState } from "./Toegang";
@@ -231,7 +231,7 @@ function Werven({ orgId, go }: { orgId: bigint; go: (to: string) => void }) {
               <button type="button" className="a-list__btn" onClick={() => go(`werven/${w.id}`)}>
                 <span className="a-tag">{w.code}</span>
                 <span className="a-list__main"><b>{w.name}</b><span className="bw-muted">{[w.address.street, w.address.number].filter(Boolean).join(" ")}{w.address.city ? `, ${w.address.city}` : ""}</span></span>
-                <WorkBadge status={w.status} />
+                <WorkPhase w={w} />
                 <Icon name="next" size={18} />
               </button>
             </li>

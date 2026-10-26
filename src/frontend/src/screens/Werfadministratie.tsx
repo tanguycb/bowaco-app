@@ -269,7 +269,7 @@ export function WadmPage({ go, canRules }: { go: (to: string) => void; canRules:
             <ul className="a-list">
               {v.declarations.map((d) => (
                 <li key={String(d.workId)}>
-                  <button type="button" className="a-list__btn" onClick={() => go(`werven/${d.workId}`)}>
+                  <button type="button" className="a-list__btn" onClick={() => go(`werven/${d.workId}/vergunningen`)}>
                     <span className="a-list__main"><b>{d.workCode} · {d.workName}</b><span className="bw-muted">{d.reason}{d.deadline !== undefined ? ` · ${A.deadline} ${fmtDayNum(d.deadline)}${d.deadline < todayDay() ? ` (${A.past})` : ""}` : ""}</span></span>
                     <span className={`a-tag ${d.status === "te doen" ? "a-tag--warn" : ""}`}>{d.status}</span>
                     <Icon name="next" size={18} />
@@ -295,13 +295,14 @@ export function WadmPage({ go, canRules }: { go: (to: string) => void; canRules:
           </section>
         </>
       )}
-      {canRules && <Rules />}
+      {canRules && <p className="a-note">{A.rulesMoved} <a href="#/beheer/opmeting">{t.beheer.tabs.opmeting}</a></p>}
       {check && <WithholdingSheet o={check} onClose={() => setCheck(null)} />}
     </Page>
   );
 }
 
-function Rules() {
+/** De drempels van de werfadministratie (30bis, Checkinatwork); sinds 2b.3 in Beheer → Opmeting & facturatie (AD-07). */
+export function WadmRules() {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();

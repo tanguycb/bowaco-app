@@ -5032,6 +5032,21 @@ export interface WorkPermitsView {
     workId: WorkId;
     kinds: Array<PermitKindView>;
 }
+export interface WorkStageView {
+    tasks: bigint;
+    startedAt?: bigint;
+    quoteWaiting: boolean;
+    measuredAt?: bigint;
+    invoicedAt?: bigint;
+    quoteSentAt?: bigint;
+    startPending: boolean;
+    progressDraft: boolean;
+    surveyOpen: boolean;
+    progressSent: bigint;
+    workId: WorkId;
+    acceptedAt?: bigint;
+    firstReportAt?: bigint;
+}
 export interface WorkStart {
     at: bigint;
     by: PersonId;
@@ -5581,6 +5596,7 @@ export interface backendInterface {
     listTrades(withArchived: boolean): Promise<Array<TradeView>>;
     listTrips(fromDay: bigint, toDay: bigint): Promise<Array<TripView>>;
     listVehicles(withArchived: boolean): Promise<Array<VehicleView>>;
+    listWorkStages(): Promise<Array<WorkStageView>>;
     listWorks(): Promise<Array<WorkView>>;
     loadLibraryStartChapters(): Promise<Result_5>;
     lookupFine(q: FineQuery): Promise<Result_39>;

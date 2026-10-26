@@ -35,6 +35,7 @@ const P: Record<string, string> = {
   undo: "M9 14 4 9l5-5 M4 9h11a5 5 0 0 1 0 10h-3",
   menu: "M4 7h16 M4 12h16 M4 17h16",
   key: "M14 10a4 4 0 1 0-3.5 4L9 15.5V18H6.5v2.5H4V18l6.2-6.2A4 4 0 0 0 14 10z M15 7h.01",
+  lock: "M6 11h12v9H6z M8.5 11V8a3.5 3.5 0 0 1 7 0v3", // 2b.3: tabblad dat nog niet geldt
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19 12l2-1-1-3-2.2.2-1.3-1.3L16.7 4.7 14 4l-1 2h-2L10 4l-2.7.7.2 2.2-1.3 1.3L4 8 3 11l2 1v0l-2 1 1 3 2.2-.2 1.3 1.3L7.3 19.3 10 20l1-2h2l1 2 2.7-.7-.2-2.2 1.3-1.3L20 16l1-3z",
   doc: "M6 3h9l4 4v14H6z M15 3v4h4 M9 12h7 M9 16h7",
   building: "M4 21V5l8-2v18 M12 9l8 2v10 M2 21h20 M7 8h2 M7 12h2 M7 16h2 M15 14h2 M15 17h2",

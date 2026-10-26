@@ -66,7 +66,12 @@ mixin (
       clientOrgId = i.clientOrgId;
       architectOrgId = i.architectOrgId;
       leaderPersonId = i.leaderPersonId;
-      var status = #planned;
+      // 2b.3: een nieuwe werf begint als aanvraag (vraag 1); de werfstart (2.8) zet ze daarna op gepland. Een deelwerf van
+      // een lopende werf loopt meteen mee (gepland), zodat vergunningen, 30bis en het dashboard haar blijven zien.
+      var status = switch (i.parentId) {
+        case (?x) { switch (works.works.get(x)) { case (?pw) { if (pw.status == #planned or pw.status == #running) #planned else #request }; case null #request } };
+        case null #request;
+      };
       vatBp = i.vatBp;
       plannedStart = null;
       plannedEnd = null;

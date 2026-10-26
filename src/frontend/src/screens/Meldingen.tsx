@@ -26,11 +26,22 @@ export function Bell({ go, home }: { go: (to: string) => void; home: string }) {
   );
 }
 
+/** 2b.3: een melding springt naar het tabblad van de werf waar het over gaat (#/werven/12/offerte …). */
+const TAB_OF: [RegExp, string][] = [
+  [/^(planning|afwezigheid|vallen|valt|remming)/, "planning"],
+  [/^(offerte|werfstart)/, "offerte"],
+  [/^opmeting/, "opmeting"],
+  [/^vordering/, "facturatie"],
+  [/^(vergunning|inhoudingsplicht)/, "vergunningen"],
+  [/^(verslag|probleem)/, "verslagen"],
+];
+
 function target(n: NotificationView, home: string): string | null {
   if (n.kind === "uren-bevestigen") return "uren";
   if (n.workId === undefined) return home === "week" ? "week" : null;
   if (n.kind.startsWith("planning")) return home === "week" ? "week" : `werven/${n.workId}/planning`;
-  return `werven/${n.workId}`;
+  const tab = TAB_OF.find(([re]) => re.test(n.kind))?.[1];
+  return tab ? `werven/${n.workId}/${tab}` : `werven/${n.workId}`;
 }
 
 function NotesSheet({ go, home, onClose }: { go: (to: string) => void; home: string; onClose: () => void }) {

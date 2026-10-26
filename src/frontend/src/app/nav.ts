@@ -48,8 +48,16 @@ export const OLD_TO_NEW: Record<string, string> = {
   boetes: "beheer/voertuigen",
 };
 
+/** 2b.3: oude adressen met een werf erin → het tabblad van die werf (vorderingen/w/12 → werven/12/facturatie). */
+export function oldWorkRoute(route: string[]): string | undefined {
+  if (route[0] === "vorderingen" && route[1] === "w" && route[2] && /^\d+$/.test(route[2])) return `werven/${route[2]}/facturatie`;
+  return undefined;
+}
+
 /** Een route → het scherm dat opent, en eventueel het nieuwe adres waarnaar de adresbalk doorverwijst. */
 export function resolveRoute(route: string[], caps: Caps): { page: string; redirect?: string } {
+  const toWork = oldWorkRoute(route);
+  if (toWork) return { page: "werven", redirect: toWork };
   const old = route[0] ? OLD_TO_NEW[route[0]] : undefined;
   if (old) return { page: old.split("/")[0], redirect: [old, ...route.slice(1)].join("/") };
   const allowed = pagesFor(caps);

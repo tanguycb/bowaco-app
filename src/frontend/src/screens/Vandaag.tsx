@@ -8,7 +8,7 @@ import { useCached } from "../offline/cached";
 import { useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
 import { fmtDayNum, todayDay, useBackend } from "../util";
-import { Loading, Page, WorkBadge } from "./common";
+import { Loading, Page, WorkPhase } from "./common";
 import { IssueAttention } from "./Verslagen";
 import { BoardAttention } from "./Weekbord";
 import { PermitsOnSite } from "./Vergunningen";
@@ -72,7 +72,7 @@ function WorkCard({ w, day, go }: { w: DayWork; day: bigint; go: (to: string) =>
       raised
       title={<button type="button" className="m-titlelink" onClick={() => go(`werven/${w.id}`)}>{w.code} · {w.name} <Icon name="next" size={18} /></button>}
       meta={addr}
-      aside={<WorkBadge status={w.status} />}
+      aside={<WorkPhase w={w} />}
     >
       <div className="m-workcard">
         <ul className="m-facts">

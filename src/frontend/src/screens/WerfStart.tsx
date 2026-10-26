@@ -106,7 +106,7 @@ export function WerfStartPage({ versionId, caps, go }: { versionId: bigint; caps
   if (p.done) {
     const d = p.done;
     return (
-      <Page label={label} title={W.title} actions={<Button icon="back" onClick={() => go(`werven/${p.sourceWorkId}`)}>{t.common.back}</Button>}>
+      <Page label={label} title={W.title} actions={<Button icon="back" onClick={() => go(`werven/${p.sourceWorkId}/offerte`)}>{t.common.back}</Button>}>
         <div className="a-note" data-testid="ws-done">
           <p><b>{W.done(d.status, d.byName, fmtTime(d.at))}</b></p>
           {d.status === "gestart" ? <p>{W.doneCounts(String(d.tasks), String(d.linked), String(d.permits), d.declaration)}</p> : <p>{W.doneDismissed(d.note)}</p>}
@@ -137,7 +137,7 @@ export function WerfStartPage({ versionId, caps, go }: { versionId: bigint; caps
   const busy = pv.isFetching;
 
   return (
-    <Page label={label} title={W.title} wide actions={<Button icon="back" onClick={() => go(`werven/${p.sourceWorkId}`)}>{t.common.back}</Button>}>
+    <Page label={label} title={W.title} wide actions={<Button icon="back" onClick={() => go(`werven/${p.sourceWorkId}/offerte`)}>{t.common.back}</Button>}>
       {p.warnings.length > 0 && (
         <div className="ws-warn" role="status">
           <Icon name="alert" size={18} />

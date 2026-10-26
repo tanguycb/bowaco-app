@@ -1,41 +1,49 @@
-// Werfpagina (stap 1.1): fiche, afgeleide feiten, contract (vertrouwelijk), wie werkt mee (2b.1), documenten, bestanden.
+// Werfpagina (stap 1.1; 2b.3: de werf als centrum). Bovenaan de stappenbalk (acht fases, afgeleid uit wat er gebeurde,
+// app/fase.ts) en één kaart "Volgende stap"; daaronder de tabbladen Overzicht · Offerte · Planning · Verslagen · Opmeting ·
+// Facturatie · Vergunningen & admin · Documenten · Wie werkt mee (desktop) of een knoppenlijst (gsm, regel 4). Het tabblad
+// staat in de URL (#/werven/12/planning). Elk blok van de vroegere werfpagina heeft een tabblad (BOWACO_verslag_2b.3.md §2).
 // Wat iemand mag, zegt de backend per werf (WorkView.caps, Rights.mo); elke handeling wordt opnieuw nagekeken.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { GuaranteeKind, OrgKind, Role, WorkStatus, type Caps, type ContractInput, type ContractView, type InvoicingRhythm, type WorkView } from "../backend";
-import { Button, Choice, Sheet, useToast } from "../design";
+import { GuaranteeKind, OrgKind, QuoteStatus, Role, WorkStatus, type Caps, type ContractInput, type ContractView, type InvoicingRhythm, type WorkView } from "../backend";
+import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
-import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, parsePct, unwrap, useBackend } from "../util";
-import { Loading, Page, useWorks, WorkBadge } from "./common";
+import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
+import { factsOf, Loading, Page, PhaseLabel, StepBar, useStages, useWorks } from "./common";
+import { isClient } from "../app/nav";
+import { faseNaam, toontFase, volgendeStap, werfFase, werfTabs, type Fase, type Stap, type StageFacts, type TabKey, type WerfTab } from "../app/fase";
 import { WorkConflicts } from "./Weekbord";
 import { WorkQuotes } from "./Offertes";
 import { Dossier } from "./Dossier";
-import { PlanSummary } from "./Planning";
+import { PlanningPage, PlanSummary, useMedia } from "./Planning";
 import { Field, Files, NewWork } from "./Werven";
-import { ReportsSection } from "./Verslagen";
+import { IssueList, ReportsSection, SummaryRow, ReportSheet } from "./Verslagen";
 import { WieWerktMee } from "./Toegang";
 import { WorkPermits } from "./Vergunningen";
 import { WorkAdmin } from "./Werfadministratie";
 import { PendingStarts } from "./WerfStart";
+import { OpmetingWerf } from "./Opmeting";
+import { MyStatements, WorkStatements } from "./Vorderingen";
+import { WorkOaInvoices } from "./OaFacturen";
+import { MyQuotes } from "./MijnOfferte";
 
-export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: string) => void }) {
+const F = t.fase;
+
+export function WerfDetail({ id, caps, go, tab }: { id: bigint; caps: Caps; go: (to: string) => void; tab?: string }) {
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
-  const qc = useQueryClient();
-  const toast = useToast();
   const work = useQuery({ queryKey: ["work", String(id)], queryFn: () => actor!.getWork(id), enabled: on });
-  const members = useQuery({ queryKey: ["members", String(id)], queryFn: () => actor!.listMembers(id), enabled: on && !!work.data, refetchOnWindowFocus: true });
-  const works = useWorks();
-  // Namen van klant, architect en werfleider: enkel voor interne rollen (team en organisaties lezen).
+  const stages = useStages();
+  const pending = useQuery({ queryKey: ["pendingWorkStarts", String(id)], queryFn: () => actor!.pendingWorkStarts(id), enabled: on && caps.workStarts, refetchOnWindowFocus: true });
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
-  const persons = useQuery({ queryKey: ["persons", false], queryFn: () => actor!.listPersons(false), enabled: on && caps.readTeam });
+  const works = useWorks();
+  const phone = useMedia("(max-width: 899px)");
   const [editing, setEditing] = useState(false);
-  const [newSub, setNewSub] = useState(false);
-  const status = useMutation({
-    mutationFn: async (s: WorkStatus) => unwrap(await actor!.setWorkStatus(id, s)),
-    onSuccess: () => void qc.invalidateQueries(),
-    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
-  });
+  const [override, setOverride] = useState(false);
+  const [toStatus, setToStatus] = useState<"delivered" | "aftercare" | null>(null);
+  // Elk ander tabblad: de stand opnieuw (een handeling in een tabblad kan de fase doen schuiven), en elke 30 s.
+  useEffect(() => { void stages.refetch(); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const i = setInterval(() => void stages.refetch(), 30_000); return () => clearInterval(i); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!work.data) {
     return (
@@ -45,84 +53,379 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
     );
   }
   const w = work.data;
-  const orgName = (oid?: bigint) => (oid === undefined ? t.common.none : orgs.data?.find((o) => o.id === oid)?.name ?? `#${oid}`);
-  const personName = (pid?: bigint) => (pid === undefined ? t.werven.noLeader : persons.data?.find((p) => p.id === pid)?.name ?? members.data?.find((m) => m.personId === pid)?.name ?? `#${pid}`);
+  const client = isClient(caps);
+  const facts = factsOf(w, stages.data);
+  const fase = werfFase(facts);
+  const tabs = werfTabs(caps, fase, facts);
+  const cur = tabs.find((x) => x.key === tab) ?? (phone && !tab ? null : tabs[0]);
+  const open = (k: TabKey) => go(k === "overzicht" && !phone ? `werven/${id}` : `werven/${id}/${k}`);
+  const stap = volgendeStap(fase, facts, caps, w.caps.edit);
+  const act = () => {
+    const a = stap?.action;
+    if (!a) return;
+    if (a.kind === "tab") open(a.tab);
+    else if (a.kind === "report") go(`verslag/${id}/${todayDay()}`);
+    else if (a.kind === "werfstart") { const p = pending.data?.[0]; if (p) go(`werfstart/${p.versionId}`); else open("offerte"); }
+    else if (a.kind === "status") setToStatus(a.status);
+    else go(a.to);
+  };
+  const orgName = (oid?: bigint) => (oid === undefined ? undefined : orgs.data?.find((o) => o.id === oid)?.name);
   const parent = w.parentId !== undefined ? works.data?.find((x) => x.id === w.parentId) : undefined;
-  const subs = (works.data ?? []).filter((x) => x.parentId === w.id);
-  const vcs = (members.data ?? []).filter((m) => m.role === Role.veiligheidscoordinator);
-  const leaders = (members.data ?? []).filter((m) => m.role === Role.werfleider);
   const addr = [w.address.street, w.address.number].filter(Boolean).join(" ") + (w.address.city ? `, ${w.address.zip} ${w.address.city}` : "");
+  const tabOpen = phone && cur !== null; // gsm: één onderdeel volledig in beeld
 
+  const body = cur && <TabBody key={cur.key} tab={cur} w={w} caps={caps} go={go} fase={fase} facts={facts} stap={stap} act={act} client={client} />;
   return (
-    <Page label={w.code} title={w.name} actions={<>
-      {w.caps.edit && <Button icon="edit" onClick={() => setEditing(true)}>{t.werven.edit}</Button>}
-      <Button icon="back" onClick={() => go("werven")}>{t.common.back}</Button>
+    <Page label={w.code} title={tabOpen && cur ? cur.label : w.name} wide={cur?.key === "planning" && !phone} actions={<>
+      {w.caps.edit && !tabOpen && <Button icon="edit" onClick={() => setEditing(true)}>{t.werven.edit}</Button>}
+      {tabOpen ? <Button icon="back" onClick={() => go(`werven/${id}`)}>{w.name}</Button> : <Button icon="back" onClick={() => go(caps.home === "week" ? "week" : "werven")}>{t.common.back}</Button>}
     </>}>
-      <div className="a-row">
-        <WorkBadge status={w.status} />
-        <span className="bw-muted">{addr}</span>
-        <span className="a-tag">btw {Number(w.vatBp) / 100} %</span>
-        {parent && <button type="button" className="a-tag a-tag--link" onClick={() => go(`werven/${parent.id}`)}>{t.werven.subOf} {parent.code}</button>}
-      </div>
-      {w.caps.edit && (
-        <Choice label={t.werven.status} value={w.status} onChange={(s) => { if (s !== w.status && !status.isPending) status.mutate(s); }} options={[WorkStatus.request, WorkStatus.quoting, WorkStatus.planned, WorkStatus.running, WorkStatus.delivered, WorkStatus.aftercare, WorkStatus.cancelled].map((s) => ({ value: s, label: t.workStatus[s] }))} />
-      )}
-
-      <div className="a-cols">
-        <section className="a-section">
-          <h2 className="bw-h2">{t.werven.fiche}</h2>
-          <dl className="a-dl">
-            {caps.readTeam && <>
-              <dt>{t.werven.client}</dt><dd>{orgs.data || w.clientOrgId === undefined ? orgName(w.clientOrgId) : "…"}</dd>
-              <dt>{t.werven.architect}</dt><dd>{orgs.data || w.architectOrgId === undefined ? orgName(w.architectOrgId) : "…"}</dd>
-            </>}
-            <dt>{t.werven.leader}</dt><dd>{w.leaderPersonId === undefined && leaders.length ? leaders.map((m) => m.name).join(", ") : personName(w.leaderPersonId)}</dd>
-            <dt>{t.werven.vc}</dt><dd>{vcs.length ? vcs.map((m) => m.name).join(", ") : <span className="a-tag a-tag--warn">{t.werven.noVc}</span>}</dd>
-            <dt>{t.werven.period}</dt><dd className="bw-num">{w.plannedStart !== undefined || w.plannedEnd !== undefined ? `${fmtDayNum(w.plannedStart)} – ${fmtDayNum(w.plannedEnd)}` : t.common.none}</dd>
-            <dt>{t.werven.vat}</dt><dd>{Number(w.vatBp) / 100} %{w.vatNote ? <span className="bw-muted"> · {w.vatNote}</span> : null}</dd>
-            <dt>{t.werven.analytic}</dt><dd className="bw-mono">{w.analyticCode ?? <>{w.code} <span className="bw-muted">{t.werven.analyticSame}</span></>}</dd>
-            {subs.length > 0 && <><dt>{t.werven.subs}</dt><dd className="a-row">{subs.map((s) => <button key={String(s.id)} type="button" className="a-tag a-tag--link" onClick={() => go(`werven/${s.id}`)}>{s.code}</button>)}</dd></>}
-          </dl>
-          {caps.createWork && w.parentId === undefined && <div><Button variant="quiet" icon="plus" onClick={() => setNewSub(true)}>{t.werven.newSub}</Button></div>}
-          {w.facts && <Facts w={w} works={works.data ?? []} />}
-        </section>
-        {w.caps.contract && <Contract w={w} works={works.data ?? []} />}
-      </div>
-
-      <WieWerktMee w={w} caps={caps} />
-
-      <PendingStarts workId={id} caps={caps} go={go} />
-      {caps.measureRead && (
-        <section className="a-section">
-          <div className="a-row a-row--between">
-            <h2 className="bw-h2">{t.opmeting.title}</h2>
-            <Button icon="ruler" onClick={() => go(`opmeting/${id}`)}>{t.opmeting.linkWerf}</Button>
+      {!tabOpen && (
+        <>
+          <div className="a-row">
+            <PhaseLabel fase={fase} client={client} />
+            {fase.manual && <span className="a-tag" title={F.provisional}>{F.byHand}</span>}
+            <span className="bw-muted">{addr}</span>
+            {orgName(w.clientOrgId) && <span className="a-tag">{orgName(w.clientOrgId)}</span>}
+            {parent && <button type="button" className="a-tag a-tag--link" onClick={() => go(`werven/${parent.id}`)}>{t.werven.subOf} {parent.code}</button>}
           </div>
-        </section>
+          {toontFase(caps) && <StepBar fase={fase} client={client} />}
+          {stap && <NextCard stap={stap} onAct={act} />}
+        </>
       )}
-      {caps.progress && (
-        <section className="a-section">
-          <div className="a-row a-row--between">
-            <h2 className="bw-h2">{t.vorderingen.label}</h2>
-            <Button icon="euro" onClick={() => go(`vorderingen/w/${id}`)} data-testid="werf-vorderingen">{t.vorderingen.linkWerf}</Button>
+      {phone ? (
+        cur ? body : (
+          <>
+            {caps.writeReports && fase.index >= 3 && !fase.cancelled && (
+              <div className={stap?.action?.kind === "report" ? "a-row" : "a-quick"}>
+                {/* het werfverslag staat al als volgende stap: dan enkel de foto (geen twee knoppen voor hetzelfde) */}
+                {stap?.action?.kind !== "report" && <Button variant="primary" size="lg" icon="edit" onClick={() => go(`verslag/${id}/${todayDay()}`)}>{F.report}</Button>}
+                <Button size="lg" icon="camera" block={stap?.action?.kind === "report"} onClick={() => open("documenten")}>{F.photo}</Button>
+              </div>
+            )}
+            <nav className="a-blist" aria-label={t.menu.tabs}>
+              {tabs.map((x) => (
+                <a key={x.key} href={`#/werven/${id}/${x.key}`} className={`a-bli${x.off ? " a-bli--off" : ""}`} onClick={(e) => { e.preventDefault(); open(x.key); }}>
+                  <span className="a-bli__m"><b>{x.label}</b><span>{x.off ? x.off.split(".")[0] : F.hints[x.key]}</span></span>
+                  <Icon name={x.off ? "lock" : "next"} size={18} />
+                </a>
+              ))}
+            </nav>
+          </>
+        )
+      ) : (
+        <>
+          <div className="a-wtabs" role="tablist" aria-label={t.menu.tabs}>
+            {tabs.map((x) => (
+              <a key={x.key} role="tab" href={`#/werven/${id}${x.key === "overzicht" ? "" : `/${x.key}`}`} aria-selected={cur?.key === x.key} className={`a-wtab${x.off ? " a-wtab--off" : ""}`} title={x.off} onClick={(e) => { e.preventDefault(); open(x.key); }}>
+                {x.off && <Icon name="lock" size={14} />}{x.label}
+              </a>
+            ))}
           </div>
-        </section>
+          {body}
+        </>
       )}
-      {caps.quotes && <WorkQuotes workId={id} caps={caps} go={go} />}
-      <PlanSummary workId={id} go={go} />
-      {caps.readOrgPlanning && <WorkConflicts workId={id} go={go} />}
-      <WorkPermits w={w} />
-
-      <WorkAdmin w={w} />
-
-      <ReportsSection workId={id} caps={caps} go={go} />
-
-      <Dossier w={w} />
-      <Files workId={id} canUpload={caps.upload && w.caps.upload} title={t.werven.loose} canConfidential={caps.readContracts} />
+      {cur?.key === "overzicht" && w.caps.edit && <div className="a-row"><Button variant="quiet" onClick={() => setOverride(true)}>{F.override}</Button></div>}
 
       {editing && <EditWork w={w} caps={caps} onClose={() => setEditing(false)} />}
-      {newSub && <NewWork parent={w} onClose={() => setNewSub(false)} go={go} />}
+      {override && <OverrideSheet w={w} fase={fase} onClose={() => setOverride(false)} />}
+      {toStatus && <StatusSheet w={w} status={toStatus} onClose={() => setToStatus(null)} />}
     </Page>
+  );
+}
+
+/** De kaart "Volgende stap": één zin en één knop (prototype 2b, vraag 14). */
+function NextCard({ stap, onAct }: { stap: Stap; onAct: () => void }) {
+  const S = t.stap[stap.key];
+  return (
+    <section className={`a-next${stap.action ? "" : " a-next--quiet"}`} aria-label={F.next}>
+      <div className="a-next__t"><span className="bw-label">{F.next}</span><b>{S.t}</b><span className="bw-muted">{S.d}</span></div>
+      {stap.action && <Button variant="primary" icon="next" onClick={onAct}>{S.b}</Button>}
+    </section>
+  );
+}
+
+/** Eén tabblad: wat er vroeger als blok op de werfpagina stond (zie het verslag van 2b.3, §2). */
+function TabBody({ tab, w, caps, go, fase, facts, stap, act, client }: { tab: WerfTab; w: WorkView; caps: Caps; go: (to: string) => void; fase: Fase; facts: StageFacts; stap: Stap | null; act: () => void; client: boolean }) {
+  const [force, setForce] = useState(false);
+  const works = useWorks();
+  const none = <p className="a-empty">{F.noRight}</p>;
+  if (tab.off && !force) {
+    return (
+      <div className="a-off" role="note">
+        <Icon name="lock" size={22} />
+        <div className="a-off__b">
+          <b>{F.notYet(tab.label)}</b>
+          <span className="bw-muted">{tab.off}</span>
+          <div className="a-row">
+            {tab.key === "planning" && w.caps.edit && <Button onClick={() => setForce(true)}>{F.planByHand}</Button>}
+            {stap?.action && <Button variant="quiet" icon="next" onClick={act}>{F.toNext}</Button>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const id = w.id;
+  switch (tab.key) {
+    case "overzicht":
+      return client || !caps.readTeam ? <ExternOverzicht w={w} caps={caps} go={go} client={client} /> : <Overzicht w={w} caps={caps} go={go} fase={fase} />;
+    case "offerte":
+      if (client) return <MyQuotes go={go} embedded workName={w.name} />;
+      return (
+        <div className="a-tabbody">
+          <PendingStarts workId={id} caps={caps} go={go} />
+          <WorkQuotes workId={id} caps={caps} go={go} />
+          {fase.index >= 2 && <Meerwerk workId={id} caps={caps} go={go} facts={facts} />}
+        </div>
+      );
+    case "planning":
+      return (
+        <div className="a-tabbody">
+          <PlanningPage id={id} caps={caps} go={go} embedded />
+          {caps.readOrgPlanning && <WorkConflicts workId={id} go={go} />}
+        </div>
+      );
+    case "verslagen":
+      return <ReportsSection workId={id} caps={caps} go={go} fallback={none} />;
+    case "opmeting":
+      return <OpmetingWerf workId={id} go={go} embedded />;
+    case "facturatie":
+      if (client) return <MyStatements go={go} embedded workName={w.name} />;
+      return (
+        <div className="a-tabbody">
+          {caps.progress && <WorkStatements workId={id} caps={caps} go={go} embedded />}
+          {caps.oaInvoices && <WorkOaInvoices workId={id} caps={caps} go={go} />}
+          {w.caps.contract && <Contract w={w} works={works.data ?? []} />}
+        </div>
+      );
+    case "vergunningen":
+      return (
+        <div className="a-tabbody">
+          <WorkPermits w={w} fallback={none} />
+          <WorkAdmin w={w} />
+        </div>
+      );
+    case "documenten":
+      return (
+        <div className="a-tabbody">
+          <Dossier w={w} />
+          <Files workId={id} canUpload={caps.upload && w.caps.upload} title={t.werven.loose} canConfidential={caps.readContracts} />
+        </div>
+      );
+    case "wie":
+      return <WieWerktMee w={w} caps={caps} />;
+  }
+}
+
+/** Overzicht (kantoor en werfleider): wat aandacht vraagt op déze werf, het laatste verslag, en de werffiche. */
+function Overzicht({ w, caps, go, fase }: { w: WorkView; caps: Caps; go: (to: string) => void; fase: Fase }) {
+  const { actor, isFetching } = useBackend();
+  const on = !!actor && !isFetching;
+  const works = useWorks();
+  const last = useQuery({ queryKey: ["reports", String(w.id), "laatste"], queryFn: () => actor!.listReports(w.id, 0n, 1n), enabled: on && fase.index >= 3, retry: 0 });
+  const [report, setReport] = useState<bigint | null>(null);
+  const docs = w.checklistOpen !== undefined && w.checklistOpen > 0n;
+  return (
+    <div className="a-cols">
+      <div className="a-tabbody">
+        <section className="a-section">
+          <h2 className="bw-h2">{F.aandacht}</h2>
+          {docs && (
+            <ul className="a-list"><li>
+              <button type="button" className="a-list__btn" onClick={() => go(`werven/${w.id}/documenten`)}>
+                <Icon name="doc" size={20} /><span className="a-list__main"><b>{t.werven.docsOpen(Number(w.checklistOpen))}</b></span><Icon name="next" size={18} />
+              </button>
+            </li></ul>
+          )}
+          <IssueList workId={w.id} />
+          {caps.readOrgPlanning && <WorkConflicts workId={w.id} go={go} />}
+          {!docs && <p className="bw-muted">{F.nothing}</p>}
+        </section>
+        {last.data && last.data.length > 0 && (
+          <section className="a-section">
+            <div className="a-row a-row--between">
+              <h2 className="bw-h2">{F.laatsteVerslag}</h2>
+              <Button variant="quiet" onClick={() => go(`werven/${w.id}/verslagen`)}>{F.allReports}</Button>
+            </div>
+            <ul className="a-list"><SummaryRow r={last.data[0]} onOpen={() => setReport(last.data![0].id)} /></ul>
+          </section>
+        )}
+        {report !== null && <ReportSheet id={report} onClose={() => setReport(null)} />}
+        <details className="a-note">
+          <summary>{F.rules.title}</summary>
+          <ol>{F.rules.list.map((x) => <li key={x}>{x}</li>)}</ol>
+          <p>{F.rules.foot}</p>
+        </details>
+      </div>
+      <Fiche w={w} caps={caps} go={go} works={works.data ?? []} />
+    </div>
+  );
+}
+
+/** Voortgang (klant) of overzicht (architect, OA, VC): de werffiche zonder interne gegevens, de planning in het kort (klant). */
+function ExternOverzicht({ w, caps, go, client }: { w: WorkView; caps: Caps; go: (to: string) => void; client: boolean }) {
+  const works = useWorks();
+  return (
+    <div className="a-cols">
+      <div className="a-tabbody">{client ? <PlanSummary workId={w.id} go={go} noLink /> : <PlanSummary workId={w.id} go={go} />}</div>
+      <Fiche w={w} caps={caps} go={go} works={works.data ?? []} />
+    </div>
+  );
+}
+
+/** De werffiche (1.1): klant, architect, werfleider, VC, periode, btw, analytische code, deelwerven, feiten uit het contract. */
+function Fiche({ w, caps, go, works }: { w: WorkView; caps: Caps; go: (to: string) => void; works: WorkView[] }) {
+  const { actor, isFetching } = useBackend();
+  const on = !!actor && !isFetching;
+  const members = useQuery({ queryKey: ["members", String(w.id)], queryFn: () => actor!.listMembers(w.id), enabled: on, refetchOnWindowFocus: true });
+  // Namen van klant, architect en werfleider: enkel voor interne rollen (team en organisaties lezen).
+  const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
+  const persons = useQuery({ queryKey: ["persons", false], queryFn: () => actor!.listPersons(false), enabled: on && caps.readTeam });
+  const [newSub, setNewSub] = useState(false);
+  const orgName = (oid?: bigint) => (oid === undefined ? t.common.none : orgs.data?.find((o) => o.id === oid)?.name ?? `#${oid}`);
+  const personName = (pid?: bigint) => (pid === undefined ? t.werven.noLeader : persons.data?.find((p) => p.id === pid)?.name ?? members.data?.find((m) => m.personId === pid)?.name ?? `#${pid}`);
+  const subs = works.filter((x) => x.parentId === w.id);
+  const vcs = (members.data ?? []).filter((m) => m.role === Role.veiligheidscoordinator);
+  const leaders = (members.data ?? []).filter((m) => m.role === Role.werfleider);
+  return (
+    <section className="a-section">
+      <h2 className="bw-h2">{t.werven.fiche}</h2>
+      <dl className="a-dl">
+        {caps.readTeam && <>
+          <dt>{t.werven.client}</dt><dd>{orgs.data || w.clientOrgId === undefined ? orgName(w.clientOrgId) : "…"}</dd>
+          <dt>{t.werven.architect}</dt><dd>{orgs.data || w.architectOrgId === undefined ? orgName(w.architectOrgId) : "…"}</dd>
+        </>}
+        <dt>{t.werven.leader}</dt><dd>{w.leaderPersonId === undefined && leaders.length ? leaders.map((m) => m.name).join(", ") : personName(w.leaderPersonId)}</dd>
+        {/* externen zien de andere firma's op de werf niet (listMembers, 1.9): geen VC-regel en geen analytische code voor hen */}
+        {caps.readTeam && <><dt>{t.werven.vc}</dt><dd>{vcs.length ? vcs.map((m) => m.name).join(", ") : <span className="a-tag a-tag--warn">{t.werven.noVc}</span>}</dd></>}
+        <dt>{t.werven.period}</dt><dd className="bw-num">{w.plannedStart !== undefined || w.plannedEnd !== undefined ? `${fmtDayNum(w.plannedStart)} – ${fmtDayNum(w.plannedEnd)}` : t.common.none}</dd>
+        <dt>{t.werven.vat}</dt><dd>{Number(w.vatBp) / 100} %{w.vatNote ? <span className="bw-muted"> · {w.vatNote}</span> : null}</dd>
+        {caps.readTeam && <><dt>{t.werven.analytic}</dt><dd className="bw-mono">{w.analyticCode ?? <>{w.code} <span className="bw-muted">{t.werven.analyticSame}</span></>}</dd></>}
+        {subs.length > 0 && <><dt>{t.werven.subs}</dt><dd className="a-row">{subs.map((x) => <button key={String(x.id)} type="button" className="a-tag a-tag--link" onClick={() => go(`werven/${x.id}`)}>{x.code}</button>)}</dd></>}
+      </dl>
+      {caps.createWork && w.parentId === undefined && <div><Button variant="quiet" icon="plus" onClick={() => setNewSub(true)}>{t.werven.newSub}</Button></div>}
+      {w.facts && <Facts w={w} works={works} />}
+      {newSub && <NewWork parent={w} onClose={() => setNewSub(false)} go={go} />}
+    </section>
+  );
+}
+
+/** + Meerwerk (flow-analyse §4.5): een nieuwe versie van de aanvaarde offerte; na het akkoord start Werf starten enkel het verschil. */
+function Meerwerk({ workId, caps, go, facts }: { workId: bigint; caps: Caps; go: (to: string) => void; facts: StageFacts }) {
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const list = useQuery({ queryKey: ["quotes", String(workId), false], queryFn: () => actor!.listQuotes(workId, false), enabled: !!actor && !isFetching });
+  const [busy, setBusy] = useState(false);
+  const [pick, setPick] = useState(false);
+  // De offertes met een aanvaarde versie; meerwerk = de versies die daarna kwamen.
+  const accepted = (list.data ?? []).filter((q) => q.versions.some((v) => v.status === QuoteStatus.accepted));
+  const later = accepted.flatMap((q) => {
+    const first = Math.min(...q.versions.filter((v) => v.status === QuoteStatus.accepted).map((v) => Number(v.version)));
+    return q.versions.filter((v) => Number(v.version) > first).map((v) => ({ q, v }));
+  });
+  // Meer dan één aanvaarde offerte op de werf: eerst kiezen op welke (review 2b.3).
+  const make = async (q = accepted.length === 1 ? accepted[0] : undefined) => {
+    if (!q) { setPick(true); return; }
+    setPick(false);
+    const draft = q.versions.find((v) => v.status === QuoteStatus.draft);
+    if (draft) { go(`offertes/${q.id}/${draft.id}`); return; }
+    const base = q.versions.filter((v) => v.status === QuoteStatus.accepted).sort((a, b) => Number(b.version - a.version))[0];
+    setBusy(true);
+    try {
+      const nid = unwrap(await actor!.newQuoteVersion(q.id, base.id));
+      void qc.invalidateQueries({ queryKey: ["quotes"] });
+      toast.show({ kind: "ok", text: F.meerwerkMade });
+      go(`offertes/${q.id}/${nid}`);
+    } catch (e) {
+      toast.show({ kind: "error", text: errText(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (accepted.length === 0) return null;
+  return (
+    <section className="a-section">
+      <div className="a-row a-row--between">
+        <h2 className="bw-h2">{F.meerwerk}</h2>
+        {caps.editQuotes && <Button variant="primary" icon="plus" busy={busy} onClick={() => void make()}>{F.meerwerkNew}</Button>}
+      </div>
+      <p className="bw-muted">{F.meerwerkLead}{facts.startPending ? ` ${t.stap.meerwerkStarten.d}` : ""}</p>
+      {pick && (
+        <div className="a-blist" role="group" aria-label={F.meerwerkPick}>
+          <span className="bw-label" style={{ padding: "10px 14px 0" }}>{F.meerwerkPick}</span>
+          {accepted.map((q) => (
+            <button key={String(q.id)} type="button" className="a-bli" onClick={() => void make(q)}>
+              <span className="a-bli__m"><b>{q.number}</b><span>{q.title}</span></span>
+              <Icon name="next" size={18} />
+            </button>
+          ))}
+        </div>
+      )}
+      {later.length === 0 ? <p className="a-empty">{F.meerwerkNone}</p> : (
+        <ul className="a-list">
+          {later.map(({ q, v }) => (
+            <li key={String(v.id)}>
+              <button type="button" className="a-list__btn" onClick={() => go(`offertes/${q.id}/${v.id}`)}>
+                <span className="a-tag">{q.number}</span>
+                <span className="a-list__main"><b>{t.offertes.version(v.version)}</b><span className="bw-muted">{fmtTime(v.updatedAt)}</span></span>
+                <span className="a-tag">{t.offertes.status[v.status] ?? v.status}</span>
+                <Icon name="next" size={18} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Fase overschrijven: de status met de hand (vooruit, opleveren, nazorg, annuleren). Akkoord, Opgemeten en Gefactureerd volgen altijd uit de gegevens. */
+function OverrideSheet({ w, fase, onClose }: { w: WorkView; fase: Fase; onClose: () => void }) {
+  const { actor } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [pick, setPick] = useState<WorkStatus>(w.status);
+  const save = useMutation({
+    mutationFn: async () => unwrap(await actor!.setWorkStatus(w.id, pick)),
+    onSuccess: () => { toast.show({ kind: "ok", text: F.overrideDone(F.choices[pick]) }); void qc.invalidateQueries(); onClose(); },
+  });
+  const opts = [WorkStatus.request, WorkStatus.quoting, WorkStatus.planned, WorkStatus.running, WorkStatus.delivered, WorkStatus.aftercare, WorkStatus.cancelled];
+  return (
+    <Sheet title={`${F.override} · ${w.code}`} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" disabled={pick === w.status} busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></>}>
+      <div className="a-form">
+        <p className="bw-muted">{F.overrideLead}</p>
+        <p className="bw-num"><b>{F.of(fase.index + 1, 8)}</b> · {faseNaam(fase)}</p>
+        <div className="a-blist" role="radiogroup" aria-label={F.override}>
+          {opts.map((o) => (
+            <button key={o} type="button" role="radio" aria-checked={pick === o} className="a-bli" onClick={() => setPick(o)}>
+              <span className="a-bli__m"><b>{F.choices[o]}</b><span>{F.choiceHelp[o]}</span></span>
+              {pick === o && <Icon name="check" size={18} />}
+            </button>
+          ))}
+        </div>
+        <p className="bw-muted">{F.overrideNote}</p>
+        {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
+      </div>
+    </Sheet>
+  );
+}
+
+/** Opleveren of nazorg vanuit "Volgende stap": bevestigen in een paneel (geen window.confirm). */
+function StatusSheet({ w, status, onClose }: { w: WorkView; status: "delivered" | "aftercare"; onClose: () => void }) {
+  const { actor } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const S = status === "delivered" ? t.stap.opleveren : t.stap.nazorg;
+  const save = useMutation({
+    mutationFn: async () => unwrap(await actor!.setWorkStatus(w.id, status === "delivered" ? WorkStatus.delivered : WorkStatus.aftercare)),
+    onSuccess: () => { toast.show({ kind: "ok", text: F.overrideDone(F.choices[status]) }); void qc.invalidateQueries(); onClose(); },
+  });
+  return (
+    <Sheet title={`${S.t} · ${w.code}`} open onClose={onClose} footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{S.b}</Button></>}>
+      <p>{S.d}</p>
+      {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
+    </Sheet>
   );
 }
 

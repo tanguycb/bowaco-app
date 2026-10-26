@@ -13,7 +13,6 @@ import { Home } from "../screens/Home";
 import { Overzicht } from "../screens/Overzicht";
 import { Werven } from "../screens/Werven";
 import { WerfDetail } from "../screens/Werf";
-import { PlanningPage } from "../screens/Planning";
 import { Team } from "../screens/Team";
 import { Adresboek } from "../screens/Adresboek";
 import { Beheer } from "../screens/Beheer";
@@ -110,6 +109,8 @@ function AppInner() {
     });
     const offM = qc.getMutationCache().subscribe((ev) => {
       if (ev.type === "updated" && ev.action.type === "error" && unlinked(ev.action.error)) recheck();
+      // 2b.3: na elke geslaagde handeling de stand van de werven opnieuw (stappenbalk en volgende stap)
+      if (ev.type === "updated" && ev.action.type === "success") void qc.invalidateQueries({ queryKey: ["stages"] });
     });
     return () => { window.removeEventListener("hashchange", onHash); offQ(); offM(); };
   }, [qc]);
@@ -229,10 +230,11 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         return <Home kind={page} go={go} caps={caps} />;
       case "week":
       case "werven":
+        // 2b.3: de werf met het tabblad in de URL (#/werven/12/planning); de planning is het tabblad Planning.
         if (route[0] === "werven" && route[1] && /^\d+$/.test(route[1])) {
-          return route[2] === "planning" ? <PlanningPage id={BigInt(route[1])} caps={caps} go={go} /> : <WerfDetail id={BigInt(route[1])} caps={caps} go={go} />;
+          return <WerfDetail key={route[1]} id={BigInt(route[1])} caps={caps} go={go} tab={route[2]} />;
         }
-        return page === "werven" ? <Werven caps={caps} go={go} /> : <Home kind={page} go={go} caps={caps} />;
+        return page === "werven" ? <Werven caps={caps} go={go} route={route} /> : <Home kind={page} go={go} caps={caps} />;
       case "uren": return <MijnUren />;
       case "dashboard": return <DashboardPage go={go} />;
       case "weekbord": return <Weekbord key={window.location.hash} caps={caps} go={go} />;

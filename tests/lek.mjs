@@ -126,6 +126,7 @@ const table = {
   setOrgConfidential: [["admin", "calculator"], () => [X, [], ""]],
   readOrgConfidential: [["admin", "calculator"], () => [X]],
   listWorks: [ACTIVE, () => []],
+  listWorkStages: [ACTIVE, () => []], // 2b.3: stand van de werf (enkel momenten en vlaggen; zelfde werven als listWorks)
   getWork: [ON_B, () => [B]],
   createWork: [["admin", "werfleider"], () => [workIn]],
   setWorkStatus: [["admin", "werfleider"], () => [B, { planned: null }]],

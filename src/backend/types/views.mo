@@ -207,6 +207,24 @@ module {
     extra : Types.Extra; // 1.9 (export/herstel): o.a. de importbatch
   };
 
+  // 2b.3: de stand van een werf voor de stappenbalk en "Volgende stap". Enkel momenten, tellingen en vlaggen (geen bedrag,
+  // geen naam); de fase zelf rekent de browser (app/fase.ts), VOORLOPIG tot Alexis vraag 14 beantwoordt.
+  public type WorkStageView = {
+    workId : WorkId;
+    quoteSentAt : ?Int; // eerste verzonden offerteversie
+    quoteWaiting : Bool; // een verzonden versie wacht op het antwoord van de klant
+    acceptedAt : ?Int; // eerste aanvaarde versie (digitaal akkoord, getekende offerte of door kantoor geregistreerd)
+    startedAt : ?Int; // eerste bevestigde werfstart
+    startPending : Bool; // een aanvaarde versie zonder werfstart of afgewezen voorstel
+    tasks : Nat; // taken in de planning
+    firstReportAt : ?Int; // eerste werfverslag
+    surveyOpen : Bool; // een opmeting staat open
+    measuredAt : ?Int; // eindopmeting: een afgesloten opmeting waarin elke post volledig opgemeten is
+    progressSent : Nat; // verzonden vorderingsstaten (zonder creditnota's en gecrediteerde staten)
+    progressDraft : Bool; // een vorderingsstaat in ontwerp
+    invoicedAt : ?Int; // slotstaat: de eerste vorderingsstaat verzonden ná de eindopmeting
+  };
+
   public type WorkUpdate = {
     code : Text;
     name : Text;

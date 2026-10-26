@@ -3017,6 +3017,21 @@ export const TemplateView = IDL.Record({
   'provisional' : IDL.Bool,
   'archived' : IDL.Bool,
 });
+export const WorkStageView = IDL.Record({
+  'tasks' : IDL.Nat,
+  'startedAt' : IDL.Opt(IDL.Int),
+  'quoteWaiting' : IDL.Bool,
+  'measuredAt' : IDL.Opt(IDL.Int),
+  'invoicedAt' : IDL.Opt(IDL.Int),
+  'quoteSentAt' : IDL.Opt(IDL.Int),
+  'startPending' : IDL.Bool,
+  'progressDraft' : IDL.Bool,
+  'surveyOpen' : IDL.Bool,
+  'progressSent' : IDL.Nat,
+  'workId' : WorkId,
+  'acceptedAt' : IDL.Opt(IDL.Int),
+  'firstReportAt' : IDL.Opt(IDL.Int),
+});
 export const FineQuery = IDL.Record({
   'day' : Day,
   'time' : IDL.Opt(IDL.Nat),
@@ -5044,6 +5059,7 @@ export const idlService = IDL.Service({
   'listTrades' : IDL.Func([IDL.Bool], [IDL.Vec(TradeView)], ['query']),
   'listTrips' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(TripView)], ['query']),
   'listVehicles' : IDL.Func([IDL.Bool], [IDL.Vec(VehicleView)], ['query']),
+  'listWorkStages' : IDL.Func([], [IDL.Vec(WorkStageView)], ['query']),
   'listWorks' : IDL.Func([], [IDL.Vec(WorkView)], ['query']),
   'loadLibraryStartChapters' : IDL.Func([], [Result_5], []),
   'lookupFine' : IDL.Func([FineQuery], [Result_39], []),
@@ -8270,6 +8286,21 @@ export const idlFactory = ({ IDL }) => {
     'provisional' : IDL.Bool,
     'archived' : IDL.Bool,
   });
+  const WorkStageView = IDL.Record({
+    'tasks' : IDL.Nat,
+    'startedAt' : IDL.Opt(IDL.Int),
+    'quoteWaiting' : IDL.Bool,
+    'measuredAt' : IDL.Opt(IDL.Int),
+    'invoicedAt' : IDL.Opt(IDL.Int),
+    'quoteSentAt' : IDL.Opt(IDL.Int),
+    'startPending' : IDL.Bool,
+    'progressDraft' : IDL.Bool,
+    'surveyOpen' : IDL.Bool,
+    'progressSent' : IDL.Nat,
+    'workId' : WorkId,
+    'acceptedAt' : IDL.Opt(IDL.Int),
+    'firstReportAt' : IDL.Opt(IDL.Int),
+  });
   const FineQuery = IDL.Record({
     'day' : Day,
     'time' : IDL.Opt(IDL.Nat),
@@ -10257,6 +10288,7 @@ export const idlFactory = ({ IDL }) => {
     'listTrades' : IDL.Func([IDL.Bool], [IDL.Vec(TradeView)], ['query']),
     'listTrips' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(TripView)], ['query']),
     'listVehicles' : IDL.Func([IDL.Bool], [IDL.Vec(VehicleView)], ['query']),
+    'listWorkStages' : IDL.Func([], [IDL.Vec(WorkStageView)], ['query']),
     'listWorks' : IDL.Func([], [IDL.Vec(WorkView)], ['query']),
     'loadLibraryStartChapters' : IDL.Func([], [Result_5], []),
     'lookupFine' : IDL.Func([FineQuery], [Result_39], []),

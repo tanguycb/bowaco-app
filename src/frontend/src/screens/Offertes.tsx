@@ -392,7 +392,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       title={`${read.quote.number} · ${header?.title ?? v.title}`}
       actions={
         <>
-          <Button icon="back" onClick={() => go(`werven/${read.quote.workId}`)}>{O.work}</Button>
+          <Button icon="back" onClick={() => go(`werven/${read.quote.workId}/offerte`)}>{O.work}</Button>
           {editable && <Button variant="primary" icon="check" busy={saving} disabled={pending === 0} onClick={() => void save()}>{pending ? `${t.common.save} (${pending})` : t.common.save}</Button>}
         </>
       }

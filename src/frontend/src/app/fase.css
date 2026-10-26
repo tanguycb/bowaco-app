@@ -1,0 +1,82 @@
+/* 2b.3: de werf als centrum (prototype 2b, klassen .ph, .steps, .next, .blist). Het werffase-label heeft een eigen vorm
+   (een meter van acht streepjes + het woord in mono), los van de vijf taakstatussen: een werf in fase offerte lijkt zo niet
+   meer op een taak die gepland is (bevinding B6). Kleuren enkel via de tokens. */
+
+/* werffase-label */
+.a-ph { display: inline-flex; align-items: center; gap: 7px; padding: 3px 8px; border: 1px solid var(--bw-line-strong); border-radius: var(--bw-radius-sm); background: var(--bw-surface); color: var(--bw-ink); font: 500 11.5px var(--bw-font-mono); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.a-ph__m { display: inline-flex; gap: 2px; }
+.a-ph__m i { width: 4px; height: 10px; border-radius: 1px; background: var(--bw-line-strong); }
+.a-ph__m i.on { background: var(--bw-ink); }
+.a-ph__m i.now { background: var(--bw-accent); }
+.a-ph--x { color: var(--bw-ink-2); }
+.a-ph--x .a-ph__w { text-decoration: line-through; }
+.a-ph__hand { color: var(--bw-ink-2); text-transform: none; letter-spacing: 0; }
+
+/* stappenbalk */
+.a-steps { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
+.a-step { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 4px; min-width: 0; }
+.a-step::before { content: ""; position: absolute; top: 10px; left: 14px; right: 0; height: 2px; background: var(--bw-line-strong); }
+.a-step:last-child::before { display: none; }
+.a-step--done::before, .a-step--skipped::before { background: var(--bw-ink); }
+.a-step__d { position: relative; z-index: 1; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--bw-line-strong); background: var(--bw-surface); box-sizing: border-box; }
+.a-step--done .a-step__d { background: var(--bw-ink); border-color: var(--bw-ink); }
+.a-step--skipped .a-step__d { background: var(--bw-surface); border-color: var(--bw-ink); border-style: dashed; }
+.a-step--now .a-step__d { background: var(--bw-accent); border-color: var(--bw-accent); box-shadow: 0 0 0 4px var(--bw-accent-soft); }
+.a-step__t { padding-right: 6px; font-size: 12.5px; font-weight: 600; color: var(--bw-ink-2); overflow-wrap: anywhere; }
+.a-step--done .a-step__t { color: var(--bw-ink); }
+.a-step--now .a-step__t { color: var(--bw-accent); }
+.a-step__s { font: 400 11px var(--bw-font-mono); color: var(--bw-ink-2); }
+.a-steps-n { display: none; }
+
+/* volgende stap: één kaart, één knop */
+.a-next { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 14px 16px; border: 1px solid var(--bw-ink); border-radius: var(--bw-radius-lg); background: var(--bw-surface); }
+.a-next__t { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 3px; font-size: var(--bw-fs-sm); }
+.a-next__t b { font-size: var(--bw-fs-md); }
+.a-next--quiet { border-color: var(--bw-line); }
+
+/* tabbladen van de werf (desktop) */
+.a-wtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--bw-line); overflow-x: auto; scrollbar-width: thin; }
+.a-wtab { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: var(--bw-ink-2); font: 500 var(--bw-fs-sm) var(--bw-font-text); text-decoration: none; cursor: pointer; }
+.a-wtab:hover { color: var(--bw-ink); }
+.a-wtab[aria-selected="true"] { color: var(--bw-ink); font-weight: 600; border-bottom-color: var(--bw-accent); }
+.a-wtab--off { color: color-mix(in srgb, var(--bw-ink-2) 70%, transparent); }
+.a-wtab--off .bw-icon { color: var(--bw-ink-2); }
+
+/* een tabblad dat nog niet geldt */
+.a-off { display: flex; gap: 14px; align-items: flex-start; padding: 18px 16px; border: 1px dashed var(--bw-line-strong); border-radius: var(--bw-radius-lg); background: var(--bw-surface-2); }
+.a-off > .bw-icon { flex: none; color: var(--bw-ink-2); }
+.a-off__b { display: flex; flex-direction: column; gap: 8px; font-size: var(--bw-fs-sm); }
+
+/* een scherm als tabblad (geen eigen paginakop) */
+.a-tabbody { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.a-tabbody__actions { justify-content: flex-end; }
+
+/* gsm: knoppenlijst in plaats van tabbladen (regel 4) */
+.a-blist { display: flex; flex-direction: column; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); overflow: hidden; }
+.a-bli { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--bw-line); background: transparent; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.a-bli:last-child { border-bottom: 0; }
+.a-bli:hover { background: var(--bw-surface-2); }
+.a-bli__m { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--bw-fs-sm); color: var(--bw-ink-2); }
+.a-bli__m b { color: var(--bw-ink); font-size: var(--bw-fs-md); font-weight: 600; }
+.a-bli--off b { color: var(--bw-ink-2); }
+.a-quick { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
+.a-only-phone { display: none; }
+
+/* Werven: tabbladen per fase in de pagina (geen eigen rand links), lijst met fase en volgende stap */
+.a-tabs.a-tabs--inline { padding: 0; max-width: none; }
+.a-wtable td .a-ph { vertical-align: middle; }
+.a-wfilter { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.a-wfilter .bw-input { max-width: 320px; }
+
+@media (max-width: 899px) {
+  .a-steps { display: none; }
+  .a-steps-n { display: flex; flex-direction: column; gap: 6px; }
+  .a-steps-n__bar { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+  .a-steps-n__bar i { height: 6px; border-radius: 2px; background: var(--bw-line-strong); }
+  .a-steps-n__bar i.on { background: var(--bw-ink); }
+  .a-steps-n__bar i.now { background: var(--bw-accent); }
+  .a-next__t { min-width: 0; flex-basis: 100%; }
+  .a-next .bw-btn { width: 100%; justify-content: center; }
+  .a-only-phone { display: revert; }
+  .a-only-desk { display: none !important; }
+}

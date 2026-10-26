@@ -11,7 +11,7 @@ import {
 import { Button, Choice, Confirm, Icon, Sheet, StatusBadge, useToast, type Status } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtTime, inputToDay, unwrap, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { Frame, Loading } from "./common";
 import { Field } from "./Werven";
 import { addWorkdays, dayLetter, fmtDm, fmtShort, isoWeek, isStale, isWorkday, makeCal, nextWorkday, today, weekday, workdaysIn, type Cal } from "./planUtil";
 
@@ -65,7 +65,8 @@ function resultText(r: unknown): string {
 
 // ── Pagina ────────────────────────────────────────────────────────────────
 
-export function PlanningPage({ id, caps, go }: { id: bigint; caps: Caps; go: (to: string) => void }) {
+/** De volledige planning van een werf (Gantt of weeklijst); 2b.3: ook als tabblad Planning van de werf (embedded). */
+export function PlanningPage({ id, caps, go, embedded }: { id: bigint; caps: Caps; go: (to: string) => void; embedded?: boolean }) {
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
   const work = useQuery({ queryKey: ["work", String(id)], queryFn: () => actor!.getWork(id), enabled: on });
@@ -85,9 +86,9 @@ export function PlanningPage({ id, caps, go }: { id: bigint; caps: Caps; go: (to
   const cal = useMemo(() => makeCal(p?.blocks ?? []), [p?.blocks]);
   if (!work.data || !p) {
     return (
-      <Page title={t.plan.title} actions={<Button icon="back" onClick={() => go(`werven/${id}`)}>{t.common.back}</Button>}>
+      <Frame embedded={embedded} title={t.plan.title} actions={embedded ? undefined : <Button icon="back" onClick={() => go(`werven/${id}`)}>{t.common.back}</Button>}>
         <Loading q={work.data ? plan : work} />
-      </Page>
+      </Frame>
     );
   }
   const w = work.data;
@@ -101,12 +102,12 @@ export function PlanningPage({ id, caps, go }: { id: bigint; caps: Caps; go: (to
   };
 
   return (
-    <Page label={`${w.code} · ${w.name}`} title={t.plan.title} actions={<>
+    <Frame embedded={embedded} label={`${w.code} · ${w.name}`} title={t.plan.title} actions={<>
       {p.caps.edit && <Button variant="primary" icon="plus" onClick={() => setOpen("new")}>{t.plan.addTask}</Button>}
       {p.caps.edit && <Button icon="list" onClick={() => setSheet("tpl")}>{t.plan.applyTemplate}</Button>}
       <Button icon="calendar" onClick={() => setSheet("cal")}>{t.plan.calendar}</Button>
       {p.caps.history && <Button icon="clock" onClick={() => setSheet("hist")}>{t.plan.history}</Button>}
-      <Button icon="back" onClick={() => go(`werven/${id}`)}>{t.common.back}</Button>
+      {!embedded && <Button icon="back" onClick={() => go(`werven/${id}`)}>{t.common.back}</Button>}
     </>}>
       {!p.caps.edit && <p className="a-note">{p.scope === "ownOrg" ? t.plan.ownOnly : p.scope === "summary" ? t.plan.summaryOnly : t.plan.readOnly}</p>}
       {p.caps.edit && warnings > 0 && (
@@ -141,7 +142,7 @@ export function PlanningPage({ id, caps, go }: { id: bigint; caps: Caps; go: (to
       {sheet === "tpl" && <TemplateSheet workId={id} plan={p} onClose={() => setSheet(null)} />}
       {sheet === "cal" && <CalendarSheet workId={id} plan={p} caps={caps} onClose={() => setSheet(null)} go={go} />}
       {sheet === "hist" && <HistorySheet workId={id} onClose={() => setSheet(null)} />}
-    </Page>
+    </Frame>
   );
 }
 
@@ -914,7 +915,7 @@ function CalendarSheet({ workId, plan, caps, onClose, go }: { workId: bigint; pl
 
 // ── Samenvatting op de werfpagina ─────────────────────────────────────────
 
-export function PlanSummary({ workId, go }: { workId: bigint; go: (to: string) => void }) {
+export function PlanSummary({ workId, go, noLink }: { workId: bigint; go: (to: string) => void; noLink?: boolean }) {
   const plan = usePlan(workId);
   const p = plan.data;
   const now = today();
@@ -922,7 +923,7 @@ export function PlanSummary({ workId, go }: { workId: bigint; go: (to: string) =
     <section className="a-section">
       <div className="a-row a-row--between">
         <h2 className="bw-h2">{t.plan.title}</h2>
-        <Button variant="primary" icon="calendar" onClick={() => go(`werven/${workId}/planning`)}>{t.plan.open}</Button>
+        {!noLink && <Button variant="primary" icon="calendar" onClick={() => go(`werven/${workId}/planning`)}>{t.plan.open}</Button>}
       </div>
       <Loading q={plan} />
       {p && p.tasks.length === 0 && <p className="a-empty">{t.plan.empty}</p>}
@@ -942,7 +943,7 @@ export function PlanSummary({ workId, go }: { workId: bigint; go: (to: string) =
           </div>
           {next.length > 0 && <>
             <span className="bw-label">{t.plan.next}</span>
-            <TaskRows tasks={next} onOpen={() => go(`werven/${workId}/planning`)} workId={workId} />
+            <TaskRows tasks={next} onOpen={() => { if (!noLink) go(`werven/${workId}/planning`); }} workId={workId} />
           </>}
         </>;
       })()}

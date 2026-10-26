@@ -7,7 +7,7 @@ import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { shareWeek, type ShareWeek } from "../pdf/weekplanning";
 import { t } from "../texts/nl";
 import { errText, fmtDayNum, todayDay, unwrap, useBackend } from "../util";
-import { Loading, Page, WorkBadge } from "./common";
+import { Loading, Page, WorkPhase } from "./common";
 import { fmtDur, fmtMin } from "./Werfverslag";
 
 const H = t.hours;
@@ -100,7 +100,7 @@ export function MijnWerven({ go }: { go: (to: string) => void }) {
                   <span className="bw-muted">{[w.address.street, w.address.number].filter(Boolean).join(" ")}{w.address.city ? `, ${w.address.city}` : ""}</span>
                   {w.leaderName && <span className="bw-muted">{E.leader}: {w.leaderName}</span>}
                 </span>
-                <WorkBadge status={w.status} />
+                <WorkPhase w={w} />
               </button>
               {w.leaderPhone && <a className="bw-btn bw-btn--secondary" href={`tel:${w.leaderPhone.replace(/\s/g, "")}`}><Icon name="phone" size={18} />{E.call}</a>}
             </li>
