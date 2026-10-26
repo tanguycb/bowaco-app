@@ -7,11 +7,12 @@ import { QuoteSeverity, type DocKindView, type ImportBatch, type QuoteRuleView, 
 import { Button, Choice, Confirm, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { Loading } from "./common";
 import { Field } from "./Werven";
 import { CompanyCalendar, Templates } from "./PlanSettings";
 
-export function Instellingen() {
+/** De algemene instellingen in één formulier (één setSettings): elk tabblad van Beheer toont zijn eigen velden, de rest blijft ongewijzigd. */
+export function SettingsFields({ show }: { show: { wl?: boolean; days?: boolean; thresholds?: boolean } }) {
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
   const qc = useQueryClient();
@@ -42,45 +43,33 @@ export function Instellingen() {
     onError: fail,
   });
   return (
-    <Page title={t.settings.title}>
+    <>
       <Loading q={settings} />
       {settings.data && (
         <section className="a-form" style={{ maxWidth: 560 }}>
-          <Field label={t.settings.wlAll}>
-            <Choice label={t.settings.wlAll} value={all ? "ja" : "nee"} onChange={(v) => setAll(v === "ja")} options={[{ value: "ja", label: t.common.yes }, { value: "nee", label: t.common.no }]} />
-          </Field>
-          <p className="bw-muted">{t.settings.wlAllHelp}</p>
-          <Field label={t.settings.inviteDays}><input className="bw-input bw-num" style={{ maxWidth: 120 }} value={days} onChange={(e) => setDays(e.target.value)} inputMode="numeric" /></Field>
-          <span className="bw-label">{t.settings.thresholds}</span>
-          <div className="a-grid2">
-            <Field label={t.settings.t30bis}><input className="bw-input bw-num" value={t30} onChange={(e) => setT30(e.target.value)} inputMode="decimal" /></Field>
-            <Field label={t.settings.tCiaw}><input className="bw-input bw-num" value={tCi} onChange={(e) => setTCi(e.target.value)} inputMode="decimal" /></Field>
-          </div>
+          {show.wl && <>
+            <Field label={t.settings.wlAll}>
+              <Choice label={t.settings.wlAll} value={all ? "ja" : "nee"} onChange={(v) => setAll(v === "ja")} options={[{ value: "ja", label: t.common.yes }, { value: "nee", label: t.common.no }]} />
+            </Field>
+            <p className="bw-muted">{t.settings.wlAllHelp}</p>
+          </>}
+          {show.days && <Field label={t.settings.inviteDays}><input className="bw-input bw-num" style={{ maxWidth: 120 }} value={days} onChange={(e) => setDays(e.target.value)} inputMode="numeric" /></Field>}
+          {show.thresholds && <>
+            <span className="bw-label">{t.settings.thresholds}</span>
+            <div className="a-grid2">
+              <Field label={t.settings.t30bis}><input className="bw-input bw-num" value={t30} onChange={(e) => setT30(e.target.value)} inputMode="decimal" /></Field>
+              <Field label={t.settings.tCiaw}><input className="bw-input bw-num" value={tCi} onChange={(e) => setTCi(e.target.value)} inputMode="decimal" /></Field>
+            </div>
+          </>}
           <div><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></div>
         </section>
       )}
-      <QuoteNumbers />
-      <OpmetingAdmin />
-      <VorderingAdmin />
-      <OaFactuurAdmin />
-      <QuoteRulesAdmin />
-      <QuoteDocsAdmin />
-      <CompanyCalendar />
-      <Templates />
-      <DocKinds />
-      <Trades />
-      <ImportBatches />
-      <Vehicles />
-      <section className="a-section" style={{ maxWidth: 720 }}>
-        <h2 className="bw-h2">{t.settings.robots}</h2>
-        <p className="bw-muted">{t.settings.robotsMoved} <a className="wb-link" href="#/postbode">{t.nav.postbode}</a></p>
-      </section>
-    </Page>
+    </>
   );
 }
 
 /** 2.9: de opmeting: drempel voor meer- of minderwerk, mag een OA voorstellen, lezen architect en klant mee (enkel de beheerder). */
-function OpmetingAdmin() {
+export function OpmetingAdmin() {
   const T = t.opmeting.settings;
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
@@ -125,7 +114,7 @@ function OpmetingAdmin() {
 }
 
 /** 2.10: de vorderingsstaten: klantakkoord (uit, mogelijk, vereist) en de basis van de inhouding (excl. of incl. btw). */
-function VorderingAdmin() {
+export function VorderingAdmin() {
   const T = t.vorderingen.settings;
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
@@ -161,7 +150,7 @@ function VorderingAdmin() {
 }
 
 /** 2.11: de OA-facturen: drempel (%, minimumbedrag), ziet de OA zijn status, hoe gaat een betwisting naar de OA. */
-function OaFactuurAdmin() {
+export function OaFactuurAdmin() {
   const T = t.oaFacturen.settings;
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
@@ -205,7 +194,7 @@ function OaFactuurAdmin() {
 }
 
 /** 2.4: het volgnummer van de offertes (verder na de nummering van vóór de app). */
-function QuoteNumbers() {
+export function QuoteNumbers() {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -235,7 +224,7 @@ function QuoteNumbers() {
 }
 
 /** 2.6: de controleregels vóór verzending: aan/uit, waarschuwing of blokkering, drempel, en de standaardposten. */
-function QuoteRulesAdmin() {
+export function QuoteRulesAdmin() {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -349,7 +338,7 @@ function StdPostSheet({ value, isNew, busy, onSave, onClose }: { value: QuoteStd
 }
 
 /** 2.7: afzender, betaaltermijn en de algemene voorwaarden (met versies) die op de PDF van elke offerte komen. */
-function QuoteDocsAdmin() {
+export function QuoteDocsAdmin() {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -415,7 +404,7 @@ const RULES = ["altijd", "btw6", "30bis", "checkinatwork", "vc", "oplevering", "
 const DELIVERERS = ["bowaco", "klant", "architect", "veiligheidscoordinator", "onderaannemer"];
 
 /** Documentsoorten en wanneer ze verplicht zijn (A5, voorlopig): de admin past de lijst aan. */
-function DocKinds() {
+export function DocKinds() {
   const { actor, isFetching } = useBackend();
   const kinds = useQuery({ queryKey: ["docKinds", true], queryFn: () => actor!.listDocKinds(true), enabled: !!actor && !isFetching });
   const [edit, setEdit] = useState<DocKindView | null>(null);
@@ -485,7 +474,7 @@ function EditKind({ k, isNew, onClose }: { k: DocKindView; isNew: boolean; onClo
 }
 
 /** Vakgebieden van de onderaannemers (1.2, D9): de admin past de keuzelijst aan. */
-function Trades() {
+export function Trades() {
   const { actor, isFetching } = useBackend();
   const list = useQuery({ queryKey: ["trades", true], queryFn: () => actor!.listTrades(true), enabled: !!actor && !isFetching });
   const [edit, setEdit] = useState<TradeView | null>(null);
@@ -534,7 +523,7 @@ function EditTrade({ x, isNew, onClose }: { x: TradeView; isNew: boolean; onClos
 }
 
 /** Importbatches van de planning (1.5): alleen de admin ziet dit; terugdraaien = alles van de batch archiveren. */
-function ImportBatches() {
+export function ImportBatches() {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -589,7 +578,7 @@ function ImportBatches() {
 }
 
 /** Voertuigen voor de rit in het werfverslag (1.6): nummerplaat en naam; archiveren in plaats van wissen. */
-function Vehicles() {
+export function Vehicles() {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();

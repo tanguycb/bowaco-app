@@ -13,7 +13,7 @@ import { Field } from "./Werven";
 
 const B = t.boetes;
 
-export function BoetesPage({ go }: { go: (to: string) => void }) {
+export function BoetesPage({ go, extra }: { go: (to: string) => void; extra?: import("react").ReactNode }) {
   const { actor } = useBackend();
   const [day, setDay] = useState(dayToInput(todayDay() - 1n));
   const [time, setTime] = useState("");
@@ -55,6 +55,7 @@ export function BoetesPage({ go }: { go: (to: string) => void }) {
         </section>
       )}
       {report !== null && <ReportSheet id={report} onClose={() => setReport(null)} />}
+      {extra}
     </Page>
   );
 }

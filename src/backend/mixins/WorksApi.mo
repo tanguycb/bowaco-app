@@ -335,6 +335,10 @@ mixin (
     // 1.9: enkel rechten die bij de rol passen (zoals setMemberGrants), ook bij het toevoegen.
     let allowedG = Rights.allowedGrants(role);
     if (grants.any(func g = not allowedG.any(func x = x == g))) { return #err("Een van de rechten past niet bij de rol " # Rights.roleKey(role)) };
+    // 2b.2 (AD-01): dezelfde persoon of firma met dezelfde rol op dezelfde werf kan niet twee keer lopen.
+    if (works.memberships.values().any(func m = m.workId == workId and m.endedAt == null and m.role == role and m.personId == personId and m.orgId == orgId)) {
+      return #err("Staat al op deze werf met deze rol");
+    };
     let id = addMember(workId, personId, orgId, role, grants, p.id);
     Access.audit(audit, caller, ?p.id, ?workId, "lid-toegevoegd", Rights.roleKey(role) # " #" # id.toText());
     #ok(id);

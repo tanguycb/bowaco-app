@@ -2033,6 +2033,22 @@ await sec("── 2b.1 Firma's & contacten: firmasoort veiligheidscoördinator, 
   check("toegang geven maakt geen tweede persoon", (await admin.listPersons(true)).length === before);
   check("het VC-contact is meteen lid van werf A als veiligheidscoördinator", (await admin.listMembers(A)).some((m) => m.personId[0] === vcP.ok.id && "veiligheidscoordinator" in m.role));
   check("tweede code voor dezelfde persoon blijft dezelfde persoon (geen dubbel lid)", isOk(await admin.inviteExistingPerson({ personId: vcP.ok.id, workIds: [A], validDays: 1n, tag: "2b.1b" })) && (await admin.listMembers(A)).filter((m) => m.personId[0] === vcP.ok.id).length === 1);
+  // 2b.2 AD-01: ook de backend weigert een dubbel lid (zelfde persoon of firma, zelfde rol, zelfde werf, nog actief)
+  const dupP = await admin.addMembership(A, [vcP.ok.id], [], { veiligheidscoordinator: null }, []);
+  check("AD-01: addMembership weigert dezelfde persoon met dezelfde rol op dezelfde werf", errOf(dupP).includes("Staat al"), JSON.stringify(dupP, big));
+  check("AD-01: ook de werfleider van de werf krijgt die weigering", errOf(await wl.addMembership(A, [vcP.ok.id], [], { veiligheidscoordinator: null }, [])).includes("Staat al"));
+  check("AD-01: dezelfde firma met dezelfde rol (hele firma Dak, al lid op A) wordt geweigerd", errOf(await admin.addMembership(A, [], [orgY.ok.id], { onderaannemer: null }, [])).includes("Staat al"));
+  check("AD-01: dezelfde persoon met een andere rol mag wel (en wordt daarna beëindigd)", await (async () => {
+    const r = await admin.addMembership(A, [vcP.ok.id], [], { onderaannemer: null }, []);
+    if (!isOk(r)) return false;
+    return isOk(await admin.endMembership(r.ok));
+  })());
+  check("AD-01: na beëindigen van een lid kan dezelfde rol opnieuw", await (async () => {
+    const m = (await admin.listMembers(A)).find((x) => x.personId[0] === vcP.ok.id && x.endedAt.length === 0 && "veiligheidscoordinator" in x.role);
+    if (!m || !isOk(await admin.endMembership(m.id))) return false;
+    const again = await admin.addMembership(A, [vcP.ok.id], [], { veiligheidscoordinator: null }, []);
+    return isOk(again);
+  })());
   check("calculator geeft geen toegang (geen #inviteExternal)", await rejects(calc.inviteExistingPerson({ personId: archP.ok.id, workIds: [A], validDays: 1n, tag: "" })));
   // orgWorks: de werven van een firma voor de firmafiche
   check("werven van de klant: werf A (klant op de werf)", (await admin.orgWorks(orgKlant.ok.id)).includes(A));
@@ -2043,6 +2059,73 @@ await sec("── 2b.1 Firma's & contacten: firmasoort veiligheidscoördinator, 
     const r = await admin.revokeInvite(i.id);
     if ("err" in r) check(`code #${i.id} (2b.1) intrekken`, false, r.err);
   }
+}
+
+await sec("── 2b.2 menu per rol: welke menu-items en welke Beheer-tabbladen ziet elke rol, en elke oude route opent nog iets");
+{
+  const { loadNav, OUD_NAAR_NIEUW } = await import("./menu-lib.mjs");
+  const nav = await loadNav();
+  const capsOf = async (x) => (await x.me()).caps[0];
+  const rolesAll = { admin, werfleider: wl, calculator: calc, oa: oa2, architect: arch, klant, vc, "werfleider+calculator": wlcalc };
+  const caps = {};
+  for (const [k, x] of Object.entries(rolesAll)) { caps[k] = await capsOf(x); check(`menu: caps van ${k} opgehaald`, !!caps[k]); }
+  const keys = (c) => nav.navFor(c).filter((g) => g.id !== "meer").flatMap((g) => g.items.map((i) => i.key));
+  const meer = (c) => nav.navFor(c).filter((g) => g.id === "meer").flatMap((g) => g.items.map((i) => i.key));
+  const tabs = (c) => nav.beheerTabs(c).map((x) => x.key);
+  const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const show = (k) => `${keys(caps[k]).join(",")} | meer: ${meer(caps[k]).join(",")} | tabs: ${tabs(caps[k]).join(",")}`;
+  check("menu beheerder: 9 items (was 21), in groepen Werk · Geld · Opvolging · Adresboek + Beheer", eq(keys(caps.admin), ["overzicht", "werven", "weekbord", "offertes", "facturatie", "opvolging", "adresboek", "team", "beheer"]) && nav.itemCount(nav.navFor(caps.admin)) === 9, show("admin"));
+  check("menu beheerder: de groepen heten Werk, Geld, Opvolging, Adresboek", eq(nav.navFor(caps.admin).map((g) => g.label), ["Werk", "Geld", "Opvolging", "Adresboek", null]));
+  check("menu werfleider: Vandaag · Werven · Planning · Vergunningen & administratie · Firma's & contacten + Meer", eq(keys(caps.werfleider), ["vandaag", "werven", "weekbord", "opvolging", "adresboek"]) && meer(caps.werfleider).length > 0, show("werfleider"));
+  check("werfleider: Meer bevat Team, Postenbibliotheek, Ritten & boetes (en zijn codes, dashboard)", ["team", "posten", "beheer-voertuigen", "beheer-toegang", "dashboard"].every((k) => meer(caps.werfleider).includes(k)));
+  check("menu calculator: Werven · Offertes · Facturatie · Firma's & contacten + Meer (Planning, Team)", eq(keys(caps.calculator).sort(), ["adresboek", "facturatie", "offertes", "werven"]) && ["weekbord", "team"].every((k) => meer(caps.calculator).includes(k)) && nav.itemCount(nav.navFor(caps.calculator)) === 5, show("calculator"));
+  check("menu onderaannemer: Mijn week · Mijn uren (· Mijn facturen als dat openstaat)", keys(caps.oa).slice(0, 2).join() === "week,uren" && keys(caps.oa).length <= 3 && meer(caps.oa).length === 0, show("oa"));
+  check("menu architect: 1 item (Mijn werven)", eq(keys(caps.architect), ["werven"]) && nav.navFor(caps.architect)[0].items[0].label === "Mijn werven", show("architect"));
+  check("menu klant: 1 item (Mijn werf)", eq(keys(caps.klant), ["werven"]) && nav.navFor(caps.klant)[0].items[0].label === "Mijn werf", show("klant"));
+  check("menu veiligheidscoördinator: 1 item (Mijn werven)", eq(keys(caps.vc), ["werven"]), show("vc"));
+  check("menu werfleider+calculator: start Vandaag, Offertes en Facturatie erbij", keys(caps["werfleider+calculator"]).includes("vandaag") && keys(caps["werfleider+calculator"]).includes("offertes") && keys(caps["werfleider+calculator"]).includes("facturatie"), show("werfleider+calculator"));
+  check("niemand behalve de beheerder heeft Beheer als menu-item", Object.entries(caps).every(([k, c]) => (k === "admin") === keys(c).includes("beheer")));
+  check("de beheerder heeft geen menu-item Vandaag (vraag 13: een blok in het Overzicht)", !keys(caps.admin).includes("vandaag") && caps.admin.writeReports);
+  check("Mijn login is geen menu-item meer (staat bij je naam)", Object.values(caps).every((c) => !keys(c).includes("login") && !meer(c).includes("login")));
+  // Beheer-tabbladen per rol
+  check("Beheer beheerder: alle 9 tabbladen", eq(tabs(caps.admin), ["bedrijf", "offertes", "opmeting", "planning", "documenten", "voertuigen", "mail", "toegang", "audit"]), tabs(caps.admin).join());
+  check("Beheer werfleider: enkel voertuigen & ritten en toegang & codes", eq(tabs(caps.werfleider), ["voertuigen", "toegang"]), tabs(caps.werfleider).join());
+  check("Beheer calculator, OA, architect, klant en VC: geen tabbladen", ["calculator", "oa", "architect", "klant", "vc"].every((k) => tabs(caps[k]).length === 0), ["calculator", "oa", "architect", "klant", "vc"].map((k) => tabs(caps[k]).join("-")).join(" / "));
+  check("hubs: Facturatie toont vorderingsstaten en OA-facturen enkel waar de rol ze mag", eq(nav.hubTabs("vorderingen", caps.admin).map((x) => x.key), ["vorderingen", "oa-facturen"]) && nav.hubTabs("vorderingen", caps.werfleider).length >= 1);
+  check("hub Offertes · Posten voor admin en calculator, Posten alleen voor de werfleider", eq(nav.hubTabs("offertes", caps.admin).map((x) => x.key), ["offertes", "posten"]) && eq(nav.hubTabs("offertes", caps.calculator).map((x) => x.key), ["offertes", "posten"]) && !keys(caps.werfleider).includes("offertes"));
+  check("hub Mijn werf voor de klant: voortgang · offerte · vorderingsstaten", eq(nav.hubTabs("werven", caps.klant).map((x) => x.key), ["werven", "mijn-offerte", "mijn-vordering"]) && nav.hubTabs("werven", caps.architect).length === 0);
+  check("vaste balk onderaan enkel voor de werfleider: Vandaag · Werven · + Verslag · Meer", eq(nav.bottomBar(caps.werfleider), ["vandaag", "werven", "verslag", "meer"]) && ["admin", "calculator", "oa", "architect", "klant", "vc"].every((k) => nav.bottomBar(caps[k]).length === 0));
+  // Elk menu-item opent iets dat de rol mag; Rights.mo blijft de enige matrix (het menu kent geen eigen regels)
+  let alles = true;
+  const slecht = [];
+  for (const [k, c] of Object.entries(caps)) {
+    for (const g of nav.navFor(c)) for (const i of g.items) {
+      const r = nav.resolveRoute(i.to.split("/"), c);
+      if (r.page !== i.to.split("/")[0] || r.page === c.home && i.to.split("/")[0] !== c.home) { alles = false; slecht.push(`${k}:${i.to}→${r.page}`); }
+    }
+  }
+  check("elk menu-item van elke rol opent het bedoelde scherm (geen terugval naar het startscherm)", alles, slecht.join(" "));
+  // Tabel oud → nieuw: elke oude route opent nog iets, voor elke rol die er recht op had
+  let gevonden = 0;
+  const fouten = [];
+  const heeft = (c, cond) => cond === "any" || (cond.startsWith("home=") ? c.home === cond.slice(5) : !!c[cond]);
+  for (const [oud, scherm, nieuw, cond] of OUD_NAAR_NIEUW) {
+    for (const [k, c] of Object.entries(caps)) {
+      const r = nav.resolveRoute([oud], c);
+      const mag = heeft(c, cond) && (nieuw === null || nav.pagesFor(c).has(nieuw.split("/")[0]));
+      if (oud === "onderaannemers" || oud === "organisaties") { if (!c.readTeam && !c.readOa) continue; }
+      if (mag) {
+        gevonden++;
+        if (r.page !== scherm || (nieuw && r.redirect !== nieuw)) fouten.push(`${k}: #/${oud} → ${r.page}${r.redirect ? "/" + r.redirect : ""} (verwacht ${scherm}${nieuw ? " " + nieuw : ""})`);
+      } else if (r.page === scherm && scherm !== c.home && !nieuw) {
+        fouten.push(`${k}: #/${oud} opent ${r.page} zonder recht`);
+      }
+    }
+  }
+  check(`tabel oud → nieuw: ${gevonden} (route × rol)-combinaties openen het scherm uit de tabel`, fouten.length === 0 && gevonden > 80, fouten.slice(0, 5).join(" | "));
+  check("oude adressen met een deel erachter blijven bewaard (#/boetes/… → beheer/voertuigen/…)", nav.resolveRoute(["boetes", "x"], caps.admin).redirect === "beheer/voertuigen/x" && nav.resolveRoute(["postbode"], caps.admin).redirect === "beheer/mail");
+  check("een oud adres zonder recht valt terug op het startscherm (geen blanco scherm)", nav.resolveRoute(["weekbord"], caps.klant).page === "werven" && nav.resolveRoute(["beheer"], caps.calculator).page === "offertes" && nav.resolveRoute(["onbekend"], caps.oa).page === "week");
+  check("Boete opzoeken blijft bereikbaar voor de werfleider (Meer → Ritten & boetes) maar niet voor de calculator", nav.resolveRoute(["boetes"], caps.werfleider).page === "beheer" && nav.resolveRoute(["beheer", "voertuigen"], caps.calculator).page === caps.calculator.home);
 }
 
 // De test laat niets achter dat iemand later per vergissing kan bevestigen of gebruiken

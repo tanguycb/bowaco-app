@@ -5,14 +5,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LinkStatus } from "../backend";
 import { Button, Icon, useToast } from "../design";
+import { useCached } from "../offline/cached";
 import { t } from "../texts/nl";
-import { errText, fmtTime, unwrap, useBackend } from "../util";
+import { errText, fmtTime, todayDay, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
 import { BoardAttention } from "./Weekbord";
 import { DashboardBody, DashCounters, useDashboard } from "./Dashboard";
 import { IssueAttention } from "./Verslagen";
 import { PendingStarts } from "./WerfStart";
-import type { Caps } from "../backend";
+import type { Caps, MyDayView } from "../backend";
 
 export function Overzicht({ go, caps }: { go: (to: string) => void; caps: Caps }) {
   const { actor, isFetching } = useBackend();
@@ -42,6 +43,7 @@ export function Overzicht({ go, caps }: { go: (to: string) => void; caps: Caps }
     <Page title={t.overzicht.title}>
       {dash.data && <DashCounters v={dash.data} />}
       {s && <p className="bw-muted bw-num">{t.overzicht.access(String(s.persons), String(s.activeLinks), String(s.openInvites))}</p>}
+      {caps.writeReports && <VandaagBlok go={go} />}
       <div className="a-cols">
         <section className="a-section">
           <h2 className="bw-h2">{t.overzicht.attention}</h2>
@@ -98,5 +100,39 @@ export function Overzicht({ go, caps }: { go: (to: string) => void; caps: Caps }
       </div>
       <DashboardBody go={go} withCounters={false} />
     </Page>
+  );
+}
+
+/** 2b.2 (vraag 13): de beheerder heeft geen menu-item Vandaag; de werven met werk vandaag staan hier, met de knop Werfverslag. */
+function VandaagBlok({ go }: { go: (to: string) => void }) {
+  const { actor } = useBackend();
+  const day = todayDay();
+  const q = useCached<MyDayView>(["myDay", String(day), "all"], () => actor!.myDay(day, true));
+  const works = q.data?.value.works ?? [];
+  return (
+    <section className="a-section" data-testid="vandaag-blok">
+      <div className="a-row a-row--between">
+        <h2 className="bw-h2">{t.menu.vandaagTitel}</h2>
+        <Button variant="quiet" onClick={() => go("vandaag")}>{t.menu.vandaagAlles}</Button>
+      </div>
+      {!q.data && <Loading q={q} />}
+      {q.data && works.length === 0 && <p className="a-empty">{t.menu.vandaagGeen}</p>}
+      {works.length > 0 && (
+        <ul className="a-list">
+          {works.slice(0, 5).map((w) => (
+            <li key={String(w.id)}>
+              <span className="a-list__main">
+                <b>{w.code} · {w.name}</b>
+                <span className="bw-muted">{w.planned.length ? w.planned.map((p) => p.code).join(" · ") : t.vandaag.nobody}</span>
+              </span>
+              <span className="a-row">
+                <Button variant="quiet" onClick={() => go(`werven/${w.id}`)}>{t.nav.werven}</Button>
+                <Button icon="edit" onClick={() => go(`verslag/${w.id}/${day}`)}>{t.verslag.open}</Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

@@ -245,8 +245,10 @@ const gA = sa.posts.find((p) => p.title === iDak.title);
 check("(5) hun stand = enkel wat afgesloten is (dakgoot 25), nooit de lopende opmeting", gA.measuredMilli === 25_000n && gA.measuredMilli === gA.closedMilli && sa.posts.find((p) => p.title.startsWith("Proef gevel")).measuredMilli === 30_000n);
 check("(5) geen notities, regels, foto's of voorstellen voor hen: regels en post-detail geweigerd; de lopende opmeting niet te openen", (await denied(arch.measurePost(wid, P(iDak.title)))) && (await denied(arch.getMeasureSurvey(o9.outcome.done.surveyId))) && (await arch.getMeasureSurvey(S1)).entries.length === 0 && sa.totals.openProposals === 0n && sa.posts.every((p) => p.pendingCount === 0n));
 check("(5) architect/klant kunnen niets schrijven", (await Promise.all([arch, klant].map((x) => denied(x.measureSync([{ opId: uid(), clientKey: uid(), op: { open: { workId: wid } } }]))))).every(Boolean));
+// 2b.2 (AD-01): dezelfde persoon met dezelfde rol kan niet dubbel lid zijn; eerst het lid met het leesrecht beëindigen.
+await admin.endMembership(mArch);
 const mArch2 = ok(await admin.addMembership(wid, [archId], [], { architect: null }, []));
-check("(5) architect zonder leesrecht (grant) op een werf: geweigerd, ook met de schakelaar", await (async () => { await admin.endMembership(mArch); const r = await denied(arch.measureSummary(wid)); return r; })());
+check("(5) architect zonder leesrecht (grant) op een werf: geweigerd, ook met de schakelaar", await denied(arch.measureSummary(wid)));
 await admin.endMembership(mArch2).catch(() => {});
 
 // ── (6) Geen prijzen, instellingen, export, auditlog ──

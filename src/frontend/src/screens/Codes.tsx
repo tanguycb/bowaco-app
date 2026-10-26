@@ -1,12 +1,13 @@
 // Uitnodigings- en herstelcodes: alleen de hint (laatste 2 tekens), nooit de code. Intrekken werkt meteen.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import type { Caps, PersonView } from "../backend";
 import { Button, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
 
-export function Codes({ caps, me }: { caps: Caps; me: PersonView }) {
+export function Codes({ caps, me, extra }: { caps: Caps; me: PersonView; extra?: ReactNode }) {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
@@ -21,6 +22,7 @@ export function Codes({ caps, me }: { caps: Caps; me: PersonView }) {
     <Page title={t.codes.title}>
       <p className="a-note">{t.codes.lead}</p>
       <p className="bw-muted">{t.codes.newHere}</p>
+      {extra}
       <Loading q={codes} />
       {codes.data && codes.data.length === 0 && <p className="a-empty">{t.codes.empty}</p>}
       {codes.data && codes.data.length > 0 && (

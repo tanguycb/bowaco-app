@@ -895,7 +895,7 @@ function CalendarSheet({ workId, plan, caps, onClose, go }: { workId: bigint; pl
           ))}
         </ul>
       )}
-      {caps.manageCompanyCalendar && <div><Button variant="quiet" icon="settings" onClick={() => go("instellingen")}>{t.plan.settingsCal}</Button></div>}
+      {caps.manageCompanyCalendar && <div><Button variant="quiet" icon="settings" onClick={() => go("beheer/bedrijf")}>{t.plan.settingsCal}</Button></div>}
       {plan.caps.edit && (
         <div className="a-form a-sub">
           <h3 className="bw-label">{t.plan.addBlock}</h3>

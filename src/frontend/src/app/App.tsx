@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Principal } from "@icp-sdk/core/principal";
 import { Variant_active_pending_anonymous_unlinked as Status, type Caps, type MeView } from "../backend";
-import { Button, ConnectionStatus, Icon, Sheet, useToast, Wordmark, type IconName } from "../design";
+import { Button, ConnectionStatus, Icon, Sheet, useToast, Wordmark } from "../design";
 import { cacheGet, cachePut, openDb } from "../offline/db";
 import { OutboxProvider, useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
@@ -15,10 +15,11 @@ import { Werven } from "../screens/Werven";
 import { WerfDetail } from "../screens/Werf";
 import { PlanningPage } from "../screens/Planning";
 import { Team } from "../screens/Team";
-import { Codes } from "../screens/Codes";
 import { Adresboek } from "../screens/Adresboek";
-import { Audit } from "../screens/Audit";
-import { Instellingen } from "../screens/Instellingen";
+import { Beheer } from "../screens/Beheer";
+import { TabBar } from "../screens/Tabs";
+import { VerslagKies } from "../screens/VerslagKies";
+import { activeKey, bottomBar, hubTabs, navFor, resolveRoute } from "./nav";
 import { MijnLogin } from "../screens/MijnLogin";
 import { Weekbord } from "../screens/Weekbord";
 import { Vandaag } from "../screens/Vandaag";
@@ -29,8 +30,6 @@ import { Bell } from "../screens/Meldingen";
 import { DashboardPage } from "../screens/Dashboard";
 import { forgetUnsaved } from "../screens/Offertes";
 import { GemeentenPage, VergunningenPage } from "../screens/Vergunningen";
-import { BoetesPage } from "../screens/Boetes";
-import { PostbodePage } from "../screens/Postbode";
 import { WadmPage } from "../screens/Werfadministratie";
 import { Posten } from "../screens/Posten";
 import { OffertesPage } from "../screens/Offertes";
@@ -168,76 +167,33 @@ function Gate({ children, onLogout }: { children: ReactNode; onLogout?: () => vo
   );
 }
 
-type NavItem = { key: string; label: string; icon: IconName };
-
-/** Welke schermen iemand ziet, volgt uit de caps van de backend (Rights.mo), nooit uit de rollen. */
-function navFor(caps: Caps): NavItem[] {
-  const homeIcon: Record<string, IconName> = { overzicht: "grid", vandaag: "home", offertes: "euro", week: "calendar", werven: "building" };
-  const items: NavItem[] = [{ key: caps.home, label: t.nav[caps.home as keyof typeof t.nav] ?? t.nav.werven, icon: homeIcon[caps.home] ?? "home" }];
-  // 1.6: wie verslagen schrijft maar een ander startscherm heeft (admin), krijgt Vandaag erbij.
-  if (caps.writeReports && caps.home !== "vandaag") items.push({ key: "vandaag", label: t.nav.vandaag, icon: "home" });
-  if (caps.home !== "werven") items.push({ key: "werven", label: t.nav.werven, icon: "building" });
-  // 1.7: de OA bevestigt zijn uren uit de werfverslagen.
-  if (caps.home === "week") items.push({ key: "uren", label: t.nav.uren, icon: "clock" });
-  // 1.8: het dashboard voor kantoor (de admin heeft het op zijn startscherm Overzicht).
-  if (caps.readOrgPlanning && caps.home !== "overzicht") items.push({ key: "dashboard", label: t.nav.dashboard, icon: "grid" });
-  if (caps.readOrgPlanning) items.push({ key: "weekbord", label: t.nav.weekbord, icon: "calendar" });
-  // 2.4: de offertes (interne rollen; de werfleider ziet hoeveelheden en hoofdstuktotalen). De calculator heeft ze als start.
-  // 2.7: de klant leest zijn verzonden offerte(s) en geeft akkoord.
-  if (caps.myQuotes) items.push({ key: "mijn-offerte", label: t.nav.mijnOfferte, icon: "euro" });
-  if (caps.quotes && caps.home !== "offertes") items.push({ key: "offertes", label: t.nav.offertes, icon: "euro" });
-  // 2.9: opmeting ter plaatse (hoeveelheden, geen prijzen): interne rollen en OA; architect en klant enkel als de beheerder het toelaat.
-  if (caps.measureRead) items.push({ key: "opmeting", label: t.nav.opmeting, icon: "ruler" });
-  // 2.10: vorderingsstaten (admin en calculator met bedragen; de werfleider bereidt de hoeveelheden voor) en die van de klant.
-  if (caps.progress) items.push({ key: "vorderingen", label: t.nav.vorderingen, icon: "receipt" });
-  if (caps.myProgress) items.push({ key: "mijn-vordering", label: t.nav.mijnVordering, icon: "receipt" });
-  // 2.11: OA-facturen (admin en calculator met bedragen; de werfleider hoeveelheden en uren) en de status voor de OA zelf.
-  if (caps.oaInvoices) items.push({ key: "oa-facturen", label: t.nav.oaFacturen, icon: "receipt" });
-  if (caps.myOaInvoices) items.push({ key: "mijn-facturen", label: t.nav.mijnFacturen, icon: "receipt" });
-  // 2.2: de postenbibliotheek (interne rollen lezen zonder prijzen; beheerder en calculator bewerken en zien de prijzen).
-  if (caps.readLibrary) items.push({ key: "posten", label: t.nav.posten, icon: "doc" });
-  // 1b.1: vergunningen over alle werven (admin, werfleider) en de kennisbank per gemeente (interne rollen).
-  if (caps.permits) items.push({ key: "vergunningen", label: t.nav.vergunningen, icon: "permit" });
-  if (caps.readMunicipalities) items.push({ key: "gemeenten", label: t.nav.gemeenten, icon: "pin" });
-  // 1b.4: werfadministratie (30bis, Checkinatwork, inhoudingsplicht) voor interne rollen.
-  if (caps.wadm) items.push({ key: "werfadministratie", label: t.nav.werfadministratie, icon: "receipt" });
-  // 1b.2: boete opzoeken op de ritten (R14: admin alle ritten, werfleider de zijne).
-  if (caps.readTrips) items.push({ key: "boetes", label: t.nav.boetes, icon: "truck" });
-  // 2b.1: Team = enkel BOWACO; Firma's & contacten = Organisaties + Onderaannemers samen (één adresboek, interne rollen).
-  if (caps.readTeam) items.push({ key: "team", label: t.nav.team, icon: "people" });
-  if (caps.readTeam || caps.readOa) items.push({ key: "adresboek", label: t.nav.adresboek, icon: "building" });
-  if (caps.readAudit) items.push({ key: "audit", label: t.nav.audit, icon: "receipt" });
-  // 1b.3: de postbode (mails, wachtrij, robots): enkel de admin.
-  if (caps.manageRobots) items.push({ key: "postbode", label: t.nav.postbode, icon: "share" });
-  if (caps.manageSettings) items.push({ key: "instellingen", label: t.nav.instellingen, icon: "settings" });
-  // 2b.1: de codes horen bij Beheer (Toegang & codes, 2b.2); nieuwe codes komen van "Toegang geven" op de persoon.
-  if (caps.inviteExternal || caps.manageAccess) items.push({ key: "codes", label: t.nav.codes, icon: "key" });
-  items.push({ key: "login", label: t.nav.login, icon: "permit" });
-  return items;
-}
-
 function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const caps = me.caps!;
   const person = me.person!;
   const [route, go] = useRoute();
   const [menu, setMenu] = useState(false);
-  const nav = navFor(caps);
-  const allowed = new Set(nav.map((n) => n.key));
-  if (caps.writeReports) allowed.add("verslag");
-  // 2.8: het voorstel "Werf starten" (geen menu-item: je komt er via de werf, het overzicht of de offerte).
-  if (caps.workStarts) allowed.add("werfstart");
+  const groups = navFor(caps);
+  const bar = bottomBar(caps);
   const ob = useOutbox();
   const [outbox, setOutbox] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [kies, setKies] = useState(false);
   const askLogout = () => (ob.ops.length > 0 ? setLeaving(true) : onLogout());
-  // 2b.1: de oude adressen van Organisaties en Onderaannemers openen het adresboek (bladwijzers, links in mails).
-  const first = route[0] === "organisaties" || route[0] === "onderaannemers" ? "adresboek" : route[0];
-  const page = first && allowed.has(first) ? first : caps.home;
+  // 2b.2: de oude adressen (Instellingen, Codes, Auditlog, Postbode, Boete opzoeken, Organisaties, Onderaannemers)
+  // openen hun nieuwe plaats en de adresbalk volgt.
+  const { page, redirect } = resolveRoute(route, caps);
+  const active = activeKey(groups, redirect ? redirect.split("/") : route);
+  const tabs = route.length <= 1 ? hubTabs(page, caps) : [];
 
   // Een externe die een #code=-link opent terwijl hij al gekoppeld is: de code is niet meer nodig.
   useEffect(() => {
     if (window.location.hash.includes("code=")) go(caps.home);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!redirect) return;
+    const q = window.location.hash.split("?")[1];
+    window.location.replace(`#/${redirect}${q ? `?${q}` : ""}`);
+  }, [redirect]);
 
   const screen = (() => {
     switch (page) {
@@ -282,27 +238,28 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "weekbord": return <Weekbord key={window.location.hash} caps={caps} go={go} />;
       case "vergunningen": return <VergunningenPage caps={caps} go={go} />;
       case "gemeenten": return <GemeentenPage caps={caps} />;
-      case "boetes": return <BoetesPage go={go} />;
-      case "postbode": return <PostbodePage />;
       case "werfadministratie": return <WadmPage go={go} canRules={caps.manageSettings} />;
       case "posten": return <Posten caps={caps} />;
       case "team": return <Team caps={caps} me={person} />;
-      case "codes": return <Codes caps={caps} me={person} />;
       case "adresboek": return <Adresboek caps={caps} route={route} go={go} />;
-      case "audit": return <Audit caps={caps} />;
-      case "instellingen": return <Instellingen />;
+      case "beheer": return <Beheer caps={caps} me={person} route={route} go={go} />;
       case "login": return <MijnLogin me={me} />;
       default: return <Home kind="werven" go={go} />;
     }
   })();
 
   const navList = (onPick?: () => void) => (
-    <nav className="a-nav" aria-label="Hoofdmenu">
-      {nav.map((n) => (
-        <a key={n.key} href={`#/${n.key}`} className="a-nav__item" aria-current={page === n.key ? "page" : undefined} onClick={onPick}>
-          <Icon name={n.icon} size={20} />
-          {n.label}
-        </a>
+    <nav className="a-nav" aria-label={t.menu.hoofdmenu}>
+      {groups.map((g) => (
+        <div key={g.id} className={`a-nav__group a-nav__group--${g.id}`} role="group" aria-label={g.label ?? undefined}>
+          {g.label && <span className="a-nav__label">{g.label}</span>}
+          {g.items.map((n) => (
+            <a key={n.key} href={`#/${n.to}`} className="a-nav__item" aria-current={active === n.key ? "page" : undefined} onClick={onPick}>
+              <Icon name={n.icon} size={20} />
+              {n.label}
+            </a>
+          ))}
+        </div>
       ))}
     </nav>
   );
@@ -311,15 +268,17 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const roleText = person.roles.map((r) => t.roles[r] ?? r).join(", ");
 
   return (
-    <div className="a-app">
+    <div className={bar.length > 0 ? "a-app a-app--bottom" : "a-app"}>
       <aside className="a-side">
         <div className="a-side__brand"><Wordmark size={17} sub={t.app.sub} /></div>
         <div className="a-row--tight"><Bell go={go} home={caps.home} />
         {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}</div>
         {navList()}
         <div className="a-me">
-          <span className="a-avatar">{initials}</span>
-          <span className="a-me__name">{person.name}<small>{roleText}</small></span>
+          <a href="#/login" className="a-me__link" aria-current={page === "login" ? "page" : undefined} title={t.nav.login}>
+            <span className="a-avatar">{initials}</span>
+            <span className="a-me__name">{person.name}<small>{roleText} · {t.nav.login}</small></span>
+          </a>
           <Button variant="quiet" icon="logout" iconOnly onClick={askLogout}>{t.common.logout}</Button>
         </div>
       </aside>
@@ -328,14 +287,31 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
           <span className="a-bar__brand"><Wordmark size={16} sub={t.app.sub} /></span>
           <Bell go={go} home={caps.home} />
           {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
-          <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>
+          {bar.length === 0 && <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>}
         </header>
+        <TabBar tabs={tabs} current={page} go={go} label={t.menu.tabs} />
         {screen}
       </div>
       <Sheet title={`${person.name} · ${roleText}`} open={menu} onClose={() => setMenu(false)}>
+        <a href="#/login" className="a-me__link a-me__link--sheet" onClick={() => setMenu(false)}>
+          <span className="a-avatar">{initials}</span>
+          <span className="a-me__name">{person.name}<small>{t.nav.login}</small></span>
+        </a>
         {navList(() => setMenu(false))}
         <Button variant="secondary" icon="logout" onClick={askLogout}>{t.common.logout}</Button>
       </Sheet>
+      {bar.length > 0 && (
+        <nav className="a-bottom" aria-label={t.menu.snelmenu}>
+          {bar.map((k) => k === "verslag" ? (
+            <button key={k} type="button" className="a-bottom__item a-bottom__main" onClick={() => setKies(true)}><Icon name="plus" size={22} />{t.menu.verslag}</button>
+          ) : k === "meer" ? (
+            <button key={k} type="button" className="a-bottom__item" onClick={() => setMenu(true)}><Icon name="menu" size={22} />{t.menu.more}</button>
+          ) : (
+            <a key={k} href={`#/${k}`} className="a-bottom__item" aria-current={active === k ? "page" : undefined}><Icon name={k === "vandaag" ? "home" : "building"} size={22} />{k === "vandaag" ? t.nav.vandaag : t.nav.werven}</a>
+          ))}
+        </nav>
+      )}
+      {kies && <VerslagKies go={go} onClose={() => setKies(false)} />}
       {outbox && <OutboxSheet onClose={() => setOutbox(false)} />}
       {leaving && (
         <Sheet title={t.outbox.logoutTitle} open onClose={() => setLeaving(false)}
