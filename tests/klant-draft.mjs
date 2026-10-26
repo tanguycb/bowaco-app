@@ -171,11 +171,14 @@ check("(2b) weigeren door de klant: status 'geweigerd' met zijn reden, daarna ni
 
 // ── (5) Getekend bewijs, voorwaarden, mail ──
 const blob = new TextEncoder().encode("!caf!sha256:" + "d".repeat(64));
-const mkFile = async (name, mime, workId) => okRaw(await calc.addFile(name, mime, 1234n, blob, [workId], false));
+// 2.12 (M1): het getekende bewijs is een VERTROUWELIJK bestand (verkoopprijzen en klantgegevens); een gewoon bestand wordt geweigerd.
+const mkFile = async (name, mime, workId, confidential = true) => okRaw(await calc.addFile(name, mime, 1234n, blob, [workId], confidential));
 const pdfB = await mkFile("proef-getekend.pdf", "application/pdf", B.id);
 const pdfA = await mkFile("proef-getekend.pdf", "application/pdf", A.id);
 const imgA = await mkFile("proef-foto.png", "image/png", A.id);
+const pdfOpen = await mkFile("proef-getekend-open.pdf", "application/pdf", A.id, false);
 check("(5) een getekend bewijs van een andere werf, of een foto in plaats van een PDF: geweigerd", /hoort niet bij de werf/.test(errOf(await calc.registerSignedQuote(v1, pdfB, ""))) && /is een PDF/.test(errOf(await calc.registerSignedQuote(v1, imgA, ""))));
+check("(5) 2.12: een getekend bewijs als gewoon (niet-vertrouwelijk) bestand: geweigerd", /vertrouwelijk/.test(errOf(await calc.registerSignedQuote(v1, pdfOpen, ""))));
 const sg = await calc.registerSignedQuote(v1, pdfA, "proef: tweede bewijs op papier");
 const afterSg = ok(await calc.readQuoteVersion(v1));
 check("(5) getekende PDF naast het digitale akkoord: komt bij het akkoord (beide aanwezig), de status blijft aanvaard", isOk(sg) && unopt(unopt(afterSg.doc).acceptance).signed.length === 1 && unopt(unopt(afterSg.doc).acceptance).digital.length === 1 && "accepted" in afterSg.version.status, errOf(sg));
