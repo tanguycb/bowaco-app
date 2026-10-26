@@ -66,6 +66,8 @@ module {
     upload : Bool;
     progress : Bool; // 2.10: menu Vorderingen (admin, calculator, werfleider)
     myProgress : Bool; // 2.10: de klant ziet zijn verzonden vorderingsstaten
+    oaInvoices : Bool; // 2.11: menu OA-facturen (admin, calculator, werfleider)
+    myOaInvoices : Bool; // 2.11: de OA ziet de status van zijn eigen facturen (instelbaar)
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
 
@@ -850,6 +852,7 @@ module {
     progressStatements : [Types.ProgressStatement]; // 2.10 (intern: zonder bedragen)
     progressInputs : [(Nat, [Types.ProgressInput])];
     progressAnswers : [Types.ProgressAnswer];
+    oaInvoices : [Types.OaInvoice]; // 2.11 (intern: zonder bedragen)
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -947,6 +950,8 @@ module {
     #progressConf : [Types.ProgressConf]; // 2.10 (vertrouwelijk)
     #progressFrozen : [(Nat, Types.Confidential<Types.ProgressFrozen>)];
     #progressRevisions : [Types.ProgressRevision];
+    #oaInvoices : [Types.OaInvoice]; // 2.11 (intern)
+    #oaInvoiceAmounts : [(Nat, Types.Confidential<Types.OaInvoiceAmounts>)]; // 2.11 (vertrouwelijk)
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -968,6 +973,8 @@ module {
     progressConf : [Types.ProgressConf];
     progressFrozen : [(Nat, Types.Confidential<Types.ProgressFrozen>)];
     progressRevisions : [Types.ProgressRevision];
+    // 2.11: de bedragen en regels van de OA-facturen.
+    oaInvoiceAmounts : [(Nat, Types.Confidential<Types.OaInvoiceAmounts>)];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────

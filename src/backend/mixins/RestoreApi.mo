@@ -27,6 +27,7 @@ import Codes "../lib/Codes";
 import Config "../lib/Config";
 import Library "../lib/Library";
 import Quotes "../lib/Quotes";
+import OaInvoice "../lib/OaInvoice";
 import Reports "../lib/Reports";
 
 mixin (
@@ -52,6 +53,7 @@ mixin (
   workStarts : Types.WorkStartState,
   surveys : Types.SurveyState,
   progress : Types.ProgressState,
+  oaInvoices : Types.OaInvoiceState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -110,7 +112,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -277,6 +279,8 @@ mixin (
       case (#progressConf xs) { for (x in xs.values()) { progress.conf.add(x.statementId, x) }; xs.size() };
       case (#progressFrozen xs) { for ((id, x) in xs.values()) { progress.frozen.add(id, x) }; xs.size() };
       case (#progressRevisions xs) { for (x in xs.values()) { progress.revisions.add(x.workId, x) }; xs.size() };
+      case (#oaInvoices xs) { for (x in xs.values()) { oaInvoices.invoices.add(x.id, x) }; xs.size() };
+      case (#oaInvoiceAmounts xs) { for ((id, x) in xs.values()) { oaInvoices.amounts.add(id, x) }; xs.size() };
     };
   };
 
@@ -440,6 +444,14 @@ mixin (
     rsClearNat(progress.byWork);
     for (st in progress.statements.values()) { Quotes.addIndex(progress.byWork, st.workId, st.id) };
     rsAtLeast("progress", rsMaxKey(progress.statements));
+    // 2.11: de indexen van de OA-facturen (firma + nummer, per werf) uit de records zelf.
+    rsClearText(oaInvoices.keys);
+    rsClearNat(oaInvoices.byWork);
+    for (i in oaInvoices.invoices.values()) {
+      if (i.status != #withdrawn) { oaInvoices.keys.add(OaInvoice.keyOf(i.orgId, i.number), i.id) };
+      Quotes.addIndex(oaInvoices.byWork, i.workId, i.id);
+    };
+    rsAtLeast("oaInvoice", rsMaxKey(oaInvoices.invoices));
   };
 
   func rsSummary() : Views.RestoreSummary {

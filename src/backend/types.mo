@@ -1604,6 +1604,60 @@ module {
     answers : Map.Map<Nat, ProgressAnswer>; // sleutel = staat
   };
 
+  // ── OA-facturen registreren en controleren (stap 2.11, bouwplan §9 rij 2.11 en §5.1; zonder AI; VOORLOPIG: vragen voor
+  //    Alexis en de boekhouder) ────
+  // Eigen stabiel veld `oaInvoices` (deelvorm, OldActor = {}). Kantoor registreert een factuur van een onderaannemer (firma, werf,
+  // nummer, datum, bedragen, btw-regime, bijlage in de afgeschermde opslag, regels); de controle legt ze naast de afspraken
+  // (aankoopprijs per post uit de offerte, contractvorm), de regie-uren van die OA uit de werfverslagen (bevestigd of betwist,
+  // 1.7), de opgemeten hoeveelheden (2.9) en wat al gefactureerd is, en markeert afwijkingen per regel boven een drempel. De
+  // controle wordt telkens gerekend, nooit bewaard. Goedkeuren vraagt de inhoudingsplicht-raadpleging van die dag (1b.4) of een
+  // gemotiveerde uitzondering. Een goedgekeurde factuur verandert niet meer. De bedragen zijn vertrouwelijk en staan apart.
+  // Peppol (fase 3): `source` en `externalRef` vangen een ingelezen factuur op; inlezen zelf is fase 3. Volledig vanaf het begin (D1a).
+  public type OaVatRegime = { #reverse; #normal : Nat }; // btw verlegd (medecontractant, 0 %) · normaal tarief in basispunten
+  public type OaInvoiceStatus = { #registered; #approved; #disputed; #withdrawn }; // geregistreerd · goedgekeurd · betwist · ingetrokken
+  public type OaInvoiceLineKind = { #post; #regie; #other }; // een post van de offerte · regie-uren · iets anders
+  // Het bewijs bij goedkeuring: de raadpleging van de inhoudingsplicht (1b.4) van die dag, of een gemotiveerde uitzondering.
+  public type OaWithholdingProof = { #check : { checkId : Nat; result : WithholdingResult; reference : Text; consultedOn : Day }; #exception : Text };
+  public type OaInvoiceDecision = { at : Int; by : PersonId; approved : Bool; reason : Text; withholding : ?OaWithholdingProof; flags : Nat };
+
+  // klasse: intern (zonder bedragen)
+  public type OaInvoice = {
+    id : Nat;
+    orgId : OrgId;
+    workId : WorkId;
+    number : Text; // het factuurnummer van de OA
+    invoiceDay : Day;
+    dueDay : ?Day;
+    periodFrom : ?Day; // de periode van de prestaties (voor de regie-uren)
+    periodTo : ?Day;
+    vatRegime : OaVatRegime;
+    reverseMention : Bool; // de vermelding "btw verlegd" (medecontractant) staat op de factuur
+    fileId : ?Nat; // de bijlage (vertrouwelijk bestand)
+    status : OaInvoiceStatus;
+    decision : ?OaInvoiceDecision; // goedkeuring of betwisting (de laatste)
+    note : Text; // intern
+    source : Text; // "hand" · later "peppol" (fase 3)
+    externalRef : Text; // het documentnummer van de Peppol-factuur (fase 3)
+    rev : Nat;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. Eén regel van de factuur zoals de OA ze schreef (hoeveelheid in duizendsten, eenheidsprijs, bedrag).
+  public type OaInvoiceLine = { kind : OaInvoiceLineKind; root : ?Nat; description : Text; qtyMilli : Int; unitCents : Int; amountCents : Int };
+  // klasse: vertrouwelijk. De bedragen van de factuur zoals ze erop staan (excl. btw, btw, incl. btw) en de regels.
+  public type OaInvoiceAmounts = { invoiceId : Nat; netCents : Int; vatCents : Int; totalCents : Int; lines : [OaInvoiceLine]; extra : Extra };
+
+  public type OaInvoiceState = {
+    invoices : Map.Map<Nat, OaInvoice>;
+    amounts : Map.Map<Nat, Confidential<OaInvoiceAmounts>>; // vertrouwelijk; sleutel = factuur
+    keys : Map.Map<Text, Nat>; // "<firma>:<nummer>" → factuur (geen dubbele registratie; index, herrekend bij een herstel)
+    byWork : Map.Map<Nat, [Nat]>; // werf → facturen (index)
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

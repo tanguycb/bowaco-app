@@ -1915,6 +1915,21 @@ await sec("── vorderingsstaten (2.10): caps en poorten per rol (de rest staa
   check("instellingen van de vorderingsstaten: interne rollen lezen, enkel de beheerder schrijft", (await Promise.all([admin, wl, calc].map((x) => x.progressSettings()))).every((x) => typeof x.client === "string") && (await denied(wl.saveProgressSettings({ client: "uit", retentionOnIncl: false }))) && (await denied(calc.saveProgressSettings({ client: "uit", retentionOnIncl: false }))));
 }
 
+await sec("── OA-facturen (2.11): caps en poorten per rol (de rest staat in tests/oafactuur-draft.mjs en tests/review.mjs L1–L6)");
+{
+  const cp = async (x) => (await x.me()).caps[0];
+  const s0 = await admin.oaInvoiceSettings();
+  const c = { admin: await cp(admin), wl: await cp(wl), calc: await cp(calc), arch: await cp(arch), oa: await cp(oa2), klant: await cp(klant), vc: await cp(vc) };
+  check("caps.oaInvoices: admin, werfleider en calculator ja; OA, architect, klant en veiligheid nee", c.admin.oaInvoices && c.wl.oaInvoices && c.calc.oaInvoices && !c.oa.oaInvoices && !c.arch.oaInvoices && !c.klant.oaInvoices && !c.vc.oaInvoices);
+  check("caps.myOaInvoices: niemand zolang de beheerder het niet aanzet", [c.admin, c.wl, c.calc, c.oa, c.arch, c.klant, c.vc].every((x) => !x.myOaInvoices));
+  check("het menu OA-facturen is dicht voor OA, architect, klant, veiligheid, anoniem en de robot", (await Promise.all([oa2, arch, klant, vc, anon, robot].map((x) => denied(x.listOaInvoices([], []))))).every(Boolean));
+  check("de werfleider registreert geen factuur en leest geen factuur met bedragen", (await denied(wl.saveOaInvoice({ id: [], orgId: 0n, workId: A, number: "x", invoiceDay: 0n, dueDay: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], note: "", netCents: 0n, vatCents: 0n, totalCents: 0n, lines: [] }, 0n))) && (await denied(wl.readOaInvoice(1n))) && (await denied(wl.oaInvoicePosts(A))));
+  ok1b(await admin.saveOaInvoiceSettings({ ...s0, oaView: true }));
+  check("met de schakelaar aan: enkel de OA krijgt 'Mijn facturen' (en komt door de poort); architect en klant niet", (await cp(oa2)).myOaInvoices && Array.isArray(await oa2.myOaInvoices()) && !(await cp(arch)).myOaInvoices && (await denied(arch.myOaInvoices())) && (await denied(klant.myOaInvoices())));
+  ok1b(await admin.saveOaInvoiceSettings(s0));
+  check("instellingen: enkel de beheerder schrijft; ongeldige betwistingsmelding geweigerd", (await denied(calc.saveOaInvoiceSettings(s0))) && "err" in (await admin.saveOaInvoiceSettings({ ...s0, disputeNotice: "soms" })));
+}
+
 await sec("── afzetten (R16, T7)");
 const oaId = (await oa.me()).person[0].id;
 const invOa3 = await invite(admin, "Nog een code voor OA", roles("onderaannemer"));

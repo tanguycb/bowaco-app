@@ -55,9 +55,9 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices"];
   // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
-  const SIZE = { libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10 };
+  const SIZE = { libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10, oaInvoiceAmounts: 50 };
   const partOpt = async (k) => { try { return await part(k, SIZE[k] ?? 500); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
@@ -69,6 +69,8 @@ async function exportAll(cid, dir) {
   for (const k of ["quotePrices", "quoteVersionConf"]) vertrouwelijk[k] = await partOpt(k);
   // 2.10: de indexwaarden per staat, de vastgelegde bedragen van verzonden staten, het rekenmodel per werf (een oudere canister → leeg).
   for (const k of ["progressConf", "progressFrozen", "progressRevisions"]) vertrouwelijk[k] = await partOpt(k);
+  // 2.11: de bedragen en regels van de OA-facturen.
+  vertrouwelijk.oaInvoiceAmounts = await partOpt("oaInvoiceAmounts");
   // Auditlog in stukken (nieuwste eerst) → chronologisch bewaren. De log groeit tijdens het lezen (elke
   // export-oproep schrijft een regel), dus dubbels eruit en op tijd sorteren.
   const seen = new Set();
@@ -218,6 +220,8 @@ async function restoreAll(cid, dir) {
   await send("progressConf", vertrouwelijk.progressConf ?? [], 200);
   await send("progressFrozen", vertrouwelijk.progressFrozen ?? [], 10);
   await send("progressRevisions", vertrouwelijk.progressRevisions ?? [], 200);
+  await send("oaInvoices", intern.oaInvoices ?? [], 200);
+  await send("oaInvoiceAmounts", vertrouwelijk.oaInvoiceAmounts ?? [], 50);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -322,6 +326,7 @@ function normalize(intern, vertrouwelijk, audit) {
     progressStatements: byKey(intern.progressStatements ?? [], id),
     progressInputs: byKey(intern.progressInputs ?? [], (x) => x[0]),
     progressAnswers: byKey(intern.progressAnswers ?? [], (x) => x.statementId),
+    oaInvoices: byKey(intern.oaInvoices ?? [], id),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),
@@ -336,6 +341,7 @@ function normalize(intern, vertrouwelijk, audit) {
     "vertrouwelijk.progressConf": byKey(vertrouwelijk.progressConf ?? [], (x) => x.statementId),
     "vertrouwelijk.progressFrozen": byKey(vertrouwelijk.progressFrozen ?? [], (x) => x[0]),
     "vertrouwelijk.progressRevisions": byKey(vertrouwelijk.progressRevisions ?? [], (x) => x.workId),
+    "vertrouwelijk.oaInvoiceAmounts": byKey(vertrouwelijk.oaInvoiceAmounts ?? [], (x) => x[0]),
     audit,
   };
   return out;

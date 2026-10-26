@@ -357,6 +357,20 @@ const table = {
   listMyProgress: [["klant"], () => []],
   readMyProgress: [["klant"], () => [X]],
   answerMyProgress: [["klant"], () => [X, "x", true, ""]],
+  // 2.11: OA-facturen. Lijst: admin, calculator en werfleider (oaInvoiceScope full/qty). Een onbekende factuur: voor iedereen
+  // "Geen toegang" (geen id-orakel). Registreren op werf B: admin en calculator (de invoer is ongeldig: geen nummer). De posten
+  // van het formulier: admin en calculator. De OA ziet zijn eigen facturen enkel met de schakelaar van de beheerder (staat uit).
+  oaInvoiceSettings: [INTERNAL, () => []],
+  saveOaInvoiceSettings: [ADMIN, () => [{ thresholdBp: 99_999n, thresholdCents: 0n, oaView: false, disputeNotice: "melding" }]],
+  listOaInvoices: [INTERNAL, () => [[], []]],
+  oaInvoicePosts: [["admin", "calculator"], () => [B]],
+  oaInvoiceQty: [NONE, () => [X]],
+  readOaInvoice: [NONE, () => [X]],
+  saveOaInvoice: [["admin", "calculator"], () => [{ id: [], orgId: X, workId: B, number: "", invoiceDay: 0n, dueDay: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], note: "", netCents: 0n, vatCents: 0n, totalCents: 0n, lines: [] }, 0n]],
+  approveOaInvoice: [NONE, () => [X, 0n, { exception: "" }, ""]],
+  disputeOaInvoice: [NONE, () => [X, 0n, ""]],
+  withdrawOaInvoice: [NONE, () => [X, 0n, ""]],
+  myOaInvoices: [NONE, () => []],
   setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],

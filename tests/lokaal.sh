@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Alles lokaal op het EIGEN testnet (tests/net, poort 8041; raakt het gedeelde :8000 nooit):
-# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → werfstart → opmeting → vorderingsstaten → mailproef → gateway.
+# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → gateway.
 #   zsh tests/lokaal.sh            (start het net als het nog niet draait)
 set -e
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -75,6 +75,8 @@ node tests/opmeting-draft.mjs "$cid"
 node tests/vordering-draft.mjs "$cid"
 node tests/vordering-rekentest.mjs "$cid"
 node tests/pdf-vordering.mjs
+# 2.11: OA-facturen (registreren, controle per regel, inhoudingsplicht bij goedkeuring, betwisten, geen bedragen voor de werfleider).
+node tests/oafactuur-draft.mjs "$cid"
 echte=$(ls "$HOME"/Desktop/Split/bowaco-docs/bowaco/2026-231_Offerte_*.xlsx 2>/dev/null | head -1)
 if [[ -n "$echte" ]]; then
   python3 -I tools/rekentest-echt.py "$echte"

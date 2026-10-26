@@ -28,8 +28,9 @@ export async function proefVordering({ admin, calc, wl }, { prefix = "P-VS", tit
     const m = fromRead(ok(await calc.readQuoteVersion(v1)));
     M.setHeader(m, { clientOrgId: familie });
     const c1 = M.addChapter(m, { code: "01", title: "Afbraak" });
-    M.addLine(m, c1.key, { title: "Proef afbraak vloeren (2.10)", qtyMilli: 40_000n, unit: "m2", form: "vh", price: price(2500n) });
-    M.addLine(m, c1.key, { title: "Proef container (2.10)", qtyMilli: 2_000n, unit: "st", form: "fixed", price: price(32_000n) });
+    // 2.11: de aankoopprijzen van afbraak en container zijn afgesproken met Proef Dak NV (de OA-factuurproef legt ze ernaast).
+    M.addLine(m, c1.key, { title: "Proef afbraak vloeren (2.10)", qtyMilli: 40_000n, unit: "m2", form: "vh", price: { ...price(2500n), orgId: dak.id } });
+    M.addLine(m, c1.key, { title: "Proef container (2.10)", qtyMilli: 2_000n, unit: "st", form: "fixed", price: { ...price(32_000n), orgId: dak.id } });
     const c2 = M.addChapter(m, { code: "02", title: "Ruwbouw" });
     M.addLine(m, c2.key, { title: "Proef metselwerk binnenmuur (2.10)", qtyMilli: 1_000n, unit: "sog", form: "fixed", price: price(800_000n) });
     M.addLine(m, c2.key, { title: "Proef minwerk bestaande muur (2.10)", qtyMilli: -2_000n, unit: "m2", form: "vh", price: price(4500n) });

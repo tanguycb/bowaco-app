@@ -64,6 +64,9 @@ module {
     // 2.10: vorderingsstaten. #progressAny = het menu Vorderingen (admin, calculator: maken en versturen; werfleider:
     // voorbereiden). Per werf beslist progressScope (wie wat ziet; bedragen enkel admin en calculator).
     #progressAny;
+    // 2.11: OA-facturen. #oaInvoicesAny = het menu (admin, calculator: registreren, controleren, goedkeuren; werfleider:
+    // hoeveelheden en uren zien). Per werf beslist oaInvoiceScope.
+    #oaInvoicesAny;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -240,6 +243,7 @@ module {
       case (#measureAny) admin or wl or calc or (has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("measure.oaPropose") == ?"ja" and activeOa(ctx, p));
       // 2.10: wie ergens een vorderingsstaat maakt of voorbereidt.
       case (#progressAny) admin or calc or wl;
+      case (#oaInvoicesAny) admin or calc or wl;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -296,6 +300,19 @@ module {
     if (has(p, #admin) or has(p, #calculator)) { return #full };
     if (leaderOn(ctx, p, w)) { return #prepare };
     if (memberAs(ctx, p, w, #klant)) { return #client };
+    #none;
+  };
+
+  // ── OA-facturen (2.11) ──────────────────────────────────────────────────
+  // #full = admin en calculator: registreren, bedragen, controle, goedkeuren of betwisten. #qty = de werfleider van de werf: de
+  // regels met hoeveelheden en uren en de markeringen daarop, nooit een bedrag. De OA ziet enkel de status van zijn eigen facturen
+  // (myOaInvoices, instelbaar); de rest niets.
+  public type OaInvoiceScope = { #full; #qty; #none };
+
+  public func oaInvoiceScope(ctx : Ctx, p : Person, w : WorkId) : OaInvoiceScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (has(p, #admin) or has(p, #calculator)) { return #full };
+    if (leaderOn(ctx, p, w)) { return #qty };
     #none;
   };
 
@@ -544,6 +561,8 @@ module {
       upload = may(ctx, p, #upload, null);
       progress = may(ctx, p, #progressAny, null);
       myProgress = has(p, #klant);
+      oaInvoices = may(ctx, p, #oaInvoicesAny, null);
+      myOaInvoices = has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("oaInvoice.oaView") == ?"ja";
       home = home(p);
     };
   };

@@ -57,7 +57,7 @@ function ProgressWorks({ go }: { go: (to: string) => void }) {
                 <span className="a-list__main">
                   <b>{w.name}</b>
                   <span className="bw-muted">
-                    {w.lastCode ? `${w.lastCode}${w.lastTo !== undefined ? ` · ${T.periodTo.toLowerCase()} ${fmtDayNum(w.lastTo)}` : ""}` : T.noStatements}
+                    {w.lastCode ? `${w.lastCode}${w.lastTo !== undefined ? ` · ${T.periodTo.toLowerCase()} ${fmtDayNum(w.lastTo)}` : ""}` : w.draftId !== undefined ? T.firstDraft : T.noStatements}
                     {w.scope === "prepare" ? ` · ${T.scopePrepare}` : ""}
                   </span>
                 </span>

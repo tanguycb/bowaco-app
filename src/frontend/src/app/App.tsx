@@ -38,6 +38,7 @@ import { MijnOffertePage } from "../screens/MijnOfferte";
 import { WerfStartPage } from "../screens/WerfStart";
 import { OpmetingPage } from "../screens/Opmeting";
 import { MijnVorderingPage, VorderingenPage } from "../screens/Vorderingen";
+import { MijnFacturenPage, OaFacturenPage } from "../screens/OaFacturen";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -189,6 +190,9 @@ function navFor(caps: Caps): NavItem[] {
   // 2.10: vorderingsstaten (admin en calculator met bedragen; de werfleider bereidt de hoeveelheden voor) en die van de klant.
   if (caps.progress) items.push({ key: "vorderingen", label: t.nav.vorderingen, icon: "receipt" });
   if (caps.myProgress) items.push({ key: "mijn-vordering", label: t.nav.mijnVordering, icon: "receipt" });
+  // 2.11: OA-facturen (admin en calculator met bedragen; de werfleider hoeveelheden en uren) en de status voor de OA zelf.
+  if (caps.oaInvoices) items.push({ key: "oa-facturen", label: t.nav.oaFacturen, icon: "receipt" });
+  if (caps.myOaInvoices) items.push({ key: "mijn-facturen", label: t.nav.mijnFacturen, icon: "receipt" });
   // 2.2: de postenbibliotheek (interne rollen lezen zonder prijzen; beheerder en calculator bewerken en zien de prijzen).
   if (caps.readLibrary) items.push({ key: "posten", label: t.nav.posten, icon: "doc" });
   // 1b.1: vergunningen over alle werven (admin, werfleider) en de kennisbank per gemeente (interne rollen).
@@ -250,6 +254,12 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "mijn-vordering":
         if (caps.myProgress) return <MijnVorderingPage go={go} route={route} />;
+        return <Home kind={caps.home} go={go} caps={caps} />;
+      case "oa-facturen":
+        if (caps.oaInvoices) return <OaFacturenPage caps={caps} go={go} route={route} />;
+        return <Home kind={caps.home} go={go} caps={caps} />;
+      case "mijn-facturen":
+        if (caps.myOaInvoices) return <MijnFacturenPage />;
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "mijn-offerte":
         if (caps.myQuotes) return <MijnOffertePage go={go} route={route} />;

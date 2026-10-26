@@ -765,6 +765,55 @@ else {
   }
 }
 
+// ── (L1–L6) stap 2.11: OA-facturen. Nooit een bedrag naar de werfleider of een OA; geen id-orakel; de inhoudingsplicht is
+//    verplicht; een goedgekeurde factuur verandert niet; twee gelijktijdige goedkeuringen = één; de robot nergens ──
+{
+  const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.did"), "utf8");
+  const types = new Map([...did.matchAll(/^type (\w+) =([\s\S]*?);\n(?=type |service|$)/gm)].map((m) => [m[1], m[2]]));
+  const fieldsOf = (n) => [...(types.get(n) ?? "").matchAll(/^\s+(\w+)\s*:/gm)].map((m) => m[1]);
+  const qTypes = ["OaLineQty", "OaInvoiceQtyView", "OaInvoiceBrief", "OaHoursView", "OaInvoice", "MyOaInvoice", "OaInvoiceDecision"];
+  const badQ = qTypes.flatMap((n) => fieldsOf(n).filter((f) => /cents|cost|margin|price|prijs|amount|bedrag|total|euro|agreed/i.test(f)).map((f) => `${n}.${f}`));
+  const moneyTypes = ["OaLineMoney", "OaLineView", "OaInvoiceAmounts", "OaInvoiceLine", "OaInvoiceFullView", "QuoteLinePrice", "ContractParams"];
+  const refsQ = qTypes.filter((n) => moneyTypes.some((t) => new RegExp(`\\b${t}\\b`).test(types.get(n) ?? "")));
+  check("(L1) de typen die de werfleider en de OA lezen (en het interne record) hebben geen bedragveld en verwijzen niet naar een bedragtype", qTypes.every((n) => types.has(n)) && badQ.length === 0 && refsQ.length === 0, badQ.concat(refsQ).join(", ") || `${qTypes.length} typen`);
+  const { proefVordering } = await import("./vordering-lib.mjs");
+  const s0 = await admin.oaInvoiceSettings();
+  const V = await proefVordering({ admin, calc, wl }, { prefix: "P-OFR", titleSuffix: " review 2.11", model: false });
+  try {
+    const posts = await calc.oaInvoicePosts(V.wid);
+    const root = posts.find((p) => p.title.startsWith("Proef container")).root;
+    const nr = `PFR-${Date.now().toString(36).toUpperCase()}`;
+    const fid = ok(await calc.addFile("proef-review.pdf", "application/pdf", 10_000n, new TextEncoder().encode("!caf!sha256:" + "a".repeat(64)), [V.wid], true));
+    const cDayL = BigInt(Math.floor(Number((await admin.auditLog(0n, 1n))[0].at / 1_000_000n) / 86_400_000));
+    if (!orgDak.kbo.length) ok(await admin.updateOrg(orgDak.id, { kind: orgDak.kind, name: orgDak.name, kbo: ["0999111222"], vat: orgDak.vat, aliases: orgDak.aliases, trades: orgDak.trades, address: orgDak.address, notes: orgDak.notes }));
+    const inv = { id: [], orgId: orgDak.id, workId: V.wid, number: nr, invoiceDay: cDayL, dueDay: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [fid], note: "", netCents: 32_000n, vatCents: 0n, totalCents: 32_000n, lines: [{ kind: { post: null }, root: [root], description: "container", qtyMilli: 1_000n, unitCents: 32_000n, amountCents: 32_000n }] };
+    const id = ok(await calc.saveOaInvoice(inv, 0n));
+    // (L2) Elk kanaal naar de bedragen is dicht voor de werfleider en de OA.
+    const l2 = await Promise.all([wl.readOaInvoice(id), wl.exportChunk("oaInvoiceAmounts", 0n, 10n), wl.oaInvoicePosts(V.wid), oa2.readOaInvoice(id), oa2.oaInvoiceQty(id), oa2.listOaInvoices([], [])].map(denied));
+    check("(L2) werfleider en OA: factuur met bedragen, vertrouwelijke export, posten van het formulier; de OA ook de regels en de lijst: geweigerd", l2.every(Boolean), l2.map((x) => (x ? "·" : "✗")).join(""));
+    // (L3) Geen id-orakel: een onbekende en een bestaande factuur geven voor wie niet mag hetzelfde antwoord.
+    const a1 = await arch.oaInvoiceQty(id).then((r) => "ok", (e) => String(e).includes("Geen toegang") ? "geen" : "?");
+    const a2 = await arch.oaInvoiceQty(999_999_999n).then((r) => "ok", (e) => String(e).includes("Geen toegang") ? "geen" : "?");
+    check("(L3) architect: dezelfde 'Geen toegang' voor een bestaande en een onbekende factuur", a1 === "geen" && a2 === "geen");
+    // (L4) De robot nergens.
+    check("(L4) de robot: lijst, lezen, registreren, goedkeuren en 'mijn facturen' geweigerd", (await Promise.all([robot.listOaInvoices([], []), robot.readOaInvoice(id), robot.saveOaInvoice(inv, 0n), robot.approveOaInvoice(id, 0n, { exception: "x".repeat(20) }, "x"), robot.myOaInvoices()].map(denied))).every(Boolean));
+    // (L5) Inhoudingsplicht verplicht; twee gelijktijdige goedkeuringen = één beslissing.
+    const v = ok(await calc.readOaInvoice(id));
+    check("(L5) goedkeuren zonder raadpleging van vandaag en zonder uitzondering kan niet (een onbekende raadpleging)", /Onbekende raadpleging/.test(errOf(await calc.approveOaInvoice(id, v.brief.rev, { check: 999_999_999n }, "proef"))));
+    const ref = `PROEF-REVIEW-L5-${nr}`;
+    ok(await calc.recordWithholdingCheck(orgDak.id, { result: { clear: null }, consultedOn: cDayL, reference: ref, note: "proef", workId: [V.wid] }));
+    const chkId = (await calc.withholdingHistory(orgDak.id)).find((c) => c.reference === ref).id;
+    const [r1, r2] = await Promise.all([calc.approveOaInvoice(id, v.brief.rev, { check: chkId }, "proef: review L5"), admin.approveOaInvoice(id, v.brief.rev, { check: chkId }, "proef: review L5")]);
+    check("(L5) twee gelijktijdige goedkeuringen met dezelfde bewerkteller: precies één", [r1, r2].filter(isOk).length === 1, [r1, r2].map((x) => (isOk(x) ? "ok" : x.err)).join(" | "));
+    // (L6) Een goedgekeurde factuur verandert niet: ook niet via een nieuwe registratie met hetzelfde nummer, of via de werf.
+    const after = ok(await calc.readOaInvoice(id));
+    check("(L6) goedgekeurd: verbeteren, intrekken en een tweede registratie met hetzelfde nummer geweigerd; bedragen ongewijzigd", /Enkel een geregistreerde/.test(errOf(await calc.saveOaInvoice({ ...inv, id: [id], netCents: 1n }, after.brief.rev))) && /goedgekeurd/.test(errOf(await calc.withdrawOaInvoice(id, after.brief.rev, "proef: review L6"))) && /al geregistreerd/.test(errOf(await calc.saveOaInvoice(inv, 0n))) && after.netCents === 32_000n);
+  } finally {
+    await admin.setWorkStatus(V.wid, { cancelled: null }).catch(() => {});
+    await admin.saveOaInvoiceSettings(s0).catch(() => {});
+  }
+}
+
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──
 if (local && !process.env.ZONDER_KLOK) {
   const before = (await admin.accessStats()).attemptsTracked;

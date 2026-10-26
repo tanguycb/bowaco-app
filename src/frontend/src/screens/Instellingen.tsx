@@ -62,6 +62,7 @@ export function Instellingen() {
       <QuoteNumbers />
       <OpmetingAdmin />
       <VorderingAdmin />
+      <OaFactuurAdmin />
       <QuoteRulesAdmin />
       <QuoteDocsAdmin />
       <CompanyCalendar />
@@ -153,6 +154,50 @@ function VorderingAdmin() {
             <Choice label={T.retentionIncl} value={incl ? "incl" : "excl"} onChange={(v) => setIncl(v === "incl")} options={["excl", "incl"].map((k) => ({ value: k, label: T.retentionOpts[k] }))} />
           </Field>
           <div><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{T.save}</Button></div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** 2.11: de OA-facturen: drempel (%, minimumbedrag), ziet de OA zijn status, hoe gaat een betwisting naar de OA. */
+function OaFactuurAdmin() {
+  const T = t.oaFacturen.settings;
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const cur = useQuery({ queryKey: ["oaInvoiceSettings"], queryFn: () => actor!.oaInvoiceSettings(), enabled: !!actor && !isFetching });
+  const [pct, setPct] = useState("");
+  const [min, setMin] = useState("");
+  const [view, setView] = useState(false);
+  const [notice, setNotice] = useState("melding");
+  useEffect(() => {
+    if (cur.data) { setPct((Number(cur.data.thresholdBp) / 100).toLocaleString("nl-BE", { maximumFractionDigits: 2 })); setMin(fmtEuro(cur.data.thresholdCents).replace(/[€\s]/g, "")); setView(cur.data.oaView); setNotice(cur.data.disputeNotice); }
+  }, [cur.data]);
+  const bp = parsePct(pct);
+  const cents = parseEuro(min);
+  const valid = bp !== null && bp <= 10_000n && cents !== null && cents !== undefined;
+  const save = useMutation({
+    mutationFn: async () => unwrap(await actor!.saveOaInvoiceSettings({ thresholdBp: bp!, thresholdCents: cents as bigint, oaView: view, disputeNotice: notice })),
+    onSuccess: () => { toast.show({ kind: "ok", text: T.saved }); void qc.invalidateQueries({ queryKey: ["oaInvoiceSettings"] }); void qc.invalidateQueries({ queryKey: ["me"] }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  return (
+    <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="oa-invoice-settings">
+      <h2 className="bw-h2">{T.title}</h2>
+      <p className="bw-muted">{T.lead}</p>
+      <Loading q={cur} />
+      {cur.data && (
+        <>
+          <div className="a-grid2">
+            <Field label={T.threshold}><input className="bw-input bw-num" inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value)} /></Field>
+            <Field label={T.thresholdCents}><input className="bw-input bw-num" inputMode="decimal" value={min} onChange={(e) => setMin(e.target.value)} /></Field>
+          </div>
+          <p className="bw-muted">{T.thresholdHint}</p>
+          {!valid && <p className="a-err" role="alert">{T.bad}</p>}
+          <Field label={T.oaView}><Choice label={T.oaView} value={view ? "ja" : "nee"} onChange={(v) => setView(v === "ja")} options={[{ value: "ja", label: t.common.yes }, { value: "nee", label: t.common.no }]} /></Field>
+          <Field label={T.notice}><Choice label={T.notice} value={notice} onChange={setNotice} options={["uit", "melding", "app"].map((k) => ({ value: k, label: T.noticeOpts[k] }))} /></Field>
+          <div><Button variant="primary" busy={save.isPending} disabled={!valid} onClick={() => save.mutate()}>{T.save}</Button></div>
         </>
       )}
     </section>

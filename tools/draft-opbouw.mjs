@@ -98,6 +98,7 @@ for (const [name, file] of [
   ["werfstart", "tests/werfstart-draft.mjs"], // 2.8: aanvaarde offerte → werf, taken, vergunningen, 30bis
   ["opmeting", "tests/opmeting-draft.mjs"], // 2.9: opmeting ter plaatse (hoeveelheden, voorstel van een OA, afsluiten, rechten)
   ["vordering", "tests/vordering-draft.mjs"], // 2.10: vorderingsstaten (cumulatief, vast na verzenden, creditnota, klant, geen bedragen voor de werfleider)
+  ["oafactuur", "tests/oafactuur-draft.mjs"], // 2.11: OA-facturen (controle, inhoudingsplicht verplicht, betwisten, geen bedragen voor de werfleider)
   ["vrekentest", "tests/vordering-rekentest.mjs"], // 2.10: browser = server op de vorderingsstaat (op een draft 25 willekeurige invullingen)
   ["mail", "tests/mail-proef.mjs"],
 ]) rood += run(name, file) ? 1 : 0;

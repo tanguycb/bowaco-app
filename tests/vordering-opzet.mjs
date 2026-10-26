@@ -2,7 +2,7 @@
 // (VH, vaste prijs, minwerk, regie), de werfstart, een proefcontract (inhouding 5 %, prijsherziening, 30 dagen) met rekenmodel,
 // een afgesloten opmeting (afbraak 42 m² van 40) en een afgesloten werfverslag met 16 u regie (bevestigd door de OA) en 4 u
 // betwist. De proefklant en de OA zijn lid van de werf. Nog GEEN vorderingsstaat: die maakt wie test. Enkel verzonnen gegevens.
-//   node tests/vordering-opzet.mjs <canister-id>
+//   node tests/vordering-opzet.mjs <canister-id> [prefix]     (2.11: prefix P-OFUI voor de proef met de OA-facturen)
 import { backend } from "../tools/lib.mjs";
 import { proefVordering, ok, opt } from "./vordering-lib.mjs";
 
@@ -11,8 +11,11 @@ if (!cid) throw new Error("gebruik: node tests/vordering-opzet.mjs <canister-id>
 const [admin, wl, calc, oa2, klant] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-oa2", "proef-klant"].map((n) => backend(n, cid)));
 const uid = () => crypto.randomUUID();
 const cDay = BigInt(Math.floor(Number((await admin.auditLog(0n, 1n))[0].at / 1_000_000n) / 86_400_000));
-const S = await proefVordering({ admin, calc, wl }, { prefix: "P-VSUI", titleSuffix: " (proef)" });
+const prefix = process.argv[3] ?? "P-VSUI";
+const S = await proefVordering({ admin, calc, wl }, { prefix, titleSuffix: " (proef)" });
 const { wid, L, dak, regieTask } = S;
+// 2.11: de inhoudingsplicht vraagt een KBO-nummer: de proeffirma krijgt een verzonnen nummer als ze er nog geen heeft.
+if (!dak.kbo.length) ok(await admin.updateOrg(dak.id, { kind: dak.kind, name: dak.name, kbo: ["0999111222"], vat: dak.vat, aliases: dak.aliases, trades: dak.trades, address: dak.address, notes: dak.notes }));
 const KM = uid();
 const m = (op) => wl.measureSync([{ opId: uid(), clientKey: KM, op }]);
 await m({ open: { workId: wid } });
