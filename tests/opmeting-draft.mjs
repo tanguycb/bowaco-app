@@ -274,7 +274,9 @@ check("(6) drempel terug op 10 %: de stopcontacten zijn weer minderwerk; het afg
 ok(await admin.saveMeasureSettings({ thresholdBp: settings0.thresholdBp, oaPropose: settings0.oaPropose, externalRead: settings0.externalRead }));
 const log = await admin.auditLog(0n, 500n);
 check("(6) auditlog: nieuwe opmeting, regels, correctie, voorstel-bevestigd/afgewezen, afgesloten, instellingen; zonder bedragen", ["opmeting-nieuw", "opmeting-regel", "opmeting-correctie", "opmeting-voorstel-bevestigd", "opmeting-voorstel-afgewezen", "opmeting-afgesloten", "opmeting-instellingen", "opmeting-regel-weg"].every((a) => log.some((e) => e.action === a && e.detail.length > 0)) && !log.filter((e) => e.action.startsWith("opmeting")).some((e) => /€|Cents/.test(e.detail)));
-const ex = await Promise.all(["surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps"].map(async (k) => ok(await admin.exportChunk(k, 0n, 500n))));
+// 2b.2: alle bladzijden van de export (op een draft die een paar keer is opgebouwd, staat de proef niet meer in de eerste 500).
+const allChunks = async (k) => { const rows = []; for (let off = 0n; ; off += 500n) { const part = ok(await admin.exportChunk(k, off, 500n))[k]; rows.push(...part); if (part.length < 500) break; } return { [k]: rows }; };
+const ex = await Promise.all(["surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps"].map(allChunks));
 check("(6) export: opmetingen, sleutels, regels, standen en opdrachten zitten in de back-up", ex[0].surveys.some((s) => s.id === S1) && ex[1].surveyKeys.length > 0 && ex[2].measureEntries.some((e) => e.id === goot14) && ex[3].measureSnapshots.some(([id]) => id === S1) && ex[4].measureOps.length > 0);
 check("(6) export door de werfleider of de OA: geweigerd", (await denied(wl.exportChunk("measureEntries", 0n, 1n))) && (await denied(oa2.exportChunk("surveys", 0n, 1n))));
 const intern = await admin.exportIntern();

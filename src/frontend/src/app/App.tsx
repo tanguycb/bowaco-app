@@ -277,7 +277,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         <div className="a-me">
           <a href="#/login" className="a-me__link" aria-current={page === "login" ? "page" : undefined} title={t.nav.login}>
             <span className="a-avatar">{initials}</span>
-            <span className="a-me__name">{person.name}<small>{roleText} · {t.nav.login}</small></span>
+            <span className="a-me__name">{person.name}<small>{t.nav.login}</small></span>
           </a>
           <Button variant="quiet" icon="logout" iconOnly onClick={askLogout}>{t.common.logout}</Button>
         </div>
