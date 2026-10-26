@@ -2014,6 +2014,37 @@ if (local && !process.env.ZONDER_KLOK) {
   check("geblokkeerde principal is na 24 uur weer vrij", (await vreemde.me()).blockedUntil.length === 0);
 }
 
+await sec("── 2b.1 Firma's & contacten: firmasoort veiligheidscoördinator, rol van een contact volgt de firma, toegang zonder dubbel, werven van een firma");
+{
+  const vcOrg = await org("safetyCoordinator", "Proef VC Bureau");
+  check("admin maakt een firma van soort veiligheidscoördinator", isOk(vcOrg) && "safetyCoordinator" in vcOrg.ok.kind, JSON.stringify(vcOrg, big));
+  check("werfleider maakt ook een VC-firma (manageOrgs), calculator niet", isOk(await wl.createOrg({ kind: { safetyCoordinator: null }, name: "Proef VC Twee", kbo: [], vat: [], aliases: [], trades: [], address: [], notes: "" })) && (await rejects(calc.createOrg({ kind: { safetyCoordinator: null }, name: "x", kbo: [], vat: [], aliases: [], trades: [], address: [], notes: "" }))));
+  check("de VC-firma staat in de OA-database (filter op soort)", (await admin.listOas(oaFilter({ kind: "safetyCoordinator" }))).some((v) => v.org.id === vcOrg.ok.id));
+  const vcP = await wl.saveOaPerson(vcOrg.ok.id, pIn("Proef Coördinator 2b"));
+  const archP = await wl.saveOaPerson(orgArch.ok.id, pIn("Proef Architect 2b"));
+  const elekP = await wl.saveOaPerson(orgElek.ok.id, pIn("Proef Elektricien 2b"));
+  const rolesOf = async (id) => (await admin.listPersons(false)).find((p) => p.id === id)?.roles.map((r) => Object.keys(r)[0]).join() ?? "";
+  check("nieuw contact bij een VC-firma krijgt de rol veiligheidscoördinator", isOk(vcP) && (await rolesOf(vcP.ok.id)) === "veiligheidscoordinator");
+  check("nieuw contact bij een architectenbureau krijgt de rol architect", isOk(archP) && (await rolesOf(archP.ok.id)) === "architect");
+  check("nieuw contact bij een OA krijgt (zoals vroeger) de rol onderaannemer", isOk(elekP) && (await rolesOf(elekP.ok.id)) === "onderaannemer");
+  const before = (await admin.listPersons(true)).length;
+  const inv = await wl.inviteExistingPerson({ personId: vcP.ok.id, workIds: [A], validDays: 1n, tag: "2b.1" });
+  check("werfleider geeft toegang aan het bestaande VC-contact voor werf A (code)", isOk(inv), errOf(inv));
+  check("toegang geven maakt geen tweede persoon", (await admin.listPersons(true)).length === before);
+  check("het VC-contact is meteen lid van werf A als veiligheidscoördinator", (await admin.listMembers(A)).some((m) => m.personId[0] === vcP.ok.id && "veiligheidscoordinator" in m.role));
+  check("tweede code voor dezelfde persoon blijft dezelfde persoon (geen dubbel lid)", isOk(await admin.inviteExistingPerson({ personId: vcP.ok.id, workIds: [A], validDays: 1n, tag: "2b.1b" })) && (await admin.listMembers(A)).filter((m) => m.personId[0] === vcP.ok.id).length === 1);
+  check("calculator geeft geen toegang (geen #inviteExternal)", await rejects(calc.inviteExistingPerson({ personId: archP.ok.id, workIds: [A], validDays: 1n, tag: "" })));
+  // orgWorks: de werven van een firma voor de firmafiche
+  check("werven van de klant: werf A (klant op de werf)", (await admin.orgWorks(orgKlant.ok.id)).includes(A));
+  check("werven van de VC-firma: werf A (via haar contact als lid)", (await wl.orgWorks(vcOrg.ok.id)).includes(A));
+  check("werven van een firma zonder werf: leeg", (await calc.orgWorks(vcOrg.ok.id + 1_000_000n)).length === 0);
+  check("OA, architect, klant, veiligheid en anoniem lezen de werven van een firma niet", (await Promise.all([oa, arch, klant, vc, anon].map((x) => rejects(x.orgWorks(orgKlant.ok.id))))).every(Boolean));
+  for (const i of (await admin.listInvites(0n, 500n)).filter((x) => x.tag.startsWith("2b.1") && "open" in x.state)) {
+    const r = await admin.revokeInvite(i.id);
+    if ("err" in r) check(`code #${i.id} (2b.1) intrekken`, false, r.err);
+  }
+}
+
 // De test laat niets achter dat iemand later per vergissing kan bevestigen of gebruiken
 // (les draft 1: een achtergebleven wachtende koppeling werd blind bevestigd).
 await sec("── opruimen: eigen wachtende koppelingen en open codes");

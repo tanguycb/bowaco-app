@@ -5365,6 +5365,7 @@ export enum OaInvoiceStatus {
     registered = "registered"
 }
 export enum OrgKind {
+    safetyCoordinator = "safetyCoordinator",
     client = "client",
     other = "other",
     supplier = "supplier",
@@ -5605,6 +5606,7 @@ export interface backendInterface {
     oaInvoiceQty(id: bigint): Promise<OaInvoiceQtyView>;
     oaInvoiceSettings(): Promise<OaInvoiceSettings>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
+    orgWorks(orgId: bigint): Promise<Array<bigint>>;
     pendingWorkStarts(workId: bigint | null): Promise<Array<WorkStartPending>>;
     permitHistory(permitId: bigint): Promise<Array<PermitChangeView>>;
     permitRules(): Promise<{

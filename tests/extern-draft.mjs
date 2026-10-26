@@ -19,7 +19,7 @@ const today = BigInt(Math.floor(Date.now() / 86_400_000));
 
 const [admin, wl, calc, arch, oa2, klant] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-architect", "proef-oa2", "proef-klant"].map((n) => backend(n, cid)));
 const me = await admin.me();
-check("versie 1.7 of later op de canister", (/^1b\.|^[2-9]\./.test(me.version) || /^1\.([7-9]|1\d)/.test(me.version)), me.version);
+check("versie 1.7 of later op de canister", (/^1b\.|^[2-9]b?\./.test(me.version) || /^1\.([7-9]|1\d)/.test(me.version)), me.version);
 const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A")?.id;
 const B = works.find((w) => w.code === "P-B")?.id;

@@ -2281,7 +2281,8 @@ export interface OrgInput {
   'notes' : string,
   'aliases' : Array<string>,
 }
-export type OrgKind = { 'client' : null } |
+export type OrgKind = { 'safetyCoordinator' : null } |
+  { 'client' : null } |
   { 'other' : null } |
   { 'supplier' : null } |
   { 'bowaco' : null } |
@@ -4796,6 +4797,7 @@ export interface _SERVICE {
     [[] | [bigint], bigint, bigint],
     Array<OrgAssignmentView>
   >,
+  'orgWorks' : ActorMethod<[bigint], Array<bigint>>,
   'pendingWorkStarts' : ActorMethod<[[] | [bigint]], Array<WorkStartPending>>,
   'permitHistory' : ActorMethod<[bigint], Array<PermitChangeView>>,
   'permitRules' : ActorMethod<

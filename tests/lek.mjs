@@ -119,6 +119,7 @@ const table = {
   archivePerson: [ADMIN, () => [X]],
   restorePerson: [ADMIN, () => [X]],
   listOrgs: [INTERNAL, () => [false]],
+  orgWorks: [INTERNAL, () => [X]], // 2b.1: werven van een firma (firmafiche)
   createOrg: [["admin", "werfleider"], () => [orgIn]],
   updateOrg: [["admin", "werfleider"], () => [X, orgIn]],
   archiveOrg: [ADMIN, () => [X]],

@@ -20,6 +20,7 @@ export function Codes({ caps, me }: { caps: Caps; me: PersonView }) {
   return (
     <Page title={t.codes.title}>
       <p className="a-note">{t.codes.lead}</p>
+      <p className="bw-muted">{t.codes.newHere}</p>
       <Loading q={codes} />
       {codes.data && codes.data.length === 0 && <p className="a-empty">{t.codes.empty}</p>}
       {codes.data && codes.data.length > 0 && (

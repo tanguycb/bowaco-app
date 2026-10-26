@@ -25,7 +25,7 @@ const sync1 = async (who, op) => (await who.reportSync([op]))[0];
 
 const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-architect", "proef-oa2", "proef-klant", "proef-vc"].map((n) => backend(n, cid)));
 const me = await admin.me();
-check("versie 1.6 of later op de canister", (/^1b\.|^[2-9]\./.test(me.version) || /^1\.([6-9]|1\d)/.test(me.version)), me.version);
+check("versie 1.6 of later op de canister", (/^1b\.|^[2-9]b?\./.test(me.version) || /^1\.([6-9]|1\d)/.test(me.version)), me.version);
 const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A")?.id;
 const orgDak = (await admin.listOrgs(false)).find((o) => o.name === "Proef Dak NV");

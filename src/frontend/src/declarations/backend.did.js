@@ -304,6 +304,7 @@ export const PersonView = IDL.Record({
 });
 export const Result_3 = IDL.Variant({ 'ok' : PersonView, 'err' : IDL.Text });
 export const OrgKind = IDL.Variant({
+  'safetyCoordinator' : IDL.Null,
   'client' : IDL.Null,
   'other' : IDL.Null,
   'supplier' : IDL.Null,
@@ -5084,6 +5085,7 @@ export const idlService = IDL.Service({
       [IDL.Vec(OrgAssignmentView)],
       ['query'],
     ),
+  'orgWorks' : IDL.Func([IDL.Nat], [IDL.Vec(IDL.Nat)], ['query']),
   'pendingWorkStarts' : IDL.Func(
       [IDL.Opt(IDL.Nat)],
       [IDL.Vec(WorkStartPending)],
@@ -5583,6 +5585,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const Result_3 = IDL.Variant({ 'ok' : PersonView, 'err' : IDL.Text });
   const OrgKind = IDL.Variant({
+    'safetyCoordinator' : IDL.Null,
     'client' : IDL.Null,
     'other' : IDL.Null,
     'supplier' : IDL.Null,
@@ -10299,6 +10302,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(OrgAssignmentView)],
         ['query'],
       ),
+    'orgWorks' : IDL.Func([IDL.Nat], [IDL.Vec(IDL.Nat)], ['query']),
     'pendingWorkStarts' : IDL.Func(
         [IDL.Opt(IDL.Nat)],
         [IDL.Vec(WorkStartPending)],

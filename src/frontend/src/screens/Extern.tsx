@@ -2,14 +2,13 @@
 // werfleider om te bellen, en de deel-knop van de weekplanning (PDF of beeld). Wat iemand ziet, beslist de backend.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Grant, OrgKind, Role, type BoardRow, type HoursLine, type MembershipView, type NewCode } from "../backend";
+import { Grant, type BoardRow, type HoursLine, type MembershipView } from "../backend";
 import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { shareWeek, type ShareWeek } from "../pdf/weekplanning";
 import { t } from "../texts/nl";
 import { errText, fmtDayNum, todayDay, unwrap, useBackend } from "../util";
 import { Loading, Page, WorkBadge } from "./common";
 import { fmtDur, fmtMin } from "./Werfverslag";
-import { CodeShown } from "./Team";
 
 const H = t.hours;
 const E = t.extern;
@@ -180,63 +179,5 @@ export function GrantToggles({ m }: { m: MembershipView }) {
         );
       })}
     </span>
-  );
-}
-
-const INVITE_ROLES = [Role.onderaannemer, Role.architect, Role.veiligheidscoordinator];
-const ORG_KINDS: Record<string, OrgKind[]> = {
-  onderaannemer: [OrgKind.subcontractor, OrgKind.supplier, OrgKind.other],
-  architect: [OrgKind.architect],
-  veiligheidscoordinator: [OrgKind.other, OrgKind.subcontractor, OrgKind.architect],
-};
-
-/** "Uitnodigen voor deze werf": een bestaande persoon van de firma (geen dubbel) of een nieuwe; daarna de code. */
-export function InviteToWork({ workId, onClose }: { workId: bigint; onClose: () => void }) {
-  const { actor, isFetching } = useBackend();
-  const on = !!actor && !isFetching;
-  const qc = useQueryClient();
-  const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on });
-  const persons = useQuery({ queryKey: ["persons", false], queryFn: () => actor!.listPersons(false), enabled: on });
-  const [role, setRole] = useState<Role>(Role.onderaannemer);
-  const [org, setOrg] = useState("");
-  const [who, setWho] = useState("new");
-  const [name, setName] = useState("");
-  const [code, setCode] = useState<NewCode | null>(null);
-  const firms = (orgs.data ?? []).filter((o) => (ORG_KINDS[role] ?? []).includes(o.kind));
-  const people = (persons.data ?? []).filter((p) => org !== "" && p.orgId !== undefined && String(p.orgId) === org && p.roles.includes(role));
-  const save = useMutation({
-    mutationFn: async () => {
-      if (who !== "new") return unwrap(await actor!.inviteExistingPerson({ personId: BigInt(who), workIds: [workId], validDays: 0n, tag: "" }));
-      return unwrap(await actor!.invitePerson({ name, roles: [role], orgId: BigInt(org), shortCode: undefined, lang: "nl", phone: undefined, workIds: [workId], validDays: 0n, tag: "" }));
-    },
-    onSuccess: (c) => { setCode(c); void qc.invalidateQueries({ queryKey: ["members", String(workId)] }); void qc.invalidateQueries({ queryKey: ["persons"] }); },
-  });
-  if (code) return <CodeShown title={`${t.team.codeTitle} ${who === "new" ? name : people.find((p) => String(p.id) === who)?.name ?? ""}`} code={code} onClose={onClose} />;
-  const ok = org !== "" && (who !== "new" || name.trim() !== "");
-  return (
-    <Sheet title={t.invite.title} open onClose={onClose} side footer={<>
-      <Button onClick={onClose}>{t.common.cancel}</Button>
-      <Button variant="primary" busy={save.isPending} disabled={!ok} onClick={() => save.mutate()}>{t.invite.send}</Button>
-    </>}>
-      <p className="bw-muted">{t.invite.lead}</p>
-      <div className="a-form">
-        <div className="bw-field"><span className="bw-label">{t.invite.role}</span>
-          <Choice label={t.invite.role} value={role} onChange={(r) => { setRole(r); setOrg(""); setWho("new"); }} options={INVITE_ROLES.map((r) => ({ value: r, label: t.roles[r] }))} />
-        </div>
-        <label className="bw-field"><span className="bw-label">{t.invite.firm}</span>
-          <select id="inv-org" className="bw-input" value={org} onChange={(e) => { setOrg(e.target.value); setWho("new"); }}>
-            <option value="">{t.invite.pickFirm}</option>
-            {firms.map((o) => <option key={String(o.id)} value={String(o.id)}>{o.name}{o.aliases[0] ? ` (${o.aliases[0]})` : ""}</option>)}
-          </select>
-        </label>
-        {org !== "" && (
-          <div className="bw-field"><span className="bw-label">{t.invite.person}</span>
-            <Choice label={t.invite.person} value={who} onChange={setWho} options={[...people.map((p) => ({ value: String(p.id), label: p.name })), { value: "new", label: t.invite.newPerson }]} />
-          </div>
-        )}
-        {who === "new" && <label className="bw-field"><span className="bw-label">{t.invite.name}</span><input id="inv-name" className="bw-input" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} /></label>}
-        {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
-      </div>
-    </Sheet>
   );
 }

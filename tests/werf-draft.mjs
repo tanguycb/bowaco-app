@@ -22,7 +22,7 @@ const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A")?.id;
 if (A === undefined) throw new Error("werf P-A ontbreekt: eerst tests/rollen.mjs op deze canister");
 const v11 = (await admin.me()).version;
-check("versie 1.1 of later op de canister", /^1b\.|^[2-9]\.|^1\.[1-9]/.test(v11), v11);
+check("versie 1.1 of later op de canister", /^1b\.|^[2-9]b?\.|^1\.[1-9]/.test(v11), v11);
 
 const cur = await calc.readContract(A);
 check("calculator leest het contract van P-A (update-call)", isOk(cur), errOf(cur));

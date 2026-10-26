@@ -76,6 +76,8 @@ type Address__294896158 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__766490103 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
+type Address__810232195 =
+  {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__963656299 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__997510852 =
@@ -301,6 +303,7 @@ type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
 type Confidential__675319516<T> = {#plain : T; #sealed : Sealed__1041298352};
 type Confidential__861245145<T> = {#plain : T; #sealed : Sealed__703332956};
 type Confidential__886369716<T> = {#plain : T; #sealed : Sealed__566922365};
+type Confidential__96824572<T> = {#plain : T; #sealed : Sealed__29180127};
 type Confidential__978755673<T> = {#plain : T; #sealed : Sealed__56403581};
 type Confirmation__1046287337 =
   {
@@ -320,6 +323,8 @@ type Contact__86024909 =
   {address : ?Address__294896158; email : ?Text; name : Text; phone : ?Text};
 type Contact__934541314 =
   {address : ?Address__766490103; email : ?Text; name : Text; phone : ?Text};
+type Contact__964271859 =
+  {address : ?Address__810232195; email : ?Text; name : Text; phone : ?Text};
 type ContractForm__243403253 =
   {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
 type ContractForm__592914701 =
@@ -528,6 +533,7 @@ type Extra__594079308 = [(Text, Text)];
 type Extra__646433706 = [(Text, Text)];
 type Extra__708758806 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
+type Extra__758661032 = [(Text, Text)];
 type Extra__911541576 = [(Text, Text)];
 type Extra__914969358 = [(Text, Text)];
 type Extra__931464864 = [(Text, Text)];
@@ -1269,6 +1275,7 @@ type NewActor__1057791986 =
 type NewActor__1073511891 = {workStarts : WorkStartState__514103986};
 type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
+type NewActor__237472822 = {org : NewOrgState__665352330};
 type NewActor__266440787 = {quoteDocs : QuoteDocsState__789711068};
 type NewActor__266457383 = {surveys : SurveyState__547744904};
 type NewActor__2917504 = {plan : PlanState__393161007};
@@ -1283,6 +1290,40 @@ type NewActor__914032600 = {oa : OaState__978871092};
 type NewActor__915174763 = {progress : ProgressState__159614730};
 type NewActor__918578615 = {permits : PermitState__160097102};
 type NewActor__984285705 = {mail : MailState__347325858};
+type NewOrgKind__24665008 =
+  {
+    #architect;
+    #authority;
+    #bowaco;
+    #client;
+    #other;
+    #safetyCoordinator;
+    #subcontractor;
+    #supplier
+  };
+type NewOrgState__665352330 =
+  {
+    orgConfidential :
+      Map__230067015<OrgId__747960356, OrgConfidential__1007351085>;
+    orgs : Map__230067015<OrgId__747960356, NewOrg__556433880>;
+    vehicles : Map__230067015<Nat, Vehicle__940507721>
+  };
+type NewOrg__556433880 =
+  {
+    address : ?Address__810232195;
+    aliases : [Text];
+    var archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__597574414;
+    extra : Extra__758661032;
+    id : OrgId__747960356;
+    kbo : ?Text;
+    kind : NewOrgKind__24665008;
+    name : Text;
+    notes : Text;
+    trades : [Text];
+    vat : ?Text
+  };
 type Node__204828119<K, V> =
   {#internal : Internal__283199666<K, V>; #leaf : Leaf__598469445<K, V>};
 type Notification__1016009815 =
@@ -1459,6 +1500,7 @@ type OaWithholdingProof__142296589 =
 type OldActor__1025357807 = {};
 type OldActor__1063236522 = {};
 type OldActor__161490713 = {};
+type OldActor__18648432 = {org : OldOrgState__544528184};
 type OldActor__211850744 = {};
 type OldActor__233879672 = {};
 type OldActor__285002242 = {};
@@ -1475,6 +1517,39 @@ type OldActor__673165591 = {};
 type OldActor__675047732 = {};
 type OldActor__804964816 = {};
 type OldActor__853471898 = {};
+type OldOrgKind__251334601 =
+  {
+    #architect;
+    #authority;
+    #bowaco;
+    #client;
+    #other;
+    #subcontractor;
+    #supplier
+  };
+type OldOrgState__544528184 =
+  {
+    orgConfidential :
+      Map__230067015<OrgId__747960356, OrgConfidential__1007351085>;
+    orgs : Map__230067015<OrgId__747960356, OldOrg__266772862>;
+    vehicles : Map__230067015<Nat, Vehicle__940507721>
+  };
+type OldOrg__266772862 =
+  {
+    address : ?Address__810232195;
+    aliases : [Text];
+    var archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__597574414;
+    extra : Extra__758661032;
+    id : OrgId__747960356;
+    kbo : ?Text;
+    kind : OldOrgKind__251334601;
+    name : Text;
+    notes : Text;
+    trades : [Text];
+    vat : ?Text
+  };
 type OpRecord__50968246 =
   {
     at : Int;
@@ -1496,6 +1571,13 @@ type OpRecord__585503417 =
     opId : Text;
     reportId : Nat;
     seq : Nat
+  };
+type OrgConfidential__1007351085 =
+  {
+    var contact : Confidential__96824572<Contact__964271859>;
+    var notes : Confidential__96824572<Text>;
+    orgId : OrgId__747960356;
+    var version : Nat
   };
 type OrgConfidential__581272438 =
   {
@@ -1544,6 +1626,7 @@ type OrgId__370186017 = Nat;
 type OrgId__464191747 = Nat;
 type OrgId__579572044 = Nat;
 type OrgId__740456021 = Nat;
+type OrgId__747960356 = Nat;
 type OrgId__837673520 = Nat;
 type OrgId__874222008 = Nat;
 type OrgId__875663865 = Nat;
@@ -1555,6 +1638,7 @@ type OrgKind__867804321 =
     #bowaco;
     #client;
     #other;
+    #safetyCoordinator;
     #subcontractor;
     #supplier
   };
@@ -1774,6 +1858,7 @@ type PersonId__363464289 = Nat;
 type PersonId__377743261 = Nat;
 type PersonId__518727946 = Nat;
 type PersonId__580701172 = Nat;
+type PersonId__597574414 = Nat;
 type PersonId__677245278 = Nat;
 type PersonId__801913222 = Nat;
 type PersonId__820620982 = Nat;
@@ -2739,6 +2824,7 @@ type Role__679663545 =
     #werfleider
   };
 type Sealed__1041298352 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__29180127 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__56403581 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__566922365 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__69262316 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
@@ -3071,6 +3157,15 @@ type Vehicle__501905308 =
     name : Text;
     plate : Text
   };
+type Vehicle__940507721 =
+  {
+    var archivedAt : ?Int;
+    createdAt : Int;
+    extra : Extra__758661032;
+    id : Nat;
+    name : Text;
+    plate : Text
+  };
 type WadmState__864899804 =
   {
     checks : Map__230067015<Nat, WithholdingCheck__611381058>;
@@ -3354,7 +3449,8 @@ type WorksState__605582232 =
   "20261025_200000" : OldActor__293720163 -> NewActor__1073511891;
   "20261025_220000" : OldActor__675047732 -> NewActor__266457383;
   "20261026_100000" : OldActor__673165591 -> NewActor__915174763;
-  "20261026_140000" : OldActor__161490713 -> NewActor__502640867
+  "20261026_140000" : OldActor__161490713 -> NewActor__502640867;
+  "20261026_180000" : (old : OldActor__18648432) -> NewActor__237472822
 }
 actor  {
   stable access :

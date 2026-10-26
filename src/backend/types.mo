@@ -126,7 +126,8 @@ module {
   };
 
   // ── Organisaties (§2.3) ─────────────────────────────────────────────────
-  public type OrgKind = { #bowaco; #subcontractor; #architect; #client; #supplier; #authority; #other };
+  // 2b.1: #safetyCoordinator = firmasoort veiligheidscoördinator (migratie 20261026_180000).
+  public type OrgKind = { #bowaco; #subcontractor; #architect; #client; #supplier; #authority; #other; #safetyCoordinator };
 
   // klasse: intern (adres van een klant hoort in OrgConfidential)
   public type Org = {

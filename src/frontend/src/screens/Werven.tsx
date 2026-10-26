@@ -2,7 +2,7 @@
 // werfpagina (Werf.tsx) gebruikt. Wat iemand mag, beslist de backend (Rights.mo).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ExternalBlob, Grant, Role, type Caps, type FileView, type WorkView } from "../backend";
+import { ExternalBlob, type Caps, type FileView, type WorkView } from "../backend";
 import { Button, Choice, Icon, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { OpenConfidential } from "./Dossier";
@@ -93,49 +93,6 @@ export function Field({ label, children }: { label: string; children: React.Reac
       <span className="bw-label">{label}</span>
       {children}
     </label>
-  );
-}
-
-const MEMBER_ROLES: Role[] = [Role.werfleider, Role.veiligheidscoordinator, Role.architect, Role.klant, Role.onderaannemer];
-
-export function AddMember({ workId, allowLeader, onClose }: { workId: bigint; allowLeader: boolean; onClose: () => void }) {
-  const { actor, isFetching } = useBackend();
-  const on = !!actor && !isFetching;
-  const qc = useQueryClient();
-  const persons = useQuery({ queryKey: ["persons", false], queryFn: () => actor!.listPersons(false), enabled: on });
-  const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on });
-  const [who, setWho] = useState("");
-  const [role, setRole] = useState<Role>(Role.onderaannemer);
-  const save = useMutation({
-    mutationFn: async () => {
-      const [kind, raw] = who.split(":");
-      const idv = BigInt(raw);
-      const grants: Grant[] = role === Role.onderaannemer ? [Grant.confirmPlanning, Grant.confirmHours] : role === Role.architect ? [Grant.readReports] : role === Role.veiligheidscoordinator ? [Grant.uploadDocs] : [];
-      return unwrap(await actor!.addMembership(workId, kind === "p" ? idv : null, kind === "o" ? idv : null, role, grants));
-    },
-    // Een lid verandert ook de checklist (veiligheidscoördinator) en de werffiche: alles verversen.
-    onSuccess: () => { void qc.invalidateQueries(); onClose(); },
-  });
-  return (
-    <Sheet title={t.werven.addMember} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" disabled={!who} busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></>}>
-      <div className="a-form">
-        <Field label={`${t.werven.person} / ${t.werven.org}`}>
-          <select className="bw-input" value={who} onChange={(e) => setWho(e.target.value)}>
-            <option value="">—</option>
-            <optgroup label={t.werven.person}>
-              {(persons.data ?? []).map((p) => <option key={String(p.id)} value={`p:${p.id}`}>{p.name} ({p.roles.map((r) => t.roles[r]).join(", ")})</option>)}
-            </optgroup>
-            <optgroup label={t.werven.org}>
-              {(orgs.data ?? []).map((o) => <option key={String(o.id)} value={`o:${o.id}`}>{o.name} ({t.orgKinds[o.kind]})</option>)}
-            </optgroup>
-          </select>
-        </Field>
-        <Field label={t.werven.role}>
-          <Choice label={t.werven.role} value={role} onChange={setRole} options={MEMBER_ROLES.filter((r) => allowLeader || r !== Role.werfleider).map((r) => ({ value: r, label: t.roles[r] }))} />
-        </Field>
-        {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
-      </div>
-    </Sheet>
   );
 }
 

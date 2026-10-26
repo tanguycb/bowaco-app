@@ -113,7 +113,9 @@ mixin (
       case null {
         if (access.persons.values().filter(func q = q.orgId == ?orgId and q.archivedAt == null).size() >= Config.maxPersonsPerOrg) { return #err("Te veel personen bij deze firma") };
         let x = Ids.next(ctr, "person");
-        let rec : Types.Person = { id = x; name; roles = [#onderaannemer]; orgId = ?orgId; shortCode; lang = null; phone = Access.optText(i.phone, 30); createdAt = now; createdBy = p.id; var archivedAt = null; extra = [] };
+        // 2b.1: de rol van een nieuw contact volgt uit de soort van de firma (zo krijgt hij bij "Toegang geven" de juiste rol).
+        let role : Types.Role = switch (o.kind) { case (#architect) #architect; case (#safetyCoordinator) #veiligheidscoordinator; case _ #onderaannemer };
+        let rec : Types.Person = { id = x; name; roles = [role]; orgId = ?orgId; shortCode; lang = null; phone = Access.optText(i.phone, 30); createdAt = now; createdBy = p.id; var archivedAt = null; extra = [] };
         access.persons.add(x, rec);
         Access.audit(audit, caller, ?p.id, null, "oa-persoon-gemaakt", name # " #" # x.toText() # " bij " # o.name);
         x;

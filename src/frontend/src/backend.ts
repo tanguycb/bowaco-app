@@ -5420,6 +5420,7 @@ export enum OaInvoiceStatus {
     registered = "registered"
 }
 export enum OrgKind {
+    safetyCoordinator = "safetyCoordinator",
     client = "client",
     other = "other",
     supplier = "supplier",
@@ -5667,6 +5668,7 @@ export interface backendInterface {
     oaInvoiceQty(id: bigint): Promise<OaInvoiceQtyView>;
     oaInvoiceSettings(): Promise<OaInvoiceSettings>;
     orgAssignments(orgId: bigint | null, from: bigint, to: bigint): Promise<Array<OrgAssignmentView>>;
+    orgWorks(orgId: bigint): Promise<Array<bigint>>;
     pendingWorkStarts(workId: bigint | null): Promise<Array<WorkStartPending>>;
     permitHistory(permitId: bigint): Promise<Array<PermitChangeView>>;
     permitRules(): Promise<{
@@ -7748,6 +7750,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.orgAssignments(to_candid_opt_n24(this._uploadFile, this._downloadFile, arg0), arg1, arg2);
             return from_candid_vec_n744(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async orgWorks(arg0: bigint): Promise<Array<bigint>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.orgWorks(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.orgWorks(arg0);
+            return result;
         }
     }
     async pendingWorkStarts(arg0: bigint | null): Promise<Array<WorkStartPending>> {
@@ -9862,7 +9878,7 @@ function from_candid_OrgContact_n251(_uploadFile: (file: ExternalBlob) => Promis
     return from_candid_record_n252(_uploadFile, _downloadFile, value);
 }
 function from_candid_OrgKind_n95(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _OrgKind): OrgKind {
-    return "client" in value ? OrgKind.client : "other" in value ? OrgKind.other : "supplier" in value ? OrgKind.supplier : "bowaco" in value ? OrgKind.bowaco : "subcontractor" in value ? OrgKind.subcontractor : "authority" in value ? OrgKind.authority : "architect" in value ? OrgKind.architect : value;
+    return "safetyCoordinator" in value ? OrgKind.safetyCoordinator : "client" in value ? OrgKind.client : "other" in value ? OrgKind.other : "supplier" in value ? OrgKind.supplier : "bowaco" in value ? OrgKind.bowaco : "subcontractor" in value ? OrgKind.subcontractor : "authority" in value ? OrgKind.authority : "architect" in value ? OrgKind.architect : value;
 }
 function from_candid_OrgView_n93(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _OrgView): OrgView {
     return from_candid_record_n94(_uploadFile, _downloadFile, value);
@@ -23079,7 +23095,9 @@ function to_candid_OrgInput_n88(_uploadFile: (file: ExternalBlob) => Promise<Uin
     return to_candid_record_n89(_uploadFile, _downloadFile, value);
 }
 function to_candid_OrgKind_n90(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: OrgKind): _OrgKind {
-    return value == OrgKind.client ? {
+    return value == OrgKind.safetyCoordinator ? {
+        safetyCoordinator: null
+    } : value == OrgKind.client ? {
         client: null
     } : value == OrgKind.other ? {
         other: null

@@ -1,4 +1,4 @@
-// Werfpagina (stap 1.1): fiche, afgeleide feiten, contract (vertrouwelijk), team, documenten, bestanden.
+// Werfpagina (stap 1.1): fiche, afgeleide feiten, contract (vertrouwelijk), wie werkt mee (2b.1), documenten, bestanden.
 // Wat iemand mag, zegt de backend per werf (WorkView.caps, Rights.mo); elke handeling wordt opnieuw nagekeken.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -6,14 +6,14 @@ import { GuaranteeKind, OrgKind, Role, WorkStatus, type Caps, type ContractInput
 import { Button, Choice, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, parsePct, unwrap, useBackend } from "../util";
-import { Loading, Page, RoleTags, useWorks, WorkBadge } from "./common";
+import { Loading, Page, useWorks, WorkBadge } from "./common";
 import { WorkConflicts } from "./Weekbord";
 import { WorkQuotes } from "./Offertes";
 import { Dossier } from "./Dossier";
 import { PlanSummary } from "./Planning";
-import { AddMember, Field, Files, NewWork } from "./Werven";
+import { Field, Files, NewWork } from "./Werven";
 import { ReportsSection } from "./Verslagen";
-import { GrantToggles, InviteToWork } from "./Extern";
+import { WieWerktMee } from "./Toegang";
 import { WorkPermits } from "./Vergunningen";
 import { WorkAdmin } from "./Werfadministratie";
 import { PendingStarts } from "./WerfStart";
@@ -29,17 +29,10 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
   // Namen van klant, architect en werfleider: enkel voor interne rollen (team en organisaties lezen).
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
   const persons = useQuery({ queryKey: ["persons", false], queryFn: () => actor!.listPersons(false), enabled: on && caps.readTeam });
-  const [adding, setAdding] = useState(false);
-  const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [newSub, setNewSub] = useState(false);
   const status = useMutation({
     mutationFn: async (s: WorkStatus) => unwrap(await actor!.setWorkStatus(id, s)),
-    onSuccess: () => void qc.invalidateQueries(),
-    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
-  });
-  const end = useMutation({
-    mutationFn: async (mid: bigint) => unwrap(await actor!.endMembership(mid)),
     onSuccess: () => void qc.invalidateQueries(),
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
@@ -96,32 +89,7 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
         {w.caps.contract && <Contract w={w} works={works.data ?? []} />}
       </div>
 
-      <section className="a-section">
-        <div className="a-row a-row--between">
-          <h2 className="bw-h2">{t.werven.team}</h2>
-          <span className="a-row">
-            {w.caps.manageMembers && caps.inviteExternal && <Button icon="people" onClick={() => setInviting(true)}>{t.invite.toWork}</Button>}
-            {w.caps.manageMembers && <Button icon="plus" onClick={() => setAdding(true)}>{t.werven.addMember}</Button>}
-          </span>
-        </div>
-        <p className="bw-muted">{t.werven.teamLead}</p>
-        <Loading q={members} />
-        {members.data && members.data.length === 0 && <p className="a-empty">—</p>}
-        {members.data && members.data.length > 0 && (
-          <ul className="a-list">
-            {members.data.slice().sort((a, b) => roleOrder(a.role) - roleOrder(b.role)).map((m) => (
-              <li key={String(m.id)}>
-                <span className="a-list__main">
-                  <b>{m.name}</b>
-                  <span className="a-row"><RoleTags roles={[m.role]} />{m.archived && <span className="a-tag a-tag--bad">{t.werven.archivedMember}</span>}{m.orgId !== undefined && m.personId === undefined && <span className="a-tag">{t.werven.org}</span>}{!w.caps.manageMembers && m.grants.map((g) => <span key={g} className="a-tag">{t.grants[g] ?? g}</span>)}</span>
-                  {w.caps.manageMembers && <GrantToggles m={m} />}
-                </span>
-                {w.caps.manageMembers && (m.role !== Role.werfleider || w.caps.setLeader) && <Button variant="quiet" busy={end.isPending && end.variables === m.id} onClick={() => end.mutate(m.id)}>{t.werven.endMember}</Button>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <WieWerktMee w={w} caps={caps} />
 
       <PendingStarts workId={id} caps={caps} go={go} />
       {caps.measureRead && (
@@ -152,16 +120,11 @@ export function WerfDetail({ id, caps, go }: { id: bigint; caps: Caps; go: (to: 
       <Dossier w={w} />
       <Files workId={id} canUpload={caps.upload && w.caps.upload} title={t.werven.loose} canConfidential={caps.readContracts} />
 
-      {adding && <AddMember workId={id} allowLeader={w.caps.setLeader} onClose={() => setAdding(false)} />}
-      {inviting && <InviteToWork workId={id} onClose={() => setInviting(false)} />}
       {editing && <EditWork w={w} caps={caps} onClose={() => setEditing(false)} />}
       {newSub && <NewWork parent={w} onClose={() => setNewSub(false)} go={go} />}
     </Page>
   );
 }
-
-const ROLE_ORDER: string[] = [Role.werfleider, Role.veiligheidscoordinator, Role.architect, Role.klant, Role.onderaannemer];
-const roleOrder = (r: string) => { const i = ROLE_ORDER.indexOf(r); return i < 0 ? 99 : i; };
 
 /** De afgeleide feiten: wat de werfleider moet weten, zonder bedragen (R27). */
 function Facts({ w, works }: { w: WorkView; works: WorkView[] }) {
@@ -387,7 +350,7 @@ function EditWork({ w, caps, onClose }: { w: WorkView; caps: Caps; onClose: () =
     onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries(); onClose(); },
   });
   const orgOpts = (kind: string) => (orgs.data ?? []).filter((o) => o.kind === kind);
-  // P-10 (1.1): een nieuwe klant of een nieuw bureau meteen hier aanmaken (enkel de naam; de rest in Organisaties).
+  // P-10 (1.1): een nieuwe klant of een nieuw bureau meteen hier aanmaken (enkel de naam; de rest in Firma's & contacten).
   const [newOrg, setNewOrg] = useState<{ kind: "client" | "architect"; name: string } | null>(null);
   const makeOrg = useMutation({
     mutationFn: async (v: { kind: "client" | "architect"; name: string }) =>

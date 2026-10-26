@@ -16,8 +16,7 @@ import { WerfDetail } from "../screens/Werf";
 import { PlanningPage } from "../screens/Planning";
 import { Team } from "../screens/Team";
 import { Codes } from "../screens/Codes";
-import { Onderaannemers } from "../screens/Onderaannemers";
-import { Organisaties } from "../screens/Organisaties";
+import { Adresboek } from "../screens/Adresboek";
 import { Audit } from "../screens/Audit";
 import { Instellingen } from "../screens/Instellingen";
 import { MijnLogin } from "../screens/MijnLogin";
@@ -204,14 +203,15 @@ function navFor(caps: Caps): NavItem[] {
   if (caps.wadm) items.push({ key: "werfadministratie", label: t.nav.werfadministratie, icon: "receipt" });
   // 1b.2: boete opzoeken op de ritten (R14: admin alle ritten, werfleider de zijne).
   if (caps.readTrips) items.push({ key: "boetes", label: t.nav.boetes, icon: "truck" });
+  // 2b.1: Team = enkel BOWACO; Firma's & contacten = Organisaties + Onderaannemers samen (één adresboek, interne rollen).
   if (caps.readTeam) items.push({ key: "team", label: t.nav.team, icon: "people" });
-  if (caps.inviteExternal || caps.manageAccess) items.push({ key: "codes", label: t.nav.codes, icon: "key" });
-  if (caps.readOa) items.push({ key: "onderaannemers", label: t.nav.onderaannemers, icon: "building" });
-  if (caps.readTeam) items.push({ key: "organisaties", label: t.nav.organisaties, icon: "list" });
+  if (caps.readTeam || caps.readOa) items.push({ key: "adresboek", label: t.nav.adresboek, icon: "building" });
   if (caps.readAudit) items.push({ key: "audit", label: t.nav.audit, icon: "receipt" });
   // 1b.3: de postbode (mails, wachtrij, robots): enkel de admin.
   if (caps.manageRobots) items.push({ key: "postbode", label: t.nav.postbode, icon: "share" });
   if (caps.manageSettings) items.push({ key: "instellingen", label: t.nav.instellingen, icon: "settings" });
+  // 2b.1: de codes horen bij Beheer (Toegang & codes, 2b.2); nieuwe codes komen van "Toegang geven" op de persoon.
+  if (caps.inviteExternal || caps.manageAccess) items.push({ key: "codes", label: t.nav.codes, icon: "key" });
   items.push({ key: "login", label: t.nav.login, icon: "permit" });
   return items;
 }
@@ -230,7 +230,9 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const [outbox, setOutbox] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const askLogout = () => (ob.ops.length > 0 ? setLeaving(true) : onLogout());
-  const page = route[0] && allowed.has(route[0]) ? route[0] : caps.home;
+  // 2b.1: de oude adressen van Organisaties en Onderaannemers openen het adresboek (bladwijzers, links in mails).
+  const first = route[0] === "organisaties" || route[0] === "onderaannemers" ? "adresboek" : route[0];
+  const page = first && allowed.has(first) ? first : caps.home;
 
   // Een externe die een #code=-link opent terwijl hij al gekoppeld is: de code is niet meer nodig.
   useEffect(() => {
@@ -286,8 +288,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "posten": return <Posten caps={caps} />;
       case "team": return <Team caps={caps} me={person} />;
       case "codes": return <Codes caps={caps} me={person} />;
-      case "onderaannemers": return <Onderaannemers caps={caps} />;
-      case "organisaties": return <Organisaties caps={caps} />;
+      case "adresboek": return <Adresboek caps={caps} route={route} go={go} />;
       case "audit": return <Audit caps={caps} />;
       case "instellingen": return <Instellingen />;
       case "login": return <MijnLogin me={me} />;

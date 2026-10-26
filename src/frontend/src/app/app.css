@@ -108,6 +108,9 @@ select.bw-input { appearance: auto; }
   .a-dl { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
   .a-list > li.a-doc { flex-wrap: wrap; }
   .a-list > li.a-doc > .a-list__main { flex-basis: 100%; }
+  /* 2b.1: personen met knoppen (firmafiche, Wie werkt mee): de knoppen onder de naam op de gsm. */
+  .a-list > li.a-wrap { flex-wrap: wrap; }
+  .a-list > li.a-wrap > .a-list__main { flex-basis: 100%; }
   .a-dl dd { margin-bottom: 8px; }
 }
 

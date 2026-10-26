@@ -338,7 +338,7 @@ function OrgSheet({ orgId, row, b, caps, tradeName, onClose, go }: { orgId: bigi
       )}
       {row && row.conflicts.length > 0 && <ConflictList items={row.conflicts} go={go} />}
       <AbsencePanel orgId={orgId} from={N(b.from)} canEdit={b.caps.manageAbsences} persons={persons} />
-      {caps.readOa && <div><Button variant="quiet" icon="building" onClick={() => go("onderaannemers")}>{t.board.oaFiche}</Button></div>}
+      {caps.readOa && <div><Button variant="quiet" icon="building" onClick={() => go(`adresboek/${orgId}`)}>{t.board.oaFiche}</Button></div>}
     </Sheet>
   );
 }

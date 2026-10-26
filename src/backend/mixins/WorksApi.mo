@@ -303,6 +303,23 @@ mixin (
     };
   };
 
+  // 2b.1: de werven van één firma voor de firmafiche (Firma's & contacten): klant of architect van de werf, de firma of
+  // een van haar mensen als lid, of een toewijzing in de planning. Enkel interne rollen (zoals listOrgs) en enkel de
+  // werven die de beller zelf mag zien (R3).
+  public query ({ caller }) func orgWorks(orgId : Nat) : async [Nat] {
+    let p = Access.requireActive(access, caller);
+    let ctx = { works; settings };
+    Rights.require(ctx, p, #readOrgs, null);
+    let ofOrg = func(pid : ?Nat) : Bool = switch pid { case (?x) { switch (access.persons.get(x)) { case (?q) q.orgId == ?orgId; case null false } }; case null false };
+    works.works.values().filter(
+      func w = Rights.may(ctx, p, #readWork, ?w.id) and (
+        w.clientOrgId == ?orgId or w.architectOrgId == ?orgId
+        or works.memberships.values().any(func m = m.workId == w.id and m.endedAt == null and (m.orgId == ?orgId or ofOrg(m.personId)))
+        or plan.assignments.values().any(func a = a.workId == w.id and a.orgId == orgId and a.archivedAt == null)
+      )
+    ).map(func w = w.id).toArray();
+  };
+
   public shared ({ caller }) func addMembership(workId : Nat, personId : ?Nat, orgId : ?Nat, role : Types.Role, grants : [Types.Grant]) : async Result.Result<Nat, Text> {
     let p = Access.requireActive(access, caller);
     if (not Rights.mayAddMember({ works; settings }, p, workId, role)) { return #err("Geen toegang") };

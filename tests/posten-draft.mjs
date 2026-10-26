@@ -25,7 +25,7 @@ const filter = (f = {}) => ({ text: "", chapterId: [], trade: [], unit: [], form
 
 const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-architect", "proef-oa2", "proef-klant", "proef-vc"].map((n) => backend(n, cid)));
 const me = await admin.me();
-check("versie 2.2 of later op de canister", /^2\.([2-9]|1\d)|^[3-9]\./.test(me.version), me.version);
+check("versie 2.2 of later op de canister", /^2\.([2-9]|1\d)|^(2b|[3-9])\./.test(me.version), me.version);
 
 // Hoofdstukken: de voorlopige startlijst (19, uit offerte 2026/231 zonder werfgegevens) als er nog geen zijn.
 let chs = await calc.libraryChapters(false);

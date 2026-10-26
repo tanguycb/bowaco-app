@@ -36,7 +36,7 @@ const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin"
 const anon = await backend(null, cid);
 const vreemd = await freshBackend(cid);
 const me = await admin.me();
-check("versie 2.10 of later op de canister", /^2\.1\d|^[3-9]\./.test(me.version) || /dev/.test(me.version), me.version);
+check("versie 2.10 of later op de canister", /^2\.1\d|^(2b|[3-9])\./.test(me.version) || /dev/.test(me.version), me.version);
 const cDay = BigInt(Math.floor(Number((await admin.auditLog(0n, 1n))[0].at / 1_000_000n) / 86_400_000));
 const settings0 = await admin.progressSettings();
 ok(await admin.saveProgressSettings({ client: "mogelijk", retentionOnIncl: false }));

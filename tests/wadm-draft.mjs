@@ -19,7 +19,7 @@ const today = BigInt(Math.floor(Date.now() / 86_400_000));
 
 const [admin, wl, calc, oa2, klant] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-oa2", "proef-klant"].map((n) => backend(n, cid)));
 const me = await admin.me();
-check("versie 1b.4 of later op de canister (ook 1b.3c = mail via Caffeine, na 1b.4)", /^1b\.([4-9]|3c)|^[2-9]\./.test(me.version), me.version);
+check("versie 1b.4 of later op de canister (ook 1b.3c = mail via Caffeine, na 1b.4)", /^1b\.([4-9]|3c)|^[2-9]b?\./.test(me.version), me.version);
 const A = (await admin.listWorks()).find((w) => w.code === "P-A")?.id;
 const B = (await admin.listWorks()).find((w) => w.code === "P-B")?.id;
 if (A === undefined || B === undefined) throw new Error("P-A/P-B ontbreken");
