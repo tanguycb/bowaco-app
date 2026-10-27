@@ -9,7 +9,7 @@ module {
   // Lokaal wisselt tests/lokaal.sh deze hash tijdelijk om naar die van de TEST-code (~/.bowaco), zodat de
   // rollentest een lege canister kan claimen; tools/meetlat.mjs weigert een upload met de testhash.
   // Een hash wisselen is geen migratie.
-  public let bootstrapHashHex = "2390ba6730471a9be0a94a2390881505d15e6bf7e216bb33f478655638f3d4c1";
+  public let bootstrapHashHex = "046dfd6f8528648daf34baf3a41f54a905aebbe9d2bee03a7beba38890d6d097";
 
   public let second : Int = 1_000_000_000;
   public let minute : Int = 60_000_000_000;
