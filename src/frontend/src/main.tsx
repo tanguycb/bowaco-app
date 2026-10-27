@@ -6,6 +6,7 @@ import "./design/design.css";
 import "./app/app.css";
 import "./app/werf.css";
 import "./app/fase.css";
+import "./app/start.css";
 import "./app/offerte.css";
 import "./app/werfstart.css";
 import "./app/opmeting.css";

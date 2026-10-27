@@ -20,13 +20,14 @@ import { TabBar } from "../screens/Tabs";
 import { VerslagKies } from "../screens/VerslagKies";
 import { activeKey, bottomBar, hubTabs, navFor, resolveRoute } from "./nav";
 import { MijnLogin } from "../screens/MijnLogin";
-import { Weekbord } from "../screens/Weekbord";
 import { Vandaag } from "../screens/Vandaag";
 import { Werfverslag } from "../screens/Werfverslag";
 import { OutboxSheet } from "../screens/Verslagen";
 import { MijnUren } from "../screens/Extern";
 import { Bell } from "../screens/Meldingen";
-import { DashboardPage } from "../screens/Dashboard";
+import { PlanningHub } from "../screens/PlanningTabs";
+import { IntroCard, StartBanner, useStartState } from "../screens/Start";
+import { introKind, startParam } from "./start";
 import { forgetUnsaved } from "../screens/Offertes";
 import { GemeentenPage, VergunningenPage } from "../screens/Vergunningen";
 import { WadmPage } from "../screens/Werfadministratie";
@@ -185,6 +186,12 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const { page, redirect } = resolveRoute(route, caps);
   const active = activeKey(groups, redirect ? redirect.split("/") : route);
   const tabs = route.length <= 1 ? hubTabs(page, caps) : [];
+  // 2b.4: de uitlegbalk van Aan de slag (?start=3) en "Zo werkt het voor jou" op het startscherm, één keer per persoon.
+  const startN = caps.manageSettings ? startParam(window.location.hash) : null;
+  const startState = useStartState();
+  const kind = introKind(person.roles);
+  const atHome = route.length <= 1 && (page === caps.home || (caps.home === "werven" && page === "werven"));
+  const showIntro = !!kind && atHome && !!startState.data && !startState.data.introSeen;
 
   // Een externe die een #code=-link opent terwijl hij al gekoppeld is: de code is niet meer nodig.
   useEffect(() => {
@@ -236,8 +243,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         }
         return page === "werven" ? <Werven caps={caps} go={go} route={route} /> : <Home kind={page} go={go} caps={caps} />;
       case "uren": return <MijnUren />;
-      case "dashboard": return <DashboardPage go={go} />;
-      case "weekbord": return <Weekbord key={window.location.hash} caps={caps} go={go} />;
+      case "weekbord": return <PlanningHub caps={caps} go={go} sub={route[1]} />;
       case "vergunningen": return <VergunningenPage caps={caps} go={go} />;
       case "gemeenten": return <GemeentenPage caps={caps} />;
       case "werfadministratie": return <WadmPage go={go} canRules={caps.manageSettings} />;
@@ -292,6 +298,8 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
           {bar.length === 0 && <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>}
         </header>
         <TabBar tabs={tabs} current={page} go={go} label={t.menu.tabs} />
+        {startN !== null && <StartBanner key={startN} n={startN} caps={caps} go={go} />}
+        {showIntro && kind && <IntroCard kind={kind} />}
         {screen}
       </div>
       <Sheet title={`${person.name} · ${roleText}`} open={menu} onClose={() => setMenu(false)}>

@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import type { Caps, PersonView } from "../backend";
-import { Button, Table, useToast } from "../design";
+import { Button, Icon, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
@@ -18,8 +18,18 @@ export function Codes({ caps, me, extra }: { caps: Caps; me: PersonView; extra?:
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   const now = BigInt(Date.now()) * 1_000_000n;
+  const stats = useQuery({ queryKey: ["accessStats"], queryFn: () => actor!.accessStats(), enabled: !!actor && !isFetching && caps.manageAccess });
+  const s = stats.data;
   return (
     <Page title={t.codes.title}>
+      {/* 2b.4: de toegangscijfers van het vroegere Overzicht staan hier. */}
+      {s && (
+        <section className="a-section" data-testid="toegang-cijfers">
+          <p className="bw-muted bw-num">{t.overzicht.access(String(s.persons), String(s.activeLinks), String(s.openInvites))}</p>
+          {s.codesLockedUntil !== undefined && <div className="a-alert" role="alert"><Icon name="alert" size={20} /><span><b>{t.overzicht.locked}</b> · {fmtTime(s.codesLockedUntil)}</span></div>}
+          {s.failuresThisHour >= 100n && <div className="a-alert"><Icon name="alert" size={20} /><span><b>{t.overzicht.throttle}</b> — {t.overzicht.throttleBody(String(s.failuresThisHour))}</span></div>}
+        </section>
+      )}
       <p className="a-note">{t.codes.lead}</p>
       <p className="bw-muted">{t.codes.newHere}</p>
       {extra}

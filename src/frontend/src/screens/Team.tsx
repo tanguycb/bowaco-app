@@ -7,7 +7,7 @@ import { LinkStatus, OrgKind, Role, WorkStatus, type Caps, type NewCode, type Or
 import { Button, Choice, Confirm, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtDay, fmtTime, optText, unwrap, useBackend } from "../util";
-import { Loading, Page, RoleTags, useWorks } from "./common";
+import { EmptyState, Loading, Page, RoleTags, useWorks } from "./common";
 import { Field } from "./Werven";
 
 const ALL_ROLES: Role[] = [Role.admin, Role.werfleider, Role.calculator, Role.onderaannemer, Role.architect, Role.klant, Role.veiligheidscoordinator];
@@ -50,7 +50,7 @@ export function Team({ caps, me }: { caps: Caps; me: PersonView }) {
         <label className="a-check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{t.team.showArchived}</label>
       )}
       <Loading q={persons} />
-      {persons.data && orgs.data && team.length === 0 && <p className="a-empty">{t.team.empty}</p>}
+      {persons.data && orgs.data && team.length <= 1 && <EmptyState title={t.leeg.team.t} text={t.leeg.team.d} action={caps.manageAccess ? <Button variant="primary" icon="plus" onClick={() => setInviting(true)}>{t.leeg.team.add}</Button> : <span className="bw-muted">{t.leeg.zonderRecht}</span>} />}
       {team.length > 0 && (
         <Table
           rows={team}

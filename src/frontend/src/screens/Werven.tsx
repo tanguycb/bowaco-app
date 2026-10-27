@@ -7,7 +7,7 @@ import { Button, Choice, Icon, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { OpenConfidential } from "./Dossier";
 import { errText, fmtBytes, fmtTime, optText, unwrap, useBackend } from "../util";
-import { factsOf, Loading, Page, PhaseLabel, useStages, useWorks, WorkList } from "./common";
+import { EmptyState, factsOf, Loading, Page, PhaseLabel, useStages, useWorks, WorkList } from "./common";
 import { DashCounters, useDashboard } from "./Dashboard";
 import { isClient } from "../app/nav";
 import { volgendeStap, werfFase, werfGroep } from "../app/fase";
@@ -92,7 +92,7 @@ export function Werven({ caps, go, route }: { caps: Caps; go: (to: string) => vo
         <label className="a-check"><input type="checkbox" checked={cancelled} onChange={(e) => setCancelled(e.target.checked)} />{W.showCancelled}</label>
       </div>
       <Loading q={works} />
-      {works.data && (list.length === 0 ? <p className="a-empty">{q ? t.werven.noMatch : W.empty[group]}</p> : (
+      {works.data && (list.length === 0 ? (all.length === 0 && !q ? <EmptyState title={t.leeg.werven.t} text={t.leeg.werven.d} action={caps.createWork ? <Button variant="primary" icon="plus" onClick={() => setOpen(true)}>{t.leeg.request}</Button> : <span className="bw-muted">{t.leeg.zonderRecht}</span>} extra={caps.importPlan && <Button onClick={() => go("beheer/planning")}>{t.leeg.werven.import}</Button>} /> : <p className="a-empty">{q ? t.werven.noMatch : W.empty[group]}</p>) : (
         <Table
           rows={list}
           rowKey={(r) => String(r.w.id)}
@@ -124,7 +124,7 @@ function LopendTellers() {
  * De klant hoeft niet eerst in het adresboek (B4/B5). Het vertrouwelijk klantcontact (e-mail, telefoon) enkel voor wie het mag
  * (R23: beheerder); de backend controleert elke stap (createOrg, setOrgConfidential, createWork).
  */
-function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => void; go: (to: string) => void }) {
+export function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => void; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();

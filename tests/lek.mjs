@@ -127,6 +127,11 @@ const table = {
   readOrgConfidential: [["admin", "calculator"], () => [X]],
   listWorks: [ACTIVE, () => []],
   listWorkStages: [ACTIVE, () => []], // 2b.3: stand van de werf (enkel momenten en vlaggen; zelfde werven als listWorks)
+  // 2b.4: het startpunt (settings.values): lezen en het eigen Begrepen mag elke actieve persoon; Aan de slag bewaren enkel de beheerder
+  startState: [ACTIVE, () => []],
+  markIntroSeen: [ACTIVE, () => []],
+  setStartStep: [ADMIN, () => ["bestaat-niet", true]],
+  setStartHidden: [ADMIN, () => [false]],
   getWork: [ON_B, () => [B]],
   createWork: [["admin", "werfleider"], () => [workIn]],
   setWorkStatus: [["admin", "werfleider"], () => [B, { planned: null }]],

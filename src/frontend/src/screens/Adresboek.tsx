@@ -8,7 +8,7 @@ import { OrgKind, WorkStatus, type Caps, type ContactConfidentialView, type Mail
 import { Button, Choice, Icon, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, optText, todayDay, unwrap, useBackend } from "../util";
-import { Loading, Page, useWorks, WorkPhase } from "./common";
+import { EmptyState, Loading, Page, useWorks, WorkPhase } from "./common";
 import { Field } from "./Werven";
 import { PersonSheet } from "./Team";
 import { NieuwMetToegang, ToegangGeven, useLoginState } from "./Toegang";
@@ -75,7 +75,7 @@ export function Adresboek({ caps, route, go }: { caps: Caps; route: string[]; go
       </div>
       <Loading q={orgs} />
       {orgs.data && <span className="bw-label" role="status">{A.count(shown.length)}</span>}
-      {orgs.data && shown.length === 0 && <p className="a-empty">{rows.length === 0 ? A.empty : A.noMatch}</p>}
+      {orgs.data && shown.length === 0 && (rows.length === 0 ? <EmptyState title={t.leeg.firmas.t} text={t.leeg.firmas.d} action={caps.manageOrgs && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{t.leeg.firmas.add}</Button>} extra={caps.importOa && <Button onClick={() => go("beheer/planning")}>{t.leeg.werven.import}</Button>} /> : <p className="a-empty">{A.noMatch}</p>)}
       {shown.length > 0 && (
         <Table
           rows={shown}

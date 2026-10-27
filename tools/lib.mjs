@@ -53,6 +53,9 @@ export async function resync(...actors) {
 import { Principal } from "@icp-sdk/core/principal";
 export { Principal };
 
+/** 2b.4: de principal van een actor (tests/start-draft.mjs: een verse testpersoon bevestigen). */
+export const principalOf = (actor) => Actor.agentOf(actor).getPrincipal();
+
 // 1b.5 (review D9): omgevingsvariabelen van een canister zetten via de beheercanister (update_settings), zoals `icp`
 // dat doet. Enkel op het EIGEN lokale net, waar tests/lokaal.sh de testbeheerder controller maakt; de `icp`-opdrachten
 // werken daar niet meer zodra de rollentest de klok verzet heeft (ingress expiry), de agent wel (syncTime).

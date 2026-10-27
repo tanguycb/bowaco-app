@@ -19,7 +19,7 @@ export function pagesFor(caps: Caps): Set<string> {
   if (caps.writeReports) { s.add("vandaag"); s.add("verslag"); }
   if (caps.workStarts) s.add("werfstart");
   if (caps.home === "week") s.add("uren");
-  if (caps.readOrgPlanning) { s.add("dashboard"); s.add("weekbord"); }
+  if (caps.readOrgPlanning) s.add("weekbord"); // 2b.4: het Dashboard is weg (#/dashboard verwijst door, zie resolveRoute)
   if (caps.myQuotes) s.add("mijn-offerte");
   if (caps.quotes) s.add("offertes");
   if (caps.measureRead) s.add("opmeting");
@@ -56,6 +56,11 @@ export function oldWorkRoute(route: string[]): string | undefined {
 
 /** Een route → het scherm dat opent, en eventueel het nieuwe adres waarnaar de adresbalk doorverwijst. */
 export function resolveRoute(route: string[], caps: Caps): { page: string; redirect?: string } {
+  // 2b.4: het Dashboard bestaat niet meer: de tellers staan in Overzicht (beheerder) en Werven → Lopend (werfleider, calculator).
+  if (route[0] === "dashboard" && caps.readOrgPlanning) {
+    const to = caps.home === "overzicht" ? "overzicht" : "werven/lopend";
+    return { page: to.split("/")[0], redirect: to };
+  }
   const toWork = oldWorkRoute(route);
   if (toWork) return { page: "werven", redirect: toWork };
   const old = route[0] ? OLD_TO_NEW[route[0]] : undefined;
@@ -79,6 +84,17 @@ export function beheerTabs(caps: Caps): Tab[] {
     ["audit", B.audit, caps.readAudit || caps.export],
   ];
   return tabs.filter((x) => x[2]).map(([key, label]) => ({ key, label, to: `beheer/${key}` }));
+}
+
+/** 2b.4 (WC-03, V4): Planning heeft drie tabbladen; elk vraagt dezelfde leesrechten als het weekbord. */
+export function planningTabs(caps: Caps): Tab[] {
+  const P = t.planningTabs;
+  if (!caps.readOrgPlanning) return [];
+  return [
+    { key: "weekbord", label: P.weekbord, to: "weekbord" },
+    { key: "weekbord/afwezigheden", label: P.afwezigheden, to: "weekbord/afwezigheden" },
+    { key: "weekbord/conflicten", label: P.conflicten, to: "weekbord/conflicten" },
+  ];
 }
 
 /** Hubs: schermen die samen één menu-item delen krijgen een tabbalk (alleen wat de rol mag). */
@@ -120,7 +136,6 @@ export function navFor(caps: Caps): NavGroup[] {
     werk.push(item("werven", isClient(caps) ? M.mijnWerf : M.mijnWerven, "building", isClient(caps) ? ["werven", "mijn-offerte", "mijn-vordering", "opmeting"] : ["werven", "opmeting"]));
   }
   if (caps.readOrgPlanning) (deskFirst ? werk : meer).push(item("weekbord", M.planning, "calendar"));
-  if (caps.readOrgPlanning && !admin) meer.push(item("dashboard", t.nav.dashboard, "grid"));
 
   // Geld: wie prijzen ziet. De werfleider ziet offertes en facturatie (zonder bedragen) in de werf.
   if (caps.quotes && caps.quotePrices) geld.push(item("offertes", t.nav.offertes, "euro", ["offertes", "posten"]));

@@ -11,7 +11,7 @@ import { useOutbox, type QueuedOp } from "../offline/outbox";
 import { shrink } from "../offline/photos";
 import { t } from "../texts/nl";
 import { errText, fmtDay, fmtDayNum, inputToDay, dayToInput, todayDay, useBackend } from "../util";
-import { Frame, Loading, Page } from "./common";
+import { EmptyState, Frame, Loading, Page } from "./common";
 
 const T = t.opmeting;
 
@@ -63,7 +63,7 @@ function OpmetingLijst({ go }: { go: (to: string) => void }) {
       <p className="bw-muted">{T.lead}</p>
       <Loading q={q} />
       {q.data?.fromCache && <p className="m-banner"><Icon name="offline" size={18} />{T.offlineStand(new Date(q.data.at).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }))}</p>}
-      {q.data && list.length === 0 && <p className="a-empty">{T.none}</p>}
+      {q.data && list.length === 0 && <EmptyState title={t.leeg.opmeting.t} text={t.leeg.opmeting.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />}
       <ul className="a-list">
         {list.map((w) => (
           <li key={keyOf(w.workId)}>

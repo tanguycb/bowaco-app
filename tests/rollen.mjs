@@ -133,6 +133,38 @@ if (geclaimd) {
   check("opstartcode (kleine letters, spaties) → eerste admin", isOk(claim), errOf(claim));
 }
 check("tweede claim van de opstartcode faalt", "err" in (await oa.claimBootstrap(bootstrap, "x")));
+
+// 2b.4: het lege-app-scenario. Een lege canister met enkel de beheerder: Aan de slag toont 0 van 6 (niets afgeleid, niets
+// gemarkeerd), de beheerder markeert, verbergt en toont de kaart weer, en de rechten van een niet-beheerder volgen in het slot van dit bestand.
+if (local && !geclaimd) {
+  await sec("── 2b.4 lege app: Aan de slag 0 van 6 op een lege canister met enkel de beheerder");
+  const { loadStart } = await import("./menu-lib.mjs");
+  const S = await loadStart();
+  const factsOf0 = async (x) => {
+    const [doc, persons, oas, lib, works, stages] = await Promise.all([x.getQuoteDocSettings(), x.listPersons(false), x.listOas({ includeArchived: false, text: [], trade: [], kind: [] }), x.listLibrary({ text: "", chapterId: [], form: [], trade: [], unit: [], orgId: [], includeArchived: false, offset: 0n, limit: 1n }), x.listWorks(), x.listWorkStages()]);
+    const live = new Set(works.filter((w) => w.archivedAt.length === 0).map((w) => String(w.id)));
+    return { issuer: S.issuerFilled(doc.issuer), team: persons.filter((p) => p.roles.some((r) => ["admin", "werfleider", "calculator"].includes(Object.keys(r)[0]))).length, oas: oas.length, posts: Number(lib.total), works: live.size, planned: stages.filter((st) => live.has(String(st.workId)) && Number(st.tasks) > 0).length };
+  };
+  const f0 = await factsOf0(admin);
+  const st0 = await admin.startState();
+  const steps0 = S.startSteps(f0, st0.marked);
+  check("lege app: de app ziet niets (geen uitgever, enkel de beheerder, geen OA, geen post, geen werf, geen planning)", JSON.stringify(f0) === JSON.stringify({ issuer: false, team: 1, oas: 0, posts: 0, works: 0, planned: 0 }), JSON.stringify(f0));
+  check("lege app: Aan de slag 0 van 6, de kaart staat er", S.startDoneCount(steps0) === 0 && steps0.length === 6 && S.startVisible(steps0, st0.hidden) && !st0.hidden && st0.marked.length === 0);
+  check("lege app: 'Zo werkt het voor jou' nog niet begrepen", st0.introSeen === false);
+  const m1 = await admin.setStartStep("team", true);
+  const st1 = await admin.startState();
+  const steps1 = S.startSteps(f0, st1.marked);
+  check("Markeer als klaar: stap 2 (team) telt, 1 van 6, met de hand gemarkeerd", isOk(m1) && S.startDoneCount(steps1) === 1 && steps1[1].done && steps1[1].how === "hand" && st1.marked.join() === "team", JSON.stringify(st1.marked));
+  check("een onbekende stap wordt geweigerd", errOf(await admin.setStartStep("bestaat-niet", true)).length > 0);
+  check("Markeer als niet klaar: terug op 0 van 6", isOk(await admin.setStartStep("team", false)) && S.startDoneCount(S.startSteps(f0, (await admin.startState()).marked)) === 0);
+  check("de kaart verbergen: hidden, niet meer zichtbaar; weer tonen: zichtbaar", isOk(await admin.setStartHidden(true)) && (await admin.startState()).hidden === true && !S.startVisible(steps0, true) && isOk(await admin.setStartHidden(false)) && (await admin.startState()).hidden === false && S.startVisible(steps0, false));
+  check("de beheerder bevestigt 'Zo werkt het voor jou': enkel voor deze persoon", (await admin.markIntroSeen(), (await admin.startState()).introSeen === true));
+  // Alles gemarkeerd: de kaart verdwijnt vanzelf
+  for (const k of S.START_KEYS) await admin.setStartStep(k, true);
+  check("alle zes gemarkeerd: 6 van 6, de kaart verdwijnt vanzelf", S.startDoneCount(S.startSteps(f0, (await admin.startState()).marked)) === 6 && !S.startVisible(S.startSteps(f0, (await admin.startState()).marked), false));
+  for (const k of S.START_KEYS) await admin.setStartStep(k, false);
+  await admin.setStartHidden(false);
+}
 const ame = await admin.me();
 check("admin is actief, startscherm overzicht, mag toegang beheren", status(ame) === "active" && ame.caps[0]?.home === "overzicht" && ame.caps[0]?.manageAccess === true);
 const adminId = ame.person[0].id;
@@ -2079,7 +2111,7 @@ await sec("── 2b.2 menu per rol: welke menu-items en welke Beheer-tabbladen 
   check("menu beheerder: 9 items (was 21), in groepen Werk · Geld · Opvolging · Adresboek + Beheer", eq(keys(caps.admin), ["overzicht", "werven", "weekbord", "offertes", "facturatie", "opvolging", "adresboek", "team", "beheer"]) && nav.itemCount(nav.navFor(caps.admin)) === 9, show("admin"));
   check("menu beheerder: de groepen heten Werk, Geld, Opvolging, Adresboek", eq(nav.navFor(caps.admin).map((g) => g.label), ["Werk", "Geld", "Opvolging", "Adresboek", null]));
   check("menu werfleider: Vandaag · Werven · Planning · Vergunningen & administratie · Firma's & contacten + Meer", eq(keys(caps.werfleider), ["vandaag", "werven", "weekbord", "opvolging", "adresboek"]) && meer(caps.werfleider).length > 0, show("werfleider"));
-  check("werfleider: Meer bevat Team, Postenbibliotheek, Ritten & boetes (en zijn codes, dashboard)", ["team", "posten", "beheer-voertuigen", "beheer-toegang", "dashboard"].every((k) => meer(caps.werfleider).includes(k)));
+  check("werfleider: Meer bevat Team, Postenbibliotheek, Ritten & boetes (en zijn codes); het Dashboard is weg (2b.4)", ["team", "posten", "beheer-voertuigen", "beheer-toegang"].every((k) => meer(caps.werfleider).includes(k)) && !meer(caps.werfleider).includes("dashboard"));
   check("menu calculator: Werven · Offertes · Facturatie · Firma's & contacten + Meer (Planning, Team)", eq(keys(caps.calculator).sort(), ["adresboek", "facturatie", "offertes", "werven"]) && ["weekbord", "team"].every((k) => meer(caps.calculator).includes(k)) && nav.itemCount(nav.navFor(caps.calculator)) === 5, show("calculator"));
   check("menu onderaannemer: Mijn week · Mijn uren (· Mijn facturen als dat openstaat)", keys(caps.oa).slice(0, 2).join() === "week,uren" && keys(caps.oa).length <= 3 && meer(caps.oa).length === 0, show("oa"));
   check("menu architect: 1 item (Mijn werven)", eq(keys(caps.architect), ["werven"]) && nav.navFor(caps.architect)[0].items[0].label === "Mijn werven", show("architect"));
@@ -2184,6 +2216,100 @@ await sec("── 2b.3 de werf als centrum: stand van de werf (listWorkStages), 
   // Oude adressen van de werfpagina
   check("oud adres #/vorderingen/w/<id> → tabblad Facturatie van de werf", nav.resolveRoute(["vorderingen", "w", String(A)], caps.admin).redirect === `werven/${A}/facturatie` && nav.resolveRoute(["vorderingen", "w", String(A)], caps.calculator).redirect === `werven/${A}/facturatie`);
   check("#/werven/<id>/planning en #/opmeting/<id> blijven openen (tabblad Planning; opmeting werkt ook zonder bereik)", nav.resolveRoute(["werven", String(A), "planning"], caps.werfleider).page === "werven" && nav.resolveRoute(["opmeting", String(A)], caps.werfleider).page === "opmeting");
+}
+
+await sec("── 2b.4 startpunt en overzicht: Zo werkt het voor jou per persoon, de blokken per rol, Vraagt aandacht, de bel, Planning-tabbladen, oude adressen");
+{
+  const { loadNav, loadStart } = await import("./menu-lib.mjs");
+  const nav = await loadNav();
+  const S = await loadStart();
+  const rolesAll = { admin, werfleider: wl, calculator: calc, oa: oa2, architect: arch, klant, vc, "werfleider+calculator": wlcalc };
+  const me = {};
+  for (const [k, x] of Object.entries(rolesAll)) me[k] = (await x.me());
+  const caps = Object.fromEntries(Object.entries(me).map(([k, m]) => [k, m.caps[0]]));
+  const roleNames = (m) => m.person[0].roles.map((r) => Object.keys(r)[0]);
+  const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+  // Zo werkt het voor jou: één keer per persoon (bewaard bij de persoon), een andere persoon ziet het opnieuw
+  const kinds = Object.fromEntries(Object.keys(rolesAll).map((k) => [k, S.introKind(roleNames(me[k]))]));
+  check("Zo werkt het: de tekst volgt de rol (beheerder, werfleider, calculator, OA, architect, VC, klant)", eq(["admin", "werfleider", "calculator", "oa", "architect", "vc", "klant"].map((k) => kinds[k === "oa" ? "oa" : k]), ["admin", "werfleider", "calculator", "oa", "architect", "vc", "klant"]) && kinds["werfleider+calculator"] === "werfleider", JSON.stringify(kinds));
+  check("Zo werkt het: alle zeven rollen hebben een eigen tekst (zeven soorten)", S.INTRO_KINDS.length === 7 && new Set(Object.values(kinds)).size >= 7);
+  const seen0 = Object.fromEntries(await Promise.all(Object.entries(rolesAll).map(async ([k, x]) => [k, (await x.startState()).introSeen])));
+  check("Zo werkt het: vóór 'Begrepen' ziet elke persoon (behalve wie het al deed) de kaart", ["werfleider", "calculator", "oa", "architect", "klant", "vc"].every((k) => seen0[k] === false), JSON.stringify(seen0));
+  await wl.markIntroSeen();
+  await wl.markIntroSeen(); // twee keer: nog steeds één vlag, geen fout
+  const seen1 = Object.fromEntries(await Promise.all(Object.entries(rolesAll).map(async ([k, x]) => [k, (await x.startState()).introSeen])));
+  check("Begrepen door de werfleider: voor hem bewaard (ook na herladen van de stand)", seen1.werfleider === true);
+  check("een andere persoon ziet het opnieuw (calculator, OA, architect, klant, VC)", ["calculator", "oa", "architect", "klant", "vc"].every((k) => seen1[k] === false), JSON.stringify(seen1));
+  const wl2seen = await wl2.startState(); // het tweede toestel van dezelfde werfleider: dezelfde persoon = dezelfde vlag
+  check("hetzelfde persoon op een tweede toestel ziet het niet opnieuw (bewaard bij de persoon, niet in het toestel)", wl2seen.introSeen === true);
+  await Promise.all([calc, oa2, arch, klant, vc].map((x) => x.markIntroSeen()));
+  check("elke persoon bevestigt voor zichzelf (calculator, OA, architect, klant, VC)", (await Promise.all([calc, oa2, arch, klant, vc].map((x) => x.startState()))).every((x) => x.introSeen));
+  check("anoniem en ongekoppeld: startState en markIntroSeen geweigerd", (await rejects(anon.startState())) && (await rejects(anon.markIntroSeen())) && (await rejects(nieuw.startState())) && (await rejects(nieuw.markIntroSeen())));
+
+  // Aan de slag: enkel de beheerder bewaart en ziet de stappen
+  check("Aan de slag bewaren (stap, verbergen): alleen de beheerder", (await Promise.all([wl, calc, oa2, arch, klant, vc].map((x) => denied(x.setStartStep("team", true)).then((a) => a && true)))).every(Boolean) && (await Promise.all([wl, calc, oa2, arch, klant, vc].map((x) => denied(x.setStartHidden(true))))).every(Boolean));
+  await admin.setStartStep("posten", true);
+  await admin.setStartHidden(true);
+  const stNa = await Promise.all([wl, calc, oa2, klant].map((x) => x.startState()));
+  check("een niet-beheerder krijgt geen stappen en geen 'verborgen' terug (ook niet als de beheerder iets markeerde)", stNa.every((x) => x.marked.length === 0 && x.hidden === false));
+  await admin.setStartStep("posten", false);
+  await admin.setStartHidden(false);
+  check("de markering en het verbergen bewaren zich in settings.values (zichtbaar in de export, geen nieuw stabiel veld)", (await admin.exportIntern()).values.some(([k]) => k.startsWith("intro:")));
+  const seenKeys = (await admin.exportIntern()).values.filter(([k]) => k.startsWith("intro:")).length;
+  check("'Begrepen' staat per persoon: één sleutel per persoon die het bevestigde", seenKeys >= 7, `${seenKeys} sleutels`);
+
+  // Wat de app zelf ziet (bestaande queries): met de rollentest-gegevens is er een werf, een planning en een team
+  const f = async (x) => {
+    const [doc, persons, oas, lib, works, stages] = await Promise.all([x.getQuoteDocSettings(), x.listPersons(false), x.listOas({ includeArchived: false, text: [], trade: [], kind: [] }), x.listLibrary({ text: "", chapterId: [], form: [], trade: [], unit: [], orgId: [], includeArchived: false, offset: 0n, limit: 1n }), x.listWorks(), x.listWorkStages()]);
+    const live = new Set(works.filter((w) => w.archivedAt.length === 0).map((w) => String(w.id)));
+    return { issuer: S.issuerFilled(doc.issuer), team: persons.filter((p) => p.roles.some((r) => ["admin", "werfleider", "calculator"].includes(Object.keys(r)[0]))).length, oas: oas.length, posts: Number(lib.total), works: live.size, planned: stages.filter((st) => live.has(String(st.workId)) && Number(st.tasks) > 0).length };
+  };
+  const facts = await f(admin);
+  const steps = S.startSteps(facts, []);
+  check("Aan de slag met de rollentest-gegevens: team, werf en planning door de app gezien; elke stap klopt met de tellingen", steps.find((x) => x.key === "team").done && steps.find((x) => x.key === "werf").done && steps.find((x) => x.key === "planning").done && steps.every((x) => x.done === (x.how === "app")) && steps.find((x) => x.key === "onderaannemers").done === (facts.oas >= 1) && steps.find((x) => x.key === "posten").done === (facts.posts >= 1), JSON.stringify(facts));
+  check("Aan de slag: een stap telt als klaar door de app OF door een markering (zuivere regel)", S.startSteps({ issuer: false, team: 1, oas: 0, posts: 0, works: 0, planned: 0 }, ["bedrijf"])[0].how === "hand" && S.startSteps({ issuer: true, team: 2, oas: 1, posts: 1, works: 1, planned: 1 }, []).every((x) => x.done && x.how === "app") && S.startDoneCount(S.startSteps({ issuer: true, team: 1, oas: 0, posts: 0, works: 0, planned: 0 }, ["werf"])) === 2);
+  check("Aan de slag: de adresbalk ?start=3 → stap 3; de route van een stap draagt het nummer", S.startParam("#/adresboek?start=3") === 3 && S.startParam("#/team") === null && S.startParam("#/team?start=7") === null && S.startRoute("onderaannemers") === "adresboek?start=3" && S.startRoute("posten") === "posten?start=4");
+  check("Aan de slag: elke stap opent een scherm dat de beheerder mag (menu/route uit de caps)", S.START_KEYS.every((k) => { const r = nav.resolveRoute(S.START_TO[k].split("/"), caps.admin); return r.page === S.START_TO[k].split("/")[0]; }));
+
+  // De blokken per rol: een OA, architect, VC of klant ziet geen kantoorblokken
+  const blocks = (k) => S.overzichtBlocks(caps[k], true);
+  check("Overzicht (beheerder): Aan de slag · Vraagt aandacht · Vandaag op de werven · Werven per fase · Deze week", eq(blocks("admin"), ["start", "aandacht", "vandaag", "fase", "week"]), blocks("admin").join());
+  check("Overzicht: zonder startkaart (alles klaar of verborgen) valt enkel het eerste blok weg", !S.overzichtBlocks(caps.admin, false).includes("start") && S.overzichtBlocks(caps.admin, false).length === 4);
+  check("OA, architect, VC en klant: géén enkel kantoorblok (geen aandacht, vandaag, werven per fase, deze week, aan de slag)", ["oa", "architect", "vc", "klant"].every((k) => blocks(k).length === 0), ["oa", "architect", "vc", "klant"].map((k) => `${k}:${blocks(k).join("-")}`).join(" "));
+  check("OA, architect, VC en klant: geen 'Vraagt aandacht' op hun startscherm (de rechten van de bronnen volgen uit Rights.mo)", ["oa", "architect", "vc", "klant"].every((k) => !S.hasAttention(caps[k])));
+  check("calculator: Vraagt aandacht en Werven per fase, geen Aan de slag, geen Vandaag op de werven", eq(blocks("calculator"), ["aandacht", "fase", "week"]) && !blocks("calculator").includes("start") && !blocks("calculator").includes("vandaag"), blocks("calculator").join());
+  check("werfleider: geen Aan de slag (enkel de beheerder), wel Vandaag en Vraagt aandacht", !blocks("werfleider").includes("start") && blocks("werfleider").includes("vandaag") && blocks("werfleider").includes("aandacht"), blocks("werfleider").join());
+  check("startscherm per rol: Overzicht, Vandaag, Offertes, Mijn week, Mijn werven (architect, VC), Mijn werf (klant)", eq(["admin", "werfleider", "calculator", "oa", "architect", "vc", "klant"].map((k) => S.startScreen(caps[k])), ["overzicht", "vandaag", "offertes", "mijn-week", "mijn-werven", "mijn-werven", "mijn-werf"]), ["admin", "werfleider", "calculator", "oa", "architect", "vc", "klant"].map((k) => S.startScreen(caps[k])).join());
+  // De bronnen van Vraagt aandacht zijn bestaande queries: elke rol krijgt enkel wat Rights.mo al toestond
+  const today2b4 = BigInt(Math.floor(Date.now() / 86_400_000));
+  check("Vraagt aandacht: dashboard, boardConflicts en listIssues voor kantoor; OA, architect, klant en VC geweigerd (geen nieuwe query, geen breder zicht)", (await Promise.all([admin, wl, calc].map((x) => x.dashboard(today2b4).then(() => true, () => false)))).every(Boolean) && (await Promise.all([oa2, arch, klant, vc].map((x) => rejects(x.dashboard(today2b4))))).every(Boolean) && (await Promise.all([oa2, arch, klant, vc].map((x) => rejects(x.boardConflicts(BigInt(Math.floor(Date.now() / 86_400_000)), 6n, 5n))))).every(Boolean));
+  check("Vraagt aandacht: de vergunningen die aandacht vragen enkel voor wie vergunningen mag lezen (calculator, OA, klant geweigerd)", (await Promise.all([calc, oa2, klant].map((x) => rejects(x.listPermits("aandacht", []))))).every(Boolean));
+
+  // Vraagt aandacht: groepen per soort, hoogstens vijf, toon alle
+  const mk = (n, p) => Array.from({ length: n }, (_, i) => ({ key: `${p}${i}`, title: `t${i}`, detail: "d", to: "x" }));
+  const grp = S.attentionGroups([{ kind: "vertraagd", items: mk(7, "a") }, { kind: "oa", items: [] }, { kind: "dubbel", items: mk(5, "b") }, { kind: "wacht", items: mk(1, "c") }]);
+  check("Vraagt aandacht: lege groepen vallen weg; 7 regels → 5 getoond met 'toon alle (7)'; 5 → geen 'toon alle'", grp.length === 3 && grp[0].shown.length === 5 && grp[0].total === 7 && grp[0].more && !grp[1].more && grp[1].shown.length === 5 && !grp[2].more);
+  check("Vraagt aandacht: 'Toon alle' klapt de groep uit; de andere groepen blijven op vijf", (() => { const g = S.attentionGroups([{ kind: "vertraagd", items: mk(7, "a") }, { kind: "dubbel", items: mk(9, "b") }], new Set(["vertraagd"])); return g[0].shown.length === 7 && !g[0].more && g[1].shown.length === 5 && g[1].more; })());
+  check("Vraagt aandacht: de soorten van het prototype (vertraagd, OA kan niet, dubbel geboekt, vergunning vervalt, wacht op jou) bestaan", ["vertraagd", "oa", "dubbel", "vergunning", "wacht"].every((k) => S.ATTENTION_KINDS.includes(k)));
+
+  // De bel: gebundeld per soort
+  const notes = await admin.myNotifications(false);
+  const bundles = S.bundleNotes(notes);
+  check("de bel bundelt per soort: elke melding valt in precies één groep, de aantallen kloppen", bundles.reduce((n, g) => n + g.items.length, 0) === notes.length && bundles.every((g) => g.items.every((n) => S.noteGroup(n.kind) === g.key)), `${notes.length} meldingen in ${bundles.length} groepen`);
+  check("de bel: binnen een groep de nieuwste eerst; elk soort van het prototype heeft een groep", bundles.every((g) => g.items.every((n, i) => i === 0 || g.items[i - 1].createdAt >= n.createdAt)) && ["planning", "offerte", "opmeting", "facturatie", "vergunning", "verslag", "uren", "toegang", "mail", "overig"].every((k) => typeof k === "string") && S.noteGroup("afwezigheid-nieuw") === "planning" && S.noteGroup("vergunning-verloopt") === "vergunning" && S.noteGroup("probleem-nieuw") === "verslag" && S.noteGroup("onbekend") === "overig");
+
+  // Planning-tabbladen (WC-03) en het Dashboard dat uit Meer verdween
+  const pt = (k) => nav.planningTabs(caps[k]).map((x) => x.key).join();
+  check("Planning: tabbladen Weekbord · Afwezigheden · Conflicten & regels voor beheerder, werfleider en calculator", ["admin", "werfleider", "calculator"].every((k) => pt(k) === "weekbord,weekbord/afwezigheden,weekbord/conflicten") && nav.planningTabs(caps.admin).map((x) => x.label).join("|") === "Weekbord|Afwezigheden|Conflicten & regels", pt("admin"));
+  check("Planning: OA, architect, VC en klant krijgen geen tabbladen (en geen weekbord)", ["oa", "architect", "vc", "klant"].every((k) => pt(k) === "" && nav.resolveRoute(["weekbord", "afwezigheden"], caps[k]).page === caps[k].home));
+  check("Planning: #/weekbord/afwezigheden en #/weekbord/conflicten openen het weekbord (de tabbladen zitten in het scherm)", ["admin", "werfleider", "calculator"].every((k) => nav.resolveRoute(["weekbord", "afwezigheden"], caps[k]).page === "weekbord" && nav.resolveRoute(["weekbord", "conflicten"], caps[k]).page === "weekbord"));
+  const keysOf = (c) => nav.navFor(c).flatMap((g) => g.items.map((i) => i.key));
+  check("het Dashboard staat in geen enkel menu meer (ook niet in Meer van werfleider en calculator)", Object.values(caps).every((c) => !keysOf(c).includes("dashboard")));
+  check("#/dashboard blijft werken: beheerder → Overzicht, werfleider en calculator → Werven · Lopend", nav.resolveRoute(["dashboard"], caps.admin).redirect === "overzicht" && nav.resolveRoute(["dashboard"], caps.werfleider).redirect === "werven/lopend" && nav.resolveRoute(["dashboard"], caps.calculator).redirect === "werven/lopend" && nav.resolveRoute(["dashboard"], caps["werfleider+calculator"]).redirect === "werven/lopend");
+  check("#/dashboard voor OA, architect, VC en klant: gewoon hun startscherm (geen blanco scherm, geen recht erbij)", ["oa", "architect", "vc", "klant"].every((k) => nav.resolveRoute(["dashboard"], caps[k]).page === caps[k].home && !nav.resolveRoute(["dashboard"], caps[k]).redirect));
+  check("de tellers van het Dashboard staan er nog: dashboard() geeft ze aan kantoor (Werven · Lopend, Overzicht · Deze week)", (await admin.dashboard(today2b4)).counters && (await wl.dashboard(today2b4)).counters && (await calc.dashboard(today2b4)).counters && true);
+  check("het menu van de beheerder blijft 9 items (Dashboard zat er niet in)", nav.itemCount(nav.navFor(caps.admin)) === 9);
 }
 
 // De test laat niets achter dat iemand later per vergissing kan bevestigen of gebruiken

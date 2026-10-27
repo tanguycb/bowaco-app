@@ -10,7 +10,7 @@ import { makePdf, pdfName } from "../pdf/adapt.ts";
 import { pdfFromMine } from "../pdf/adapt.ts";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, unwrap, useBackend } from "../util";
-import { Frame, Loading, Page } from "./common";
+import { EmptyState, Frame, Loading, Page } from "./common";
 import { fmtQty } from "./Offertes";
 
 const T = t.mijnOfferte;
@@ -31,7 +31,7 @@ export function MyQuotes({ go, embedded, workName }: { go: (to: string) => void;
     <Frame embedded={embedded} label={T.label} title={T.title}>
       <p className="bw-muted" style={{ maxWidth: 680 }}>{T.lead}</p>
       <Loading q={list} />
-      {list.data && rows.length === 0 && <p className="a-empty">{T.none}</p>}
+      {list.data && rows.length === 0 && <EmptyState title={t.leeg.mijnWerf.t} text={t.leeg.mijnWerf.d} />}
       {rows.length > 0 && (
         <ul className="a-list" data-testid="my-quotes">
           {rows.map((x) => (

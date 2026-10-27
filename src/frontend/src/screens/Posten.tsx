@@ -8,7 +8,7 @@ import { ContractForm, OrgKind, type Caps, type LibChapterView, type LibCostView
 import { Button, Choice, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { EmptyState, Loading, Page } from "./common";
 import { Field } from "./Werven";
 
 const P = t.posten;
@@ -117,7 +117,7 @@ export function Posten({ caps }: { caps: Caps }) {
         </div>
       )}
       {list.data && <span className="bw-label" role="status">{P.count(shown, total)}</span>}
-      {list.data && total === 0 && !noChapters && <p className="a-empty">{filtered ? P.noMatch : caps.editLibrary ? P.empty : P.emptyRead}</p>}
+      {list.data && total === 0 && !noChapters && (filtered ? <p className="a-empty">{P.noMatch}</p> : <EmptyState title={t.leeg.posten.t} text={t.leeg.posten.d} action={caps.editLibrary ? <LoadStart /> : <span className="bw-muted">{t.leeg.zonderRecht}</span>} />)}
       {groups.map((g) => (
         <section key={g.key} className="a-section a-lib">
           <h2 className="bw-h2">{g.head}</h2>

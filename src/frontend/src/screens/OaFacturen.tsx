@@ -10,7 +10,7 @@ import { ExternalBlob, OaInvoiceLineKind, OaInvoiceStatus, OrgKind, WithholdingR
 import { Button, Icon, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, fmtTime, inputToDay, parseEuro, todayDay, unwrap, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { EmptyState, Loading, Page } from "./common";
 import { OpenConfidential } from "./Dossier";
 import { fmtQty, parseQty } from "./Offertes";
 import "../app/oafactuur.css";
@@ -48,7 +48,7 @@ function ListPage({ caps, go }: { caps: Caps; go: (to: string) => void }) {
         </select>
       </label>
       <Loading q={q} />
-      {q.data && rows.length === 0 && <p className="a-empty">{T.none}</p>}
+      {q.data && rows.length === 0 && <EmptyState title={t.leeg.oafacturen.t} text={t.leeg.oafacturen.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />}
       {rows.length > 0 && (
         <ul className="a-list" data-testid="oi-list">
           {rows.map((b) => (
@@ -455,7 +455,7 @@ export function MijnFacturenPage() {
     <Page label={T.mine} title={T.mineTitle}>
       <p className="bw-muted" style={{ maxWidth: 640 }}>{T.mineLead}</p>
       <Loading q={q} />
-      {q.data && rows.length === 0 && <p className="a-empty">{T.mineNone}</p>}
+      {q.data && rows.length === 0 && <EmptyState title={t.leeg.mijnFacturen.t} text={t.leeg.mijnFacturen.d} />}
       {rows.length > 0 && (
         <ul className="a-list" data-testid="my-oi">
           {rows.map((x) => (

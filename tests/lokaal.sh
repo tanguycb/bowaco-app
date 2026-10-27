@@ -83,6 +83,8 @@ node tests/regels.mjs "$cid"
 # 2b.3: de faseregels (alle combinaties, tabbladen per rol, volgende stap) en één proefwerf door alle fases.
 node tests/fase.mjs
 node tests/fase-draft.mjs "$cid"
+# 2b.4: Zo werkt het per persoon, Aan de slag (enkel beheerder), de bronnen van Vraagt aandacht en de bel.
+node tests/start-draft.mjs "$cid"
 echte=$(ls "$HOME"/Desktop/Split/bowaco-docs/bowaco/2026-231_Offerte_*.xlsx 2>/dev/null | head -1)
 if [[ -n "$echte" ]]; then
   python3 -I tools/rekentest-echt.py "$echte"

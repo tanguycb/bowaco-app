@@ -8,7 +8,7 @@ import { type OrgAssignmentView } from "../backend";
 import { Button, Choice, Icon, Sheet, StatusBadge, useToast, type Status } from "../design";
 import { t } from "../texts/nl";
 import { errText, unwrap, useBackend } from "../util";
-import { Loading } from "./common";
+import { EmptyState, Loading } from "./common";
 import { AbsencePanel } from "./Weekbord";
 import { ShareSheet } from "./Extern";
 import { Field } from "./Werven";
@@ -74,7 +74,7 @@ export function MijnTaken({ go }: { go: (to: string) => void }) {
         </div>
       )}
       <Loading q={mine} />
-      {mine.data && shown.length === 0 && <p className="a-empty">{tab === "later" ? t.plan.mineNone : t.mine.nothingWeek}</p>}
+      {mine.data && shown.length === 0 && (tab === "later" ? <p className="a-empty">{t.plan.mineNone}</p> : <EmptyState title={t.leeg.week.t} text={t.leeg.week.d} />)}
       {shown.length > 0 && (
         <ul className="a-list">
           {shown.map((r) => {

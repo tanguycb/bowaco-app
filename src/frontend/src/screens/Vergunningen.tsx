@@ -9,7 +9,7 @@ import { blobUrlOf, useCached } from "../offline/cached";
 import { cacheGet, cachePut } from "../offline/db";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, todayDay, unwrap, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { EmptyState, Loading, Page } from "./common";
 import { Field, shrinkPhoto } from "./Werven";
 
 const P = t.permits;
@@ -420,7 +420,7 @@ export function VergunningenPage({ caps, go }: { caps: Caps; go: (to: string) =>
       <section className="a-section">
         <Choice label={P.title} value={filter} onChange={pick} options={["aandacht", "lopend", "alles"].map((f) => ({ value: f, label: P.filter[f] }))} />
         <Loading q={q} />
-        {q.data && q.data.length === 0 && <p className="a-empty">{P.overviewEmpty}</p>}
+        {q.data && q.data.length === 0 && (filter === "aandacht" ? <p className="a-empty">{P.overviewEmpty}</p> : <EmptyState title={t.leeg.vergunningen.t} text={t.leeg.vergunningen.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />)}
         {q.data && q.data.length > 0 && <ul className="a-list">{q.data.map((p) => <PermitLine key={String(p.id)} p={p} onOpen={setOpen} showWork />)}</ul>}
       </section>
       {caps.managePermitKinds && <p className="a-note">{P.kindsMoved} <a href="#/beheer/documenten">{t.beheer.tabs.documenten}</a></p>}

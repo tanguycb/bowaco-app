@@ -4587,6 +4587,11 @@ export interface ShiftView {
     taskId: bigint;
     reason: string;
 }
+export interface StartState {
+    hidden: boolean;
+    introSeen: boolean;
+    marked: Array<string>;
+}
 export interface Survey {
     id: bigint;
     status: SurveyStatus;
@@ -5602,6 +5607,7 @@ export interface backendInterface {
     lookupFine(q: FineQuery): Promise<Result_39>;
     mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_38>;
     mailQuoteToClient(versionId: bigint): Promise<Result_1>;
+    markIntroSeen(): Promise<void>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     markProgressPrepared(id: bigint): Promise<Result_1>;
     me(): Promise<MeView>;
@@ -5723,10 +5729,13 @@ export interface backendInterface {
     setQuoteSequence(year: bigint, last: bigint): Promise<Result_1>;
     setQuoteStdPost(i: QuoteStdPostInput): Promise<Result_1>;
     setSettings(s: SettingsView): Promise<Result_1>;
+    setStartHidden(hidden: boolean): Promise<Result_1>;
+    setStartStep(key: string, done: boolean): Promise<Result_1>;
     setTaskOrder(workId: bigint, taskIds: Array<bigint>, expectedVersion: bigint): Promise<Result_5>;
     setTrade(t: TradeInput): Promise<Result_1>;
     setWadmRules(r: WadmRules): Promise<Result_1>;
     setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_1>;
+    startState(): Promise<StartState>;
     startWorkFromQuote(versionId: bigint, i: WorkStartInput, expectedPlanVersion: bigint): Promise<Result_6>;
     submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_5>;
     taskHistory(workId: bigint, taskId: bigint | null, from: bigint, limit: bigint): Promise<Array<TaskChangeView>>;

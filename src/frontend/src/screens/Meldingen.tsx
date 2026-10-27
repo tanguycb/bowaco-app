@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { NotificationView } from "../backend";
 import { Button, Icon, Sheet } from "../design";
+import { bundleNotes } from "../app/start";
 import { t } from "../texts/nl";
 import { fmtTime, useBackend } from "../util";
 import { Loading } from "./common";
@@ -54,27 +55,40 @@ function NotesSheet({ go, home, onClose }: { go: (to: string) => void; home: str
   });
   const list = (all.data ?? []).slice(0, 60);
   const unreadIds = list.filter((n) => n.readAt === undefined).map((n) => n.id);
+  const bundles = bundleNotes(list);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   return (
     <Sheet title={M.title} open onClose={onClose} side footer={<>
       <Button onClick={onClose}>{t.common.close}</Button>
       <Button variant="primary" icon="check" disabled={unreadIds.length === 0} busy={read.isPending} onClick={() => read.mutate(unreadIds)}>{M.allRead}</Button>
     </>}>
+      <p className="bw-muted a-note-small">{M.lead}</p>
       <Loading q={all} />
       {all.data && list.length === 0 && <p className="a-empty">{M.none}</p>}
-      <ul className="a-list">
-        {list.map((n) => {
-          const to = target(n, home);
-          return (
-            <li key={String(n.id)}>
-              <span className="a-list__main">
-                <span className={n.readAt === undefined ? "a-strong" : ""}>{n.text}</span>
-                <span className="bw-muted bw-num">{fmtTime(n.createdAt)}</span>
-              </span>
-              {to && <Button variant="quiet" onClick={() => { read.mutate([n.id]); onClose(); go(to); }}>{M.open}</Button>}
-            </li>
-          );
-        })}
-      </ul>
+      {bundles.map((g) => {
+        const isOpen = expanded.has(g.key);
+        const shown = isOpen ? g.items : g.items.slice(0, 1);
+        return (
+          <section key={g.key} className="a-attn" data-note-group={g.key}>
+            <span className="bw-label">{M.groups[g.key]} · {g.items.length}{g.unread > 0 ? ` · ${M.unread(g.unread)}` : ""}</span>
+            <ul className="a-list">
+              {shown.map((n) => {
+                const to = target(n, home);
+                return (
+                  <li key={String(n.id)}>
+                    <span className="a-list__main">
+                      <span className={n.readAt === undefined ? "a-strong" : ""}>{n.text}</span>
+                      <span className="bw-muted bw-num">{fmtTime(n.createdAt)}</span>
+                    </span>
+                    {to && <Button variant="quiet" onClick={() => { read.mutate([n.id]); onClose(); go(to); }}>{M.open}</Button>}
+                  </li>
+                );
+              })}
+            </ul>
+            {g.items.length > 1 && <button type="button" className="wb-link" onClick={() => setExpanded((e) => { const n = new Set(e); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}>{isOpen ? M.showLess : M.showAll(g.items.length)}</button>}
+          </section>
+        );
+      })}
     </Sheet>
   );
 }

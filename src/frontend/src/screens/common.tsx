@@ -33,6 +33,17 @@ export function Frame({ embedded, label, title, actions, children, wide }: { emb
   );
 }
 
+/** 2b.4: een leeg scherm zegt in één of twee zinnen wat het is en geeft één knop naar de eerste handeling (enkel als de rol die mag). */
+export function EmptyState({ title, text, action, extra }: { title: string; text: string; action?: ReactNode; extra?: ReactNode }) {
+  return (
+    <div className="a-emptyg" data-testid="leeg-scherm">
+      <h3>{title}</h3>
+      <p>{text}</p>
+      {(action || extra) && <div className="a-row">{action}{extra}</div>}
+    </div>
+  );
+}
+
 export function Loading({ q }: { q: { isLoading: boolean; error: unknown } }) {
   if (q.isLoading) return <p className="bw-muted">{t.common.loading}</p>;
   if (q.error) return <p className="a-err" role="alert"><Icon name="alert" size={16} /> {errText(q.error)}</p>;
@@ -119,7 +130,7 @@ export function useWorks() {
 
 export function WorkList({ works, go, empty, client }: { works: WorkView[]; go: (to: string) => void; empty: string; client?: boolean }) {
   const stages = useStages();
-  if (works.length === 0) return <p className="a-empty">{empty}</p>;
+  if (works.length === 0) return empty === t.werven.empty || empty === t.home.noWorks ? <EmptyState title={(client ? t.leeg.mijnWerf : t.leeg.mijnWerven).t} text={(client ? t.leeg.mijnWerf : t.leeg.mijnWerven).d} /> : <p className="a-empty">{empty}</p>;
   return (
     <ul className="a-list">
       {works.map((w) => (

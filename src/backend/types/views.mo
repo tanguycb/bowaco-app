@@ -209,6 +209,9 @@ module {
 
   // 2b.3: de stand van een werf voor de stappenbalk en "Volgende stap". Enkel momenten, tellingen en vlaggen (geen bedrag,
   // geen naam); de fase zelf rekent de browser (app/fase.ts), VOORLOPIG tot Alexis vraag 14 beantwoordt.
+  // 2b.4: het startpunt. introSeen = deze persoon bevestigde "Zo werkt het voor jou"; hidden en marked enkel voor de beheerder.
+  public type StartState = { introSeen : Bool; hidden : Bool; marked : [Text] };
+
   public type WorkStageView = {
     workId : WorkId;
     quoteSentAt : ?Int; // eerste verzonden offerteversie

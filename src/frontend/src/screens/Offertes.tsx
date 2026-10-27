@@ -14,7 +14,8 @@ import { runSelfTest } from "../quote/selftest.ts";
 import { makePdf, pdfFromRead, pdfName } from "../pdf/adapt.ts";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
-import { Loading, Page, useWorks } from "./common";
+import { EmptyState, Loading, Page, useWorks } from "./common";
+import { CalculatorStart } from "./Aandacht";
 import { OpenConfidential } from "./Dossier";
 
 const O = t.offertes;
@@ -111,12 +112,13 @@ function QuotesOverview({ caps, go }: { caps: Caps; go: (to: string) => void }) 
   return (
     <Page label={O.label} title={O.title} actions={caps.editQuotes && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{O.newQuote}</Button>}>
       <p className="bw-muted" style={{ maxWidth: 760 }}>{caps.quotePrices ? O.lead : O.leadTotals}</p>
+      {caps.home === "offertes" && <CalculatorStart go={go} />}
       <div className="a-row" style={{ gap: 16 }}>
         <input className="bw-input" style={{ maxWidth: 420 }} type="search" aria-label={O.search} placeholder={O.search} value={q} onChange={(e) => setQ(e.target.value)} />
         <label className="a-check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} /> {O.showArchived}</label>
       </div>
       <Loading q={list} />
-      {list.data && <QuoteTable rows={rows} go={go} empty={O.none} showWork />}
+      {list.data && rows.length === 0 && !q && !archived ? <EmptyState title={t.leeg.offertes.t} text={t.leeg.offertes.d} action={caps.createWork && <Button variant="primary" icon="plus" onClick={() => go("werven/aanvragen")}>{t.leeg.request}</Button>} /> : list.data && <QuoteTable rows={rows} go={go} empty={O.none} showWork />}
       {creating && <NewQuote onClose={() => setCreating(false)} go={go} />}
     </Page>
   );

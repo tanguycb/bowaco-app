@@ -3927,6 +3927,11 @@ export interface ShiftView {
   'taskId' : bigint,
   'reason' : string,
 }
+export interface StartState {
+  'hidden' : boolean,
+  'introSeen' : boolean,
+  'marked' : Array<string>,
+}
 export interface Survey {
   'id' : bigint,
   'status' : SurveyStatus,
@@ -4790,6 +4795,7 @@ export interface _SERVICE {
   'lookupFine' : ActorMethod<[FineQuery], Result_39>,
   'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_38>,
   'mailQuoteToClient' : ActorMethod<[bigint], Result_1>,
+  'markIntroSeen' : ActorMethod<[], undefined>,
   'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'markProgressPrepared' : ActorMethod<[bigint], Result_1>,
   'me' : ActorMethod<[], MeView>,
@@ -4930,10 +4936,13 @@ export interface _SERVICE {
   'setQuoteSequence' : ActorMethod<[bigint, bigint], Result_1>,
   'setQuoteStdPost' : ActorMethod<[QuoteStdPostInput], Result_1>,
   'setSettings' : ActorMethod<[SettingsView], Result_1>,
+  'setStartHidden' : ActorMethod<[boolean], Result_1>,
+  'setStartStep' : ActorMethod<[string, boolean], Result_1>,
   'setTaskOrder' : ActorMethod<[bigint, Array<bigint>, bigint], Result_5>,
   'setTrade' : ActorMethod<[TradeInput], Result_1>,
   'setWadmRules' : ActorMethod<[WadmRules], Result_1>,
   'setWorkStatus' : ActorMethod<[bigint, WorkStatus], Result_1>,
+  'startState' : ActorMethod<[], StartState>,
   'startWorkFromQuote' : ActorMethod<
     [bigint, WorkStartInput, bigint],
     Result_6

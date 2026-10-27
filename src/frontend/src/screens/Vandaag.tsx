@@ -8,11 +8,9 @@ import { useCached } from "../offline/cached";
 import { useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
 import { fmtDayNum, todayDay, useBackend } from "../util";
-import { Loading, Page, WorkPhase } from "./common";
-import { IssueAttention } from "./Verslagen";
-import { BoardAttention } from "./Weekbord";
+import { AttentionBlock } from "./Aandacht";
+import { EmptyState, Loading, Page, WorkPhase } from "./common";
 import { PermitsOnSite } from "./Vergunningen";
-import { PendingStarts } from "./WerfStart";
 
 const V = t.vandaag;
 const ALL_KEY = "bw-vandaag-alle";
@@ -43,19 +41,13 @@ export function Vandaag({ go, caps }: { go: (to: string) => void; caps: Caps }) 
       {q.data?.fromCache && <p className="a-note"><Icon name="offline" size={16} /> {t.verslag.staleAt(new Date(q.data.at).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }))}</p>}
       {!q.data && <Loading q={q} />}
       {q.error && !q.data && <p className="a-err">{t.verslag.noCache}</p>}
-      {q.data && works.length === 0 && <p className="a-empty">{V.noWorks}</p>}
-      <PendingStarts caps={caps} go={go} compact />
+      {q.data && works.length === 0 && <EmptyState title={t.leeg.vandaag.t} text={t.leeg.vandaag.d} action={<Button onClick={() => go("werven")}>{t.nav.werven}</Button>} />}
+      {/* 2b.4: de werfkaarten van vandaag bovenaan, de rest eronder. */}
       <div className="v-cards">
         {works.map((w) => <WorkCard key={String(w.id)} w={w} day={day} go={go} />)}
       </div>
       {caps.permits && <PermitsOnSite />}
-      {caps.readOrgPlanning && (
-        <section className="a-section">
-          <h2 className="bw-h2">{t.overzicht.attention}</h2>
-          <IssueAttention go={go} />
-          <BoardAttention go={go} />
-        </section>
-      )}
+      {caps.readOrgPlanning && <AttentionBlock caps={caps} go={go} />}
     </Page>
   );
 }

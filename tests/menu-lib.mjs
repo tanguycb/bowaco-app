@@ -27,7 +27,7 @@ export const OUD_NAAR_NIEUW = [
   ["vandaag", "vandaag", null, "writeReports"],
   ["werven", "werven", null, "any"],
   ["weekbord", "weekbord", null, "readOrgPlanning"],
-  ["dashboard", "dashboard", null, "readOrgPlanning"],
+  // 2b.4: ["dashboard", …] is weg: #/dashboard verwijst door (admin → overzicht, werfleider en calculator → werven/lopend); zie tests/start.mjs en de rollentest 2b.4
   ["offertes", "offertes", null, "quotes"],
   ["posten", "posten", null, "readLibrary"],
   ["opmeting", "opmeting", null, "measureRead"],
@@ -54,3 +54,6 @@ export const OUD_NAAR_NIEUW = [
   ["verslag", "verslag", null, "writeReports"],
   ["werfstart", "werfstart", null, "workStarts"],
 ];
+
+/** 2b.4: het startpunt (Aan de slag, Zo werkt het voor jou, blokken per rol, Vraagt aandacht, de bel; src/frontend/src/app/start.ts). */
+export const loadStart = () => load("start.ts");

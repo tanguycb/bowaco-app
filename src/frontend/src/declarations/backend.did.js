@@ -4562,6 +4562,11 @@ export const WadmRules = IDL.Record({
   'threshold30bisCents' : IDL.Nat,
   'thresholdCheckinatworkCents' : IDL.Nat,
 });
+export const StartState = IDL.Record({
+  'hidden' : IDL.Bool,
+  'introSeen' : IDL.Bool,
+  'marked' : IDL.Vec(IDL.Text),
+});
 export const WorkStartTarget = IDL.Variant({
   'existing' : IDL.Null,
   'newWork' : IDL.Record({
@@ -5069,6 +5074,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'mailQuoteToClient' : IDL.Func([IDL.Nat], [Result_1], []),
+  'markIntroSeen' : IDL.Func([], [], []),
   'markNotificationsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
   'markProgressPrepared' : IDL.Func([IDL.Nat], [Result_1], []),
   'me' : IDL.Func([], [MeView], ['query']),
@@ -5267,6 +5273,8 @@ export const idlService = IDL.Service({
   'setQuoteSequence' : IDL.Func([IDL.Nat, IDL.Nat], [Result_1], []),
   'setQuoteStdPost' : IDL.Func([QuoteStdPostInput], [Result_1], []),
   'setSettings' : IDL.Func([SettingsView], [Result_1], []),
+  'setStartHidden' : IDL.Func([IDL.Bool], [Result_1], []),
+  'setStartStep' : IDL.Func([IDL.Text, IDL.Bool], [Result_1], []),
   'setTaskOrder' : IDL.Func(
       [IDL.Nat, IDL.Vec(IDL.Nat), IDL.Nat],
       [Result_5],
@@ -5275,6 +5283,7 @@ export const idlService = IDL.Service({
   'setTrade' : IDL.Func([TradeInput], [Result_1], []),
   'setWadmRules' : IDL.Func([WadmRules], [Result_1], []),
   'setWorkStatus' : IDL.Func([IDL.Nat, WorkStatus], [Result_1], []),
+  'startState' : IDL.Func([], [StartState], ['query']),
   'startWorkFromQuote' : IDL.Func(
       [IDL.Nat, WorkStartInput, IDL.Nat],
       [Result_6],
@@ -9786,6 +9795,11 @@ export const idlFactory = ({ IDL }) => {
     'threshold30bisCents' : IDL.Nat,
     'thresholdCheckinatworkCents' : IDL.Nat,
   });
+  const StartState = IDL.Record({
+    'hidden' : IDL.Bool,
+    'introSeen' : IDL.Bool,
+    'marked' : IDL.Vec(IDL.Text),
+  });
   const WorkStartTarget = IDL.Variant({
     'existing' : IDL.Null,
     'newWork' : IDL.Record({
@@ -10298,6 +10312,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'mailQuoteToClient' : IDL.Func([IDL.Nat], [Result_1], []),
+    'markIntroSeen' : IDL.Func([], [], []),
     'markNotificationsRead' : IDL.Func([IDL.Vec(IDL.Nat)], [], []),
     'markProgressPrepared' : IDL.Func([IDL.Nat], [Result_1], []),
     'me' : IDL.Func([], [MeView], ['query']),
@@ -10512,6 +10527,8 @@ export const idlFactory = ({ IDL }) => {
     'setQuoteSequence' : IDL.Func([IDL.Nat, IDL.Nat], [Result_1], []),
     'setQuoteStdPost' : IDL.Func([QuoteStdPostInput], [Result_1], []),
     'setSettings' : IDL.Func([SettingsView], [Result_1], []),
+    'setStartHidden' : IDL.Func([IDL.Bool], [Result_1], []),
+    'setStartStep' : IDL.Func([IDL.Text, IDL.Bool], [Result_1], []),
     'setTaskOrder' : IDL.Func(
         [IDL.Nat, IDL.Vec(IDL.Nat), IDL.Nat],
         [Result_5],
@@ -10520,6 +10537,7 @@ export const idlFactory = ({ IDL }) => {
     'setTrade' : IDL.Func([TradeInput], [Result_1], []),
     'setWadmRules' : IDL.Func([WadmRules], [Result_1], []),
     'setWorkStatus' : IDL.Func([IDL.Nat, WorkStatus], [Result_1], []),
+    'startState' : IDL.Func([], [StartState], ['query']),
     'startWorkFromQuote' : IDL.Func(
         [IDL.Nat, WorkStartInput, IDL.Nat],
         [Result_6],

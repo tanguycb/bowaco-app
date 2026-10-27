@@ -11,7 +11,7 @@ import {
 import { Button, Choice, Confirm, Icon, Sheet, StatusBadge, useToast, type Status } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtTime, inputToDay, unwrap, useBackend } from "../util";
-import { Loading, Page } from "./common";
+import { EmptyState, Loading, Page } from "./common";
 import { useMedia } from "./Planning";
 import { Field } from "./Werven";
 import { ShareSheet } from "./Extern";
@@ -110,7 +110,7 @@ export function Weekbord({ caps, go }: { caps: Caps; go: (to: string) => void })
           {list && <ConflictList items={allConflicts} go={go} onPick={(c) => setOrgSel(c.orgId)} />}
           <Legend />
           {b.rows.length === 0 ? (
-            <p className="a-empty">{show === "conflicts" ? t.board.noRowsConflicts : t.board.noRows}</p>
+            (show === "busy" && !text.trim() && !trade ? <EmptyState title={t.leeg.planning.t} text={t.leeg.planning.d} action={<Button onClick={() => go(caps.importPlan ? "beheer/planning" : "werven/lopend")}>{caps.importPlan ? t.leeg.werven.import : t.nav.werven}</Button>} /> : <p className="a-empty">{show === "conflicts" ? t.board.noRowsConflicts : t.board.noRows}</p>)
           ) : wide && zoom === "weeks" ? (
             <WeeksGrid b={b} onItem={(row, it, week) => setItem({ row, item: it, week })} onOrg={(r) => setOrgSel(r.orgId)} />
           ) : wide ? (
@@ -500,7 +500,7 @@ export function WorkConflicts({ workId, go }: { workId: bigint; go: (to: string)
 
 // ── Regels voor dubbel ────────────────────────────────────────────────────
 
-function RulesSheet({ caps, onClose }: { caps: Caps; onClose: () => void }) {
+export function RulesSheet({ caps, onClose }: { caps: Caps; onClose: () => void }) {
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
   const qc = useQueryClient();

@@ -16,7 +16,7 @@ import { progressLine } from "../progress/calc.ts";
 import * as PM from "../progress/model.ts";
 import { t } from "../texts/nl";
 import { dayToInput, downloadJson, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, parsePct, todayDay, unwrap, useBackend } from "../util";
-import { Frame, Loading, Page } from "./common";
+import { EmptyState, Frame, Loading, Page } from "./common";
 import { fmtQty, parseQty } from "./Offertes";
 import "../app/vordering.css";
 
@@ -47,7 +47,7 @@ function ProgressWorks({ go }: { go: (to: string) => void }) {
     <Page label={T.label} title={T.title}>
       <p className="bw-muted" style={{ maxWidth: 720 }}>{T.lead}</p>
       <Loading q={q} />
-      {q.data && rows.length === 0 && <p className="a-empty">{T.none}</p>}
+      {q.data && rows.length === 0 && <EmptyState title={t.leeg.vorderingen.t} text={t.leeg.vorderingen.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />}
       {rows.length > 0 && (
         <ul className="a-list" data-testid="vs-works">
           {rows.map((w) => (

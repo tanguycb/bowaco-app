@@ -170,7 +170,7 @@ function WorkCard({ w, go }: { w: DashWork; go: (to: string) => void }) {
   );
 }
 
-function TaskList({ items, go, late }: { items: DashTask[]; go: (to: string) => void; late?: boolean }) {
+export function TaskList({ items, go, late }: { items: DashTask[]; go: (to: string) => void; late?: boolean }) {
   const [more, setMore] = useState(false);
   const list = more ? items : items.slice(0, 15);
   return (
