@@ -56,7 +56,9 @@ const absGone = ex.absences.find((a) => a.archivedAt.length === 1 && "intern" in
 const repA = ex.dayReports?.find((r) => r.workId === A);
 const issDone = ex.issues?.find((i) => "handled" in i.status);
 const attDak = ex.attendances?.find((a) => a.orgId[0] === orgDak?.id && a.archivedAt.length === 0);
-const dakMayConfirm = !!attDak && ex.memberships.some((m) => m.workId === attDak.workId && m.endedAt.length === 0 && "onderaannemer" in m.role && (m.orgId[0] === orgDak?.id) && m.grants.some((g) => "confirmHours" in g));
+// een OA kan ook als PERSOON lid zijn met dat recht (draft 57: de rollentest gaf proef-oa2 het zo); dan is "toegelaten" juist
+const oaPersonId = (await roles.oa.me()).person[0]?.id;
+const dakMayConfirm = !!attDak && ex.memberships.some((m) => m.workId === attDak.workId && m.endedAt.length === 0 && "onderaannemer" in m.role && (m.orgId[0] === orgDak?.id || m.personId[0] === oaPersonId) && m.grants.some((g) => "confirmHours" in g));
 const memDakB = ex.memberships.find((m) => m.workId === B && "onderaannemer" in m.role && m.personId.length === 1 && m.endedAt.length === 0);
 // 1b.1: een lopende vergunning op B en een gearchiveerde (rollentest of tests/vergunning-draft.mjs)
 const pmB = ex.permits?.find((x) => x.workId === B && x.archivedAt.length === 0);

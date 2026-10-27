@@ -614,7 +614,8 @@ const dayOf = (y, m, d) => BigInt(Math.floor(Date.UTC(y, m - 1, d) / 86_400_000)
 const wd = (d) => (Number(d) + 3) % 7; // 0 = maandag
 const fmt = (d) => new Date(Number(d) * 86_400_000).toISOString().slice(0, 10);
 const tIn = (o) => ({ id: opt(o.id), title: o.title ?? "Proeftaak", note: o.note ?? "", kind: { [o.kind ?? "work"]: null }, trade: opt(o.trade), responsibleOrgId: opt(o.org), status: { [o.status ?? "planned"]: null }, percent: o.percent ?? 0n, start: o.start ?? dayOf(2026, 11, 2), workdays: o.workdays ?? 5n, leadDays: o.lead ?? 0n, orderDay: opt(o.orderDay), reason: o.reason ?? "" });
-const plan = (who, w = A) => who.getPlan(w);
+// Op een draft (mainnet) kan een query net vóór de voorafgaande update lezen (draft 56/57): daarom eerst even wachten.
+const plan = async (who, w = A) => { if (!local) await new Promise((r) => setTimeout(r, 2000)); return who.getPlan(w); };
 const byKey = (p, k) => p.tasks.find((t) => t.templateKey[0] === k);
 const START = dayOf(2026, 11, 2); // maandag
 // Sjablonen lezen (interne rollen) en de standaard (VOORLOPIG)
@@ -727,7 +728,8 @@ pA = await plan(wl);
 const tg = byKey(pA, "tegels");
 const st13 = await wl.saveTask(A, tIn({ id: tg.id, title: tg.title, kind: "work", trade: "tegels", org: orgX.ok.id, start: tg.start, workdays: tg.workdays, note: "sleutel bij de buren (intern)" }), pA.version);
 check("werfleider wijst «tegels» toe aan de tegelfirma (verantwoordelijke = eerste uitvoerder)", isOk(st13), errOf(st13));
-pA = await plan(wl);
+// Op een draft leest een query soms net vóór de update (mainnet): even opnieuw lezen tot de toewijzing er staat (draft 56: flaky).
+for (let i = 0; i < 15 && !(byKey(pA, "tegels")?.assignments?.length > 0); i++) { await new Promise((r) => setTimeout(r, 1500)); pA = await plan(wl); }
 const tgA = byKey(pA, "tegels").assignments[0];
 check("toewijzing open, firma is lid van de werf", tgA && "open" in tgA.confirmation && tgA.primary && tgA.inTeam && tgA.orgCode[0] === "GILS", JSON.stringify(tgA, big));
 const dkT = byKey(pA, "dak");

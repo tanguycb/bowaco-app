@@ -5,7 +5,29 @@ import { Ed25519KeyIdentity } from "@icp-sdk/core/identity";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { IDL } from "@icp-sdk/core/candid";
 import { idlFactory } from "../src/frontend/src/declarations/backend.did.js";
+
+// 2b.4: een tijdelijke netwerk- of leesfout (ETIMEDOUT, fetch failed, gateway 5xx) breekt een proef niet meer af: QUERIES worden
+// tot 5 keer opnieuw geprobeerd (met wachttijd). Updates nooit: een herhaalde update kan dubbel uitgevoerd worden.
+const transient = (e) => /ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|fetch failed|socket hang up|network|Transport|50[234]/i.test(`${e?.message ?? e} ${e?.cause?.kind ?? ""} ${e?.cause?.code ?? ""}`);
+const queryNames = new Set(idlFactory({ IDL })._fields.filter(([, f]) => f.annotations.includes("query")).map(([n]) => n));
+function withRetry(actor) {
+  return new Proxy(actor, {
+    get(t, k, r) {
+      const v = Reflect.get(t, k, r);
+      if (typeof k !== "string" || !queryNames.has(k) || typeof v !== "function") return v;
+      return async (...a) => {
+        for (let i = 0; ; i++) {
+          try { return await v.apply(t, a); } catch (e) {
+            if (i >= 5 || !transient(e)) throw e;
+            await new Promise((res) => setTimeout(res, 1500 * (i + 1)));
+          }
+        }
+      };
+    },
+  });
+}
 
 export const KEYDIR = join(homedir(), ".bowaco");
 
@@ -30,7 +52,7 @@ export async function backend(identityName, canisterId) {
     shouldFetchRootKey: local, // alleen lokaal; op mainnet zit de sleutel in de agent
     shouldSyncTime: local, // lokaal kan de rollentest de klok van het net verzetten
   });
-  return Actor.createActor(idlFactory, { agent, canisterId });
+  return withRetry(Actor.createActor(idlFactory, { agent, canisterId }));
 }
 
 export function ok(r) {
@@ -43,7 +65,7 @@ export async function freshBackend(canisterId) {
   const host = process.env.ICP_HOST || "https://icp-api.io";
   const local = host.includes("localhost") || host.includes("127.0.0.1");
   const agent = await HttpAgent.create({ host, identity: Ed25519KeyIdentity.generate(), shouldFetchRootKey: local, shouldSyncTime: local });
-  return Actor.createActor(idlFactory, { agent, canisterId });
+  return withRetry(Actor.createActor(idlFactory, { agent, canisterId }));
 }
 
 // Na het verzetten van de klok (alleen lokaal): elke agent opnieuw gelijkzetten.
