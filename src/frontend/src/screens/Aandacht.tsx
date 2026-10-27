@@ -31,7 +31,7 @@ export function useAttention(caps: Caps): { groups: AttentionGroup[]; loading: b
   const conflicts = useQuery({ queryKey: ["boardConflicts", from, 6], queryFn: () => actor!.boardConflicts(BigInt(from), 6n, 50n), enabled: on, refetchOnWindowFocus: true });
   const permits = useQuery({ queryKey: ["permits", "aandacht"], queryFn: () => actor!.listPermits("aandacht", null), enabled: on && caps.permits, refetchOnWindowFocus: true });
   const starts = useQuery({ queryKey: ["pendingWorkStarts", "all"], queryFn: () => actor!.pendingWorkStarts(null), enabled: on && caps.workStarts, refetchOnWindowFocus: true });
-  const links = useQuery({ queryKey: ["links"], queryFn: () => actor!.listLinks(), enabled: on && caps.manageAccess });
+  const links = useQuery({ queryKey: ["links"], queryFn: () => actor!.listLinks(), enabled: on && caps.manageAccess, refetchOnWindowFocus: true, refetchInterval: 30_000 });
   const works = useWorks();
   const stages = useStages();
   const confirm = useMutation({
@@ -55,7 +55,7 @@ export function useAttention(caps: Caps): { groups: AttentionGroup[]; loading: b
   const wacht: AttentionItem[] = [
     ...(starts.data ?? []).map((p) => item(`s${p.versionId}`, `${p.workCode} · ${p.title}`, t.werfstart.pendingItem(p.quoteNumber, String(p.version), p.acceptedHow), `werfstart/${p.versionId}`)),
     ...(works.data ?? []).filter((w) => w.archivedAt === undefined && stages.data?.some((s) => s.workId === w.id && s.quoteWaiting)).map((w) => item(`q${w.id}`, `${w.code} · ${w.name}`, A.quoteWaits(""), `werven/${w.id}/offerte`)),
-    ...(links.data ?? []).filter((l) => l.status === LinkStatus.pending).map((l) => item(`x${l.principal.toText()}`, l.personName, `${fmtTime(l.linkedAt)} · code …${l.codeHint}`, "beheer/toegang", { label: t.overzicht.confirm, busy: confirm.isPending && confirm.variables === l.principal, run: () => confirm.mutate(l.principal) })),
+    ...(links.data ?? []).filter((l) => l.status === LinkStatus.pending).map((l) => item(`x${l.principal.toText()}`, l.personName, `${fmtTime(l.linkedAt)} · code …${l.codeHint}`, "team", { label: t.overzicht.confirm, busy: confirm.isPending && confirm.variables === l.principal, run: () => confirm.mutate(l.principal) })),
   ];
   const groups: AttentionGroup[] = [
     { kind: "vertraagd", items: vertraagd },
