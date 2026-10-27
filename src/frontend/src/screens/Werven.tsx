@@ -133,6 +133,9 @@ function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => void; go
   const clients = (orgs.data ?? []).filter((o) => o.kind === OrgKind.client).sort((a, b) => a.name.localeCompare(b.name, "nl"));
   const [mode, setMode] = useState<"new" | "existing">("new");
   const [f, setF] = useState({ client: "", clientName: "", email: "", phone: "", code: "", name: "", street: "", number: "", zip: "", city: "", vat: 600 });
+  // Chrome-test 2b.3: zonder adres blokkeert de controle vóór verzending ("De klant heeft geen volledig adres"); bij een
+  // renovatie woont de klant meestal op de werf, dus standaard krijgt de nieuwe klant het werfadres.
+  const [sameAddr, setSameAddr] = useState(true);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const autoName = [f.street, f.number].filter(Boolean).join(" ");
   // Review 2b.3: de nieuwe klant wordt maar één keer gemaakt; weigert de werf daarna (code al in gebruik …), dan gebruikt een
@@ -150,7 +153,8 @@ function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => void; go
         clientOrgId = madeOrg;
       } else {
         if (!f.clientName.trim()) throw new Error(W.needClient);
-        clientOrgId = unwrap(await actor!.createOrg({ kind: OrgKind.client, name: f.clientName.trim(), kbo: undefined, vat: undefined, aliases: [], trades: [], address: undefined, notes: "" })).id;
+        const address = sameAddr && f.street.trim() && f.city.trim() ? { street: f.street, number: f.number, zip: f.zip, city: f.city, country: "BE" } : undefined;
+        clientOrgId = unwrap(await actor!.createOrg({ kind: OrgKind.client, name: f.clientName.trim(), kbo: undefined, vat: undefined, aliases: [], trades: [], address, notes: "" })).id;
         setMadeOrg(clientOrgId);
         if (caps.readConfidentialContact && (f.email.trim() || f.phone.trim())) {
           const r = await actor!.setOrgConfidential(clientOrgId, { name: f.clientName.trim(), phone: optText(f.phone), email: optText(f.email) }, "");
@@ -201,6 +205,7 @@ function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => void; go
           <Field label={t.werven.zip}><input className="bw-input" value={f.zip} onChange={set("zip")} inputMode="numeric" /></Field>
         </div>
         <Field label={t.werven.city}><input className="bw-input" value={f.city} onChange={set("city")} /></Field>
+        {mode === "new" && madeOrg === null && <label className="a-check"><input type="checkbox" checked={sameAddr} onChange={(e) => setSameAddr(e.target.checked)} />{W.sameAddr}</label>}
         <div className="a-grid2">
           <Field label={t.werven.code}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} placeholder="2026-231" /></Field>
           <Field label={t.werven.vat}><Choice label={t.werven.vat} value={f.vat} onChange={(v) => setF({ ...f, vat: v })} options={[{ value: 600, label: "6 %" }, { value: 2100, label: "21 %" }]} /></Field>

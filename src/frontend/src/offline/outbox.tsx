@@ -317,7 +317,7 @@ export function OutboxProvider({ children, onNotice }: { children: ReactNode; on
           }
         }
         setSyncedAt(Date.now());
-        void qc.invalidateQueries({ predicate: (x) => ["myDay", "reportDay", "reports", "issues", "plan", "measureSummary", "measurePost", "measureSurvey", "measureWorks"].includes(String(x.queryKey[0])) });
+        void qc.invalidateQueries({ predicate: (x) => ["myDay", "reportDay", "reports", "issues", "plan", "measureSummary", "measurePost", "measureSurvey", "measureWorks", "stages"].includes(String(x.queryKey[0])) });
       }
     } finally {
       busy.current = false;

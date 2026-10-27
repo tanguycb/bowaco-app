@@ -2394,6 +2394,7 @@ export const nl = {
     codeHelp: "De werfcode is meestal het offertenummer (bv. 2026-231).",
     made: "Aanvraag genoteerd: werf in de fase Aanvraag",
     needCode: "Geef de werfcode (meestal het offertenummer)",
+    sameAddr: "De klant woont op dit adres (adres van de klant = werfadres)",
     needAddress: "Geef minstens de straat of een naam voor de werf",
     clientMade: (n: string) => `Klant ${n} bewaard; vul aan en bewaar opnieuw`,
     needClient: "Kies een klant of geef de naam van een nieuwe klant",
