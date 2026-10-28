@@ -92,11 +92,11 @@ const CAPS = {
 };
 const f4 = F.werfFase({ status: "planned", quoteSentAt: 1n, acceptedAt: 2n, startedAt: 3n, firstReportAt: 4n });
 const keys = (r, f = f4, s = { status: "planned", acceptedAt: 2n, firstReportAt: 4n }) => F.werfTabs(CAPS[r], f, s).map((x) => x.key).join(",");
-check("tabbladen beheerder: Overzicht · Offerte · Planning · Verslagen · Opmeting · Facturatie · Vergunningen & admin · Documenten · Wie werkt mee", keys("admin") === "overzicht,offerte,planning,verslagen,opmeting,facturatie,vergunningen,documenten,wie" && F.werfTabs(CAPS.admin, f4, {}).map((x) => x.label).join("|") === "Overzicht|Offerte|Planning|Verslagen|Opmeting|Facturatie|Vergunningen & admin|Documenten|Wie werkt mee");
+check("tabbladen beheerder: Overzicht · Offerte · Planning · Verslagen · Opmeting · Facturatie · Vergunningen & administratie · Documenten · Wie werkt mee", keys("admin") === "overzicht,offerte,planning,verslagen,opmeting,facturatie,vergunningen,documenten,wie" && F.werfTabs(CAPS.admin, f4, {}).map((x) => x.label).join("|") === "Overzicht|Offerte|Planning|Verslagen|Opmeting|Facturatie|Vergunningen & administratie|Documenten|Wie werkt mee");
 check("tabbladen werfleider: alle negen", keys("werfleider").split(",").length === 9);
 check("tabbladen calculator: alle negen (werfadministratie)", keys("calculator").split(",").length === 9, keys("calculator"));
-check("tabbladen onderaannemer: Overzicht · Planning · Opmeting · Vergunningen & admin · Documenten", keys("oa") === "overzicht,planning,opmeting,vergunningen,documenten", keys("oa"));
-check("tabbladen architect (opmeting niet aangezet): Overzicht · Planning · Verslagen · Vergunningen & admin · Documenten", keys("architect") === "overzicht,planning,verslagen,vergunningen,documenten", keys("architect"));
+check("tabbladen onderaannemer: Overzicht · Planning · Opmeting · Vergunningen & administratie · Documenten", keys("oa") === "overzicht,planning,opmeting,vergunningen,documenten", keys("oa"));
+check("tabbladen architect (opmeting niet aangezet): Overzicht · Planning · Verslagen · Vergunningen & administratie · Documenten", keys("architect") === "overzicht,planning,verslagen,vergunningen,documenten", keys("architect"));
 check("tabbladen architect met opmeting aangezet: + Opmeting", F.werfTabs({ ...CAPS.architect, measureRead: true }, f4, {}).some((x) => x.key === "opmeting"));
 check("tabbladen klant: Voortgang · Offerte · Vorderingsstaten · Documenten", F.werfTabs(CAPS.klant, f4, {}).map((x) => x.label).join("|") === "Voortgang|Offerte|Vorderingsstaten|Documenten");
 // Grijs met uitleg zolang een tabblad nog niet geldt
