@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2b.3-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2b.5-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -483,7 +483,7 @@ module {
   // Markering van een lease door de app zelf (geen robot kan deze principal hebben: het is de beheercanister).
   public let appSender = "aaaaa-aa";
   // De draftcanister(s) van dit project (de nieuwste eerst; w5pbr verliep 25-10-2026, zie M11): daar blijft de testmodus ALTIJD aan (geen echte mail vanaf de draft, E-0).
-  public func draftBackends() : [Text] { ["45zqo-tiaaa-aaaam-qefla-cai", "5vwqk-vqaaa-aaaab-aadwq-cai", "w5pbr-raaaa-aaaal-qs3aq-cai"] };
+  public func draftBackends() : [Text] { ["knmpv-2iaaa-aaaao-a4mqa-cai", "45zqo-tiaaa-aaaam-qefla-cai", "5vwqk-vqaaa-aaaab-aadwq-cai", "w5pbr-raaaa-aaaal-qs3aq-cai"] };
   // 1b.5 (securityreview, M2): echte mail (testmodus uit) kan ENKEL vanaf een canister in deze lijst: de livecanister van
   // het project, in te vullen vóór de eerste echte weekmail (docs/postbode-installatie.md). Elke andere canister (een
   // nieuwe draftcanister, een herstel op een ander project) blijft in de testmodus, wat de beheerder ook instelt. Een

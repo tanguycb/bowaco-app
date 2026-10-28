@@ -11,7 +11,7 @@ import { DelegationChain } from "@icp-sdk/core/identity";
 import { Principal } from "@icp-sdk/core/principal";
 import { identity } from "./lib.mjs";
 
-const [name, hex, cid = "45zqo-tiaaa-aaaam-qefla-cai"] = process.argv.slice(2);
+const [name, hex, cid = "knmpv-2iaaa-aaaao-a4mqa-cai"] = process.argv.slice(2);
 if (!name || !hex) throw new Error("gebruik: node tools/browser-sessie.mjs <sleutelnaam> <spki-hex> [backend-id]");
 // @icp-sdk/auth 9 eist een sessieketen beperkt tot de II-canister en een app-keten voor de backend.
 const II = Principal.fromText("rdmx6-jaaaa-aaaaa-aaadq-cai");

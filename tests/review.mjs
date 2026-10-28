@@ -220,7 +220,7 @@ else {
 // ── (D1–D6) mail-caffeine: de app verstuurt zelf via de maildienst van Caffeine ──
 {
   const ps = await admin.postSettings();
-  const draftCid = cid === "45zqo-tiaaa-aaaam-qefla-cai" || cid === "5vwqk-vqaaa-aaaab-aadwq-cai";
+  const draftCid = cid === "knmpv-2iaaa-aaaao-a4mqa-cai" || cid === "45zqo-tiaaa-aaaam-qefla-cai" || cid === "5vwqk-vqaaa-aaaab-aadwq-cai";
   check("(D1) de testmodus staat aan; de canister weet of hij de draft is", ps.testMode && ps.draft === draftCid, JSON.stringify({ testMode: ps.testMode, draft: ps.draft }));
   if (ps.draft) {
     check("(D1) op de draft kan de testmodus NIET uit (ook niet door de beheerder)", errOf(await admin.setMailTest(false, "")).includes("Op de testomgeving blijft de testmodus aan") && (await admin.postSettings()).testMode);
