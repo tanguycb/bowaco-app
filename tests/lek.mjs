@@ -134,6 +134,10 @@ const table = {
   markIntroSeen: [ACTIVE, () => []],
   setStartStep: [ADMIN, () => ["bestaat-niet", true]],
   setStartHidden: [ADMIN, () => [false]],
+  // 2b.6: "nog na te kijken" per werf (settings.values): lezen mag elke actieve persoon (een niet-interne krijgt een lege
+  // lijst), zetten of wissen enkel de beheerder
+  workReviewNotes: [ACTIVE, () => []],
+  setWorkReviewNote: [ADMIN, () => [B, ""]],
   getWork: [ON_B, () => [B]],
   createWork: [["admin", "werfleider"], () => [workIn]],
   setWorkStatus: [["admin", "werfleider"], () => [B, { planned: null }]],

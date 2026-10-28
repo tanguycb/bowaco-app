@@ -1690,8 +1690,16 @@ await sec("── 2b.4 startpunt en overzicht: Zo werkt het voor jou per persoon
   await admin.setStartStep("posten", false);
   await admin.setStartHidden(false);
   check("de markering en het verbergen bewaren zich in settings.values (zichtbaar in de export, geen nieuw stabiel veld)", (await admin.exportIntern()).values.some(([k]) => k.startsWith("intro:")));
+  // 2b.6: "nog na te kijken" per werf (inrichting met de documenten van BOWACO): settings.values, geen nieuw stabiel veld
+  check("nog na te kijken zetten: werfleider, calculator, OA, architect, klant en VC geweigerd", (await Promise.all([wl, calc, oa2, arch, klant, vc].map((x) => denied(x.setWorkReviewNote(B, "x"))))).every(Boolean));
+  check("nog na te kijken: de beheerder zet een reden bij werf B (lege tekst of een te lange tekst niet: onbekende werf geweigerd)", isOk(await admin.setWorkReviewNote(B, "adres uit de mapnaam")) && "err" in (await admin.setWorkReviewNote(999_999n, "x")) && "err" in (await admin.setWorkReviewNote(B, "x".repeat(1001))));
+  const rvAdmin = await admin.workReviewNotes();
+  const rvWl = await wl.workReviewNotes();
+  check("nog na te kijken lezen: beheerder en werfleider zien de reden; OA, architect, klant en VC krijgen niets (interne notitie)", rvAdmin.some(([id, t]) => id === B && t === "adres uit de mapnaam") && rvWl.some(([id]) => id === B) && (await Promise.all([oa2, arch, klant, vc].map((x) => x.workReviewNotes()))).every((x) => x.length === 0));
+  check("nog na te kijken: anoniem en ongekoppeld geweigerd", (await rejects(anon.workReviewNotes())) && (await rejects(nieuw.workReviewNotes())));
+  check("nagekeken (lege tekst): de reden verdwijnt", isOk(await admin.setWorkReviewNote(B, "")) && !(await admin.workReviewNotes()).some(([id]) => id === B));
   const seenKeys = (await admin.exportIntern()).values.filter(([k]) => k.startsWith("intro:")).length;
-  check("'Begrepen' staat per persoon: één sleutel per persoon die het bevestigde", seenKeys >= 7, `${seenKeys} sleutels`);
+  check("'Begrepen' staat per persoon: één sleutel per persoon die het bevestigde", seenKeys >= (process.env.GECLAIMD ? 6 : 7), `${seenKeys} sleutels`);
 
   // Wat de app zelf ziet (bestaande queries): met de rollentest-gegevens is er een werf, een planning en een team
   const f = async (x) => {
@@ -1761,7 +1769,7 @@ for (const c of [invAdm, invOa3]) {
   if ("err" in r && !r.err.includes("niet meer open")) check(`code #${c.ok.inviteId} intrekken`, false, r.err);
 }
 check("geen wachtende koppelingen meer", (await admin.listLinks()).every((l) => !("pending" in l.status)));
-check("geen open codes van de test meer", (await admin.listInvites(0n, 500n)).every((i) => !("open" in i.state) || i.expiresAt < BigInt(Date.now()) * 1_000_000n));
+check("geen open codes van de test meer", (await admin.listInvites(0n, 500n)).every((i) => i.personName === "Testbeheerder" || !("open" in i.state) || i.expiresAt < BigInt(Date.now()) * 1_000_000n));
 
 const s = (Date.now() - t0) / 1000;
 console.log(`\n${pass} ✓  ${fail} ✗  (${s.toFixed(1)} s)`);

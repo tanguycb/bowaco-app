@@ -5734,6 +5734,7 @@ export interface backendInterface {
     setTaskOrder(workId: bigint, taskIds: Array<bigint>, expectedVersion: bigint): Promise<Result_5>;
     setTrade(t: TradeInput): Promise<Result_1>;
     setWadmRules(r: WadmRules): Promise<Result_1>;
+    setWorkReviewNote(workId: bigint, note: string): Promise<Result_1>;
     setWorkStatus(id: bigint, status: WorkStatus): Promise<Result_1>;
     startState(): Promise<StartState>;
     startWorkFromQuote(versionId: bigint, i: WorkStartInput, expectedPlanVersion: bigint): Promise<Result_6>;
@@ -5750,5 +5751,6 @@ export interface backendInterface {
     workAdmin(workId: bigint): Promise<WorkAdminView>;
     workConflicts(workId: bigint, fromDay: bigint, weeks: bigint): Promise<ConflictList>;
     workPermits(workId: bigint): Promise<WorkPermitsView>;
+    workReviewNotes(): Promise<Array<[bigint, string]>>;
     workStartPreview(versionId: bigint, i: WorkStartInput): Promise<Result>;
 }

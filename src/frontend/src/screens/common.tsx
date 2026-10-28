@@ -123,6 +123,12 @@ export function StepBar({ fase, client }: { fase: Fase; client?: boolean }) {
   );
 }
 
+/** 2b.6: de werven met een voorlopige keuze uit de inrichting (werf-id → reden). Enkel interne rollen krijgen er. */
+export function useReviewNotes() {
+  const { actor, isFetching } = useBackend();
+  return useQuery({ queryKey: ["workReviewNotes"], queryFn: async () => new Map((await actor!.workReviewNotes()).map(([id, txt]) => [String(id), txt])), enabled: !!actor && !isFetching });
+}
+
 export function useWorks() {
   const { actor, isFetching } = useBackend();
   return useQuery({ queryKey: ["works"], queryFn: () => actor!.listWorks(), enabled: !!actor && !isFetching });

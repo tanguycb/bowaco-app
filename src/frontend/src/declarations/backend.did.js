@@ -5282,6 +5282,7 @@ export const idlService = IDL.Service({
     ),
   'setTrade' : IDL.Func([TradeInput], [Result_1], []),
   'setWadmRules' : IDL.Func([WadmRules], [Result_1], []),
+  'setWorkReviewNote' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
   'setWorkStatus' : IDL.Func([IDL.Nat, WorkStatus], [Result_1], []),
   'startState' : IDL.Func([], [StartState], ['query']),
   'startWorkFromQuote' : IDL.Func(
@@ -5314,6 +5315,11 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'workPermits' : IDL.Func([IDL.Nat], [WorkPermitsView], ['query']),
+  'workReviewNotes' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Text))],
+      ['query'],
+    ),
   'workStartPreview' : IDL.Func([IDL.Nat, WorkStartInput], [Result], ['query']),
 });
 
@@ -10536,6 +10542,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'setTrade' : IDL.Func([TradeInput], [Result_1], []),
     'setWadmRules' : IDL.Func([WadmRules], [Result_1], []),
+    'setWorkReviewNote' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
     'setWorkStatus' : IDL.Func([IDL.Nat, WorkStatus], [Result_1], []),
     'startState' : IDL.Func([], [StartState], ['query']),
     'startWorkFromQuote' : IDL.Func(
@@ -10572,6 +10579,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'workPermits' : IDL.Func([IDL.Nat], [WorkPermitsView], ['query']),
+    'workReviewNotes' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Text))],
+        ['query'],
+      ),
     'workStartPreview' : IDL.Func(
         [IDL.Nat, WorkStartInput],
         [Result],

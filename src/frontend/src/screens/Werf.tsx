@@ -6,10 +6,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { GuaranteeKind, OrgKind, QuoteStatus, Role, WorkStatus, type Caps, type ContractInput, type ContractView, type InvoicingRhythm, type WorkView } from "../backend";
-import { Button, Info, Choice, Icon, Sheet, useToast } from "../design";
+import { Button, Info, Choice, Icon, Provisional, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
-import { factsOf, Loading, Page, PhaseLabel, StepBar, useStages, useWorks } from "./common";
+import { factsOf, Loading, Page, PhaseLabel, StepBar, useReviewNotes, useStages, useWorks } from "./common";
 import { isClient } from "../app/nav";
 import { faseNaam, toontFase, volgendeStap, werfFase, werfTabs, type Fase, type Stap, type StageFacts, type TabKey, type WerfTab } from "../app/fase";
 import { WorkConflicts } from "./Weekbord";
@@ -37,8 +37,10 @@ export function WerfDetail({ id, caps, go, tab }: { id: bigint; caps: Caps; go: 
   const pending = useQuery({ queryKey: ["pendingWorkStarts", String(id)], queryFn: () => actor!.pendingWorkStarts(id), enabled: on && caps.workStarts, refetchOnWindowFocus: true });
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
   const works = useWorks();
+  const review = useReviewNotes();
   const phone = useMedia("(max-width: 899px)");
   const [editing, setEditing] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [override, setOverride] = useState(false);
   const [toStatus, setToStatus] = useState<"delivered" | "aftercare" | null>(null);
   // Elk ander tabblad: de stand opnieuw (een handeling in een tabblad kan de fase doen schuiven), en elke 30 s.
@@ -88,6 +90,8 @@ export function WerfDetail({ id, caps, go, tab }: { id: bigint; caps: Caps; go: 
             <span className="bw-muted">{addr}</span>
             {orgName(w.clientOrgId) && <span className="a-tag">{orgName(w.clientOrgId)}</span>}
             {parent && <button type="button" className="a-tag a-tag--link" onClick={() => go(`werven/${parent.id}`)}>{t.werven.subOf} {parent.code}</button>}
+            {review.data?.get(String(w.id)) && <Provisional label={t.werven.review} reason={review.data.get(String(w.id))} infoLabel={t.werven.reviewInfo} />}
+            {review.data?.get(String(w.id)) && caps.manageSettings && <Button onClick={() => setReviewing(true)}>{t.werven.reviewDone}</Button>}
           </div>
           {toontFase(caps) && <StepBar fase={fase} client={client} />}
           {stap && <NextCard stap={stap} onAct={act} />}
@@ -130,6 +134,7 @@ export function WerfDetail({ id, caps, go, tab }: { id: bigint; caps: Caps; go: 
       {editing && <EditWork w={w} caps={caps} onClose={() => setEditing(false)} />}
       {override && <OverrideSheet w={w} fase={fase} onClose={() => setOverride(false)} />}
       {toStatus && <StatusSheet w={w} status={toStatus} onClose={() => setToStatus(null)} />}
+      {reviewing && <ReviewSheet w={w} reason={review.data?.get(String(w.id)) ?? ""} onClose={() => setReviewing(false)} />}
     </Page>
   );
 }
@@ -407,6 +412,24 @@ function OverrideSheet({ w, fase, onClose }: { w: WorkView; fase: Fase; onClose:
         <p className="bw-muted">{F.overrideNote}</p>
         {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
       </div>
+    </Sheet>
+  );
+}
+
+/** 2b.6: een voorlopige keuze uit de inrichting nakijken; "Nagekeken" wist het label (enkel de beheerder). */
+function ReviewSheet({ w, reason, onClose }: { w: WorkView; reason: string; onClose: () => void }) {
+  const { actor } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const save = useMutation({
+    mutationFn: async () => unwrap(await actor!.setWorkReviewNote(w.id, "")),
+    onSuccess: () => { toast.show({ kind: "ok", text: t.werven.reviewOk }); void qc.invalidateQueries({ queryKey: ["workReviewNotes"] }); onClose(); },
+  });
+  return (
+    <Sheet title={`${t.werven.reviewSheet} · ${w.code}`} open onClose={onClose} footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.werven.reviewDone}</Button></>}>
+      <p>{t.werven.reviewLead}</p>
+      <p className="a-note">{reason}</p>
+      {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
     </Sheet>
   );
 }

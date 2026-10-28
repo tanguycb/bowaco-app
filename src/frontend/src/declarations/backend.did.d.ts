@@ -4941,6 +4941,7 @@ export interface _SERVICE {
   'setTaskOrder' : ActorMethod<[bigint, Array<bigint>, bigint], Result_5>,
   'setTrade' : ActorMethod<[TradeInput], Result_1>,
   'setWadmRules' : ActorMethod<[WadmRules], Result_1>,
+  'setWorkReviewNote' : ActorMethod<[bigint, string], Result_1>,
   'setWorkStatus' : ActorMethod<[bigint, WorkStatus], Result_1>,
   'startState' : ActorMethod<[], StartState>,
   'startWorkFromQuote' : ActorMethod<
@@ -4963,6 +4964,7 @@ export interface _SERVICE {
   'workAdmin' : ActorMethod<[bigint], WorkAdminView>,
   'workConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
   'workPermits' : ActorMethod<[bigint], WorkPermitsView>,
+  'workReviewNotes' : ActorMethod<[], Array<[bigint, string]>>,
   'workStartPreview' : ActorMethod<[bigint, WorkStartInput], Result>,
 }
 export declare const idlService: IDL.ServiceClass;

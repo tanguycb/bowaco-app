@@ -7,7 +7,7 @@ import { Button, Choice, Icon, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { OpenConfidential } from "./Dossier";
 import { errText, fmtBytes, fmtTime, optText, unwrap, useBackend } from "../util";
-import { EmptyState, factsOf, Loading, Page, PhaseLabel, useStages, useWorks, WorkList } from "./common";
+import { EmptyState, factsOf, Loading, Page, PhaseLabel, useReviewNotes, useStages, useWorks, WorkList } from "./common";
 import { DashCounters, useDashboard } from "./Dashboard";
 import { isClient } from "../app/nav";
 import { volgendeStap, werfFase, werfGroep } from "../app/fase";
@@ -36,6 +36,7 @@ type Group = (typeof GROUPS)[number];
  */
 export function Werven({ caps, go, route }: { caps: Caps; go: (to: string) => void; route?: string[] }) {
   const works = useWorks();
+  const review = useReviewNotes();
   const stages = useStages();
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
@@ -99,7 +100,7 @@ export function Werven({ caps, go, route }: { caps: Caps; go: (to: string) => vo
           onRow={(r) => go(`werven/${r.w.id}`)}
           columns={[
             { key: "code", label: W.cols.code, width: "110px", render: (r) => <span className="bw-mono">{r.w.parentId !== undefined ? "↳ " : ""}{r.w.code}</span> },
-            { key: "werf", label: W.cols.werf, render: (r) => <span className="a-list__main"><b>{r.w.name}</b><span className="bw-muted">{r.w.parentId !== undefined ? `${W.sub} · ` : ""}{r.w.address.city}</span></span> },
+            { key: "werf", label: W.cols.werf, render: (r) => <span className="a-list__main"><b>{r.w.name}</b><span className="bw-muted">{r.w.parentId !== undefined ? `${W.sub} · ` : ""}{r.w.address.city}{review.data?.has(String(r.w.id)) ? <>{r.w.address.city || r.w.parentId !== undefined ? " · " : ""}<span className="bw-provisional">{t.werven.review}</span></> : null}</span></span> },
             { key: "klant", label: W.cols.klant, render: (r) => oname(r.w.clientOrgId) || <span className="bw-muted">–</span> },
             { key: "fase", label: W.cols.fase, render: (r) => <PhaseLabel fase={r.fase} /> },
             { key: "leider", label: W.cols.leider, render: (r) => pname(r.w.leaderPersonId) || <span className="bw-muted">{t.werven.noLeader}</span> },

@@ -37,6 +37,7 @@ import ProgressApi "mixins/ProgressApi";
 import OaInvoiceApi "mixins/OaInvoiceApi";
 import StageApi "mixins/StageApi";
 import StartApi "mixins/StartApi";
+import ReviewApi "mixins/ReviewApi";
 import Post "lib/Post";
 import Mail "lib/Mail";
 import Principal "mo:core/Principal";
@@ -125,6 +126,9 @@ persistent actor Self {
 
   // 2b.4: het startpunt (Aan de slag, Zo werkt het voor jou); bewaard in settings.values, geen migratie.
   include StartApi(settings, access, works, audit);
+
+  // 2b.6: "nog na te kijken" per werf (voorlopige keuzes van de inrichting); settings.values, geen migratie.
+  include ReviewApi(settings, access, works, audit);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

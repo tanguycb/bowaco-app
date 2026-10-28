@@ -90,6 +90,8 @@ if [[ -n "$echte" ]]; then
   python3 -I tools/rekentest-echt.py "$echte"
   node tests/rekentest-echt.mjs "$HOME/.bowaco/posten/rekentest-2026-231.json"
 fi
+# 2b.6: de inrichting (lezers + import, droogloop, echt, nog eens) op een VERZONNEN documentenmap; nooit echte gegevens.
+node tests/inrichting.mjs "$cid"
 # mail-caffeine: de app verstuurt zelf (nep-maildienst); de gateway (fase 3) enkel nog eenheidstesten.
 node tests/mail-proef.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )
