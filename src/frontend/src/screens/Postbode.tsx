@@ -1,7 +1,7 @@
 // Postbode (stap 1b.3, sinds mail-caffeine): de app verstuurt de mails zelf via de maildienst van Caffeine. De
 // beheerder zet de testmodus (alle mail naar één testadres, of droog), de weekmail en de herinneringen, bekijkt een mail
 // vooraf zoals ze vertrekt, zet een proefmail klaar en verstuurt meteen, volgt de wachtrij en het logboek (zonder
-// adressen), en kiest per firma aan/uit en de taal. Robots (de gateway) blijven voor fase 3; ze krijgen geen mail meer.
+// adressen), en kiest per firma aan/uit en de taal. Koppelingen met andere programma's komen later; die krijgen geen scherm.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Principal } from "@icp-sdk/core/principal";
@@ -224,8 +224,6 @@ export function PostbodePage() {
         </ul>
       </section>
 
-      {s && <Robots />}
-
       {preview && <PreviewSheet onClose={() => setPreview(false)} orgs={withMail.map((o) => ({ id: o.org.id, name: o.org.name }))} />}
       <Confirm open={confirmAll} title={S.queueAllTitle} text={S.queueAllText(fmtDayNum(nextMonday()), !!s?.testMode)} confirmLabel={S.queueAll} busy={qAll.isPending} onConfirm={() => qAll.mutate()} onClose={() => setConfirmAll(false)} />
       <Confirm open={confirmOff} title={S.testOffTitle} text={S.testOffText} confirmLabel={S.testOffConfirm} busy={saveTest.isPending} onConfirm={() => saveTest.mutate()} onClose={() => setConfirmOff(false)} />
@@ -261,44 +259,5 @@ function PreviewSheet({ onClose, orgs }: { onClose: () => void; orgs: { id: bigi
         </div>
       )}
     </Sheet>
-  );
-}
-
-const KINDS = ["proef", "inhoudingsplicht"];
-
-function Robots() {
-  const { actor, isFetching } = useBackend();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const robots = useQuery({ queryKey: ["robots"], queryFn: () => actor!.listRobots(), enabled: !!actor && !isFetching });
-  const [rp, setRp] = useState("");
-  const [rn, setRn] = useState("Gateway");
-  const [kinds, setKinds] = useState<string[]>(["proef"]);
-  const [revoking, setRevoking] = useState<Principal | null>(null);
-  const ok = () => { toast.show({ kind: "ok", text: t.common.saved }); void qc.invalidateQueries(); };
-  const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
-  const add = useMutation({ mutationFn: async () => unwrap(await actor!.addRobot(Principal.fromText(rp.trim()), rn, kinds)), onSuccess: () => { setRp(""); ok(); }, onError: fail });
-  const revoke = useMutation({ mutationFn: async (p: Principal) => unwrap(await actor!.revokeRobot(p)), onSuccess: () => { setRevoking(null); ok(); }, onError: fail });
-  return (
-    <section className="a-section" style={{ maxWidth: 720 }}>
-      <h2 className="bw-h2">{t.settings.robots}</h2>
-      <p className="bw-muted">{S.robotsLead}</p>
-      <Loading q={robots} />
-      <ul className="a-list">
-        {(robots.data ?? []).map((r) => (
-          <li key={r.principal.toText()}>
-            <span className="a-list__main"><b>{r.name} · {r.kinds.map((k) => S.robotKinds[k] ?? k).join(", ")}</b><span className="a-mono">{r.principal.toText()}</span><span className="bw-muted">{fmtTime(r.addedAt)}{r.revokedAt !== undefined ? ` · ${S.revokedAt} ${fmtTime(r.revokedAt)}` : ""}</span></span>
-            {r.revokedAt === undefined && <Button variant="quiet" onClick={() => setRevoking(r.principal)}>{t.settings.revoke}</Button>}
-          </li>
-        ))}
-      </ul>
-      <div className="a-grid2">
-        <Field label={t.settings.principal}><input className="bw-input bw-mono" value={rp} onChange={(e) => setRp(e.target.value)} /></Field>
-        <Field label={t.team.name}><input className="bw-input" value={rn} onChange={(e) => setRn(e.target.value)} /></Field>
-      </div>
-      <div className="a-row">{KINDS.map((k) => <label key={k} className="a-check"><input type="checkbox" checked={kinds.includes(k)} onChange={(e) => setKinds((xs) => (e.target.checked ? [...xs, k] : xs.filter((x) => x !== k)))} /> {S.robotKinds[k]}</label>)}</div>
-      <div><Button icon="plus" disabled={!rp || !rn || kinds.length === 0} busy={add.isPending} onClick={() => add.mutate()}>{t.settings.addRobot}</Button></div>
-      <Confirm open={revoking !== null} title={S.revokeTitle} text={S.revokeText} confirmLabel={t.settings.revoke} busy={revoke.isPending} onConfirm={() => revoking && revoke.mutate(revoking)} onClose={() => setRevoking(null)} />
-    </section>
   );
 }

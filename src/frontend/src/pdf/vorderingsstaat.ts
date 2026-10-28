@@ -348,10 +348,10 @@ export async function progressPdf(d: ProgressPdfData, fonts: PdfFonts): Promise<
       page.drawRectangle({ x: ML, y: y - 34, width: CW, height: 42, borderColor: col(ACCENT), borderWidth: 0.9, color: rgb(0.96, 0.97, 1) });
       text(d.answer.ok ? "AKKOORD VAN DE KLANT" : "OPMERKING VAN DE KLANT", ML + 10, y - 6, F.monoB, 7.5, ACCENT, { spacing: 1 });
       text(`${d.answer.byName} op ${dayText(d.answer.atDay)}${d.answer.ok ? "" : `: ${d.answer.note}`}`.slice(0, 160), ML + 10, y - 20, F.r, 8.5, INK);
-      text(`Geldt voor exact deze inhoud: ${d.hash.slice(0, 32)}…`, ML + 10, y - 30, F.mono, 6.8, GRAY);
+      text(`Controlecode van deze inhoud: ${d.hash.slice(0, 32)}…`, ML + 10, y - 30, F.mono, 6.8, GRAY);
       y -= 48;
     } else if (d.frozen) {
-      for (const t of wrap(F.r, 8, "U kunt deze vorderingsstaat nakijken en uw akkoord geven in de app BOWACO (Mijn vorderingsstaten), na aanmelding met uw Internet Identity.", CW)) { text(t, ML, y, F.r, 8, GRAY); y -= 11; }
+      for (const t of wrap(F.r, 8, "U kunt deze vorderingsstaat nakijken en uw akkoord geven in de app BOWACO (Mijn vorderingsstaten), na het inloggen.", CW)) { text(t, ML, y, F.r, 8, GRAY); y -= 11; }
     }
   }
   const iss = d.issuer.split(/\r?\n/).filter((x) => x.trim());

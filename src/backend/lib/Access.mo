@@ -21,7 +21,7 @@ module {
   type Person = Types.Person;
 
   public func requireAuthenticated(caller : Principal) {
-    if (caller.isAnonymous()) { Runtime.trap("Niet ingelogd") };
+    if (caller.isAnonymous()) { Runtime.trap("Je bent niet ingelogd") };
   };
 
   // Actieve persoon achter deze principal: actieve koppeling en niet gearchiveerd. Anders null.
@@ -36,7 +36,7 @@ module {
 
   public func requireActive(access : AccessState, caller : Principal) : Person {
     requireAuthenticated(caller);
-    activePerson(access, caller) ?? Runtime.trap("Geen toegang: geen actieve koppeling");
+    activePerson(access, caller) ?? Runtime.trap("Geen toegang: je toegang is nog niet bevestigd of is stopgezet");
   };
 
   // ── Robot (R28): een principal in robot.robots, nooit een persoon ───────
@@ -45,7 +45,7 @@ module {
   };
 
   public func requireRobot(robot : Types.RobotState, caller : Principal) {
-    if (not isRobot(robot, caller)) { Runtime.trap("Geen toegang: alleen een robot") };
+    if (not isRobot(robot, caller)) { Runtime.trap("Geen toegang") };
   };
 
   // ── Personen ────────────────────────────────────────────────────────────

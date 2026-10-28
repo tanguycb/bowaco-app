@@ -499,7 +499,7 @@ mixin (
     Rights.require({ works; settings }, p, #manageTemplates, null);
     let key = Text.toLower(i.key.trim(#char ' '));
     if (key.size() == 0 or key.size() > 40 or not key.chars().all(func c = (c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-')) {
-      return #err("Sleutel: 1 tot 40 tekens, enkel a-z, 0-9 en -");
+      return #err("Code: 1 tot 40 tekens, enkel a-z, 0-9 en -");
     };
     let name = Access.cleanText(i.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
     let known = Oa.trades(settings, false);
@@ -890,7 +890,7 @@ mixin (
     switch scope {
       case (#company) Rights.require(ctx, p, #manageCompanyCalendar, null);
       case (#work w) Rights.require(ctx, p, #editPlanning, ?w);
-      case (#org _) Runtime.trap("Geen toegang: verlof van een firma is een afwezigheid (weekbord, 1.4)");
+      case (#org _) Runtime.trap("Geen toegang: verlof van een firma is een afwezigheid: zet ze op het weekbord");
     };
   };
 

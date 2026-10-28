@@ -6,7 +6,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ExternalBlob, ContractForm, OrgKind, QuoteLineKind, QuoteScope, QuoteStatus, type Caps, type LibChapterView, type LibItemView, type LibSellRule, type OrgView, type QuoteChapterRef, type QuoteRead, type QuoteSummary, type UnitView } from "../backend";
-import { Button, Choice, Icon, Sheet, useToast } from "../design";
+import { Button, Choice, Icon, Info, Sheet, useToast } from "../design";
 import { calcLine, type Kind, type Rule } from "../quote/calc.ts";
 import * as M from "../quote/model.ts";
 import { addressOk, blocks, evaluate, warnings, type Finding, type RuleSet, type StdPost } from "../quote/rules.ts";
@@ -416,7 +416,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
         {scope === QuoteScope.full && prevId !== undefined && !diff && <Button variant="quiet" onClick={() => void showDiff()}>{O.diff(O.version(v.basedOnVersion!))}</Button>}
       </div>
 
-      {!v.editable && <p className="a-note">{O.readOnly(statusWord(v.status))} {v.hash && <><span className="bw-mono">{O.hash} {v.hash.slice(0, 16)}…</span> · {v.intact ? O.intact : <b className="a-err">{O.notIntact}</b>}</>} {v.decisionNote && <>· {v.decisionNote}</>}</p>}
+      {!v.editable && <p className="a-note">{O.readOnly(statusWord(v.status))} {v.hash && <><span className="bw-mono">{O.hash} {v.hash.slice(0, 16)}…</span><Info text={t.uitleg.controlecode} label={t.uitleg.label} /> · {v.intact ? O.intact : <b className="a-err">{O.notIntact}</b>}</>} {v.decisionNote && <>· {v.decisionNote}</>}</p>}
       {read.doc?.acceptance && (
         <p className="a-note" data-testid="acceptance">
           <b>{O.acceptance}.</b>{" "}
@@ -859,7 +859,7 @@ function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.
               <label className="bw-field"><span className="bw-label">{O.unit}</span>
                 <select className="bw-input" disabled={ro} value={l.unit} onChange={(e) => up({ unit: e.target.value })}>{units.map((u) => <option key={u.key} value={u.key}>{u.key} · {u.name}</option>)}</select>
               </label>
-              <label className="bw-field"><span className="bw-label">{O.form}</span>
+              <label className="bw-field"><span className="bw-label">{O.form}<Info text={t.uitleg.contractvorm} label={t.uitleg.label} /></span>
                 <select className="bw-input" disabled={ro} value={l.form} onChange={(e) => up({ form: e.target.value })}>{FORMS.map((f) => <option key={f} value={f}>{O.forms[f]}</option>)}</select>
               </label>
             </div>

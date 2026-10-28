@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Grant, LinkStatus, OrgKind, Role, WorkStatus, type Caps, type MembershipView, type NewCode, type OrgView, type PersonView, type WorkView } from "../backend";
-import { Button, Choice, Sheet, useToast } from "../design";
+import { Button, Choice, Info, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, optText, unwrap, useBackend } from "../util";
 import { Loading, RoleTags, useWorks } from "./common";
@@ -90,7 +90,7 @@ export function ToegangGeven({ person, orgKind, workId, caps, onClose }: { perso
       <Button onClick={onClose}>{t.common.cancel}</Button>
       <Button variant="primary" icon="key" busy={make.isPending} disabled={blocked} onClick={() => make.mutate()} data-testid="toegang-maken">{T.make}</Button>
     </>}>
-      <p className="bw-muted">{T.lead}</p>
+      <p className="bw-muted">{T.lead}<Info text={t.uitleg.toegangscode} label={t.uitleg.label} /></p>
       <p className="a-note">{T.noDouble}</p>
       <div className="a-form">
         {internal ? (
@@ -151,7 +151,7 @@ export function NieuwMetToegang({ org, workId, onClose, onDone }: { org: OrgView
       <Button onClick={onClose}>{t.common.cancel}</Button>
       <Button variant="primary" icon="key" busy={make.isPending} disabled={!f.name.trim()} onClick={() => make.mutate()}>{T.make}</Button>
     </>}>
-      <p className="bw-muted">{T.lead}</p>
+      <p className="bw-muted">{T.lead}<Info text={t.uitleg.toegangscode} label={t.uitleg.label} /></p>
       <div className="a-form">
         <Field label={T.name}><input className="bw-input" value={f.name} maxLength={80} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <div className="a-grid2">

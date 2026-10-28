@@ -178,7 +178,7 @@ mixin (
     let p = pbAdmin(caller);
     if (x.day > 6 or x.reminderDay > 6 or x.hour > 23) { return #err("Dag 0–6 (maandag = 0), uur 0–23") };
     let url = x.appUrl.trim(#char ' ');
-    if (url.size() > Config.maxUrl or (url.size() > 0 and Mail.safeLink(?url) == null)) { return #err("Adres van de app: https://… (hoogstens 300 tekens)") };
+    if (url.size() > Config.maxUrl or (url.size() > 0 and Mail.safeLink(?url) == null)) { return #err("Webadres van de app: https://… (hoogstens 300 tekens)") };
     switch (x.contact) { case (?c) { switch (Oa.normEmail(?c)) { case (#err e) return #err("Adres van het kantoor: " # e); case _ {} } }; case null {} };
     settings.values.add("post.weekmail", if (x.weekmail) "aan" else "uit");
     settings.values.add("post.herinneringen", if (x.reminders) "aan" else "uit");
@@ -258,8 +258,8 @@ mixin (
   // auditlog.
   public shared ({ caller }) func setMailTest(on : Bool, address : Text) : async Result.Result<Views.PostSettingsView, Text> {
     let p = pbAdmin(caller);
-    if (not on and isDraft()) { return #err("Op de draft blijft de testmodus aan: vanaf de draft gaat nooit een mail naar een echte firma") };
-    if (not on and not isLive()) { return #err("Op deze canister blijft de testmodus aan: echte mail kan enkel vanaf de livecanister (Config.mailLiveBackends)") };
+    if (not on and isDraft()) { return #err("Op de testomgeving blijft de testmodus aan: vanuit de testomgeving gaat nooit een mail naar een echte firma") };
+    if (not on and not isLive()) { return #err("Hier blijft de testmodus aan: echte mail kan enkel vanuit de echte omgeving") };
     let a = switch (Oa.normEmail(?address)) { case (#ok (?e)) e; case (#ok null) ""; case (#err e) return #err(e) };
     if (not on and a.size() > 0) { return #err("Zonder testmodus geen testadres: laat het leeg") };
     settings.values.add("post.testmodus", if on "aan" else "uit");

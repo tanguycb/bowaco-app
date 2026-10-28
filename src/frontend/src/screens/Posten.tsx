@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ContractForm, OrgKind, type Caps, type LibChapterView, type LibCostView, type LibItemView, type LibPriceView, type LibSellRule, type UnitView } from "../backend";
-import { Button, Choice, Sheet, Table, useToast } from "../design";
+import { Button, Choice, Info, Provisional, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page } from "./common";
@@ -639,7 +639,7 @@ function ChaptersSheet({ caps, chapters, units, onClose }: { caps: Caps; chapter
             onRow={caps.editLibrary ? (c) => setEdit(c) : undefined}
             columns={[
               { key: "c", label: P.code, width: "60px", render: (c) => <span className="bw-mono">{c.code}</span> },
-              { key: "t", label: P.chapterTitle, render: (c) => <span><b>{c.title}</b>{c.archived && <> <span className="a-tag a-tag--bad">{P.archived}</span></>}{c.note.startsWith("VOORLOPIG") && <> <span className="a-tag a-tag--warn">{P.provisional}</span></>}</span> },
+              { key: "t", label: P.chapterTitle, render: (c) => <span><b>{c.title}</b>{c.archived && <> <span className="a-tag a-tag--bad">{P.archived}</span></>}{/^(VOORLOPIG|nog na te kijken)/i.test(c.note) && <> <Provisional label={P.provisional} reason={t.uitleg.redenPosten} infoLabel={t.uitleg.provisionalLabel} /></>}</span> },
               { key: "n", label: "", right: true, render: (c) => <span className="bw-muted">{P.items(c.items)}</span> },
               { key: "o", label: P.order, right: true, width: "70px", render: (c) => <span className="bw-mono">{String(c.order)}</span> },
             ]}

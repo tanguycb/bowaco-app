@@ -47,9 +47,9 @@ function Afwezigheden({ caps }: { caps: Caps }) {
   return (
     <Page label={t.board.title} title={P.afwezigheden}>
       <p className="bw-muted">{P.absLead}</p>
-      <label className="bw-field"><span className="bw-label">Firma</span>
-        <select className="bw-input" value={org} onChange={(e) => setOrg(e.target.value)} style={{ maxWidth: 340 }} aria-label="Firma">
-          <option value="">Alle firma's</option>
+      <label className="bw-field"><span className="bw-label">{t.common.firm}</span>
+        <select className="bw-input" value={org} onChange={(e) => setOrg(e.target.value)} style={{ maxWidth: 340 }} aria-label={t.common.firm}>
+          <option value="">{t.common.allFirms}</option>
           {(oas.data ?? []).map((o) => <option key={String(o.org.id)} value={String(o.org.id)}>{o.org.aliases[0] ? `${o.org.aliases[0]} · ` : ""}{o.org.name}</option>)}
         </select>
       </label>

@@ -1,5 +1,6 @@
 import { loadConfig, useActor } from "@caffeineai/core-infrastructure";
 import { createActor, type Backend } from "./backend";
+import { t } from "./texts/nl";
 
 export function useBackend(): { actor: Backend | null; isFetching: boolean } {
   return useActor(createActor);
@@ -14,13 +15,24 @@ export function unwrap<T>(r: Res<T>): T {
   return r.ok;
 }
 
+/** Technische netwerk- en systeemfouten (niet van onze backend) in gewone woorden (stap 2b.5). */
+function plain(m: string): string | null {
+  if (/Unauthorized access/i.test(m)) return t.common.noAccess;
+  if (/Failed to fetch|NetworkError|Load failed|ETIMEDOUT|ECONNRESET|IC0503|IC0515|canister_not_found|certificate|timed out|timeout|agent error|AgentError|HttpError|Fetch request failed/i.test(m)) return t.common.noConnection;
+  return null;
+}
+
 /** Een trap van de backend ("Geen toegang …") of een netwerkfout als leesbare tekst. */
 export function errText(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
   const reject = m.match(/Reject text: ([^\n]+)/) ?? m.match(/reject_message=([^,\n]+)/);
-  if (reject) return reject[1].replace(/^Canister called `ic0.trap` with message: '?/, "").replace(/'$/, "");
-  if (/trapped explicitly: ([^\n]+)/.test(m)) return m.match(/trapped explicitly: ([^\n]+)/)![1];
-  return m.length > 200 ? m.slice(0, 200) + "…" : m;
+  if (reject) {
+    const own = reject[1].replace(/^Canister called `ic0.trap` with message: '?/, "").replace(/'$/, "");
+    return plain(own) ?? own;
+  }
+  const trapped = m.match(/trapped explicitly: ([^\n]+)/);
+  if (trapped) return plain(trapped[1]) ?? trapped[1];
+  return plain(m) ?? (m.length > 200 ? m.slice(0, 200) + "…" : m);
 }
 
 const dateFmt = new Intl.DateTimeFormat("nl-BE", { day: "2-digit", month: "2-digit", year: "numeric" });

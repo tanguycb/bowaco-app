@@ -9,7 +9,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ProgressBasis, ProgressKind, ProgressSection, ProgressStatus, type Caps, type MyProgressBrief, type MyProgressRead, type ProgressBrief, type ProgressFullView, type ProgressQtyLine, type ProgressQtyView, type RevisionModel } from "../backend";
-import { Button, Icon, Sheet, useToast } from "../design";
+import { Button, Icon, Info, Sheet, useToast } from "../design";
 import { makeProgressPdf, pdfFromMyProgress, pdfFromProgress, progressPdfName } from "../pdf/adapt.ts";
 import type { ProgressPdfData } from "../pdf/vorderingsstaat.ts";
 import { progressLine } from "../progress/calc.ts";
@@ -45,7 +45,7 @@ function ProgressWorks({ go }: { go: (to: string) => void }) {
   const rows = q.data ?? [];
   return (
     <Page label={T.label} title={T.title}>
-      <p className="bw-muted" style={{ maxWidth: 720 }}>{T.lead}</p>
+      <p className="bw-muted" style={{ maxWidth: 720 }}>{T.lead}<Info text={t.uitleg.vordering} label={t.uitleg.label} /></p>
       <Loading q={q} />
       {q.data && rows.length === 0 && <EmptyState title={t.leeg.vorderingen.t} text={t.leeg.vorderingen.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />}
       {rows.length > 0 && (

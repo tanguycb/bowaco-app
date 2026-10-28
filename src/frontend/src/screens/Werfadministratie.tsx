@@ -5,7 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useState } from "react";
 import { WithholdingResult, type CiawExport, type DeclarationDraft, type DeclarationView, type OaWithholding, type WorkAdminView, type WorkView } from "../backend";
-import { Button, Choice, Icon, Sheet, useToast } from "../design";
+import { Button, Choice, Icon, Info, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, inputToDay, parseEuro, todayDay, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
@@ -259,7 +259,7 @@ export function WadmPage({ go, canRules }: { go: (to: string) => void; canRules:
   const v = q.data;
   return (
     <Page title={A.title}>
-      <p className="bw-muted">{A.pageLead}</p>
+      <p className="bw-muted">{A.pageLead}<Info text={t.uitleg.bis30} label="30bis" /><Info text={t.uitleg.checkin} label="Checkinatwork" /><Info text={t.uitleg.inhouding} label="Inhoudingsplicht" /></p>
       <Loading q={q} />
       {v && (
         <>

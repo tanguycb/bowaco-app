@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { BlockKind, TaskKind, type TemplateStep, type TemplateView } from "../backend";
-import { Button, Choice, Sheet, useToast } from "../design";
+import { Button, Choice, Provisional, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, inputToDay, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -98,7 +98,7 @@ export function Templates() {
               <button type="button" className="a-list__btn" onClick={() => setEdit(x)}>
                 <span className="a-tag">{x.key}</span>
                 <span className="a-list__main"><b>{x.name}</b><span className="bw-muted">{x.steps.length} {t.plan.tplSteps.toLowerCase()}{x.stored ? "" : ` · ${t.plan.tplDefault}`}</span></span>
-                {x.provisional && <span className="a-tag a-tag--warn">{t.plan.provisional}</span>}
+                {x.provisional && <Provisional label={t.plan.provisional} reason={t.uitleg.redenPlanning} infoLabel={t.uitleg.provisionalLabel} />}
                 {x.archived && <span className="a-tag a-tag--bad">{t.plan.tplArchived}</span>}
               </button>
             </li>

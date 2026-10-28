@@ -5,7 +5,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { QuoteLineKind, QuoteStatus, type MyQuoteBrief, type MyQuoteRead } from "../backend";
-import { Button, Icon, Sheet, useToast } from "../design";
+import { Button, Icon, Info, Sheet, useToast } from "../design";
 import { makePdf, pdfName } from "../pdf/adapt.ts";
 import { pdfFromMine } from "../pdf/adapt.ts";
 import { t } from "../texts/nl";
@@ -176,7 +176,7 @@ function MyQuote({ versionId, go }: { versionId: bigint; go: (to: string) => voi
             </dl>
             {r.vatBp === 600n && r.doc.vatNote && <p className="bw-muted q-small">{T.vatGround(r.doc.vatNote)}</p>}
           </section>
-          <p className="bw-muted q-small mq-hash" data-testid="mq-hash">{T.hash} <span className="bw-mono">{r.hash.slice(0, 16)}…</span></p>
+          <p className="bw-muted q-small mq-hash" data-testid="mq-hash">{T.hash} <span className="bw-mono">{r.hash.slice(0, 16)}…</span><Info text={t.uitleg.controlecode} label={t.uitleg.label} /></p>
           {r.canAnswer && (
             <div className="mq-answer">
               <Button variant="primary" icon="check" onClick={() => setSheet("accept")}>{T.accept}</Button>

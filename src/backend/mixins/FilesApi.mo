@@ -41,9 +41,9 @@ mixin (
     let n = Access.cleanText(name, 200) ?? return #err("Bestandsnaam: 1 tot 200 tekens");
     if (not Config.allowedMime(mime)) { return #err("Alleen JPEG, PNG, WebP of PDF") };
     if (size == 0 or size > Config.maxFileBytes) { return #err("Bestand te groot") };
-    if (blob.size() > 200) { return #err("Ongeldige verwijzing") };
+    if (blob.size() > 200) { return #err("Het bestand klopt niet") };
     let mine = files.files.values().filter(func f = f.personId == p.id).size();
-    if (mine >= Config.maxFilesPerPerson) { return #err("Quotum bereikt") };
+    if (mine >= Config.maxFilesPerPerson) { return #err("De opslagruimte is vol. Neem contact op met de beheerder") };
     let id = Ids.next(ctr, "file");
     let f : Types.FileRef = { id; name = n; mime; size; blob; workId; confidential; personId = p.id; at = Time.now(); var archivedAt = null };
     files.files.add(id, f);

@@ -89,8 +89,8 @@ mixin (
   public shared ({ caller }) func addRobot(principal : Principal, name : Text, kinds : [Text]) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #manageRobots, null);
-    if (principal.isAnonymous()) { return #err("Ongeldige principal") };
-    if (access.links.containsKey(principal)) { return #err("Deze principal is een persoon") };
+    if (principal.isAnonymous()) { return #err("Ongeldige sleutel") };
+    if (access.links.containsKey(principal)) { return #err("Deze sleutel hoort bij een persoon") };
     let n = Access.cleanText(name, Config.maxName) ?? return #err("Naam ontbreekt");
     if (kinds.size() > 10) { return #err("Te veel soorten") };
     // 1b.3: enkel gekende soorten (R28: een robot krijgt nooit meer dan nodig).
@@ -108,7 +108,7 @@ mixin (
   public shared ({ caller }) func revokeRobot(principal : Principal) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #manageRobots, null);
-    let r = robot.robots.get(principal) ?? return #err("Onbekende robot");
+    let r = robot.robots.get(principal) ?? return #err("Onbekend programma");
     if (r.revokedAt != null) { return #err("Al ingetrokken") };
     r.revokedAt := ?Time.now();
     r.revokedBy := ?p.id;

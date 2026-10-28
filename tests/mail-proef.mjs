@@ -42,7 +42,7 @@ console.log(`canister ${cid} · ${(await admin.me()).version} · draft ${ps.draf
 check("testmodus staat aan", ps.testMode);
 if (ps.draft) {
   const r = await admin.setMailTest(false, "");
-  check("draft: de testmodus kan niet uit", "err" in r && r.err.includes("Op de draft"), JSON.stringify(r));
+  check("draft: de testmodus kan niet uit", "err" in r && r.err.includes("testomgeving"), JSON.stringify(r));
 }
 // 1b.5 (M2): buiten de testbouw kan echte mail enkel vanaf een canister in Config.mailLiveBackends.
 if (!local) check("geen livecanister: liveMail = false (echte mail onmogelijk, wat de beheerder ook instelt)", ps.liveMail === false);

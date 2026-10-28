@@ -139,7 +139,7 @@ mixin (
     Rights.require({ works; settings }, p, #manageSettings, null);
     let key = Text.toLower(t.key.trim(#char ' '));
     if (key.size() == 0 or key.size() > 40 or not key.chars().all(func c = (c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-')) {
-      return #err("Sleutel: 1 tot 40 tekens, enkel a-z, 0-9 en -");
+      return #err("Code: 1 tot 40 tekens, enkel a-z, 0-9 en -");
     };
     let name = Access.cleanText(t.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
     Oa.materializeTrades(settings);

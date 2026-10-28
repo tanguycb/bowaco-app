@@ -94,11 +94,10 @@ function AppInner() {
     enabled: !!actor && !isFetching && isAuthenticated,
   });
 
-  // II-test punt 6: wie afgezet wordt terwijl de app openstaat, krijgt bij de volgende oproep "geen actieve
-  // koppeling". Dan meteen me() opnieuw vragen (→ codescherm), en een #code=-link die later binnenkomt (zonder
+  // II-test punt 6: wie afgezet wordt terwijl de app openstaat, krijgt bij de volgende oproep "je toegang is nog niet bevestigd of is stopgezet". Dan meteen me() opnieuw vragen (→ codescherm), en een #code=-link die later binnenkomt (zonder
   // herladen, enkel het deel na #) ook meteen gebruiken.
   useEffect(() => {
-    const unlinked = (e: unknown) => /geen actieve koppeling/i.test(e instanceof Error ? e.message : String(e));
+    const unlinked = (e: unknown) => /toegang is nog niet bevestigd of is stopgezet/i.test(e instanceof Error ? e.message : String(e));
     const recheck = () => void qc.invalidateQueries({ queryKey: ["me"] });
     const onHash = () => {
       const c = codeFromLink();

@@ -106,7 +106,7 @@ module {
       var idx : ?Nat = null;
       var i = 0;
       while (i < n and idx == null) { if (chapters[i] == l.chapter) { idx := ?i }; i += 1 };
-      let k = switch idx { case (?x) x; case null Runtime.trap("Lijn zonder hoofdstuk #" # Int.toText(l.chapter)) };
+      let k = switch idx { case (?x) x; case null Runtime.trap("Post zonder hoofdstuk #" # Int.toText(l.chapter)) };
       switch (l.kind) {
         case (#text) {};
         case _ {

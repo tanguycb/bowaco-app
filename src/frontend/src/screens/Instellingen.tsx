@@ -391,7 +391,7 @@ export function QuoteDocsAdmin() {
           {q.data.terms.length > 0 && (
             <>
               <span className="bw-label">{D.termsHistory}</span>
-              <ul className="a-list">{q.data.terms.map((x) => <li key={String(x.id)}><span className="a-list__main"><b>v{String(x.version)} · {x.title}</b><span className="bw-muted">{fmtTime(x.createdAt)} · {x.byName}{x.provisional ? " · voorlopig" : ""}{x.note ? ` · ${x.note}` : ""}</span></span></li>)}</ul>
+              <ul className="a-list">{q.data.terms.map((x) => <li key={String(x.id)}><span className="a-list__main"><b>v{String(x.version)} · {x.title}</b><span className="bw-muted">{fmtTime(x.createdAt)} · {x.byName}{x.provisional ? ` · ${t.uitleg.provisional}` : ""}{x.note ? ` · ${x.note}` : ""}</span></span></li>)}</ul>
             </>
           )}
         </>

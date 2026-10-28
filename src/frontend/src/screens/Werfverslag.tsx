@@ -508,7 +508,7 @@ function AddSheet({ planned, orgs, onClose, onPick }: { planned: PlannedOrg[]; o
     <Sheet title={T.addTitle} open onClose={onClose}>
       <p className="bw-muted">{T.addLead}</p>
       <button type="button" className="m-person" onClick={() => onPick(undefined, "BOWACO", T.own)}><span className="m-person__code">BOWACO</span><span className="m-person__main"><span className="bw-h3">{T.own}</span></span></button>
-      <input id="add-search" className="bw-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Zoek firma of code" />
+      <input id="add-search" className="bw-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.common.searchFirm} />
       <div className="m-outbox">
         {list.slice(0, 40).map((o) => (
           <button key={String(o.orgId)} type="button" className="m-person" onClick={() => onPick(o.orgId, o.code, o.name)}>

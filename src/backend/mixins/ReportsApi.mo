@@ -292,16 +292,16 @@ mixin (
   type RpOk = (Nat, ?Nat, Text); // (verslag, blok, opmerking)
 
   func rpRun(caller : Principal, p : Types.Person, i : Views.ReportOpInput) : Views.OpResult {
-    if (not Reports.validKey(i.opId)) { return { opId = i.opId; outcome = #err("Ongeldige opId"); repeated = false } };
+    if (not Reports.validKey(i.opId)) { return { opId = i.opId; outcome = #err("Deze handeling is niet geldig. Laad de pagina opnieuw"); repeated = false } };
     switch (reports.ops.get(i.opId)) {
       case (?r) {
         // Herhaling (de gsm miste het antwoord): hetzelfde resultaat, niets opnieuw uitgevoerd.
-        if (r.by != p.id) { return { opId = i.opId; outcome = #err("Geen toegang: deze opId is van iemand anders"); repeated = false } };
+        if (r.by != p.id) { return { opId = i.opId; outcome = #err("Geen toegang: deze handeling hoort bij iemand anders. Laad de pagina opnieuw"); repeated = false } };
         return { opId = i.opId; outcome = #done({ reportId = r.reportId; entityId = r.entityId; note = r.note }); repeated = true };
       };
       case null {};
     };
-    if (not Reports.validKey(i.clientKey)) { return { opId = i.opId; outcome = #err("Ongeldige sleutel van het verslag"); repeated = false } };
+    if (not Reports.validKey(i.clientKey)) { return { opId = i.opId; outcome = #err("Dit verslag klopt niet. Laad de pagina opnieuw"); repeated = false } };
     let (kind, res) : (Text, Result.Result<RpOk, Text>) = switch (i.op) {
       case (#ensure x) ("ensure", rpEnsure(caller, p, i.clientKey, x.workId, x.day));
       case (#text x) ("text", rpText(p, i.clientKey, x.field, x.value));
@@ -333,7 +333,7 @@ mixin (
     switch (reports.keys.get(clientKey)) {
       case (?id) {
         let r = reports.reports.get(id) ?? return #err("Onbekend verslag");
-        if (r.workId != workId or r.day != day) { return #err("Deze sleutel hoort bij een ander verslag") };
+        if (r.workId != workId or r.day != day) { return #err("Dit verslag hoort bij een andere werf of dag. Laad de pagina opnieuw") };
         if (not Rights.may(ctx, p, #writeReport, ?r.workId)) { return #err("Geen toegang tot deze werf") };
         return #ok((id, null, "bestaat"));
       };
@@ -575,7 +575,7 @@ mixin (
     let b = rpBlocks(r.id);
     if (b.photos.size() >= Config.maxPhotosPerReport) { return #err("Hoogstens " # Config.maxPhotosPerReport.toText() # " foto's per verslag") };
     switch (Reports.fileError(x.file)) { case (?e) return #err(e); case null {} };
-    switch (x.thumb) { case (?t) { switch (Reports.fileError(t)) { case (?e) return #err("Miniatuur: " # e); case null {} } }; case null {} };
+    switch (x.thumb) { case (?t) { switch (Reports.fileError(t)) { case (?e) return #err("Voorbeeldfoto: " # e); case null {} } }; case null {} };
     let fileId = switch (rpFile(p, r, x.file)) { case (#ok id) id; case (#err e) return #err(e) };
     let thumbFileId = switch (x.thumb) { case (?t) { switch (rpFile(p, r, t)) { case (#ok id) ?id; case (#err _) null } }; case null null };
     let id = Ids.next(ctr, "photo");
@@ -720,7 +720,7 @@ mixin (
     };
     let leader = switch (works.works.get(target.workId)) { case (?w) w.leaderPersonId; case null null };
     if (not Rights.mayFinalizeReport(ctx, p, target.workId, target.authorPersonId, leader)) {
-      return #err("Afsluiten: enkel wie het verslag begon, de werfleider van de werf of een admin");
+      return #err("Afsluiten: enkel wie het verslag begon, de werfleider van de werf of een beheerder");
     };
     if (not rpHasContent(target)) { return #err("Het verslag is nog leeg") };
     let now = Time.now();

@@ -69,8 +69,8 @@ mixin (
   public shared ({ caller }) func claimBootstrap(code : Text, name : Text) : async Result.Result<Views.PersonView, Text> {
     Access.requireAuthenticated(caller);
     // R28 (1.9): een robotprincipal is nooit een persoon.
-    if (Access.isRobot(robot, caller)) { return #err("Geen toegang: een robot is geen persoon") };
-    if (not mayStartLink(caller)) { return #err("Deze login is al gekoppeld") };
+    if (Access.isRobot(robot, caller)) { return #err("Geen toegang") };
+    if (not mayStartLink(caller)) { return #err("Je bent al ingelogd als een andere persoon") };
     switch (Access.blockedUntil(access, caller)) {
       case (?until) { return #err("Te veel pogingen; probeer opnieuw na " # until.toText()) };
       case null {};
@@ -82,7 +82,7 @@ mixin (
     };
     if (not ok) {
       failure(caller, "opstartcode-fout", "");
-      return #err("Code ongeldig of al gebruikt");
+      return #err("Deze toegangscode klopt niet, is verlopen of is al gebruikt");
     };
     let cleanName = Access.cleanText(name, Config.maxName) ?? "Beheerder";
     let id = Ids.next(ctr, "person");
@@ -112,7 +112,7 @@ mixin (
     let inviter = Access.requireActive(access, caller);
     // Eerst de rechten, dan de invoer: wie niet mag, hoort niets over de invoer.
     if (not Rights.mayInvite({ works; settings }, inviter, req.roles, req.workIds)) {
-      return #err("Geen toegang voor deze rol(len) of werf/werven");
+      return #err("Geen toegang: je mag deze rol of deze werf niet geven");
     };
     let name = Access.cleanText(req.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
     if (req.roles.size() > Config.maxRoles) { return #err("Te veel rollen") };
@@ -179,11 +179,11 @@ mixin (
     // Eerst de rechten (wie geen externen mag uitnodigen, hoort niets over de persoon), dan de invoer.
     Rights.require(ctx, inviter, #inviteExternal, null);
     let p = access.persons.get(i.personId) ?? return #err("Onbekende persoon");
-    if (not Rights.mayInvite(ctx, inviter, p.roles, i.workIds)) { return #err("Geen toegang voor deze persoon of werf/werven") };
-    if (p.archivedAt != null) { return #err("Persoon is afgezet") };
-    if (p.roles.size() == 0 or not p.roles.all(Rights.isExternalRole)) { return #err("Enkel een externe persoon (OA, architect, …); een interne persoon krijgt een herstelcode van de admin") };
+    if (not Rights.mayInvite(ctx, inviter, p.roles, i.workIds)) { return #err("Geen toegang: je mag deze persoon of deze werf geen toegang geven") };
+    if (p.archivedAt != null) { return #err("Persoon is stopgezet") };
+    if (p.roles.size() == 0 or not p.roles.all(Rights.isExternalRole)) { return #err("Enkel een externe persoon (OA, architect, …); een medewerker van BOWACO krijgt een nieuwe toegangscode van de beheerder") };
     if (p.orgId == null) { return #err("Deze persoon hoort bij geen firma") };
-    if (Access.hasActiveLink(access, p.id)) { return #err("Deze persoon heeft al een login: voeg hem in het team aan de werf toe") };
+    if (Access.hasActiveLink(access, p.id)) { return #err("Deze persoon heeft al toegang: voeg hem toe bij Wie werkt mee") };
     if (i.workIds.size() > Config.maxWorkIdsPerInvite) { return #err("Te veel werven") };
     let entropy = await Random.blob();
     // R33: na de await opnieuw nakijken.
@@ -218,7 +218,7 @@ mixin (
     let admin = Access.requireActive(access, caller);
     Rights.require({ works; settings }, admin, #manageAccess, null);
     let p = access.persons.get(personId) ?? return #err("Onbekende persoon");
-    if (p.archivedAt != null) { return #err("Persoon is afgezet") };
+    if (p.archivedAt != null) { return #err("Persoon is stopgezet") };
     let entropy = await Random.blob();
     let again = Access.activePerson(access, caller) ?? return #err("Geen toegang meer");
     if (not Rights.may({ works; settings }, again, #manageAccess, null)) { return #err("Geen toegang meer") };
@@ -231,15 +231,15 @@ mixin (
   public shared ({ caller }) func redeemCode(code : Text) : async Result.Result<Views.MeView, Text> {
     Access.requireAuthenticated(caller);
     // R28 (1.9): een robotprincipal is nooit een persoon, ook niet met een geldige code.
-    if (Access.isRobot(robot, caller)) { return #err("Geen toegang: een robot is geen persoon") };
-    if (not mayStartLink(caller)) { return #err("Deze login is al gekoppeld") };
+    if (Access.isRobot(robot, caller)) { return #err("Geen toegang") };
+    if (not mayStartLink(caller)) { return #err("Je bent al ingelogd als een andere persoon") };
     switch (Access.blockedUntil(access, caller)) {
       case (?until) { return #err("Te veel pogingen; probeer opnieuw na " # until.toText()) };
       case null {};
     };
     let fail = func(why : Text) : Result.Result<Views.MeView, Text> {
       failure(caller, "code-fout", why);
-      #err("Code ongeldig, verlopen of al gebruikt");
+      #err("Deze toegangscode klopt niet, is verlopen of is al gebruikt");
     };
     let body = Codes.normalize(code) ?? return fail("vorm");
     if (body.size() != Codes.inviteLength) { return fail("vorm") };
@@ -256,7 +256,7 @@ mixin (
     inv.state := #used({ by = caller; at = now });
     let pending = Rights.needsConfirmation(person.roles);
     putLink(caller, person.id, inv.hint, inv.id, inv.tag, if pending #pending else #active);
-    let what = person.name # " koppelde zich met code …" # inv.hint # (if pending " (wacht op bevestiging)" else "");
+    let what = person.name # (if pending " vroeg toegang aan met toegangscode …" else " logde voor het eerst in met toegangscode …") # inv.hint # (if pending " (wacht op bevestiging)" else "");
     Access.audit(audit, caller, ?person.id, null, "code-gebruikt", what);
     // T2: de uitnodiger én de admins zien wie zich koppelde.
     Access.notifyAdmins(access, audit, ctr, if pending "bevestigen" else "gekoppeld", what);
@@ -278,9 +278,9 @@ mixin (
   public shared ({ caller }) func confirmLink(p : Principal) : async Result.Result<(), Text> {
     let admin = Access.requireActive(access, caller);
     Rights.require({ works; settings }, admin, #confirmLinks, null);
-    let link = access.links.get(p) ?? return #err("Onbekende koppeling");
-    if (link.status != #pending) { return #err("Deze koppeling wacht niet op bevestiging") };
-    if (link.personId == admin.id) { return #err("Je kunt je eigen koppeling niet bevestigen") };
+    let link = access.links.get(p) ?? return #err("Onbekende toegang");
+    if (link.status != #pending) { return #err("Deze toegang wacht niet op bevestiging") };
+    if (link.personId == admin.id) { return #err("Je kunt je eigen toegang niet bevestigen") };
     link.status := #active;
     link.confirmedBy := ?admin.id;
     link.confirmedAt := ?Time.now();
@@ -292,11 +292,11 @@ mixin (
   public shared ({ caller }) func revokeLink(p : Principal) : async Result.Result<(), Text> {
     let admin = Access.requireActive(access, caller);
     Rights.require({ works; settings }, admin, #manageAccess, null);
-    if (p == caller) { return #err("Je kunt je eigen login niet afzetten") };
-    let link = access.links.get(p) ?? return #err("Onbekende koppeling");
-    if (link.status == #revoked) { return #err("Al ingetrokken") };
+    if (p == caller) { return #err("Je kunt je eigen toegang niet stopzetten") };
+    let link = access.links.get(p) ?? return #err("Onbekende toegang");
+    if (link.status == #revoked) { return #err("Al stopgezet") };
     if (link.status == #active and Rights.isLastActiveAdmin(Access.activeAdminIds(access), link.personId) and countActiveLinks(link.personId) <= 1) {
-      return #err("Dit is de laatste login van de laatste admin");
+      return #err("Dit is de laatste toegang van de laatste beheerder");
     };
     link.status := #revoked;
     link.revokedBy := ?admin.id;
@@ -308,7 +308,7 @@ mixin (
   public shared ({ caller }) func setLinkLabel(p : Principal, tag : Text) : async Result.Result<(), Text> {
     let admin = Access.requireActive(access, caller);
     Rights.require({ works; settings }, admin, #manageAccess, null);
-    let link = access.links.get(p) ?? return #err("Onbekende koppeling");
+    let link = access.links.get(p) ?? return #err("Onbekende toegang");
     link.tag := Access.cleanText(tag, Config.maxLabel) ?? "";
     Access.audit(audit, caller, ?admin.id, null, "koppeling-naam", Access.personName(access, link.personId) # ": " # link.tag);
     #ok;

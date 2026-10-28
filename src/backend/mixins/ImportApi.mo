@@ -59,10 +59,10 @@ mixin (
   public shared ({ caller }) func importPlanning(dryRun : Bool, batchId : Text, title : Text, knownBlocks : [Text], block : Views.ImportBlock) : async Result.Result<Views.PlanImportReport, Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #importPlan, null);
-    let bid = Access.cleanText(batchId, Config.maxLabel) ?? return #err("Batch: 1 tot " # Config.maxLabel.toText() # " tekens");
-    let lbl = Access.cleanText(title, Config.maxLabel) ?? return #err("Naam van de batch: 1 tot " # Config.maxLabel.toText() # " tekens");
+    let bid = Access.cleanText(batchId, Config.maxLabel) ?? return #err("Naam van de overzetting: 1 tot " # Config.maxLabel.toText() # " tekens");
+    let lbl = Access.cleanText(title, Config.maxLabel) ?? return #err("Naam van de overzetting: 1 tot " # Config.maxLabel.toText() # " tekens");
     switch (imp.batches.get(bid)) {
-      case (?b) { if (b.rolledBackAt != null) { return #err("Deze batch is teruggedraaid: kies een nieuwe naam") } };
+      case (?b) { if (b.rolledBackAt != null) { return #err("Deze overzetting is teruggedraaid: kies een nieuwe naam") } };
       case null {};
     };
     switch (inputError(block)) { case (?e) return #err(e); case null {} };
@@ -332,8 +332,8 @@ mixin (
   public shared ({ caller }) func rollbackImport(batchId : Text, dryRun : Bool) : async Result.Result<Views.RollbackReport, Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #importPlan, null);
-    let b = imp.batches.get(batchId) ?? return #err("Onbekende batch");
-    if (b.rolledBackAt != null) { return #err("Deze batch is al teruggedraaid") };
+    let b = imp.batches.get(batchId) ?? return #err("Onbekende overzetting");
+    if (b.rolledBackAt != null) { return #err("Deze overzetting is al teruggedraaid") };
     let now = Time.now();
     let mine = imp.keys.values().filter(func k = k.batchId == batchId).toArray();
     let taskIds = Map.empty<Nat, ()>();

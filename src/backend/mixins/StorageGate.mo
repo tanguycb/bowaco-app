@@ -28,7 +28,7 @@ mixin (
 
   public shared ({ caller }) func _immutableObjectStorageRefillCashier(refillInformation : ?_ImmutableObjectStorageRefillInformation) : async _ImmutableObjectStorageRefillResult {
     let cashier = await Storage.getCashierPrincipal();
-    if (cashier != caller) { Runtime.trap("Unauthorized access") };
+    if (cashier != caller) { Runtime.trap("Geen toegang") };
     await Storage.refillCashier(_immutableObjectStorageState, cashier, refillInformation);
   };
 
@@ -46,7 +46,7 @@ mixin (
   };
 
   public query ({ caller }) func _immutableObjectStorageBlobsToDelete() : async [Blob] {
-    if (not Storage.isAuthorized(_immutableObjectStorageState, caller)) { Runtime.trap("Unauthorized access") };
+    if (not Storage.isAuthorized(_immutableObjectStorageState, caller)) { Runtime.trap("Geen toegang") };
     switch (Prim.getDeadBlobs()) {
       case null [];
       case (?dead) dead.sliceToArray(0, 10000);
@@ -54,7 +54,7 @@ mixin (
   };
 
   public shared ({ caller }) func _immutableObjectStorageConfirmBlobDeletion(blobs : [Blob]) : async () {
-    if (not Storage.isAuthorized(_immutableObjectStorageState, caller)) { Runtime.trap("Unauthorized access") };
+    if (not Storage.isAuthorized(_immutableObjectStorageState, caller)) { Runtime.trap("Geen toegang") };
     Prim.pruneConfirmedDeadBlobs(blobs);
     type GC = actor { __motoko_gc_trigger : () -> async () };
     let myGC = actor (debug_show (Prim.getSelfPrincipal<system>())) : GC;
@@ -66,7 +66,7 @@ mixin (
   public shared ({ caller }) func _immutableObjectStorageCreateCertificate(blobHash : Text) : async _ImmutableObjectStorageCreateCertificateResult {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #upload, null);
-    if (blobHash.size() > 100) { Runtime.trap("Ongeldige hash") };
+    if (blobHash.size() > 100) { Runtime.trap("Het bestand is beschadigd; probeer opnieuw") };
     { method = "upload"; blob_hash = blobHash };
   };
 };

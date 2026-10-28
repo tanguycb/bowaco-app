@@ -9,6 +9,12 @@ import { Loading, Page } from "./common";
 
 const PAGE = 100n;
 
+/** "persoon-afgezet" → "Persoon stopgezet": woord voor woord via t.audit.words (stap 2b.5). */
+function actionText(code: string): string {
+  const out = code.split("-").map((w) => t.audit.words[w] ?? w).join(" ");
+  return out.charAt(0).toUpperCase() + out.slice(1);
+}
+
 export function Audit({ caps }: { caps: Caps }) {
   const { actor, isFetching } = useBackend();
   const toast = useToast();
@@ -56,7 +62,7 @@ export function Audit({ caps }: { caps: Caps }) {
           rowKey={(e) => String(e.i)}
           columns={[
             { key: "t", label: t.audit.when, render: (e) => <span className="bw-num">{fmtTime(e.at)}</span>, width: "150px" },
-            { key: "a", label: t.audit.action, render: (e) => <span className="bw-mono">{e.action}</span> },
+            { key: "a", label: t.audit.action, render: (e) => <span>{actionText(e.action)}</span> },
             { key: "d", label: t.audit.detail, render: (e) => e.detail || "—" },
             {
               key: "w",

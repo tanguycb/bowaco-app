@@ -54,9 +54,9 @@ check("(1) hoeveelheid, eenheid, eenheidsprijs en lijntotaal (12,5 lm × 56,25 =
 check("(1) minwerk negatief, pro memorie als 'p.m.'", t1.includes("-€ 112,50") && t1.includes("p.m."));
 check("(1) opties apart en niet in het totaal, met meer- en minprijs", /Opties/.test(t1) && /niet inbegrepen in het totaal/.test(t1) && /meerprijs/.test(t1) && /minprijs/.test(t1) && t1.includes("€ 125,00") && t1.includes("-€ 225,00"));
 check("(1) subtotaal, btw 6 % met de grond, totaal incl. btw", t1.includes("Subtotaal excl. btw") && t1.includes("€ 2.508,63") && /Btw 6 %/.test(t1) && t1.includes("€ 150,52") && /Grond voor het btw-tarief/.test(t1) && /Totaal incl\. btw/.test(t1) && t1.includes("€ 2.659,15"));
-check("(1) geldig tot een datum, betaaltermijn, de legende van de contractvormen", /Geldig tot: 24 november 2026/.test(t1) && /Betaaltermijn: 30 dagen/.test(t1) && /VH = vermoedelijke hoeveelheid/.test(t1));
+check("(1) geldig tot een datum, betaaltermijn, de legende van de contractvormen", /Geldig tot: 24 november 2026/.test(t1) && /Betaaltermijn: 30 dagen/.test(t1) && /VH = geschatte hoeveelheid/.test(t1));
 check("(1) afzender en 'Voor akkoord' (twee handtekenvakken) en de uitleg van het digitale akkoord", /AFZENDER/i.test(t1) && /BOWACO \(proef\)/.test(t1) && /Voor akkoord/.test(t1) && /digitaal aanvaarden/.test(t1));
-check("(1) de algemene voorwaarden op eigen bladzijden, met de VOORLOPIGE tekst duidelijk gemarkeerd", /Algemene voorwaarden/.test(r1.pages[2].text) && /VOORLOPIGE TEKST/.test(r1.pages[2].text) && /\[In te vullen door BOWACO\.\]/.test(r1.pages[2].text));
+check("(1) de algemene voorwaarden op eigen bladzijden, met de VOORLOPIGE tekst duidelijk gemarkeerd", /Algemene voorwaarden/.test(r1.pages[2].text) && /Voorlopige tekst/.test(r1.pages[2].text) && /\[In te vullen door BOWACO\.\]/.test(r1.pages[2].text));
 check("(1) elke bladzijde heeft een voet met nummer, versie en de eerste 16 tekens van de hash, en 'i / n'", r1.pages.every((p, i) => p.text.includes("e41f4b2e374d0000") && p.text.includes(`${i + 1} / 3`)));
 check("(1) geen watermerk 'ONTWERP' op een verzonden offerte", !/ONTWERP/.test(t1));
 check("(1) NOOIT een woord over aankoopprijs, marge, kostprijs of reden van de marge", !/aankoop|marge|kostprijs|inkoop|winst/i.test(t1));

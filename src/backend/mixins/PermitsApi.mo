@@ -53,8 +53,8 @@ mixin (
   public shared ({ caller }) func setPermitKind(k : Views.PermitKindView) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #managePermitKinds, null);
-    let key = Access.cleanText(Text.toLower(k.key), Config.maxShort) ?? return #err("Sleutel: 1 tot 20 tekens");
-    if (not key.chars().all(func c = (c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-')) { return #err("Sleutel: enkel a-z, 0-9 en -") };
+    let key = Access.cleanText(Text.toLower(k.key), Config.maxShort) ?? return #err("Code: 1 tot 20 tekens");
+    if (not key.chars().all(func c = (c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-')) { return #err("Code: enkel a-z, 0-9 en -") };
     let name = Access.cleanText(k.name, Config.maxLabel) ?? return #err("Naam ontbreekt of te lang");
     if (k.leadDays > Config.maxLeadDays) { return #err("Doorlooptijd te lang") };
     if (k.words.size() > Config.maxPermitWords) { return #err("Te veel woorden") };

@@ -223,7 +223,7 @@ else {
   const draftCid = cid === "45zqo-tiaaa-aaaam-qefla-cai" || cid === "5vwqk-vqaaa-aaaab-aadwq-cai";
   check("(D1) de testmodus staat aan; de canister weet of hij de draft is", ps.testMode && ps.draft === draftCid, JSON.stringify({ testMode: ps.testMode, draft: ps.draft }));
   if (ps.draft) {
-    check("(D1) op de draft kan de testmodus NIET uit (ook niet door de beheerder)", errOf(await admin.setMailTest(false, "")).includes("Op de draft blijft de testmodus aan") && (await admin.postSettings()).testMode);
+    check("(D1) op de draft kan de testmodus NIET uit (ook niet door de beheerder)", errOf(await admin.setMailTest(false, "")).includes("Op de testomgeving blijft de testmodus aan") && (await admin.postSettings()).testMode);
   } else {
     check("(D1) buiten de draft: testmodus uit met een testadres geweigerd (adres hoort bij de testmodus)", "err" in (await admin.setMailTest(false, "x@proef.invalid")));
   }
@@ -264,7 +264,7 @@ else {
   if (local) {
     check("(D7) testbouw: deze canister telt als live (Config.mailLiveAnyCanister via tests/lokaal.sh), dus de testmodus kan uit", ps.liveMail === true);
   } else {
-    check("(D7) geen livecanister (Config.mailLiveBackends): liveMail = false en de testmodus kan niet uit, met de reden", ps.liveMail === false && /livecanister|Op de draft/.test(errOf(await admin.setMailTest(false, ""))));
+    check("(D7) geen livecanister (Config.mailLiveBackends): liveMail = false en de testmodus kan niet uit, met de reden", ps.liveMail === false && /echte omgeving|testomgeving/.test(errOf(await admin.setMailTest(false, ""))));
   }
   check("(D12) de beheerder ziet de cycles van de app (G6)", ps.cyclesBalance > 0n, String(ps.cyclesBalance));
   // (D14 = L3) Een e-mailadres met witruimte, stuurtekens of kopstructuur wordt overal geweigerd (testadres, firma, kantoor).

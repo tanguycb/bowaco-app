@@ -665,7 +665,7 @@ module {
     let ciaw : ?Bool = ?(amount >= Dossier.thresholdCheckinatwork(c.settings));
 
     // ── Waarschuwingen ──
-    if (tpl.provisional) { warnings.add("Het sjabloon «" # tpl.name # "» is VOORLOPIG (volgorde en duur nog niet bevestigd door Alexis)") };
+    if (tpl.provisional) { warnings.add("Het sjabloon «" # tpl.name # "» is nog na te kijken (volgorde en duur zijn nog niet bevestigd)") };
     let own = gs.filter(func g = g.stepKey == null).size();
     if (own > 0) { warnings.add(own.toText() # " hoofdstuk(ken) zonder stap in het sjabloon: elk een eigen taak na de taak ervoor; kies per post een stap als dat beter past") };
     let guessed = gs.filter(func g = g.daysFrom == "geschat").size();

@@ -232,7 +232,7 @@ mixin (
     let old = dossier.confidential.get(workId);
     let current = switch old { case (?c) c.version; case null 0 };
     if (expectedVersion != current) { return #err("Iemand anders wijzigde dit intussen (versie " # current.toText() # "); laad opnieuw") };
-    switch old { case (?c) { if (Dossier.isSealed(c.contract)) { return #err("Versleuteld: wijzigen kan enkel in de browser met de werfsleutel (fase 2)") } }; case null {} };
+    switch old { case (?c) { if (Dossier.isSealed(c.contract)) { return #err("Versleuteld: wijzigen kan enkel in de browser met de werfsleutel") } }; case null {} };
     let now = Time.now();
     // 2.8: de getekende offerteversie zet enkel de werfstart uit een aanvaarde offerte; wat de browser meestuurt, telt niet.
     let signed : ?Nat = switch old { case (?c) { switch (c.contract) { case (#plain x) x.signedQuoteVersionId; case (#sealed _) null } }; case null null };

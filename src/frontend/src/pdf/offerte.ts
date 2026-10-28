@@ -71,7 +71,7 @@ export function dayText(d: number): string {
 const pct = (bp: bigint) => `${(Number(bp) / 100).toString().replace(".", ",")} %`;
 const FORM: Record<string, string> = { fixed: "vast", vh: "VH", regie: "regie", estimate: "raming", budget: "budget", perAttachment: "bijlage" };
 const FORM_LONG: Record<string, string> = {
-  vh: "VH = vermoedelijke hoeveelheid",
+  vh: "VH = geschatte hoeveelheid (wordt op de werf nagemeten)",
   fixed: "vast = vaste prijs",
   regie: "regie = naar werkelijk gepresteerde uren en gebruikt materiaal",
   estimate: "raming = geraamd bedrag",
@@ -412,9 +412,9 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     page.drawRectangle({ x: ML, y: y - 62, width: CW, height: 70, borderColor: col(ACCENT), borderWidth: 0.9, color: rgb(0.96, 0.97, 1) });
     text("AANVAARD", ML + 12, y - 8, F.monoB, 8, ACCENT, { spacing: 1 });
     let yy = y - 24;
-    if (d.accepted.digital) { text(`Digitaal akkoord van ${d.accepted.digital.byName} op ${dayText(d.accepted.digital.atDay)}, met de Internet Identity van de klant.`, ML + 12, yy, F.r, 9, INK); yy -= 13; }
+    if (d.accepted.digital) { text(`Digitaal akkoord van ${d.accepted.digital.byName} op ${dayText(d.accepted.digital.atDay)}, na het inloggen van de klant.`, ML + 12, yy, F.r, 9, INK); yy -= 13; }
     if (d.accepted.signed) { text(`Getekende offerte ontvangen op ${dayText(d.accepted.signed.atDay)} (registratie door ${d.accepted.signed.byName}).`, ML + 12, yy, F.r, 9, INK); yy -= 13; }
-    text(`Geldt voor exact deze inhoud: ${d.hash.slice(0, 32)}…`, ML + 12, yy, F.mono, 7.2, GRAY);
+    text(`Controlecode van deze inhoud: ${d.hash.slice(0, 32)}…`, ML + 12, yy, F.mono, 7.2, GRAY);
     y -= 80;
   } else {
     text("Voor akkoord", ML, y, F.b, 11);
@@ -428,7 +428,7 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     }
     y -= 70;
     if (d.frozen) {
-      for (const t of wrap(F.r, 8, "U kunt de offerte ook digitaal aanvaarden in de app BOWACO (Mijn offerte), na aanmelding met uw Internet Identity. Het akkoord geldt dan voor exact deze versie.", CW)) { text(t, ML, y, F.r, 8, GRAY); y -= 11; }
+      for (const t of wrap(F.r, 8, "U kunt de offerte ook digitaal aanvaarden in de app BOWACO (Mijn offerte), na het inloggen. Het akkoord geldt dan voor exact deze versie.", CW)) { text(t, ML, y, F.r, 8, GRAY); y -= 11; }
     }
   }
 
@@ -439,7 +439,7 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
   text(`${d.terms.title} · ${d.terms.version === 0 ? "voorlopige tekst" : "versie " + d.terms.version}`, ML, y, F.mono, 8, GRAY);
   y -= 16;
   if (d.terms.provisional) {
-    const bl = wrap(F.m, 8.5, "VOORLOPIGE TEKST. Dit zijn niet de gevalideerde algemene voorwaarden van BOWACO. Ze werden nog niet nagekeken door BOWACO en een jurist en mogen niet als geldende voorwaarden gebruikt worden.", CW - 20);
+    const bl = wrap(F.m, 8.5, "Voorlopige tekst. Dit zijn nog niet de definitieve algemene voorwaarden van BOWACO. Ze zijn nog niet nagekeken door BOWACO en een jurist en mogen niet als geldende voorwaarden gebruikt worden.", CW - 20);
     const hh = bl.length * 12 + 12;
     page.drawRectangle({ x: ML, y: y - hh + 6, width: CW, height: hh, borderColor: col(WARN), borderWidth: 0.9, color: rgb(1, 0.973, 0.92) });
     let yy = y - 6;

@@ -258,7 +258,7 @@ mixin (
       let k = key.trimStart(#text "trade:");
       let t = Oa.trades(settings, false).find(func x = x.key == k) ?? return #err("Onbekend vakgebied");
       t.name;
-    } else { return #err("Sleutel: org:<id> of trade:<vakgebied>") };
+    } else { return #err("Code: org:<id> of trade:<vakgebied>") };
     if (note.size() > Config.maxLabel) { return #err("Notitie: hoogstens " # Config.maxLabel.toText() # " tekens") };
     let now = Time.now();
     switch maxWorks {

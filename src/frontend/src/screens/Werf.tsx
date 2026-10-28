@@ -6,7 +6,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { GuaranteeKind, OrgKind, QuoteStatus, Role, WorkStatus, type Caps, type ContractInput, type ContractView, type InvoicingRhythm, type WorkView } from "../backend";
-import { Button, Choice, Icon, Sheet, useToast } from "../design";
+import { Button, Info, Choice, Icon, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
 import { factsOf, Loading, Page, PhaseLabel, StepBar, useStages, useWorks } from "./common";
@@ -83,7 +83,7 @@ export function WerfDetail({ id, caps, go, tab }: { id: bigint; caps: Caps; go: 
       {!tabOpen && (
         <>
           <div className="a-row">
-            <PhaseLabel fase={fase} client={client} />
+            <PhaseLabel fase={fase} client={client} /><Info text={t.uitleg.fase} label={t.uitleg.label} />
             {fase.manual && <span className="a-tag" title={F.provisional}>{F.byHand}</span>}
             <span className="bw-muted">{addr}</span>
             {orgName(w.clientOrgId) && <span className="a-tag">{orgName(w.clientOrgId)}</span>}

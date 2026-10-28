@@ -5,7 +5,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeasureEntryView, MeasureOp, MeasurePostView, MeasureSummaryView, SurveyBrief, SurveyDetail, MeasureWorkBrief } from "../backend";
-import { Button, Icon, Sheet, useToast } from "../design";
+import { Button, Icon, Info, Sheet, useToast } from "../design";
 import { blobUrlOf, useCached } from "../offline/cached";
 import { useOutbox, type QueuedOp } from "../offline/outbox";
 import { shrink } from "../offline/photos";
@@ -60,7 +60,7 @@ function OpmetingLijst({ go }: { go: (to: string) => void }) {
   const list = q.data?.value ?? [];
   return (
     <Page title={T.title} label={T.label}>
-      <p className="bw-muted">{T.lead}</p>
+      <p className="bw-muted">{T.lead}<Info text={t.uitleg.opmeting} label={t.uitleg.label} /></p>
       <Loading q={q} />
       {q.data?.fromCache && <p className="m-banner"><Icon name="offline" size={18} />{T.offlineStand(new Date(q.data.at).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }))}</p>}
       {q.data && list.length === 0 && <EmptyState title={t.leeg.opmeting.t} text={t.leeg.opmeting.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />}
@@ -303,15 +303,15 @@ function Files({ e }: { e: MeasureEntryView }) {
           const thumb = blobUrlOf((f.thumb ?? f.file).blob);
           const full = blobUrlOf(f.file.blob);
           return (
-            <button key={i} type="button" className="om-file" onClick={() => full && setBig(full)} aria-label={f.caption || (f.role === "sketch" ? T.sketch : "Foto")}>
+            <button key={i} type="button" className="om-file" onClick={() => full && setBig(full)} aria-label={f.caption || (f.role === "sketch" ? T.sketch : t.common.photo)}>
               {thumb ? <img src={thumb} alt="" loading="lazy" /> : <Icon name="camera" size={20} />}
-              <span className="om-file__tag">{f.role === "sketch" ? T.sketch : f.caption || "Foto"}</span>
+              <span className="om-file__tag">{f.role === "sketch" ? T.sketch : f.caption || t.common.photo}</span>
             </button>
           );
         })}
       </div>
       {big && (
-        <Sheet title="Foto" open onClose={() => setBig(null)}>
+        <Sheet title={t.common.photo} open onClose={() => setBig(null)}>
           <img src={big} alt="" className="m-bigphoto" />
         </Sheet>
       )}
@@ -413,7 +413,7 @@ function PostSheet({ workId, post, summary, send, onClose }: { workId: bigint; p
               {files.map((x, i) => (
                 <div key={i} className="om-file">
                   <img src={x.url} alt="" />
-                  <span className="om-file__tag">{x.sketch ? T.sketch : "Foto"}</span>
+                  <span className="om-file__tag">{x.sketch ? T.sketch : t.common.photo}</span>
                   <button type="button" className="om-file__x" aria-label={T.removeFile} onClick={() => setFiles((l) => l.filter((_, j) => j !== i))}><Icon name="close" size={14} /></button>
                 </div>
               ))}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button } from "../design";
+import { Button, Info } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 
@@ -7,7 +7,7 @@ export function Login({ busy, error, onLogin, hasCode }: { busy: boolean; error:
   return (
     <>
       <h1 className="bw-h1">{t.login.title}</h1>
-      <p className="bw-muted">{t.login.lead}</p>
+      <p className="bw-muted">{t.login.lead}<Info text={t.uitleg.ii} label={t.uitleg.label} /></p>
       {hasCode && <p className="a-note">{t.login.codeHint}</p>}
       <Button variant="primary" size="lg" block busy={busy} onClick={() => onLogin(false)}>{t.login.ii}</Button>
       <Button variant="secondary" block disabled={busy} onClick={() => onLogin(true)}>{t.login.google}</Button>

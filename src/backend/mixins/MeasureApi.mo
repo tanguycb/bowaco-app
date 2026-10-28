@@ -167,15 +167,15 @@ mixin (
   type MsOk = (Nat, ?Nat, Text); // (opmeting, regel, opmerking)
 
   func msRun(caller : Principal, p : Types.Person, i : MV.MeasureOpInput) : MV.MeasureOpResult {
-    if (not Reports.validKey(i.opId)) { return { opId = i.opId; outcome = #err("Ongeldige opId"); repeated = false } };
+    if (not Reports.validKey(i.opId)) { return { opId = i.opId; outcome = #err("Deze handeling is niet geldig. Laad de pagina opnieuw"); repeated = false } };
     switch (surveys.ops.get(i.opId)) {
       case (?r) {
-        if (r.by != p.id) { return { opId = i.opId; outcome = #err("Geen toegang: deze opId is van iemand anders"); repeated = false } };
+        if (r.by != p.id) { return { opId = i.opId; outcome = #err("Geen toegang: deze handeling hoort bij iemand anders. Laad de pagina opnieuw"); repeated = false } };
         return { opId = i.opId; outcome = #done({ surveyId = r.surveyId; entityId = r.entityId; note = r.note }); repeated = true };
       };
       case null {};
     };
-    if (not Reports.validKey(i.clientKey)) { return { opId = i.opId; outcome = #err("Ongeldige sleutel van de opmeting"); repeated = false } };
+    if (not Reports.validKey(i.clientKey)) { return { opId = i.opId; outcome = #err("Deze opmeting klopt niet. Laad de pagina opnieuw"); repeated = false } };
     let (kind, res) : (Text, Result.Result<MsOk, Text>) = switch (i.op) {
       case (#open x) ("open", msOpen(caller, p, i.clientKey, x.workId));
       case (#entry x) ("entry", msEntry(caller, p, i.clientKey, i.opId, x));
@@ -220,7 +220,7 @@ mixin (
     switch (surveys.keys.get(clientKey)) {
       case (?id) {
         let s = surveys.surveys.get(id) ?? return #err("Onbekende opmeting");
-        if (s.workId != workId) { return #err("Deze sleutel hoort bij een andere werf") };
+        if (s.workId != workId) { return #err("Deze opmeting hoort bij een andere werf. Laad de pagina opnieuw") };
         switch (msWriteScope(p, workId)) { case (#err e) return #err(e); case _ {} };
         return #ok((id, null, "bestaat"));
       };
@@ -299,7 +299,7 @@ mixin (
     if (myFiles.filter(func f = f.role == #photo).size() > Config.maxMeasurePhotos or myFiles.filter(func f = f.role == #sketch).size() > 1) { return #err("Hoogstens " # Config.maxMeasurePhotos.toText() # " foto's en één schets per regel") };
     for (f in myFiles.values()) {
       switch (Reports.fileError(f.file)) { case (?e) return #err(e); case null {} };
-      switch (f.thumb) { case (?t) { switch (Reports.fileError(t)) { case (?e) return #err("Miniatuur: " # e); case null {} } }; case null {} };
+      switch (f.thumb) { case (?t) { switch (Reports.fileError(t)) { case (?e) return #err("Voorbeeldfoto: " # e); case null {} } }; case null {} };
       if (f.caption.trim(#char ' ').size() > 200) { return #err("Bijschrift: hoogstens 200 tekens") };
     };
     if (Measure.entriesOf(surveys, s.id).size() >= Config.maxMeasureEntriesPerSurvey) { return #err("Te veel regels in deze opmeting: sluit ze af") };

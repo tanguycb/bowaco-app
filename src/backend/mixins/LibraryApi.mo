@@ -138,7 +138,7 @@ mixin (
     for ((code, title) in Config.defaultLibChapters().values()) {
       n += 1;
       let id = Ids.next(ctr, "libChapter");
-      library.chapters.add(id, { id; code; title; order = n * 10; note = "VOORLOPIG (startlijst uit offerte 2026/231, te bevestigen door 0.3)"; createdAt = now; createdBy = p.id; updatedAt = now; updatedBy = p.id; archivedAt = null; extra = [] });
+      library.chapters.add(id, { id; code; title; order = n * 10; note = "Nog na te kijken (startlijst uit offerte 2026/231)"; createdAt = now; createdBy = p.id; updatedAt = now; updatedBy = p.id; archivedAt = null; extra = [] });
     };
     Access.audit(audit, caller, ?p.id, null, "hoofdstukken-startlijst", n.toText() # " hoofdstukken");
     #ok(n);
@@ -149,7 +149,7 @@ mixin (
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #manageSettings, null);
     let key = Text.toLower(u.key.trim(#char ' '));
-    if (not Library.unitKeyOk(key)) { return #err("Sleutel: 1 tot 20 tekens (kleine letters, cijfers, - of /)") };
+    if (not Library.unitKeyOk(key)) { return #err("Code: 1 tot 20 tekens (kleine letters, cijfers, - of /)") };
     let name = Access.cleanText(u.name, Config.maxName) ?? return #err("Naam: 1 tot 80 tekens");
     Library.materializeUnits(settings);
     let k = "unit:" # key;
@@ -209,13 +209,13 @@ mixin (
     let keywords = i.keywords.filterMap(func(k : Text) : ?Text = Access.cleanText(k, Config.maxLibKeyword));
     if (keywords.size() != i.keywords.size()) { return #err("Zoekwoord: 1 tot " # Config.maxLibKeyword.toText() # " tekens") };
     let importKey = switch (i.importKey) {
-      case (?k) { ?(Access.cleanText(k, Config.maxImportKey) ?? return #err("Importsleutel: 1 tot " # Config.maxImportKey.toText() # " tekens")) };
+      case (?k) { ?(Access.cleanText(k, Config.maxImportKey) ?? return #err("Importcode: 1 tot " # Config.maxImportKey.toText() # " tekens")) };
       case null null;
     };
     switch importKey {
       case (?k) {
         switch (library.importKeys.get(k)) {
-          case (?other) { if (?other != i.id) { return #err("Importsleutel bestaat al (post #" # other.toText() # ")") } };
+          case (?other) { if (?other != i.id) { return #err("Importcode bestaat al (post #" # other.toText() # ")") } };
           case null {};
         };
       };

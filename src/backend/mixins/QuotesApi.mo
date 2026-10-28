@@ -247,9 +247,9 @@ mixin (
       let key = switch (op.id) {
         case (?id) { let k = "i" # id.toText(); if (chs.get(k) == null) { return #err("Onbekend hoofdstuk #" # id.toText() # " in deze versie") }; k };
         case null {
-          if (op.ref.size() == 0 or op.ref.size() > 40) { return #err("Nieuw hoofdstuk zonder sleutel") };
+          if (op.ref.size() == 0 or op.ref.size() > 40) { return #err("Nieuw hoofdstuk zonder code") };
           let k = "r" # op.ref;
-          if (chs.get(k) != null) { return #err("Dubbele sleutel " # op.ref) };
+          if (chs.get(k) != null) { return #err("Dubbele code " # op.ref) };
           k;
         };
       };
@@ -270,11 +270,11 @@ mixin (
     // 4. Lijnen
     for (op in lineOps.values()) {
       let key = switch (op.id) {
-        case (?id) { let k = "i" # id.toText(); if (lns.get(k) == null) { return #err("Onbekende lijn #" # id.toText() # " in deze versie") }; k };
+        case (?id) { let k = "i" # id.toText(); if (lns.get(k) == null) { return #err("Onbekende post #" # id.toText() # " in deze versie") }; k };
         case null {
-          if (op.ref.size() == 0 or op.ref.size() > 40) { return #err("Nieuwe lijn zonder sleutel") };
+          if (op.ref.size() == 0 or op.ref.size() > 40) { return #err("Nieuwe post zonder code") };
           let k = "r" # op.ref;
-          if (lns.get(k) != null) { return #err("Dubbele sleutel " # op.ref) };
+          if (lns.get(k) != null) { return #err("Dubbele code " # op.ref) };
           k;
         };
       };
@@ -465,7 +465,7 @@ mixin (
     Rights.require({ works; settings }, p, #manageSettings, null);
     let key = Text.toLower(i.key.trim(#char ' '));
     if (key.size() == 0 or key.size() > 40 or not key.chars().all(func c = (c >= 'a' and c <= 'z') or (c >= '0' and c <= '9') or c == '-')) {
-      return #err("Sleutel: 1 tot 40 tekens, enkel a-z, 0-9 en -");
+      return #err("Code: 1 tot 40 tekens, enkel a-z, 0-9 en -");
     };
     let name = Access.cleanText(i.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
     var kws : [Text] = [];

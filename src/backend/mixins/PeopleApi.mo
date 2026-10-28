@@ -41,10 +41,10 @@ mixin (
     let name = Access.cleanText(u.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
     if (u.roles.size() == 0 or u.roles.size() > Config.maxRoles) { return #err("Kies minstens één rol") };
     if (Rights.adminRole(old.roles) and not Rights.adminRole(u.roles) and Rights.isLastActiveAdmin(Access.activeAdminIds(access), id)) {
-      return #err("De laatste admin houdt zijn adminrol");
+      return #err("De laatste beheerder houdt zijn beheerdersrol");
     };
     if (id == admin.id and Rights.adminRole(old.roles) and not Rights.adminRole(u.roles)) {
-      return #err("Je kunt je eigen adminrol niet afnemen");
+      return #err("Je kunt je eigen beheerdersrol niet afnemen");
     };
     switch (u.orgId) { case (?o) { if (not org.orgs.containsKey(o)) { return #err("Onbekende organisatie") } }; case null {} };
     switch (orgRule(u.roles, u.orgId)) { case (?e) return #err(e); case null {} };
@@ -87,8 +87,8 @@ mixin (
     Rights.require({ works; settings }, admin, #manageAccess, null);
     if (id == admin.id) { return #err("Je kunt jezelf niet afzetten") };
     let p = access.persons.get(id) ?? return #err("Onbekende persoon");
-    if (p.archivedAt != null) { return #err("Al afgezet") };
-    if (Rights.isLastActiveAdmin(Access.activeAdminIds(access), id)) { return #err("De laatste admin kan niet afgezet worden") };
+    if (p.archivedAt != null) { return #err("Al stopgezet") };
+    if (Rights.isLastActiveAdmin(Access.activeAdminIds(access), id)) { return #err("De laatste beheerder kan niet stopgezet worden") };
     let now = Time.now();
     p.archivedAt := ?now;
     for (l in access.links.values()) {
