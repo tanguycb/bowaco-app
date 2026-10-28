@@ -766,7 +766,7 @@ export const nl = {
     mineLead: "Je toewijzingen op de werven waar je lid bent. Bevestig dat je komt, of laat weten dat het niet lukt.",
     mineNone: "Geen taken in deze periode.",
     settingsCal: "Bedrijfskalender",
-    settingsCalLead: "Bouwverlof en feestdagen voor alle werven. Werkdagen in een blok tellen niet mee in de planning. De datums van het bouwverlof bevestigt Alexis (vraag aan Alexis).",
+    settingsCalLead: "Bouwverlof en feestdagen voor alle werven. Werkdagen in een blok tellen niet mee in de planning. De datums van het bouwverlof moeten nog bevestigd worden.",
     addHolidays: (y: number) => `Feestdagen ${y} toevoegen`,
     holidaysAdded: (n: number) => `${n} feestdagen toegevoegd`,
     settingsTpl: "Planningsjablonen",

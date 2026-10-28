@@ -124,7 +124,7 @@ await bad("een PDF als foto geweigerd", ent(L.container, 1_000n, { files: [{ ...
 await bad("een correctie zonder reden geweigerd", ent(L.afbraak, 41_000n, { corrects: [e3.outcome.done.entityId[0]] }), /reden/);
 await bad("een notitie van 1.001 tekens geweigerd", ent(L.container, 1_000n, { note: "x".repeat(1001) }), /hoogstens/);
 const [bs] = await sync(wl, { opId: uid(), clientKey: "kort", op: { open: { workId: wid } } });
-check("(2) ongeldige clientKey geweigerd; onbekende sleutel: 'eerst openen'", !done(bs) && /sleutel|Code/.test(outErr(bs)) && /eerst openen/.test(outErr((await sync(wl, { opId: uid(), clientKey: uid(), op: ent(L.container, 1_000n) }))[0])));
+check("(2) ongeldige clientKey geweigerd; onbekende sleutel: 'eerst openen'", !done(bs) && /klopt niet/.test(outErr(bs)) && /eerst openen/.test(outErr((await sync(wl, { opId: uid(), clientKey: uid(), op: ent(L.container, 1_000n) }))[0])));
 check("(2) de opId van iemand anders: geweigerd", /iemand anders/.test(outErr((await sync(calc, { opId: opA1, clientKey: uid(), op: { open: { workId: wid } } }))[0])));
 
 // Foto's en schets

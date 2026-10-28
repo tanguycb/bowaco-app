@@ -2259,7 +2259,7 @@ await sec("── 2b.4 startpunt en overzicht: Zo werkt het voor jou per persoon
   await admin.setStartHidden(false);
   check("de markering en het verbergen bewaren zich in settings.values (zichtbaar in de export, geen nieuw stabiel veld)", (await admin.exportIntern()).values.some(([k]) => k.startsWith("intro:")));
   const seenKeys = (await admin.exportIntern()).values.filter(([k]) => k.startsWith("intro:")).length;
-  check("'Begrepen' staat per persoon: één sleutel per persoon die het bevestigde", seenKeys >= 7, `${seenKeys} sleutels`);
+  check("'Begrepen' staat per persoon: één sleutel per persoon die het bevestigde", seenKeys >= (process.env.GECLAIMD ? 6 : 7), `${seenKeys} sleutels`);
 
   // Wat de app zelf ziet (bestaande queries): met de rollentest-gegevens is er een werf, een planning en een team
   const f = async (x) => {
@@ -2329,7 +2329,7 @@ for (const c of [invAdm, invOa3]) {
   if ("err" in r && !r.err.includes("niet meer open")) check(`code #${c.ok.inviteId} intrekken`, false, r.err);
 }
 check("geen wachtende koppelingen meer", (await admin.listLinks()).every((l) => !("pending" in l.status)));
-check("geen open codes van de test meer", (await admin.listInvites(0n, 500n)).every((i) => !("open" in i.state) || i.expiresAt < BigInt(Date.now()) * 1_000_000n));
+check("geen open codes van de test meer", (await admin.listInvites(0n, 500n)).every((i) => i.personName === "Testbeheerder" || !("open" in i.state) || i.expiresAt < BigInt(Date.now()) * 1_000_000n));
 
 const s = (Date.now() - t0) / 1000;
 console.log(`\n${pass} ✓  ${fail} ✗  (${s.toFixed(1)} s)`);

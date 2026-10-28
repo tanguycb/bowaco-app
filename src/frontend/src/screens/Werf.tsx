@@ -440,10 +440,10 @@ function Facts({ w, works }: { w: WorkView; works: WorkView[] }) {
     <div className="a-facts">
       <span className="bw-label">{t.facts.title}{from ? ` · ${t.facts.inherited(from)}` : ""}</span>
       <dl className="a-dl">
-        <dt>{t.facts.guarantee}</dt><dd>{yn(f.guarantee)}</dd>
-        <dt>{t.facts.revision}</dt><dd>{yn(f.priceRevision)}</dd>
-        <dt>{t.facts.art30bis}</dt><dd>{need(f.art30bis)}</dd>
-        <dt>{t.facts.checkinatwork}</dt><dd>{need(f.checkinatwork)}</dd>
+        <dt>{t.facts.guarantee}<Info text={t.uitleg.waarborg} label={t.uitleg.label} /></dt><dd>{yn(f.guarantee)}</dd>
+        <dt>{t.facts.revision}<Info text={t.uitleg.prijsherziening} label={t.uitleg.label} /></dt><dd>{yn(f.priceRevision)}</dd>
+        <dt>{t.facts.art30bis}<Info text={t.uitleg.bis30} label={t.uitleg.label} /></dt><dd>{need(f.art30bis)}</dd>
+        <dt>{t.facts.checkinatwork}<Info text={t.uitleg.checkin} label={t.uitleg.label} /></dt><dd>{need(f.checkinatwork)}</dd>
       </dl>
       <p className="bw-muted">{t.facts.help}</p>
     </div>
@@ -486,8 +486,8 @@ function Contract({ w, works }: { w: WorkView; works: WorkView[] }) {
           {k && (
             <dl className="a-dl">
               <dt>{t.contract.amount}</dt><dd className="bw-num">{fmtEuro(k.estimatedAmountCents)}</dd>
-              <dt>{t.contract.revision}</dt><dd>{k.priceRevision.__kind__ === "formula" ? <span className="bw-mono">{k.priceRevision.formula}</span> : t.contract.revisionNone}</dd>
-              <dt>{t.contract.guarantee}</dt><dd>{t.contract.guaranteeKinds[k.guarantee]}{k.guarantee !== GuaranteeKind.none ? ` · ${fmtBp(k.guaranteeBp)}` : ""}</dd>
+              <dt>{t.contract.revision}<Info text={t.uitleg.prijsherziening} label={t.uitleg.label} /></dt><dd>{k.priceRevision.__kind__ === "formula" ? <span className="bw-mono">{k.priceRevision.formula}</span> : t.contract.revisionNone}</dd>
+              <dt>{t.contract.guarantee}<Info text={t.uitleg.waarborg} label={t.uitleg.label} /></dt><dd>{t.contract.guaranteeKinds[k.guarantee]}{k.guarantee !== GuaranteeKind.none ? ` · ${fmtBp(k.guaranteeBp)}` : ""}</dd>
               <dt>{t.contract.term}</dt><dd className="bw-num">{t.contract.days(String(k.paymentTermDays))}</dd>
               <dt>{t.contract.rhythm}</dt><dd>{k.invoicingRhythm.__kind__ === "other" ? k.invoicingRhythm.other : t.contract.rhythms[k.invoicingRhythm.__kind__]}</dd>
               {k.signedQuoteVersionId !== undefined && <><dt>{t.werfstart.signedVersion}</dt><dd className="bw-mono">{signedLabel(k.signedQuoteVersionId)}</dd></>}
