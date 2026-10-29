@@ -4,9 +4,10 @@
 //   ICP_HOST=http://localhost:8091 node tools/geheugen.mjs <canister-id>
 import { HttpAgent, Actor } from "@icp-sdk/core/agent";
 import { Principal } from "@icp-sdk/core/principal";
-import { identity } from "./lib.mjs";
+import { identity, weigerLive } from "./lib.mjs";
 
 const cid = process.argv[2];
+weigerLive(cid, "de testbeheerder als controller");
 if (!cid) throw new Error("gebruik: ICP_HOST=http://localhost:<poort> node tools/geheugen.mjs <canister-id>");
 const host = process.env.ICP_HOST || "";
 if (!host.includes("localhost") && !host.includes("127.0.0.1")) throw new Error("enkel op het eigen lokale net (op een draft is Caffeine controller)");

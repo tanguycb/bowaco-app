@@ -42,6 +42,25 @@ ICP_HOST=http://localhost:<poort> node tools/inrichting/lekcontrole.mjs <id>    
 - Nooit in de app: wachtwoorden, personeelszaken, lonen, rijksregisternummers, identiteitskaarten, medische gegevens,
   rekeningnummers van personen, de boekhouding. De lezers openen die mappen niet.
 
+## Op live (na het "ja" van de eigenaar, D44–D45)
+
+Nooit een test op live: de rollentest, lektest, review, woordentest en `tests/lokaal.sh` maken testwerven en testpersonen
+aan. `tools/lib.mjs` weigert daarom elke canister uit `tools/live-canisters.json` voor elke testsleutel, anoniem en elke
+wegwerpidentiteit (`tests/live-grens.mjs`); enkel de inrichtingsidentiteit (`~/.bowaco/inrichting-live.json`, niet de
+testsleutel) en de alleen-lezen lekcontrole mogen er.
+
+1. Een nieuwe draft met deze code; daar (met de testbeheerder, na de claim van de eigenaar) de volledige draftproeven en de
+   review. De draft verloopt 8 uur na de upload: review en publicatie naar live in dat blok.
+2. De eigenaar zet live in Caffeine en claimt live met zijn eigen opstartcode (de code komt nooit in een sessie).
+3. Het live-id in `tools/live-canisters.json` (commit) **vóór** iets anders. Niet in `Config.mailLiveBackends`: zolang die
+   lijst leeg is, blijft de mail op live in de testmodus (geen mail naar de echte firma's). Echte mail = een apart "ja".
+4. De eigenaar: Team → Persoon uitnodigen → Beheerder "Inrichting" → `node tools/inrichting/koppelen.mjs <live-id>` in zijn
+   eigen Terminal → de koppeling bevestigen.
+5. `zsh tools/inrichting/lees-alles.sh`, dan `JA_EIGENAAR=1 node tools/inrichting.mjs --canister <live-id> --stap <de bevestigde
+   stappen> --gelijktijdig 3` (droogloop), met `--echt`, nog eens met `--echt` (niets nieuw), `steekproef.mjs`,
+   `lekcontrole.mjs`. Beide kiezen op live vanzelf de inrichtingsidentiteit.
+6. **Laatste stap, de eigenaar:** Team → Logins → de toegang van "Inrichting" intrekken.
+
 ## "Nog na te kijken"
 
 Elke voorlopige keuze staat in de app: bij een werf als label met de reden (`setWorkReviewNote`; de beheerder wist het met
@@ -51,4 +70,5 @@ bij de voorwaarden als voorlopige versie, bij een hoofdstuk en een vergunningspr
 ## Test
 
 `tests/inrichting.mjs` draait alles op een **verzonnen** documentenmap (`tests/inrichting-fixtures.py`): lezers, grens,
-droogloop, echt, nog eens, en de controles in de app. Het hoort bij `tests/lokaal.sh`.
+droogloop, echt, nog eens, en de controles in de app. Het hoort bij `tests/lokaal.sh`, net als `tests/live-grens.mjs` (de
+weigering van live in het gereedschap, zonder netwerk).

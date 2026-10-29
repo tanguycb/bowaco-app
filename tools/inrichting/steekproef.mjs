@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
-import { backend } from "../lib.mjs";
+import { backend, isLiveCanister, LIVE_ID } from "../lib.mjs";
 import { leesPlan, bibliotheek, fold, dagNr } from "./lib.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i < 0 ? d : (process.argv[i + 1] ?? true); };
@@ -17,7 +17,7 @@ const n = Number(arg("n", 25));
 let seed = Number(arg("seed", 7));
 const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 const kies = (xs, k = n) => { const c = [...xs]; const out = []; while (c.length && out.length < k) out.push(c.splice(Math.floor(rnd() * c.length), 1)[0]); return out; };
-const a = await backend(arg("identity", "proef-admin"), cid);
+const a = await backend(arg("identity", isLiveCanister(cid) ? LIVE_ID : "proef-admin"), cid);
 let goed = 0, fout = 0;
 const check = (wat, sleutel, c, x = "") => { c ? goed++ : fout++; if (!c) console.log(`✗ ${wat} ${sleutel}${x ? `: ${x}` : ""}`); };
 const P = (f) => leesPlan(join(map, f));

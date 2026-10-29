@@ -1,0 +1,4 @@
+{
+  "uitleg": "De backend-canister(s) van de ECHTE omgeving (live). tools/lib.mjs weigert hier elke test en elke testsleutel; enkel de inrichtingsidentiteit (inrichting-live) en de alleen-lezen lekcontrole mogen. Voeg het live-id toe zodra de eigenaar live zette, VÓÓR de import. Dit is NIET de lijst voor echte mail (Config.mailLiveBackends): die blijft leeg tot een apart ja van de eigenaar.",
+  "canisters": []
+}

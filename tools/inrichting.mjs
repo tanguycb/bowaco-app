@@ -15,7 +15,7 @@
 // GRENS: een plan met echte gegevens gaat enkel naar het eigen lokale net, ook in een droogloop (tools/inrichting/lib.mjs).
 import { isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
-import { backend } from "./lib.mjs";
+import { backend, isLiveCanister, LIVE_ID } from "./lib.mjs";
 import { leesPlan, Verslag, isLocal } from "./inrichting/lib.mjs";
 import { stap1 } from "./inrichting/stap1-bedrijf.mjs";
 import { stap2 } from "./inrichting/stap2-firmas.mjs";
@@ -53,7 +53,8 @@ for (const s of stappen) {
 // Het planningsplan waar stap 3 naar verwijst, gaat vóór de eerste oproep ook door de grens.
 const pp = plannen[3]?.planning?.plan;
 if (pp) leesPlan(isAbsolute(pp) ? pp : join(map, pp));
-const actor = await backend(arg("identity", "proef-admin"), cid);
+// Op live enkel de inrichtingsidentiteit (een testsleutel komt nooit op live; lib.mjs weigert ze daar).
+const actor = await backend(arg("identity", isLiveCanister(cid) ? LIVE_ID : "proef-admin"), cid);
 const verslag = new Verslag(echt);
 // Wat een droogloop in een vorige stap zou aanmaken (eenheden, hoofdstukken, werven): de volgende stappen tellen het mee.
 const zou = { eenheden: new Set(), hoofdstukken: new Set(), werven: new Set() };

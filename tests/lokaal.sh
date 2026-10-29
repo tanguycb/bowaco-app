@@ -92,6 +92,8 @@ if [[ -n "$echte" ]]; then
 fi
 # 2b.6: de inrichting (lezers + import, droogloop, echt, nog eens) op een VERZONNEN documentenmap; nooit echte gegevens.
 node tests/inrichting.mjs "$cid"
+# 2b.6 live: de weigering van de echte omgeving in het gereedschap (zonder netwerk).
+node tests/live-grens.mjs
 # mail-caffeine: de app verstuurt zelf (nep-maildienst); de gateway (fase 3) enkel nog eenheidstesten.
 node tests/mail-proef.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

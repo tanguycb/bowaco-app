@@ -42,8 +42,23 @@ export function identity(name) {
   return Ed25519KeyIdentity.fromJSON(readFileSync(file, "utf8"));
 }
 
+// 2b.6 (live): de canisters van de echte omgeving staan in tools/live-canisters.json. Daar schrijft enkel de
+// inrichtingsidentiteit (LIVE_ID, ~/.bowaco/inrichting-live.json; de eigenaar trekt haar toegang na de import in) en leest
+// enkel de alleen-lezen lekcontrole. Elke test en elke testsleutel wordt geweigerd: tests maken testwerven en testpersonen.
+export const LIVE_ID = "inrichting-live";
+export function liveCanisters() {
+  const f = new URL("./live-canisters.json", import.meta.url);
+  const extra = (process.env.LIVE_CANISTERS_EXTRA || "").split(",").filter(Boolean); // enkel toevoegen (tests/live-grens.mjs)
+  return [...(existsSync(f) ? JSON.parse(readFileSync(f, "utf8")).canisters ?? [] : []), ...extra];
+}
+export const isLiveCanister = (cid) => liveCanisters().includes(String(cid));
+export function weigerLive(cid, wat) {
+  if (isLiveCanister(cid)) throw new Error(`Geweigerd: ${cid} is de echte omgeving (tools/live-canisters.json); ${wat} mag daar niet.`);
+}
+
 // HOST = http://localhost:<poort> voor het eigen testnetwerk, anders mainnet (draft).
 export async function backend(identityName, canisterId) {
+  if (identityName !== LIVE_ID) weigerLive(canisterId, `een oproep als ${identityName ?? "anoniem"}`);
   const host = process.env.ICP_HOST || "https://icp-api.io";
   const local = host.includes("localhost") || host.includes("127.0.0.1");
   const agent = await HttpAgent.create({
@@ -60,12 +75,23 @@ export function ok(r) {
   return r && typeof r === "object" && "ok" in r ? r.ok : r;
 }
 
-// Wegwerpidentiteit (niet bewaard): voor de remmingstest en de lektestrobot.
-export async function freshBackend(canisterId) {
+// Wegwerpidentiteit (niet bewaard): voor de remmingstest en de lektestrobot. `alleenLezen`: enkel queries (elke update
+// geweigerd vóór ze vertrekt); enkel zo mag een wegwerpidentiteit op live (tools/inrichting/lekcontrole.mjs).
+export async function freshBackend(canisterId, { alleenLezen = false } = {}) {
+  if (!alleenLezen) weigerLive(canisterId, "een test met een wegwerpidentiteit");
   const host = process.env.ICP_HOST || "https://icp-api.io";
   const local = host.includes("localhost") || host.includes("127.0.0.1");
   const agent = await HttpAgent.create({ host, identity: Ed25519KeyIdentity.generate(), shouldFetchRootKey: local, shouldSyncTime: local });
-  return withRetry(Actor.createActor(idlFactory, { agent, canisterId }));
+  const actor = withRetry(Actor.createActor(idlFactory, { agent, canisterId }));
+  if (!alleenLezen) return actor;
+  return new Proxy(actor, {
+    get(t, k, r) {
+      if (typeof k === "string" && typeof Reflect.get(t, k, r) === "function" && !queryNames.has(k)) {
+        return () => { throw new Error(`alleen lezen: ${k} is geen query`); };
+      }
+      return Reflect.get(t, k, r);
+    },
+  });
 }
 
 // Na het verzetten van de klok (alleen lokaal): elke agent opnieuw gelijkzetten.
@@ -83,6 +109,7 @@ export const principalOf = (actor) => Actor.agentOf(actor).getPrincipal();
 // werken daar niet meer zodra de rollentest de klok verzet heeft (ingress expiry), de agent wel (syncTime).
 // `vars` vervangt de HELE lijst: geef alles mee wat moet blijven.
 export async function setCanisterEnv(identityName, canisterId, vars) {
+  weigerLive(canisterId, "omgevingsvariabelen zetten");
   const host = process.env.ICP_HOST || "";
   if (!host.includes("localhost") && !host.includes("127.0.0.1")) throw new Error("omgevingsvariabelen zetten: enkel lokaal");
   const agent = await HttpAgent.create({ host, identity: identity(identityName), shouldFetchRootKey: true, shouldSyncTime: true });

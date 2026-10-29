@@ -5,11 +5,11 @@
 //   3. Eigenaar: node tools/proef-admin-koppelen.mjs <backend-canister>     (vraagt de code onzichtbaar)
 //   4. Eigenaar: in de app Team → de wachtende koppeling "Testbeheerder" bevestigen.
 // Het script doet niets anders dan redeemCode(<code>) met de testsleutel; het bewaart of toont de code niet.
-// Enkel op een draft: weigert elke canister die in Config.mo bij mailLiveBackends staat (de echte omgeving).
+// Enkel op een draft: weigert elke canister uit tools/live-canisters.json of Config.mo mailLiveBackends (de echte omgeving).
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import { backend, identity, ok } from "./lib.mjs";
+import { backend, identity, isLiveCanister, ok } from "./lib.mjs";
 
 const cid = process.argv[2];
 if (!cid || !/^[a-z0-9-]{27}$/.test(cid)) {
@@ -17,9 +17,9 @@ if (!cid || !/^[a-z0-9-]{27}$/.test(cid)) {
   process.exit(2);
 }
 const cfg = readFileSync(fileURLToPath(new URL("../src/backend/lib/Config.mo", import.meta.url)), "utf8");
-const live = (cfg.match(/mailLiveBackends\(\)[^{]*\{\s*\[([^\]]*)\]/)?.[1] ?? "").includes(cid);
+const live = isLiveCanister(cid) || (cfg.match(/mailLiveBackends\(\)[^{]*\{\s*\[([^\]]*)\]/)?.[1] ?? "").includes(cid);
 if (live) {
-  console.error("Geweigerd: dit is een live-canister (Config.mailLiveBackends).");
+  console.error("Geweigerd: dit is een live-canister (tools/live-canisters.json of Config.mailLiveBackends): een testsleutel komt nooit op live.");
   process.exit(1);
 }
 let code = process.env.UITNODIGING_CODE; // enkel voor een test; normaal onzichtbaar getypt

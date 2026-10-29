@@ -5,9 +5,10 @@
 import { HttpAgent } from "@icp-sdk/core/agent";
 import { StorageClient } from "@caffeineai/object-storage";
 import { deflateSync } from "node:zlib";
-import { backend, identity } from "./lib.mjs";
+import { backend, identity, weigerLive } from "./lib.mjs";
 
 const [cid, projectId] = process.argv.slice(2);
+weigerLive(cid, "een proefupload");
 if (!cid || !projectId) throw new Error("gebruik: node tools/opslagpoort.mjs <backend-canister> <project-id>");
 const GATEWAY = "https://blob.caffeine.ai";
 
