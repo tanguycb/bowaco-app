@@ -19,7 +19,9 @@ import DocViews "../types/docviews";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Library "../lib/Library";
+import FormViews "../types/formviews";
 import QuoteDocs "../lib/QuoteDocs";
+import QuoteForms "../lib/QuoteForms";
 import Quotes "../lib/Quotes";
 import QuoteCalc "../lib/QuoteCalc";
 import Rights "../lib/Rights";
@@ -32,6 +34,7 @@ mixin (
   works : Types.WorksState,
   quotes : Types.QuotesState,
   quoteDocs : Types.QuoteDocsState,
+  quoteForms : Types.QuoteFormState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -66,10 +69,16 @@ mixin (
     let ctx = { works; settings };
     Rights.require(ctx, p, #ownQuotes, null);
     let (v, q, info) = switch (qcOwn(p, versionId)) { case (?x) x; case null return #err("Onbekende offerte") };
-    let c = Quotes.compute(quotes, v, Library.standardMargin(settings));
+    let c = Quotes.compute(quotes, quoteForms, v, Library.standardMargin(settings));
     let vs = Quotes.versionsOf(quotes, q.id);
     Access.audit(audit, caller, ?p.id, ?q.workId, "bekeek:offerte-klant", "offerte #" # q.id.toText() # " v" # v.version.toText());
-    #ok(QuoteDocs.clientRead({ settings; access; org; works; qs = quotes }, q, v, c, info, quoteDocs.acceptances.get(v.id), qcIntact(q, v, c, info), qcToday(), qcNewer(vs, v)));
+    let r = QuoteDocs.clientRead({ settings; access; org; works; qs = quotes }, q, v, c, info, quoteDocs.acceptances.get(v.id), qcIntact(q, v, c, info), qcToday(), qcNewer(vs, v));
+    if (v.calcVersion < 2) { return #ok(r) };
+    // 2c.1: nooit een post met hoeveelheid 0 die de versie verbergt; subgroepen, tekstblokken, korting en regietekst.
+    let vf = QuoteForms.versionForm(quoteForms, v.id);
+    let hidden = Map.empty<Nat, Bool>();
+    for (l in c.lines.values()) { if (not QuoteForms.shown(vf, quoteForms.lineForms.get(l.id), l)) { hidden.add(l.id, true) } };
+    #ok({ r with lines = r.lines.filter(func(l : DocViews.MyQuoteLine) : Bool = not hidden.containsKey(l.id)); form = ?qcForm(q, v, c, vf, hidden) });
   };
 
   // Akkoord: enkel op de exacte verzonden versie (hash), enkel zolang ze geldig en niet vervangen is. Daarna ligt ze vast.
@@ -83,6 +92,29 @@ mixin (
   };
 
   // ── Hulp ───────────────────────────────────────────────────────────────
+  func qcForm(q : Types.Quote, v : Types.QuoteVersion, c : Quotes.Computed, vf : Types.QuoteVersionForm, hidden : Map.Map<Nat, Bool>) : FormViews.MyQuoteForm {
+    let (kind, insurer, claim) = Quotes.sentKind(quoteForms, q, v);
+    let terms = QuoteForms.termsOf(quoteForms, v.id);
+    var ls : [(Nat, Nat)] = [];
+    for (l in c.lines.values()) {
+      if (not hidden.containsKey(l.id)) {
+        switch (quoteForms.lineForms.get(l.id)) { case (?lf) { switch (lf.subgroupId) { case (?s) ls := ls.concat([(l.id, s)]); case null {} } }; case null {} };
+      };
+    };
+    {
+      kind;
+      insurerName = Quotes.orgName(org, insurer);
+      claimRef = claim;
+      blocks = QuoteForms.blocksOf(quoteForms, v).map(QuoteForms.blockView);
+      subgroups = QuoteForms.subgroupsOf(quoteForms, v.id).map(QuoteForms.subgroupView);
+      lineSubgroups = ls;
+      grossCents = c.totals.gross;
+      discountCents = c.totals.discount;
+      discountText = switch terms { case (?t) t.discountText; case null "" };
+      regieSellCents = if (vf.regieText) (switch terms { case (?t) { switch (t.regie) { case (?g) ?g.sellCents; case null null } }; case null null }) else null;
+    };
+  };
+
   func qcToday() : Nat { let t = Time.now(); if (t <= 0) 0 else Int.abs(t) / Int.abs(Config.day) };
 
   // Een versie die de klant mag zien: verzonden (of later beslist), met vastgelegde info, van een eigen werf.
@@ -111,7 +143,7 @@ mixin (
 
   // Klopt de inhoud nog met de hash van het versturen? (Dezelfde berekening als bij het versturen.)
   func qcIntact(q : Types.Quote, v : Types.QuoteVersion, c : Quotes.Computed, info : Types.QuoteSendInfo) : Bool {
-    switch (v.sent) { case (?s) Quotes.hash(Quotes.canonical(q, v, c, ?info)) == s.hash; case null false };
+    switch (v.sent) { case (?s) Quotes.hash(Quotes.canonical(quoteForms, q, v, c, ?info)) == s.hash; case null false };
   };
 
   func qcAnswer(caller : Principal, versionId : Nat, hash : Text, accepted : Bool, note : Text) : Result.Result<DocViews.MyQuoteAnswered, Text> {
@@ -126,7 +158,7 @@ mixin (
     if (v.status != #sent or qcNewer(vs, v)) { return #err("Deze versie is vervangen door een nieuwere: open de nieuwe offerte") };
     if (qcToday() > info.validUntil) { return #err("De geldigheid van deze offerte is verlopen: vraag BOWACO om een nieuwe versie") };
     if (hash != sent.hash) { return #err("U ziet niet de versie die verstuurd werd: laad de offerte opnieuw") };
-    let c = Quotes.compute(quotes, v, Library.standardMargin(settings));
+    let c = Quotes.compute(quotes, quoteForms, v, Library.standardMargin(settings));
     if (not qcIntact(q, v, c, info)) { return #err("De inhoud van deze offerte wijkt af van wat verstuurd werd: neem contact op met BOWACO") };
     let why = note.trim(#char ' ');
     if (why.size() > Config.maxText) { return #err("Notitie te lang") };

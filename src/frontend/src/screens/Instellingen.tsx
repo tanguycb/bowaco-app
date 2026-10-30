@@ -213,6 +213,7 @@ export function QuoteNumbers() {
     <section className="a-section a-form" style={{ maxWidth: 560 }}>
       <h2 className="bw-h2">{t.offertes.seqTitle}</h2>
       <p className="bw-muted">{t.offertes.seqLead(year)}</p>
+      <p className="bw-muted">{t.vorm.seqDoorlopend}</p>
       <Loading q={cur} />
       <div className="a-row">
         <Field label={t.offertes.seqField(year)}><input className="bw-input bw-num" style={{ maxWidth: 140 }} inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} /></Field>

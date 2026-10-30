@@ -146,3 +146,9 @@
 /* OF-12 (2.8): in het detailpaneel krijgt de eenheid de breedste kolom ("sog · som of geheel (forfait)" knipte af). */
 .q-sheet-qty { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1.3fr); }
 @media (max-width: 899px) { .q-sheet-qty { grid-template-columns: minmax(0, 1fr); } }
+
+/* 2c.1: subgroep binnen een hoofdstuk (kop met eigen subtotaal) en tekstblokken bij de klant */
+.q-sub { display: flex; align-items: center; gap: 8px; padding: 6px 8px 4px 44px; border-bottom: 1px solid var(--bw-line); font-size: var(--bw-fs-sm); }
+.q-sub .q-ch__sum { margin-left: auto; }
+.mq-block { margin: 8px 0 12px; }
+.mq-block b { display: block; margin-bottom: 2px; }

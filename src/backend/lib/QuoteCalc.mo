@@ -6,18 +6,26 @@
 // Volgorde: eerst de eenheidsprijs op de cent, dan hoeveelheid × eenheidsprijs op de cent, dan de som per hoofdstuk, dan
 // de btw op het subtotaal. Opties tellen NIET mee in het totaal (apart: meer- en minprijs); tekstregels hebben geen bedrag.
 // Wijzig je een regel, verhoog dan `version`: een verzonden versie rekent altijd met de regels waarmee ze verstuurd werd.
+// Versie 2 (stap 2c.1): per lijn een basismarge (de klasse van de leverancier of van het hoofdstuk; null = de standaard
+// van de versie), het regietarief van de versie voor een regiepost zonder eigen regel, en een korting op het subtotaal
+// vóór btw (bedrag of %). Zonder klasse, regie en korting rekent versie 2 exact als versie 1: een versie met calcVersion 1
+// krijgt ze nooit (lib/Quotes.mo), dus haar totalen en hash blijven dezelfde.
 import Array "mo:core/Array";
 import Int "mo:core/Int";
 import Runtime "mo:core/Runtime";
 import VarArray "mo:core/VarArray";
 
 module {
-  public let version : Nat = 1;
+  public let version : Nat = 2;
 
   public type Kind = { #item; #text; #option };
   public type Rule = { #margin : Nat; #price : Int };
-  // rule = null: de standaardmarge van de versie
-  public type Line = { chapter : Nat; kind : Kind; qtyMilli : Int; cost : ?Int; rule : ?Rule };
+  // Regietarief van de versie (v2): aankoop en verkoop per eenheid.
+  public type Regie = { cost : Int; sell : Int };
+  // Korting op het subtotaal (v2): een bedrag in eurocent of basispunten.
+  public type Discount = { #amount : Int; #percent : Nat };
+  // rule = null: de basismarge (baseBp, v2), anders de standaardmarge van de versie. regie (v2): enkel zonder eigen regel.
+  public type Line = { chapter : Nat; kind : Kind; qtyMilli : Int; cost : ?Int; rule : ?Rule; baseBp : ?Nat; regie : ?Regie };
 
   public type LineOut = {
     unitSell : ?Int; // verkoopprijs per eenheid; null = geen prijs (marge zonder aankoopprijs)
@@ -33,7 +41,9 @@ module {
 
   public type Totals = {
     chapters : [ChapterOut];
-    subtotal : Int; // som van de hoofdstukken, excl. btw
+    gross : Int; // som van de hoofdstukken, excl. btw (v2: vóór de korting)
+    discount : Int; // de korting (v2; positief = er gaat iets af)
+    subtotal : Int; // gross − korting, excl. btw: de basis van de btw
     vat : Int;
     total : Int; // incl. btw
     optionsPlus : Int; // opties met een meerprijs (niet in het totaal)
@@ -71,27 +81,38 @@ module {
     switch rule { case null false; case (?#margin m) m != standardBp; case (?#price _) true };
   };
 
+  // De basismarge van een lijn: haar klasse (v2), anders de standaard van de versie.
+  public func baseOf(l : Line, standardBp : Nat) : Nat { switch (l.baseBp) { case (?b) b; case null standardBp } };
+
   public func line(l : Line, standardBp : Nat) : LineOut {
     switch (l.kind) {
       case (#text) { return { unitSell = null; lineSell = 0; lineCost = null; marginBp = null; noPrice = false; deviates = false; negative = false } };
       case _ {};
     };
-    let u = unitSell(l.cost, l.rule, standardBp);
+    let std = baseOf(l, standardBp);
+    // v2: een regiepost zonder eigen regel neemt het regietarief van de versie (aankoop én verkoop).
+    let (cost, rule) : (?Int, ?Rule) = switch (l.regie, l.rule) { case (?g, null) (?g.cost, ?#price(g.sell)); case _ (l.cost, l.rule) };
+    let u = unitSell(cost, rule, std);
     let lineSell = switch u { case (?x) roundDiv(l.qtyMilli * x, 1000); case null 0 };
-    let lineCost = switch (l.cost) { case (?c) ?roundDiv(l.qtyMilli * c, 1000); case null null };
-    let r : Rule = switch (l.rule) { case (?x) x; case null #margin(standardBp) };
-    let marginBp : ?Int = switch (r, u, l.cost) {
+    let lineCost = switch cost { case (?c) ?roundDiv(l.qtyMilli * c, 1000); case null null };
+    let r : Rule = switch rule { case (?x) x; case null #margin(std) };
+    let marginBp : ?Int = switch (r, u, cost) {
       case (#margin m, ?_, _) ?m;
       case (#price p, _, ?c) { if (p > 0) ?roundDiv((p - c) * 10_000, p) else null };
       case _ null;
     };
-    let negative = switch (u, l.cost) { case (?x, ?c) x < c; case _ false };
-    { unitSell = u; lineSell; lineCost; marginBp; noPrice = u == null; deviates = deviates(l.rule, standardBp); negative };
+    let negative = switch (u, cost) { case (?x, ?c) x < c; case _ false };
+    { unitSell = u; lineSell; lineCost; marginBp; noPrice = u == null; deviates = deviates(l.rule, std); negative };
+  };
+
+  // De korting op een bruto subtotaal (v2): een bedrag, of een percentage afgerond op de cent (half weg van nul).
+  public func discountOf(gross : Int, d : ?Discount) : Int {
+    switch d { case null 0; case (?#amount a) a; case (?#percent bp) roundDiv(gross * bp, 10_000) };
   };
 
   // De hoofdstukken in de gegeven volgorde; een lijn moet bij een van die hoofdstukken horen (anders: trap, zodat een
   // lijn nooit stil buiten het totaal valt, de fout van offerte 2026/231).
-  public func totals(chapters : [Nat], lines : [Line], vatBp : Nat, standardBp : Nat) : Totals {
+  public func totals(chapters : [Nat], lines : [Line], vatBp : Nat, standardBp : Nat, discount : ?Discount) : Totals {
     let n = chapters.size();
     let sell = VarArray.repeat<Int>(0, n);
     let cost = VarArray.repeat<Int>(0, n);
@@ -124,19 +145,23 @@ module {
         };
       };
     };
-    var subtotal : Int = 0;
+    var gross : Int = 0;
     var costT : Int = 0;
     var swc : Int = 0;
     for (j in chapters.keys()) {
-      subtotal += sell[j];
+      gross += sell[j];
       costT += cost[j];
       swc += sellWithCost[j];
     };
     let outs = Array.tabulate<ChapterOut>(n, func j = { chapter = chapters[j]; sell = sell[j]; cost = cost[j]; sellWithCost = sellWithCost[j]; noPrice = noPriceCh[j] });
+    let disc = discountOf(gross, discount);
+    let subtotal = gross - disc;
     let vat = roundDiv(subtotal * vatBp, 10_000);
     let margin = swc - costT;
     {
       chapters = outs;
+      gross;
+      discount = disc;
       subtotal;
       vat;
       total = subtotal + vat;
@@ -144,7 +169,7 @@ module {
       optionsMinus;
       cost = costT;
       sellWithCost = swc;
-      sellWithoutCost = subtotal - swc;
+      sellWithoutCost = gross - swc;
       margin;
       marginBp = if (swc > 0) ?roundDiv(margin * 10_000, swc) else null;
       noPrice;

@@ -42,6 +42,7 @@ mixin (
   surveys : Types.SurveyState,
   progress : Types.ProgressState,
   oaInvoices : Types.OaInvoiceState,
+  quoteForms : Types.QuoteFormState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -256,6 +257,12 @@ mixin (
       progressInputs = progress.inputs.entries().toArray();
       progressAnswers = progress.answers.values().toArray();
       oaInvoices = oaInvoices.invoices.values().toArray();
+      quoteFormInfos = quoteForms.info.values().toArray();
+      quoteVersionForms = quoteForms.versionForms.values().toArray();
+      quoteSubgroups = quoteForms.subgroups.values().toArray();
+      quoteLineForms = quoteForms.lineForms.values().toArray();
+      textBlocks = quoteForms.textBlocks.values().toArray();
+      quoteSentExtras = quoteForms.sentExtra.values().toArray();
     };
   };
 
@@ -267,7 +274,7 @@ mixin (
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #export, null);
-    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts";
+    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "marginClasses" or kind == "marginClassLinks" or kind == "quoteVersionTerms";
     // 2.2/2.4: de prijzen van de bibliotheek en van de offertes vragen daarbovenop #readCosts (aankoopprijzen, R20).
     // 2.12 (review L1): ook de opslag-URL's van vertrouwelijke bestanden (contracten, OA-facturen): lezen ervan vraagt #readCosts (R12).
     if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "confidentialFiles") { Rights.require(ctx, p, #readCosts, null) };
@@ -372,6 +379,15 @@ mixin (
       case "progressRevisions" ?#progressRevisions(pg(progress.revisions.values().toArray()));
       case "oaInvoices" ?#oaInvoices(pg(oaInvoices.invoices.values().toArray()));
       case "oaInvoiceAmounts" ?#oaInvoiceAmounts(pg(oaInvoices.amounts.entries().toArray()));
+      case "quoteFormInfos" ?#quoteFormInfos(pg(quoteForms.info.values().toArray()));
+      case "quoteVersionForms" ?#quoteVersionForms(pg(quoteForms.versionForms.values().toArray()));
+      case "quoteSubgroups" ?#quoteSubgroups(pg(quoteForms.subgroups.values().toArray()));
+      case "quoteLineForms" ?#quoteLineForms(pg(quoteForms.lineForms.values().toArray()));
+      case "textBlocks" ?#textBlocks(pg(quoteForms.textBlocks.values().toArray()));
+      case "quoteSentExtras" ?#quoteSentExtras(pg(quoteForms.sentExtra.values().toArray()));
+      case "marginClasses" ?#marginClasses(pg(quoteForms.classes.entries().toArray()));
+      case "marginClassLinks" ?#marginClassLinks(pg(quoteForms.classLinks.entries().toArray()));
+      case "quoteVersionTerms" ?#quoteVersionTerms(pg(quoteForms.versionTerms.entries().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
@@ -407,6 +423,9 @@ mixin (
       progressFrozen = progress.frozen.entries().toArray();
       progressRevisions = progress.revisions.values().toArray();
       oaInvoiceAmounts = oaInvoices.amounts.entries().toArray();
+      marginClasses = quoteForms.classes.entries().toArray();
+      marginClassLinks = quoteForms.classLinks.entries().toArray();
+      quoteVersionTerms = quoteForms.versionTerms.entries().toArray();
     };
   };
 

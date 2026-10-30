@@ -6,7 +6,7 @@
 // de code of het hoofdstuk, na normalisatie (kleine letters, letters en cijfers, één spatie tussen woorden): een woord van
 // minder dan 4 tekens moet een heel woord zijn ("pid"), een langer woord mag het begin zijn ("afval" vindt "afvalcontainer").
 // Zonder React en zonder backend-imports: Node draait dit bestand rechtstreeks.
-import { calcLine, calcTotals, type CalcLine, type Kind, type Rule } from "./calc.ts";
+import { calcLine, calcTotals, type CalcLine, type Discount, type Kind, type Regie, type Rule } from "./calc.ts";
 
 export const MAX_IDS = 20;
 export type Severity = "warn" | "block";
@@ -16,12 +16,14 @@ export type RuleSet = { key: string; name: string; fixed: boolean; enabled: bool
 export type StdPost = { key: string; name: string; keywords: string[]; enabled: boolean; severity: Severity; archived: boolean };
 
 export type RuleChapter = { id: string; code: string; title: string };
-export type RuleLine = { id: string; chapter: string; kind: Kind; code: string; title: string; qtyMilli: bigint; cost: bigint | null; rule: Rule; reason: string };
+/** baseBp en regie: QuoteCalc v2 (2c.1). Een verborgen post met 0 blijft meetellen voor qty-zero (zoals QuoteRules.mo). */
+export type RuleLine = { id: string; chapter: string; kind: Kind; code: string; title: string; qtyMilli: bigint; cost: bigint | null; rule: Rule; reason: string; baseBp?: bigint | null; regie?: Regie | null };
 export type RuleInput = {
   chapters: RuleChapter[];
   lines: RuleLine[];
   standardBp: bigint;
   vatBp: bigint;
+  discount?: Discount;
   workVatBp: bigint;
   vatNote: string;
   clientSet: boolean;
@@ -60,8 +62,8 @@ export const addressOk = (a: { street: string; zip: string; city: string } | nul
 
 export function evaluate(i: RuleInput, rules: RuleSet[], std: StdPost[]): Finding[] {
   const found: Finding[] = [];
-  const calc: CalcLine[] = i.lines.map((l) => ({ chapter: l.chapter, kind: l.kind, qtyMilli: l.qtyMilli, cost: l.cost, rule: l.rule }));
-  const t = calcTotals(i.chapters.map((c) => c.id), calc, i.vatBp, i.standardBp);
+  const calc: CalcLine[] = i.lines.map((l) => ({ chapter: l.chapter, kind: l.kind, qtyMilli: l.qtyMilli, cost: l.cost, rule: l.rule, baseBp: l.baseBp ?? null, regie: l.regie ?? null }));
+  const t = calcTotals(i.chapters.map((c) => c.id), calc, i.vatBp, i.standardBp, i.discount ?? null);
   const outs = calc.map((c) => calcLine(c, i.standardBp));
   const items = i.lines.filter((l) => l.kind === "item");
   const add = (r: RuleSet, ls: RuleLine[], chs: RuleChapter[]) =>

@@ -2,7 +2,7 @@
 // veranderde sinds de laatste bewaring, en de bewaaropdrachten in stukken met de totalen die de backend ernaast legt.
 // Zonder React en zonder backend-imports: de editor (screens/Offerte.tsx) en de tests (tests/offerte-lib.mjs) gebruiken
 // hetzelfde model. Rekenen gebeurt enkel in calc.ts.
-import { calcLine, calcTotals, type CalcLine, type Kind, type LineOut, type Rule, type Totals } from "./calc.ts";
+import { calcLine, calcTotals, type CalcLine, type Discount, type Kind, type LineOut, type Rule, type Totals } from "./calc.ts";
 
 export type Price = { cost: bigint | null; rule: Rule; reason: string; orgId: bigint | null; source: string; libCostId: bigint | null };
 type ChapterData = { code: string; title: string; order: bigint; libChapterId: bigint | null };
@@ -25,7 +25,27 @@ type LineData = {
 export type Chapter = ChapterData & { key: string; id: bigint | null; seq: number; removed: boolean; base: (ChapterData & { removed: boolean }) | null; dirty: boolean };
 export type Line = LineData & { key: string; id: bigint | null; removed: boolean; base: (LineData & { removed: boolean }) | null; dirty: boolean };
 export type Header = { title: string; vatBp: bigint; clientOrgId: bigint | null; validDays: bigint; intro: string; note: string; standardMarginBp: bigint };
-export type Model = { versionId: bigint; rev: bigint; header: Header; headerBase: Header; chapters: Chapter[]; lines: Line[]; next: number };
+// 2c.1: de vorm en de voorwaarden van de versie (QuoteCalc versie 2). `form` = wat de editor nu toont, `formBase` = wat op
+// de server staat (daarmee rekent saveQuoteDraft); saveQuoteForm bewaart het verschil (nadat de lijnen bewaard zijn).
+export type Pick = { classId: bigint | null; marginBp: bigint };
+type SubgroupData = { chapter: string; title: string; order: bigint };
+export type Subgroup = SubgroupData & { key: string; id: bigint | null; removed: boolean; base: (SubgroupData & { removed: boolean }) | null };
+export type RegieTerms = { orgId: bigint | null; cost: bigint; sell: bigint };
+export type Form = {
+  hideZeroLines: boolean;
+  regieText: boolean;
+  textBlockKeys: string[];
+  chapterMargins: Map<string, Pick>; // hoofdstuksleutel → in de versie vastgelegde marge
+  regie: RegieTerms | null;
+  discount: Discount;
+  discountText: string;
+  lineSub: Map<string, string>; // lijnsleutel → subgroepsleutel
+  lineShow: Map<string, boolean>; // lijnsleutel → toon toch (of verberg) bij hoeveelheid 0
+};
+// Wat de bibliotheek en de versie leveren zonder dat de editor ze wijzigt: koppelingen (enkel in een ontwerp) en de marges
+// per leverancier die de versie al vastlegde.
+export type Terms = { live: boolean; orgFixed: Map<string, Pick>; linkCh: Map<string, Pick>; linkOrg: Map<string, Pick> };
+export type Model = { versionId: bigint; rev: bigint; header: Header; headerBase: Header; chapters: Chapter[]; lines: Line[]; next: number; v2: boolean; terms: Terms; form: Form; formBase: Form; subgroups: Subgroup[] };
 
 export type ChapterRef = { id: bigint } | { ref: string };
 export type ChapterOp = { id: bigint | null; ref: string; code: string; title: string; order: bigint; libChapterId: bigint | null; remove: boolean };
@@ -36,21 +56,73 @@ export type Batch = { header: Header | null; chapterOps: ChapterOp[]; lineOps: L
 export const MAX_OPS = 300;
 
 // ── Laden ───────────────────────────────────────────────────────────────
+export type LoadedForm = {
+  hideZeroLines: boolean;
+  regieText: boolean;
+  textBlockKeys: string[];
+  subgroups: { id: bigint; chapterId: bigint; title: string; order: bigint }[];
+  lineForms: { lineId: bigint; subgroupId: bigint | null; showToClient: boolean | null }[];
+  // vertrouwelijk (enkel #full): leeg voor wie de marges niet ziet
+  chapterMargins: { id: bigint; classId: bigint | null; marginBp: bigint; fixed: boolean }[];
+  orgMargins: { id: bigint; classId: bigint | null; marginBp: bigint; fixed: boolean }[];
+  links: { key: string; classId: bigint; marginBp: bigint }[];
+  regie: RegieTerms | null;
+  discount: Discount;
+  discountText: string;
+  live: boolean;
+};
 export type Loaded = {
   versionId: bigint;
   rev: bigint;
   header: Header;
   chapters: (ChapterData & { id: bigint })[];
   lines: (Omit<LineData, "chapter"> & { id: bigint; chapterId: bigint })[];
+  form?: LoadedForm | null;
 };
 
+export const emptyForm = (): Form => ({ hideZeroLines: true, regieText: false, textBlockKeys: [], chapterMargins: new Map(), regie: null, discount: null, discountText: "", lineSub: new Map(), lineShow: new Map() });
+export const cloneForm = (f: Form): Form => ({ ...f, textBlockKeys: [...f.textBlockKeys], chapterMargins: new Map(f.chapterMargins), regie: f.regie ? { ...f.regie } : null, lineSub: new Map(f.lineSub), lineShow: new Map(f.lineShow) });
+
 export function load(x: Loaded): Model {
+  const m = load1(x);
+  const f = x.form;
+  if (!f) return m;
+  m.v2 = true;
+  const pick = (p: { classId: bigint | null; marginBp: bigint }): Pick => ({ classId: p.classId, marginBp: p.marginBp });
+  const linkCh = new Map<string, Pick>();
+  const linkOrg = new Map<string, Pick>();
+  for (const l of f.links) {
+    if (l.key.startsWith("ch:")) linkCh.set(l.key.slice(3), { classId: l.classId, marginBp: l.marginBp });
+    else if (l.key.startsWith("org:")) linkOrg.set(l.key.slice(4), { classId: l.classId, marginBp: l.marginBp });
+  }
+  m.terms = { live: f.live, orgFixed: new Map(f.orgMargins.filter((o) => o.fixed).map((o) => [String(o.id), pick(o)])), linkCh, linkOrg };
+  m.subgroups = f.subgroups.map((g) => {
+    const d: SubgroupData = { chapter: `i${g.chapterId}`, title: g.title, order: g.order };
+    return { ...d, key: `s${g.id}`, id: g.id, removed: false, base: { ...d, removed: false } };
+  });
+  const form: Form = {
+    hideZeroLines: f.hideZeroLines,
+    regieText: f.regieText,
+    textBlockKeys: [...f.textBlockKeys],
+    chapterMargins: new Map(f.chapterMargins.filter((c) => c.fixed).map((c) => [`i${c.id}`, pick(c)])),
+    regie: f.regie ? { ...f.regie } : null,
+    discount: f.discount,
+    discountText: f.discountText,
+    lineSub: new Map(f.lineForms.filter((l) => l.subgroupId !== null).map((l) => [`i${l.lineId}`, `s${l.subgroupId}`])),
+    lineShow: new Map(f.lineForms.filter((l) => l.showToClient !== null).map((l) => [`i${l.lineId}`, l.showToClient as boolean])),
+  };
+  m.form = form;
+  m.formBase = cloneForm(form);
+  return m;
+}
+
+function load1(x: Loaded): Model {
   const chapters: Chapter[] = x.chapters.map((c, i) => ({ ...c, key: `i${c.id}`, id: c.id, seq: i, removed: false, base: { ...c, removed: false }, dirty: false }));
   const lines: Line[] = x.lines.map((l) => {
     const d: LineData = { chapter: `i${l.chapterId}`, order: l.order, kind: l.kind, code: l.code, title: l.title, text: l.text, specRef: l.specRef, qtyMilli: l.qtyMilli, unit: l.unit, form: l.form, libItemId: l.libItemId, libItemVersion: l.libItemVersion, price: { ...l.price } };
     return { ...d, key: `i${l.id}`, id: l.id, removed: false, base: { ...d, price: { ...d.price }, removed: false }, dirty: false };
   });
-  return { versionId: x.versionId, rev: x.rev, header: { ...x.header }, headerBase: { ...x.header }, chapters, lines, next: 1 };
+  return { versionId: x.versionId, rev: x.rev, header: { ...x.header }, headerBase: { ...x.header }, chapters, lines, next: 1, v2: false, terms: { live: false, orgFixed: new Map(), linkCh: new Map(), linkOrg: new Map() }, form: emptyForm(), formBase: emptyForm(), subgroups: [] };
 }
 
 // ── Lezen ───────────────────────────────────────────────────────────────
@@ -66,16 +138,42 @@ export function activeLines(m: Model): Line[] {
   return activeChapters(m).flatMap((c) => linesOf(m, c.key));
 }
 
-function calcOf(l: { chapter: string; kind: Kind; qtyMilli: bigint; price: Price }): CalcLine {
-  return { chapter: l.chapter, kind: l.kind, qtyMilli: l.qtyMilli, cost: l.price.cost, rule: l.price.rule };
+type CalcIn = { chapter: string; kind: Kind; qtyMilli: bigint; form: string; price: Price };
+
+/** 2c.1: een regiepost (contractvorm regie, geen tekstregel). */
+export const isRegie = (l: { kind: Kind; form: string }): boolean => l.kind !== "text" && l.form === "regie";
+
+/** 2c.1: de basismarge van een lijn zonder eigen regel en waar ze vandaan komt (zelfde volgorde als lib/QuoteForms.mo:
+ *  klasse van de leverancier > klasse van het hoofdstuk > standaard). Een koppeling telt enkel in een ontwerp. */
+export function lineBase(m: Model, l: CalcIn, f: Form = m.form): { pick: Pick | null; source: "leverancier" | "hoofdstuk" | "standaard" } {
+  if (!m.v2) return { pick: null, source: "standaard" };
+  const org = l.price.orgId;
+  if (org !== null) {
+    const p = m.terms.orgFixed.get(String(org)) ?? (m.terms.live ? m.terms.linkOrg.get(String(org)) : undefined);
+    if (p) return { pick: p, source: "leverancier" };
+  }
+  const ch = m.chapters.find((c) => c.key === l.chapter);
+  const p = f.chapterMargins.get(l.chapter) ?? (m.terms.live && ch && ch.libChapterId !== null ? m.terms.linkCh.get(String(ch.libChapterId)) : undefined);
+  return p ? { pick: p, source: "hoofdstuk" } : { pick: null, source: "standaard" };
+}
+
+function calcOf(m: Model, l: CalcIn, f: Form = m.form): CalcLine {
+  const base = lineBase(m, l, f).pick;
+  const regie = m.v2 && isRegie(l) && l.price.rule === null && f.regie ? { cost: f.regie.cost, sell: f.regie.sell } : null;
+  return { chapter: l.chapter, kind: l.kind, qtyMilli: l.qtyMilli, cost: l.price.cost, rule: l.price.rule, baseBp: base ? base.marginBp : null, regie };
+}
+
+/** De rekenlijn zoals de versie ze rekent (ook voor de controleregels). */
+export function calcLineOf(m: Model, l: Line): CalcLine {
+  return calcOf(m, l);
 }
 
 export function lineOut(m: Model, l: Line): LineOut {
-  return calcLine(calcOf(l), m.header.standardMarginBp);
+  return calcLine(calcOf(m, l), m.header.standardMarginBp);
 }
 
 export function totals(m: Model): Totals {
-  return calcTotals(activeChapters(m).map((c) => c.key), activeLines(m).map(calcOf), m.header.vatBp, m.header.standardMarginBp);
+  return calcTotals(activeChapters(m).map((c) => c.key), activeLines(m).map((l) => calcOf(m, l)), m.header.vatBp, m.header.standardMarginBp, m.v2 ? m.form.discount : null);
 }
 
 // ── Bewerken ────────────────────────────────────────────────────────────
@@ -241,7 +339,7 @@ function changedLine(l: Line): boolean {
 }
 
 export function pendingCount(m: Model): number {
-  return m.chapters.filter(changedChapter).length + m.lines.filter(changedLine).length + (headerDirty(m) ? 1 : 0);
+  return m.chapters.filter(changedChapter).length + m.lines.filter(changedLine).length + (headerDirty(m) ? 1 : 0) + (formDirty(m) ? 1 : 0);
 }
 
 const refOf = (m: Model, chapterKey: string): ChapterRef => {
@@ -277,7 +375,8 @@ export function nextBatch(m: Model, max = MAX_OPS): Batch | null {
   const stateLn = m.lines
     .map((l) => (keys.has(l.key) || !changedLine(l) ? (l.removed ? null : l) : l.base && !l.base.removed ? { ...l, ...l.base } : null))
     .filter((l): l is Line => l !== null && chKeys.has(l.chapter));
-  const t = calcTotals(stateCh.map((c) => c.key), stateLn.map(calcOf), vatBp, std);
+  // 2c.1: met de vorm zoals ze op de server staat (de gewijzigde vorm volgt met saveQuoteForm).
+  const t = calcTotals(stateCh.map((c) => c.key), stateLn.map((l) => calcOf(m, l, m.formBase)), vatBp, std, m.v2 ? m.formBase.discount : null);
   return {
     header,
     chapterOps: takeCh.map((c) => ({ id: c.id, ref: c.key, code: c.code, title: c.title, order: c.order, libChapterId: c.libChapterId, remove: c.removed })),
@@ -316,4 +415,131 @@ export function applySaved(m: Model, b: Batch, rev: bigint, refs: [string, bigin
   }
   m.chapters = m.chapters.filter((c) => !(c.removed && !c.dirty));
   m.lines = m.lines.filter((l) => !(l.removed && !l.dirty));
+}
+
+// ── 2c.1: subgroepen, wat de klant ziet, marges, regie en korting ───────
+export function activeSubgroups(m: Model, chapterKey?: string): Subgroup[] {
+  const live = new Set(activeChapters(m).map((c) => c.key));
+  return m.subgroups.filter((g) => !g.removed && live.has(g.chapter) && (chapterKey === undefined || g.chapter === chapterKey)).sort((a, b) => (a.order === b.order ? 0 : a.order < b.order ? -1 : 1));
+}
+
+export function addSubgroup(m: Model, chapterKey: string, title: string): Subgroup {
+  const last = activeSubgroups(m, chapterKey).at(-1);
+  const g: Subgroup = { chapter: chapterKey, title, order: last ? last.order + STEP : STEP, key: `t${m.next++}`, id: null, removed: false, base: null };
+  m.subgroups.push(g);
+  return g;
+}
+
+export function updateSubgroup(m: Model, key: string, d: Partial<SubgroupData>): void {
+  const g = m.subgroups.find((x) => x.key === key);
+  if (g) Object.assign(g, d);
+}
+
+export function removeSubgroup(m: Model, key: string): void {
+  const g = m.subgroups.find((x) => x.key === key);
+  if (!g) return;
+  for (const [k, v] of [...m.form.lineSub]) if (v === key) m.form.lineSub.delete(k);
+  if (g.id === null) m.subgroups = m.subgroups.filter((x) => x.key !== key);
+  else g.removed = true;
+}
+
+/** De subgroep van een lijn (null = geen, of een subgroep van een ander hoofdstuk). */
+export function lineSubgroup(m: Model, l: Line, f: Form = m.form): Subgroup | null {
+  const k = f.lineSub.get(l.key);
+  const g = k ? m.subgroups.find((x) => x.key === k && !x.removed) : undefined;
+  return g && g.chapter === l.chapter ? g : null;
+}
+
+export function setLineSubgroup(m: Model, lineKey: string, subgroupKey: string | null): void {
+  if (subgroupKey) m.form.lineSub.set(lineKey, subgroupKey);
+  else m.form.lineSub.delete(lineKey);
+}
+
+/** Ziet de klant deze lijn? Zelfde regel als lib/QuoteForms.shown: enkel een lijn met hoeveelheid 0 kan verborgen zijn. */
+export function shown(m: Model, l: Line, f: Form = m.form): boolean {
+  if (!m.v2 || l.kind === "text" || l.qtyMilli !== 0n) return true;
+  const s = f.lineShow.get(l.key);
+  return s !== undefined ? s : !f.hideZeroLines;
+}
+
+export function setLineShow(m: Model, lineKey: string, show: boolean | null): void {
+  if (show === null) m.form.lineShow.delete(lineKey);
+  else m.form.lineShow.set(lineKey, show);
+}
+
+/** Regietarief voor de klant: uurloon / (1 − regiemarge), op de cent (zelfde als QuoteForms.regieSell). */
+export function regieSell(cost: bigint, marginBp = 2000n): bigint {
+  return calcLine({ chapter: "", kind: "item", qtyMilli: 1000n, cost, rule: null }, marginBp).unitSell ?? cost;
+}
+
+const pickKey = (p: Pick | undefined) => (p ? `${p.classId ?? "-"}:${p.marginBp}` : "");
+const discKey = (d: Discount) => (d === null ? "" : "amount" in d ? `a${d.amount}` : `p${d.percent}`);
+
+function subChanged(g: Subgroup): boolean {
+  if (!g.base) return !g.removed;
+  return g.removed !== g.base.removed || g.title !== g.base.title || g.order !== g.base.order || g.chapter !== g.base.chapter;
+}
+
+export function formDirty(m: Model): boolean {
+  if (!m.v2) return false;
+  const a = m.form;
+  const b = m.formBase;
+  if (a.hideZeroLines !== b.hideZeroLines || a.regieText !== b.regieText || a.textBlockKeys.join("|") !== b.textBlockKeys.join("|") || a.discountText !== b.discountText || discKey(a.discount) !== discKey(b.discount)) return true;
+  if (JSON.stringify(a.regie, (_, v) => (typeof v === "bigint" ? String(v) : v)) !== JSON.stringify(b.regie, (_, v) => (typeof v === "bigint" ? String(v) : v))) return true;
+  const keys = new Set([...a.chapterMargins.keys(), ...b.chapterMargins.keys()]);
+  for (const k of keys) if (pickKey(a.chapterMargins.get(k)) !== pickKey(b.chapterMargins.get(k))) return true;
+  if (m.subgroups.some(subChanged)) return true;
+  return m.lines.some((l) => !l.removed && ((lineSubgroup(m, l)?.key ?? "") !== (lineSubgroup(m, l, b)?.key ?? "") || a.lineShow.get(l.key) !== b.lineShow.get(l.key)));
+}
+
+export type FormSave = {
+  input: {
+    hideZeroLines: boolean;
+    regieText: boolean;
+    textBlockKeys: string[];
+    subgroupOps: { id: bigint | null; ref: string; chapterId: bigint; title: string; order: bigint; remove: boolean }[];
+    lineOps: { lineId: bigint; subgroup: { id: bigint } | { ref: string } | null; showToClient: boolean | null }[];
+    chapterMargins: { id: bigint; classId: bigint | null; marginBp: bigint }[];
+    regie: { orgId: bigint | null; costCents: bigint; sellCents: bigint | null } | null;
+    discount: Discount;
+    discountText: string;
+  };
+  expect: { subtotal: bigint; discount: bigint; total: bigint };
+};
+
+/** De bewaaropdracht voor saveQuoteForm (na de lijnen: elke lijn en elk hoofdstuk heeft dan een id). null = niets. */
+export function formSave(m: Model): FormSave | null {
+  if (!formDirty(m)) return null;
+  const chId = (k: string) => m.chapters.find((c) => c.key === k && !c.removed)?.id ?? null;
+  const subgroupOps = m.subgroups.filter(subChanged).flatMap((g) => {
+    const c = chId(g.chapter);
+    if (g.removed) return g.id === null ? [] : [{ id: g.id, ref: g.key, chapterId: c ?? 0n, title: g.title, order: g.order, remove: true }];
+    return c === null ? [] : [{ id: g.id, ref: g.key, chapterId: c, title: g.title, order: g.order, remove: false }];
+  });
+  const lineOps = m.lines.filter((l) => !l.removed && l.id !== null).flatMap((l) => {
+    const g = lineSubgroup(m, l);
+    const gb = lineSubgroup(m, l, m.formBase);
+    const show = m.form.lineShow.get(l.key);
+    if ((g?.key ?? "") === (gb?.key ?? "") && show === m.formBase.lineShow.get(l.key)) return [];
+    return [{ lineId: l.id as bigint, subgroup: g ? (g.id !== null ? { id: g.id } : { ref: g.key }) : null, showToClient: show ?? null }];
+  });
+  const chapterMargins = [...m.form.chapterMargins].flatMap(([k, p]) => { const c = chId(k); return c === null ? [] : [{ id: c, classId: p.classId, marginBp: p.marginBp }]; });
+  const f = m.form;
+  const t = totals(m);
+  return {
+    input: { hideZeroLines: f.hideZeroLines, regieText: f.regieText, textBlockKeys: [...f.textBlockKeys], subgroupOps, lineOps, chapterMargins, regie: f.regie ? { orgId: f.regie.orgId, costCents: f.regie.cost, sellCents: f.regie.sell } : null, discount: f.discount, discountText: f.discountText },
+    expect: { subtotal: t.subtotal, discount: t.discount, total: t.total },
+  };
+}
+
+/** Na een geslaagde saveQuoteForm: de nieuwe ids van de subgroepen en de vorm is de nieuwe basis. */
+export function applyFormSaved(m: Model, rev: bigint, refs: [string, bigint][]): void {
+  const ids = new Map(refs);
+  m.rev = rev;
+  for (const g of m.subgroups) {
+    if (g.id === null) g.id = ids.get(g.key) ?? null;
+    g.base = { chapter: g.chapter, title: g.title, order: g.order, removed: g.removed };
+  }
+  m.subgroups = m.subgroups.filter((g) => !g.removed);
+  m.formBase = cloneForm(m.form);
 }

@@ -1369,6 +1369,81 @@ module {
     acceptances : Map.Map<Nat, QuoteAcceptance>; // sleutel = versie
   };
 
+  // ── De offerte zoals Alexis ze maakt (stap 2c.1, ontwerp 2c §4.1; VOORLOPIG: AC-14, AC-27 en de rest van de lijst voor Alexis) ────
+  // Eigen stabiel veld `quoteForms` (deelvorm, OldActor = {}): wat bij een offerte, versie of lijn hoort, staat in een
+  // ZIJTABEL met dat id als sleutel (G2: nooit een bestaand record verbreden). Intern: offertesoort (schadedossier met
+  // verzekeraar en dossiernummer), wat de klant ziet (posten met 0, regietekst, tekstblokken), subgroepen per hoofdstuk,
+  // lijnvorm. VERTROUWELIJK (D6, R20): margeklassen, hun koppeling aan een bibliotheekhoofdstuk of een firma, en per versie
+  // de marge per hoofdstuk en per leverancier (vastgelegd bij het versturen), het regietarief en de korting. Rekenen:
+  // QuoteCalc versie 2; een versie met calcVersion 1 rekent zonder dit alles, dus exact zoals vroeger.
+  // Volledig vanaf het begin (D1a): #extraWork en baseQuoteId zijn voor de meerwerkofferte van 2c.5.
+  public type QuoteKind = { #standard; #damage; #extraWork; #regie }; // gewoon · schadedossier · meerwerkofferte · enkel regie
+
+  // klasse: intern. Per offerte (sleutel = offerte). De verzekeraar is een firma (soort andere, vakgebied verzekeraar: ⚖10).
+  public type QuoteFormInfo = { quoteId : Nat; kind : QuoteKind; baseQuoteId : ?Nat; insurerOrgId : ?OrgId; claimRef : Text; updatedAt : Int; updatedBy : PersonId; extra : Extra };
+
+  // klasse: intern. Per versie (sleutel = versie): wat de klant ziet. Geen record = de standaard (posten met 0 verborgen,
+  // geen regietekst, de tekstblokken die standaard aan staan).
+  public type QuoteVersionForm = { versionId : Nat; hideZeroLines : Bool; regieText : Bool; textBlockKeys : [Text]; extra : Extra };
+
+  // klasse: intern. Subgroep binnen een hoofdstuk van een versie ("Gelijkvloers", "Verdiep +1"); gekopieerd naar een nieuwe versie.
+  public type QuoteSubgroup = { id : Nat; versionId : Nat; chapterId : Nat; title : Text; order : Nat; copiedFrom : ?Nat; archivedAt : ?Int };
+
+  // klasse: intern. Per lijn (sleutel = lijn): subgroep, tonen aan de klant (null = de regel van de versie), uit welk tekstblok.
+  public type QuoteLineForm = { lineId : Nat; subgroupId : ?Nat; showToClient : ?Bool; textBlockKey : ?Text };
+
+  // Waar een tekstblok komt: bovenaan, onderaan, of bij een hoofdstuk met die code.
+  public type TextBlockPlace = { #top; #end; #chapter : Text };
+
+  // klasse: intern. Een vast tekstblok (Beheer → Offertes); `version` telt elke wijziging. Een verzonden versie bewaart de tekst.
+  public type TextBlock = { key : Text; title : Text; text : Text; defaultOn : Bool; place : TextBlockPlace; order : Nat; version : Nat; updatedAt : Int; updatedBy : PersonId; archivedAt : ?Int; extra : Extra };
+
+  // klasse: vertrouwelijk. Een margeklasse ("Buitenschrijnwerk 10 %"), marge op de VERKOOPprijs zoals overal.
+  public type MarginClass = { id : Nat; name : Text; marginBp : Nat; note : Text; createdAt : Int; createdBy : PersonId; updatedAt : Int; updatedBy : PersonId; archivedAt : ?Int; extra : Extra };
+
+  // klasse: vertrouwelijk. De standaardklasse van een bibliotheekhoofdstuk ("ch:<id>") of een firma ("org:<id>").
+  public type MarginClassLink = { key : Text; classId : Nat; at : Int; by : PersonId };
+
+  // klasse: vertrouwelijk. Een marge in een versie: uit een klasse (kopie van de klasse op dat moment) of met de hand.
+  public type QuoteMarginPick = { classId : ?Nat; marginBp : Nat };
+
+  // klasse: vertrouwelijk. Het regietarief van een versie: uurloon van de OA en de prijs voor de klant (standaard / 0,8).
+  public type QuoteRegie = { orgId : ?OrgId; costCents : Int; sellCents : Int; fromRateId : ?Nat };
+
+  // klasse: vertrouwelijk. Korting op het subtotaal vóór btw: een bedrag of een percentage (basispunten).
+  public type QuoteDiscount = { #amount : Int; #percent : Nat };
+
+  // klasse: vertrouwelijk. Per versie (sleutel = versie): marge per hoofdstuk (sleutel = hoofdstuk van de versie) en per
+  // leverancier (sleutel = firma), regietarief, korting. In een ontwerp vult een koppeling aan wat hier ontbreekt; bij het
+  // versturen ligt alles hier vast, zodat een latere wijziging van een klasse een verzonden versie nooit verandert.
+  public type QuoteVersionTerms = {
+    versionId : Nat;
+    chapterMargins : [(Nat, QuoteMarginPick)];
+    orgMargins : [(OrgId, QuoteMarginPick)];
+    regie : ?QuoteRegie;
+    discount : ?QuoteDiscount;
+    discountText : Text;
+    extra : Extra;
+  };
+
+  // klasse: intern (zoals QuoteSent): wat bij het versturen bijkomt (sleutel = versie): bruto, korting en de tekstblokken
+  // zoals de klant ze kreeg (valt onder de hash).
+  public type QuoteSentBlock = { key : Text; title : Text; text : Text; place : TextBlockPlace };
+  public type QuoteSentExtra = { versionId : Nat; grossCents : Int; discountCents : Int; blocks : [QuoteSentBlock]; extra : Extra };
+
+  public type QuoteFormState = {
+    info : Map.Map<Nat, QuoteFormInfo>; // sleutel = offerte
+    versionForms : Map.Map<Nat, QuoteVersionForm>; // sleutel = versie
+    subgroups : Map.Map<Nat, QuoteSubgroup>;
+    subgroupsByVersion : Map.Map<Nat, [Nat]>; // index, herrekend bij een herstel
+    lineForms : Map.Map<Nat, QuoteLineForm>; // sleutel = lijn
+    textBlocks : Map.Map<Text, TextBlock>;
+    classes : Map.Map<Nat, Confidential<MarginClass>>; // vertrouwelijk
+    classLinks : Map.Map<Text, Confidential<MarginClassLink>>; // vertrouwelijk
+    versionTerms : Map.Map<Nat, Confidential<QuoteVersionTerms>>; // vertrouwelijk; sleutel = versie
+    sentExtra : Map.Map<Nat, QuoteSentExtra>; // sleutel = versie
+  };
+
   // ── Offerte → werf (stap 2.8, bouwplan §9 rij 2.8; VOORLOPIG: vragen voor Alexis) ────
   // Eigen stabiel veld `workStarts` (deelvorm, OldActor = {}). Een aanvaarde offerteversie geeft een VOORSTEL "Werf starten"
   // (werf, planningstaken uit de posten, vergunningsvoorstellen, 30bis); de werfleider of admin past het aan en bevestigt.

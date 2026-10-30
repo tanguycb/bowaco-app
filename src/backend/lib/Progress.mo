@@ -41,6 +41,7 @@ module {
     plan : Types.PlanState;
     reports : Types.ReportState;
     qs : Types.QuotesState;
+    qf : Types.QuoteFormState; // 2c.1: klassen en regietarief van de versie (QuoteCalc versie 2)
     starts : Types.WorkStartState;
     ss : Types.SurveyState;
     ps : Types.ProgressState;
@@ -184,9 +185,9 @@ module {
     let out = List.empty<Cand>();
     let seen = Map.empty<Nat, Bool>();
     for (p in Measure.posts(c.qs, c.starts, workId).values()) {
-      let price = Quotes.priceOf(c.qs, p.line.id);
-      let std = Quotes.standardMargin(c.qs, p.version.id, fallback);
-      let u = QuoteCalc.unitSell(price.cost, price.rule, std);
+      // 2c.1: zoals de versie rekent (versie 1: de standaardmarge; versie 2: ook klasse en regietarief). De korting op het
+      // totaal van een offerte telt hier (nog) niet: dat komt met de min-meerstaat en de facturen (2c.5, 2c.6).
+      let u = Quotes.unitSellOf(c.qs, c.qf, p.version, p.line, fallback);
       let section : Types.ProgressSection = if (p.line.form == #regie) #regie else if (not p.option and baseRoots.containsKey(p.root)) #contract else if (p.line.qtyMilli < 0) #less else #extra;
       seen.add(p.root, true);
       out.add({

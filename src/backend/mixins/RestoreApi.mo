@@ -28,6 +28,7 @@ import Config "../lib/Config";
 import Library "../lib/Library";
 import Quotes "../lib/Quotes";
 import OaInvoice "../lib/OaInvoice";
+import QuoteForms "../lib/QuoteForms";
 import Reports "../lib/Reports";
 
 mixin (
@@ -54,6 +55,7 @@ mixin (
   surveys : Types.SurveyState,
   progress : Types.ProgressState,
   oaInvoices : Types.OaInvoiceState,
+  quoteForms : Types.QuoteFormState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -112,7 +114,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -281,6 +283,15 @@ mixin (
       case (#progressRevisions xs) { for (x in xs.values()) { progress.revisions.add(x.workId, x) }; xs.size() };
       case (#oaInvoices xs) { for (x in xs.values()) { oaInvoices.invoices.add(x.id, x) }; xs.size() };
       case (#oaInvoiceAmounts xs) { for ((id, x) in xs.values()) { oaInvoices.amounts.add(id, x) }; xs.size() };
+      case (#quoteFormInfos xs) { for (x in xs.values()) { quoteForms.info.add(x.quoteId, x) }; xs.size() };
+      case (#quoteVersionForms xs) { for (x in xs.values()) { quoteForms.versionForms.add(x.versionId, x) }; xs.size() };
+      case (#quoteSubgroups xs) { for (x in xs.values()) { quoteForms.subgroups.add(x.id, x) }; xs.size() };
+      case (#quoteLineForms xs) { for (x in xs.values()) { quoteForms.lineForms.add(x.lineId, x) }; xs.size() };
+      case (#textBlocks xs) { for (x in xs.values()) { quoteForms.textBlocks.add(x.key, x) }; xs.size() };
+      case (#quoteSentExtras xs) { for (x in xs.values()) { quoteForms.sentExtra.add(x.versionId, x) }; xs.size() };
+      case (#marginClasses xs) { for ((id, x) in xs.values()) { quoteForms.classes.add(id, x) }; xs.size() };
+      case (#marginClassLinks xs) { for ((k, x) in xs.values()) { quoteForms.classLinks.add(k, x) }; xs.size() };
+      case (#quoteVersionTerms xs) { for ((id, x) in xs.values()) { quoteForms.versionTerms.add(id, x) }; xs.size() };
     };
   };
 
@@ -458,6 +469,10 @@ mixin (
       Quotes.addIndex(oaInvoices.byWork, i.workId, i.id);
     };
     rsAtLeast("oaInvoice", rsMaxKey(oaInvoices.invoices));
+    // 2c.1: de index van de subgroepen uit de records zelf; tellers van subgroepen en margeklassen.
+    QuoteForms.rebuildIndex(quoteForms);
+    rsAtLeast("quoteSubgroup", rsMaxKey(quoteForms.subgroups));
+    rsAtLeast("marginClass", rsMaxKey(quoteForms.classes));
   };
 
   func rsSummary() : Views.RestoreSummary {

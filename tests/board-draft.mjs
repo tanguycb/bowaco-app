@@ -25,7 +25,7 @@ const monday = (d) => d - BigInt(wd(d));
 const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-architect", "proef-oa2", "proef-klant", "proef-vc"].map((n) => backend(n, cid)));
 const anon = await backend(null, cid);
 const me = await admin.me();
-check("versie 1.4 of later op de canister", (/^1b\.|^[2-9]b?\./.test(me.version) || /^1\.[4-9]/.test(me.version)), me.version);
+check("versie 1.4 of later op de canister", (/^1b\.|^[2-9][b-z]?\./.test(me.version) || /^1\.[4-9]/.test(me.version)), me.version);
 const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A")?.id;
 const B = works.find((w) => w.code === "P-B")?.id;

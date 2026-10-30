@@ -67,7 +67,15 @@ async function advance(ns) {
   const d = JSON.parse(readFileSync(descr, "utf8"));
   if (d["project-dir"] !== netDir) throw new Error("niet ons eigen net");
   const base = `http://127.0.0.1:${d["pocketic-config-port"]}/instances/${d["pocketic-instance-id"]}`;
-  const now = BigInt((await (await fetch(`${base}/read/get_time`)).json()).nanos_since_epoch);
+  // 2c.1: onder zware belasting geeft PocketIC soms geen tijd terug (geen nanos_since_epoch): een paar keer opnieuw.
+  let t = null;
+  for (let i = 0; i < 6 && t === null; i++) {
+    const j = await (await fetch(`${base}/read/get_time`)).json().catch(() => ({}));
+    if (j && j.nanos_since_epoch !== undefined) t = j.nanos_since_epoch;
+    else await new Promise((res) => setTimeout(res, 5000));
+  }
+  if (t === null) throw new Error("PocketIC gaf geen tijd terug (belasting van de Mac?)");
+  const now = BigInt(t);
   const r = await fetch(`${base}/update/set_time`, {
     method: "POST",
     headers: { "content-type": "application/json" },

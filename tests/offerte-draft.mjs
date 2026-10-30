@@ -26,7 +26,7 @@ const flat = (x) => JSON.stringify(x, (k, v) => (typeof v === "bigint" ? v.toStr
 const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-architect", "proef-oa2", "proef-klant", "proef-vc"].map((n) => backend(n, cid)));
 const me = await admin.me();
 await ensureProofClientAddress(admin); // 2.6
-check("versie 2.4 of later op de canister", /^2\.([4-9]|1\d)|^(2b|[3-9])\./.test(me.version), me.version);
+check("versie 2.4 of later op de canister", /^2\.([4-9]|1\d)|^(2[b-z]|[3-9])\./.test(me.version), me.version);
 const works = await admin.listWorks();
 const A = works.find((w) => w.code === "P-A");
 if (!A) throw new Error("werf P-A ontbreekt: eerst tests/rollen.mjs (lokaal) of tools/draft-opbouw.mjs (draft)");

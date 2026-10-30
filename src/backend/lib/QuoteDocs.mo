@@ -192,6 +192,7 @@ module {
         case (?d) { switch (x.access.persons.get(d.by)) { case (?p) { if (Rights.hasRole(p, #klant)) d.note else "" }; case null "" } };
         case null "";
       };
+      form = null; // QuoteClientApi vult dit aan (2c.1)
     };
   };
 

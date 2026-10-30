@@ -55,9 +55,9 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices", "quoteFormInfos", "quoteVersionForms", "quoteSubgroups", "quoteLineForms", "textBlocks", "quoteSentExtras"];
   // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
-  const SIZE = { libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10, oaInvoiceAmounts: 50 };
+  const SIZE = { libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10, oaInvoiceAmounts: 50, textBlocks: 50, quoteSentExtras: 20, quoteVersionTerms: 100 };
   const partOpt = async (k) => { try { return await part(k, SIZE[k] ?? 500); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
@@ -71,6 +71,8 @@ async function exportAll(cid, dir) {
   for (const k of ["progressConf", "progressFrozen", "progressRevisions"]) vertrouwelijk[k] = await partOpt(k);
   // 2.11: de bedragen en regels van de OA-facturen.
   vertrouwelijk.oaInvoiceAmounts = await partOpt("oaInvoiceAmounts");
+  // 2c.1: margeklassen, hun koppelingen en per versie de marges, het regietarief en de korting.
+  for (const k of ["marginClasses", "marginClassLinks", "quoteVersionTerms"]) vertrouwelijk[k] = await partOpt(k);
   // 2.12 (review M1): de tellers als ALLERLAATSTE: op een levende canister kan tussen twee stukken nog een staat verstuurd of
   // een record gemaakt worden; een teller die ouder is dan de records geeft na een herstel hetzelfde nummer nog eens.
   intern.counters = await part("counters");
@@ -225,6 +227,15 @@ async function restoreAll(cid, dir) {
   await send("progressRevisions", vertrouwelijk.progressRevisions ?? [], 200);
   await send("oaInvoices", intern.oaInvoices ?? [], 200);
   await send("oaInvoiceAmounts", vertrouwelijk.oaInvoiceAmounts ?? [], 50);
+  await send("quoteFormInfos", intern.quoteFormInfos ?? [], 300);
+  await send("quoteVersionForms", intern.quoteVersionForms ?? [], 300);
+  await send("quoteSubgroups", intern.quoteSubgroups ?? [], 300);
+  await send("quoteLineForms", intern.quoteLineForms ?? [], 300);
+  await send("textBlocks", intern.textBlocks ?? [], 50);
+  await send("quoteSentExtras", intern.quoteSentExtras ?? [], 20);
+  await send("marginClasses", vertrouwelijk.marginClasses ?? [], 300);
+  await send("marginClassLinks", vertrouwelijk.marginClassLinks ?? [], 300);
+  await send("quoteVersionTerms", vertrouwelijk.quoteVersionTerms ?? [], 100);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -330,6 +341,12 @@ function normalize(intern, vertrouwelijk, audit) {
     progressInputs: byKey(intern.progressInputs ?? [], (x) => x[0]),
     progressAnswers: byKey(intern.progressAnswers ?? [], (x) => x.statementId),
     oaInvoices: byKey(intern.oaInvoices ?? [], id),
+    quoteFormInfos: byKey(intern.quoteFormInfos ?? [], (x) => x.quoteId),
+    quoteVersionForms: byKey(intern.quoteVersionForms ?? [], (x) => x.versionId),
+    quoteSubgroups: byKey(intern.quoteSubgroups ?? [], id),
+    quoteLineForms: byKey(intern.quoteLineForms ?? [], (x) => x.lineId),
+    textBlocks: byKey(intern.textBlocks ?? [], (x) => x.key),
+    quoteSentExtras: byKey(intern.quoteSentExtras ?? [], (x) => x.versionId),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),
@@ -345,6 +362,9 @@ function normalize(intern, vertrouwelijk, audit) {
     "vertrouwelijk.progressFrozen": byKey(vertrouwelijk.progressFrozen ?? [], (x) => x[0]),
     "vertrouwelijk.progressRevisions": byKey(vertrouwelijk.progressRevisions ?? [], (x) => x.workId),
     "vertrouwelijk.oaInvoiceAmounts": byKey(vertrouwelijk.oaInvoiceAmounts ?? [], (x) => x[0]),
+    "vertrouwelijk.marginClasses": byKey(vertrouwelijk.marginClasses ?? [], (x) => x[0]),
+    "vertrouwelijk.marginClassLinks": byKey(vertrouwelijk.marginClassLinks ?? [], (x) => x[0]),
+    "vertrouwelijk.quoteVersionTerms": byKey(vertrouwelijk.quoteVersionTerms ?? [], (x) => x[0]),
     audit,
   };
   return out;

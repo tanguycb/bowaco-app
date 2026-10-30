@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Alles lokaal op het EIGEN testnet (tests/net, poort 8041; raakt het gedeelde :8000 nooit):
-# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → gateway.
+# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → offerte 2c.1 → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → gateway.
 #   zsh tests/lokaal.sh            (start het net als het nog niet draait)
 set -e
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -66,6 +66,9 @@ node tests/offerte-draft.mjs "$cid"
 # 2.5: de rekentests (rekenmodule zelf, de fouten van 2026/231 met verzonnen posten, browser = server op 200 willekeurige
 # offertes). De ECHTE offerte enkel hier en enkel als ze er is: rapport buiten git (~/.bowaco/posten/rekentest-*.md).
 node tests/rekentest.mjs "$cid"
+# 2c.1: de offerte zoals Alexis ze maakt (klassen, regietarief, korting, subgroepen, tekstblokken, posten met 0, schadedossier,
+# doorlopend nummer; browser = server op willekeurige offertes). Vóór tests/regels.mjs: die zet de standaardposten zelf.
+node tests/offerte-2c1.mjs "$cid"
 # 2.8: aanvaarde offerte → werf (voorstel, bevestigen, idempotent, meerwerk, afwijzen, nieuwe werf).
 node tests/werfstart-draft.mjs "$cid"
 # 2.9: opmeting ter plaatse (meten, deelopmeting, correctie met reden, tweede toestel, OA voorstel, afsluiten, rechten, geen prijzen).

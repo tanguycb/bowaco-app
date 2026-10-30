@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2b.6-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2c.1-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -325,6 +325,14 @@ module {
   public let maxQuoteQtyMilli : Int = 1_000_000_000_000; // 1 miljard eenheden: tikfoutgrens (ook negatief)
   public let maxQuoteValidDays : Nat = 365;
   public let quoteValidDaysDefault : Nat = 30; // "30 dagen na datum" (offerte 2026/231, B11)
+  // 2c.1: regietarief voor de klant = uurloon van de OA / (1 − regiemarge); 20 % = / 0,8 (€ 45 → € 56,25, AC-14).
+  public let quoteRegieMarginBp : Nat = 2_000;
+  public let quoteSeqKey : Text = "offerte:seq"; // D1: één doorlopende teller voor de offertenummers
+  public let maxMarginClasses : Nat = 50;
+  public let maxTextBlocks : Nat = 60;
+  public let maxTextBlockText : Nat = 4_000;
+  public let maxQuoteSubgroups : Nat = 200; // per versie
+  public let maxClaimRef : Nat = 60;
   public let maxQuoteRead : Nat = 400; // offertes in één overzicht
   // Herkomst van een aankoopprijs in een offertelijn (sleutel, naam).
   public func quoteCostSources() : [(Text, Text)] {
@@ -386,13 +394,15 @@ module {
       ("chapter-empty", "Hoofdstukken zonder posten", false, false, null),
     ];
   };
-  // De standaardposten die in een offerte horen (sleutel, naam, woorden in de titel, de code of het hoofdstuk van een post).
-  public func quoteStdPostDefaults() : [(Text, Text, [Text])] {
+  // De standaardposten die in een offerte horen (sleutel, naam, woorden in de titel, de code of het hoofdstuk van een post,
+  // standaard aan). 2c.1 (analyse N14): EPB en veiligheidscoördinatie staan standaard UIT (de beheerder kan ze aanzetten).
+  public func quoteStdPostDefaults() : [(Text, Text, [Text], Bool)] {
     [
-      ("vergunning", "Vergunning of inname openbaar domein", ["vergunning", "openbaar domein", "inname", "signalisatie"]),
-      ("epb", "EPB-verslaggeving", ["epb", "peb", "energieprestatie"]),
-      ("pid", "Postinterventiedossier (PID)", ["pid", "postinterventiedossier", "post interventiedossier"]),
-      ("opkuis", "Opkuis en afvoer", ["opkuis", "opkuisen", "afval", "puin", "werfopruiming"]),
+      ("vergunning", "Vergunning of inname openbaar domein", ["vergunning", "openbaar domein", "inname", "signalisatie"], true),
+      ("epb", "EPB-verslaggeving", ["epb", "peb", "energieprestatie"], false),
+      ("vc", "Veiligheidscoördinatie", ["veiligheidscoordinatie", "veiligheidscoördinatie", "veiligheidscoordinator", "veiligheidscoördinator"], false),
+      ("pid", "Postinterventiedossier (PID)", ["pid", "postinterventiedossier", "post interventiedossier"], true),
+      ("opkuis", "Opkuis en afvoer", ["opkuis", "opkuisen", "afval", "puin", "werfopruiming"], true),
     ];
   };
   public let maxQuoteStdPosts : Nat = 30;

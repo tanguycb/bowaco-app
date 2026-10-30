@@ -5,9 +5,9 @@
 // geheugen van deze pagina (R23). Een verzonden of aanvaarde versie is alleen-lezen; verder werken = nieuwe versie.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { ExternalBlob, ContractForm, OrgKind, QuoteLineKind, QuoteScope, QuoteStatus, type Caps, type LibChapterView, type LibItemView, type LibSellRule, type OrgView, type QuoteChapterRef, type QuoteRead, type QuoteSummary, type UnitView } from "../backend";
+import { ExternalBlob, ContractForm, OrgKind, QuoteKind, QuoteLineKind, QuoteScope, QuoteStatus, type Caps, type QuoteDiscount, type LibChapterView, type LibItemView, type LibSellRule, type OrgView, type QuoteChapterRef, type QuoteRead, type QuoteSummary, type UnitView } from "../backend";
 import { Button, Choice, Icon, Info, Sheet, useToast } from "../design";
-import { calcLine, type Kind, type Rule } from "../quote/calc.ts";
+import { calcLine, type Discount, type Kind, type Rule } from "../quote/calc.ts";
 import * as M from "../quote/model.ts";
 import { addressOk, blocks, evaluate, warnings, type Finding, type RuleSet, type StdPost } from "../quote/rules.ts";
 import { runSelfTest } from "../quote/selftest.ts";
@@ -17,6 +17,7 @@ import { errText, fmtBp, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBacke
 import { EmptyState, Loading, Page, useWorks } from "./common";
 import { CalculatorStart } from "./Aandacht";
 import { OpenConfidential } from "./Dossier";
+import { ChapterMargin, FormPanel, KindSheet, SubgroupHead } from "./OfferteVorm";
 
 const O = t.offertes;
 const FORMS: ContractForm[] = [ContractForm.vh, ContractForm.fixed, ContractForm.regie, ContractForm.estimate, ContractForm.budget, ContractForm.perAttachment];
@@ -64,6 +65,30 @@ function toLoaded(r: QuoteRead): M.Loaded {
         price: c ? { cost: c.costCents ?? null, rule: ruleFromTs(c.rule), reason: c.reason, orgId: c.orgId ?? null, source: c.source, libCostId: c.libCostId ?? null } : M.emptyPrice(),
       };
     }),
+    form: formFromRead(r),
+  };
+}
+
+// 2c.1: de vorm en de voorwaarden van de versie (null = een versie die nog met versie 1 rekent).
+const discFromTs = (d?: QuoteDiscount): Discount => (d ? (d.__kind__ === "amount" ? { amount: d.amount } : { percent: d.percent }) : null);
+const discToTs = (d: Discount): QuoteDiscount | undefined => (d === null ? undefined : "amount" in d ? { __kind__: "amount", amount: d.amount } : { __kind__: "percent", percent: d.percent });
+function formFromRead(r: QuoteRead): M.LoadedForm | null {
+  const f = r.form;
+  if (!f) return null;
+  const tm = r.terms;
+  return {
+    hideZeroLines: f.hideZeroLines,
+    regieText: f.regieText,
+    textBlockKeys: f.textBlockKeys,
+    subgroups: f.subgroups.map((g) => ({ id: g.id, chapterId: g.chapterId, title: g.title, order: g.order })),
+    lineForms: f.lineForms.map((l) => ({ lineId: l.lineId, subgroupId: l.subgroupId ?? null, showToClient: l.showToClient ?? null })),
+    chapterMargins: (tm?.chapterMargins ?? []).map((c) => ({ id: c.id, classId: c.classId ?? null, marginBp: c.marginBp, fixed: c.fixed })),
+    orgMargins: (tm?.orgMargins ?? []).map((c) => ({ id: c.id, classId: c.classId ?? null, marginBp: c.marginBp, fixed: c.fixed })),
+    links: (tm?.links ?? []).map((l) => ({ key: l.key, classId: l.classId, marginBp: l.marginBp })),
+    regie: tm?.regie ? { orgId: tm.regie.orgId ?? null, cost: tm.regie.costCents, sell: tm.regie.sellCents } : null,
+    discount: discFromTs(tm?.discount),
+    discountText: tm?.discountText ?? "",
+    live: r.version.editable,
   };
 }
 
@@ -75,10 +100,12 @@ function findingsFor(m: M.Model, read: QuoteRead, orgs: OrgView[], rules: { rule
   return evaluate(
     {
       chapters: chapters.map((c) => ({ id: c.key, code: c.code, title: c.title })),
-      lines: M.activeLines(m).map((l) => ({ id: l.key, chapter: l.chapter, kind: l.kind, code: l.code, title: l.title, qtyMilli: l.qtyMilli, cost: l.price.cost, rule: l.price.rule, reason: l.price.rule === null ? "" : l.price.reason.replace(/^ +| +$/g, "") })),
+      lines: M.activeLines(m).map((l) => { const c = M.calcLineOf(m, l); return { id: l.key, chapter: l.chapter, kind: l.kind, code: l.code, title: l.title, qtyMilli: l.qtyMilli, cost: l.price.cost, rule: l.price.rule, reason: l.price.rule === null ? "" : l.price.reason.replace(/^ +| +$/g, ""), baseBp: c.baseBp, regie: c.regie }; }),
       standardBp: m.header.standardMarginBp,
       vatBp: m.header.vatBp,
-      workVatBp: read.version.workVatBp,
+      discount: m.v2 ? m.form.discount : null,
+      // 2c.1: een schadedossier aan 0 % (btw verlegd) wijkt bewust af van de werf (zoals QuotesApi.qtFindings).
+      workVatBp: m.header.vatBp === 0n && read.form?.kind === QuoteKind.damage ? 0n : read.version.workVatBp,
       vatNote: read.vatNote,
       clientSet: m.header.clientOrgId !== null && !!client,
       clientAddressOk: addressOk(client?.address),
@@ -239,7 +266,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const [, bump] = useReducer((x: number) => x + 1, 0);
   const [saving, setSaving] = useState(false);
   const [serverOk, setServerOk] = useState<boolean | null>(null);
-  const [sheet, setSheet] = useState<null | { kind: "line"; key: string } | { kind: "lib"; chapter: string } | { kind: "libChapters" } | { kind: "send" } | { kind: "decide"; accepted: boolean } | { kind: "signed" } | { kind: "archive" } | { kind: "header" }>(null);
+  const [sheet, setSheet] = useState<null | { kind: "line"; key: string } | { kind: "lib"; chapter: string } | { kind: "libChapters" } | { kind: "send" } | { kind: "decide"; accepted: boolean } | { kind: "signed" } | { kind: "archive" } | { kind: "header" } | { kind: "kind" }>(null);
   // De vorige versie, één keer gelezen; het verschil zelf rekent bij elke wijziging opnieuw (Chrome-test C3).
   const [prev, setPrev] = useState<M.Model | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -316,7 +343,22 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
         ));
         M.applySaved(model, b, r.rev, r.refs);
         const mine = M.totals(model);
-        setServerOk(r.totals.totalCents === mine.total && r.totals.subtotalCents === mine.subtotal && r.margins.marginCents === mine.margin);
+        if (!M.formDirty(model)) setServerOk(r.totals.totalCents === mine.total && r.totals.subtotalCents === mine.subtotal && r.margins.marginCents === mine.margin);
+      }
+      // 2c.1: daarna de vorm (subgroepen, wat de klant ziet, marges, regie, korting); de server rekent ze na.
+      const fs = M.formSave(model);
+      if (fs) {
+        const i = fs.input;
+        const r = unwrap(await actor.saveQuoteForm(model.versionId, model.rev, {
+          hideZeroLines: i.hideZeroLines, regieText: i.regieText, textBlockKeys: i.textBlockKeys,
+          subgroupOps: i.subgroupOps.map((g) => ({ id: g.id ?? undefined, ref: g.ref, chapterId: g.chapterId, title: g.title, order: g.order, remove: g.remove })),
+          lineOps: i.lineOps.map((l) => ({ lineId: l.lineId, subgroup: l.subgroup === null ? undefined : "id" in l.subgroup ? { __kind__: "id", id: l.subgroup.id } : { __kind__: "ref", ref: l.subgroup.ref }, showToClient: l.showToClient ?? undefined })),
+          chapterMargins: i.chapterMargins.map((c) => ({ id: c.id, classId: c.classId ?? undefined, marginBp: c.marginBp })),
+          regie: i.regie ? { orgId: i.regie.orgId ?? undefined, costCents: i.regie.costCents, sellCents: i.regie.sellCents ?? undefined } : undefined,
+          discount: discToTs(i.discount), discountText: i.discountText,
+        }, { subtotalCents: fs.expect.subtotal, discountCents: fs.expect.discount, totalCents: fs.expect.total }));
+        M.applyFormSaved(model, r.rev, r.refs);
+        setServerOk(true);
       }
       toast.show({ kind: "ok", text: O.saved });
       void qc.invalidateQueries({ queryKey: ["quotes"] });
@@ -445,8 +487,10 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
                 <div><dt>{O.vat}</dt><dd>{fmtBp(header.vatBp)}{header.vatBp !== v.workVatBp && <> <span className="a-tag a-tag--warn">{O.vatWork(fmtBp(v.workVatBp))}</span></>}</dd></div>
                 <div><dt>{O.validDays}</dt><dd>{String(header.validDays)}</dd></div>
                 <div><dt>{O.standardMargin}</dt><dd>{fmtBp(header.standardMarginBp)}</dd></div>
+                {read.form && <div><dt>{t.vorm.kind}</dt><dd data-testid="quote-kind">{t.vorm.kinds[read.form.kind]}{read.form.kind === QuoteKind.damage && <> · {read.form.insurerName || t.vorm.noInsurer}{read.form.claimRef && <> · {read.form.claimRef}</>}</>}</dd></div>}
               </dl>
               {editable && <Button variant="quiet" icon="edit" onClick={() => setSheet({ kind: "header" })}>{O.header}</Button>}
+              {editable && read.form && <Button variant="quiet" icon="edit" onClick={() => setSheet({ kind: "kind" })}>{t.vorm.kindChange}</Button>}
             </section>
           )}
 
@@ -467,9 +511,11 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
                     ) : (
                       <h2 className="bw-h2 q-ch__title"><span className="bw-mono">{c.code}</span> {c.title}</h2>
                     )}
+                    {model?.v2 && scope === QuoteScope.full && <ChapterMargin m={model} chapterKey={c.key} classes={read.terms?.classes ?? []} editable={editable} edit={edit} />}
                     <span className="q-ch__sum bw-mono">{sub !== undefined ? fmtEuro(sub) : "—"}</span>
                     {editable && model && (
                       <span className="q-ch__tools">
+                        {model.v2 && <Button variant="quiet" icon="plus" onClick={() => edit((m) => { M.addSubgroup(m, c.key, ""); })}>{t.vorm.subgroupAdd}</Button>}
                         <Button variant="quiet" icon="up" iconOnly disabled={ci === 0} onClick={() => edit((m) => M.moveChapter(m, c.key, -1))}>{O.up}</Button>
                         <Button variant="quiet" icon="down" iconOnly disabled={ci === chapters.length - 1} onClick={() => edit((m) => M.moveChapter(m, c.key, 1))}>{O.down}</Button>
                         <Button variant="quiet" icon="close" iconOnly onClick={() => edit((m) => M.removeChapter(m, c.key))}>{O.removeChapter}</Button>
@@ -478,8 +524,18 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
                   </div>
                   {rows.length === 0 && <p className="bw-muted q-empty">{O.emptyChapter}</p>}
                   {model
-                    ? (rows as M.Line[]).map((l) => <LineRow key={l.key} m={model} l={l} scope={scope} editable={editable} units={units} orgs={orgs.data ?? []} mark={diff?.get(l.key)} edit={edit} open={() => setSheet({ kind: "line", key: l.key })} />)
-                    : (rows as QuoteRead["lines"]).map((l) => <ReadRow key={String(l.id)} l={l} scope={scope} sell={sellById.get(String(l.id))} />)}
+                    ? groupRows(model, c.key, rows as M.Line[]).map((g) => (
+                        <div key={g.sub?.key ?? "los"}>
+                          {g.sub && <SubgroupHead m={model} g={g.sub} sum={scope === QuoteScope.totals ? null : g.rows.reduce((a, l) => a + (l.kind === "item" && !l.removed ? M.lineOut(model, l).lineSell : 0n), 0n)} editable={editable} edit={edit} />}
+                          {g.rows.map((l) => <LineRow key={l.key} m={model} l={l} scope={scope} editable={editable} units={units} orgs={orgs.data ?? []} mark={diff?.get(l.key)} edit={edit} open={() => setSheet({ kind: "line", key: l.key })} />)}
+                        </div>
+                      ))
+                    : groupRead(read, c.id ?? -1n, rows as QuoteRead["lines"]).map((g) => (
+                        <div key={g.title ?? "los"}>
+                          {g.title !== null && <div className="q-sub"><b>{g.title}</b></div>}
+                          {g.rows.map((l) => <ReadRow key={String(l.id)} l={l} scope={scope} sell={sellById.get(String(l.id))} />)}
+                        </div>
+                      ))}
                   {editable && model && (
                     <div className="q-ch__add">
                       <Button variant="quiet" icon="plus" onClick={() => edit((m) => { M.addLine(m, c.key, { kind: "item", unit: units[0]?.key ?? "st", form: "vh" }); })}>{O.addItem}</Button>
@@ -502,11 +558,12 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
 
         <aside className="q-side">
           {/* Chrome-test C4: het tarief van het model (de kop kan net gewijzigd zijn), niet dat van de laatste lezing */}
-          <Totals read={read} totals={totals} vatBp={model?.header.vatBp ?? v.vatBp} />
+          <Totals read={read} totals={totals} vatBp={model?.header.vatBp ?? v.vatBp} discountText={model?.v2 ? model.form.discountText : ""} />
           {editable && pending > 0 && <p className="q-pending">{O.pending(pending)} <Button variant="quiet" onClick={() => { if (model) { unsaved.delete(String(model.versionId)); } void load(); }}>{O.discard}</Button></p>}
           {serverOk === true && <p className="q-ok"><Icon name="check" size={16} /> {O.serverOk}</p>}
           {serverOk === false && <p className="a-err" role="alert">{O.serverDiff}</p>}
           {model && <Controls m={model} findings={findings} loaded={!!ruleSet || !editable} onJump={(f) => jump(f)} />}
+          {model?.v2 && scope === QuoteScope.full && <FormPanel m={model} editable={editable} orgs={orgs.data ?? []} edit={edit} />}
           <p className={self.failed.length ? "a-err" : "q-ok q-small"} role={self.failed.length ? "alert" : undefined}>
             {self.failed.length ? O.selfFail(self.failed.length, self.failed.join(" · ")) : O.selfOk(self.passed)}
           </p>
@@ -523,7 +580,8 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       {sheet?.kind === "line" && model && <LineSheet m={model} lineKey={sheet.key} editable={editable} units={units} orgs={orgs.data ?? []} edit={edit} onClose={() => setSheet(null)} />}
       {sheet?.kind === "lib" && model && <LibPicker m={model} chapter={sheet.chapter} caps={caps} edit={edit} onClose={() => setSheet(null)} />}
       {sheet?.kind === "libChapters" && model && <LibChapters m={model} edit={edit} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "header" && model && <HeaderSheet m={model} orgs={orgs.data ?? []} workVatBp={v.workVatBp} edit={edit} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "header" && model && <HeaderSheet m={model} orgs={orgs.data ?? []} workVatBp={v.workVatBp} damage={read.form?.kind === QuoteKind.damage} edit={edit} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "kind" && <KindSheet read={read} orgs={orgs.data ?? []} onClose={() => setSheet(null)} onDone={() => { setSheet(null); void load(); }} />}
       {sheet?.kind === "send" && model && totals && <SendSheet total={totals.total} findings={findings} loaded={!!ruleSet} onSend={async (reason) => { await send(reason); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "signed" && <SignedSheet workId={read.quote.workId} onDone={async (fileId, note) => { await registerSigned(fileId, note); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "decide" && <DecideSheet accepted={sheet.accepted} onDone={async (note) => { await decide(sheet.accepted, note); }} onClose={() => setSheet(null)} />}
@@ -681,7 +739,10 @@ function Flags({ o, l, std }: { o: ReturnType<typeof calcLine>; l: M.Line; std: 
 
 function LineRow({ m, l, scope, editable, units, orgs, mark, edit, open }: { m: M.Model; l: M.Line; scope: QuoteScope; editable: boolean; units: UnitView[]; orgs: OrgView[]; mark?: "new" | "changed"; edit: (f: (m: M.Model) => void) => void; open: () => void }) {
   const o = M.lineOut(m, l);
-  const std = m.header.standardMarginBp;
+  // 2c.1: de marge zonder eigen regel = de klasse van de leverancier of het hoofdstuk, anders de standaard.
+  const base = M.lineBase(m, l);
+  const std = base.pick?.marginBp ?? m.header.standardMarginBp;
+  const regie = m.v2 && M.isRegie(l) && l.price.rule === null && m.form.regie ? m.form.regie : null;
   const up = (x: Parameters<typeof M.updateLine>[2]) => edit((mm) => M.updateLine(mm, l.key, x));
   const cls = `q-row q-row--${scope}${l.kind === "text" ? " q-row--text" : ""}${l.kind === "option" ? " q-row--option" : ""}${l.removed ? " q-row--removed" : ""}${mark ? ` q-row--${mark}` : ""}`;
   const orgName = l.price.orgId !== null ? orgs.find((x) => x.id === l.price.orgId)?.name ?? "" : "";
@@ -699,6 +760,9 @@ function LineRow({ m, l, scope, editable, units, orgs, mark, edit, open }: { m: 
           {mark && <span className="a-tag a-tag--accent">{mark === "new" ? O.diffNew : O.diffChanged}</span>}
           {l.removed && <span className="a-tag a-tag--bad">{O.removed}</span>}
           {scope === QuoteScope.full && <Flags o={o} l={l} std={std} />}
+          {scope === QuoteScope.full && base.pick?.classId != null && l.price.rule === null && !regie && <span className="a-tag" title={t.vorm.sources[base.source]}>{t.vorm.sources[base.source]}</span>}
+          {scope === QuoteScope.full && regie && <span className="a-tag">{t.vorm.regieTag(fmtEuro(regie.sell))}</span>}
+          {!M.shown(m, l) && <span className="a-tag" data-testid="hidden-tag">{t.vorm.hiddenTag}</span>}
           {l.text && l.title && <span className="bw-muted q-first">{l.text.split("\n")[0]}</span>}
         </span>
       </span>
@@ -780,9 +844,30 @@ function ReadRow({ l, scope, sell }: { l: QuoteRead["lines"][number]; scope: Quo
   );
 }
 
-function Totals({ read, totals, vatBp }: { read: QuoteRead; totals: ReturnType<typeof M.totals> | null; vatBp: bigint }) {
+/** 2c.1: de posten van een hoofdstuk: eerst wie geen subgroep heeft, dan per subgroep (in hun volgorde). */
+function groupRows(m: M.Model, chapterKey: string, rows: M.Line[]): { sub: M.Subgroup | null; rows: M.Line[] }[] {
+  if (!m.v2) return [{ sub: null, rows }];
+  const subs = M.activeSubgroups(m, chapterKey);
+  const out: { sub: M.Subgroup | null; rows: M.Line[] }[] = [{ sub: null, rows: rows.filter((l) => !M.lineSubgroup(m, l)) }];
+  for (const g of subs) out.push({ sub: g, rows: rows.filter((l) => M.lineSubgroup(m, l)?.key === g.key) });
+  return out.filter((g) => g.sub !== null || g.rows.length > 0);
+}
+
+function groupRead(read: QuoteRead, chapterId: bigint, rows: QuoteRead["lines"]): { title: string | null; rows: QuoteRead["lines"] }[] {
+  const f = read.form;
+  if (!f) return [{ title: null, rows }];
+  const sg = new Map(f.lineForms.filter((x) => x.subgroupId !== undefined).map((x) => [String(x.lineId), String(x.subgroupId)]));
+  const subs = f.subgroups.filter((g) => g.chapterId === chapterId).sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0));
+  const out: { title: string | null; rows: QuoteRead["lines"] }[] = [{ title: null, rows: rows.filter((l) => !subs.some((g) => String(g.id) === sg.get(String(l.id)))) }];
+  for (const g of subs) out.push({ title: g.title, rows: rows.filter((l) => sg.get(String(l.id)) === String(g.id)) });
+  return out.filter((g) => g.title !== null || g.rows.length > 0);
+}
+
+function Totals({ read, totals, vatBp, discountText }: { read: QuoteRead; totals: ReturnType<typeof M.totals> | null; vatBp: bigint; discountText: string }) {
   const s = read.totals;
   const sub = totals?.subtotal ?? s.subtotalCents;
+  const gross = totals?.gross ?? s.grossCents;
+  const disc = totals?.discount ?? s.discountCents;
   const vat = totals?.vat ?? s.vatCents;
   const tot = totals?.total ?? s.totalCents;
   const plus = totals?.optionsPlus ?? s.optionsPlusCents;
@@ -790,6 +875,8 @@ function Totals({ read, totals, vatBp }: { read: QuoteRead; totals: ReturnType<t
   const noPrice = totals?.noPrice ?? Number(s.noPrice);
   return (
     <section className="q-totals" aria-label={O.total}>
+      {disc !== 0n && <div><span>{t.vorm.gross}</span><span className="bw-mono">{fmtEuro(gross)}</span></div>}
+      {disc !== 0n && <div data-testid="discount-line"><span>{t.vorm.discountLine(discountText)}</span><span className="bw-mono">−{fmtEuro(disc)}</span></div>}
       <div><span>{O.subtotal}</span><b className="bw-mono">{fmtEuro(sub)}</b></div>
       <div><span>{O.vatLine(fmtBp(vatBp))}</span><span className="bw-mono">{fmtEuro(vat)}</span></div>
       <div className="q-totals__big"><span>{O.total}</span><b className="bw-mono">{fmtEuro(tot)}</b></div>
@@ -838,8 +925,11 @@ function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.
   const ro = !editable || l.removed;
   const up = (x: Parameters<typeof M.updateLine>[2]) => edit((mm) => M.updateLine(mm, l.key, x));
   const o = M.lineOut(m, l);
-  const std = m.header.standardMarginBp;
+  const base = M.lineBase(m, l);
+  const std = base.pick?.marginBp ?? m.header.standardMarginBp;
   const ruleKind = l.price.rule === null ? "std" : "margin" in l.price.rule ? "margin" : "fixed";
+  const subs = m.v2 ? M.activeSubgroups(m, l.chapter) : [];
+  const show = m.form.lineShow.get(l.key);
   const oas = orgs.filter((x) => (x.kind === OrgKind.subcontractor || x.kind === OrgKind.supplier) && x.archivedAt === undefined);
   return (
     <Sheet title={l.title || O.lineTitle} open onClose={onClose} side wide>
@@ -852,6 +942,18 @@ function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.
         <label className="bw-field"><span className="bw-label">{O.item}</span><input className="bw-input" disabled={ro} value={l.title} onChange={(e) => up({ title: e.target.value })} /></label>
         <label className="bw-field"><span className="bw-label">{O.lineText}</span><textarea className="bw-input" rows={6} maxLength={4000} disabled={ro} value={l.text} onChange={(e) => up({ text: e.target.value })} /></label>
         {l.libItemId !== null && <p className="bw-muted">{O.fromLib(String(l.libItemVersion ?? ""))}</p>}
+        {subs.length > 0 && (
+          <label className="bw-field"><span className="bw-label">{t.vorm.subgroupField}</span>
+            <select className="bw-input" disabled={ro} value={M.lineSubgroup(m, l)?.key ?? ""} onChange={(e) => edit((mm) => M.setLineSubgroup(mm, l.key, e.target.value || null))}>
+              <option value="">{t.vorm.subgroupNone}</option>
+              {subs.map((g) => <option key={g.key} value={g.key}>{g.title || "…"}</option>)}
+            </select>
+          </label>
+        )}
+        {m.v2 && l.kind !== "text" && l.qtyMilli === 0n && (
+          <Choice label={t.vorm.showLine} value={show === undefined ? "rule" : show ? "yes" : "no"} onChange={(k) => { if (ro) return; edit((mm) => M.setLineShow(mm, l.key, k === "rule" ? null : k === "yes")); }}
+            options={[{ value: "rule", label: t.vorm.showRule(m.form.hideZeroLines) }, { value: "yes", label: t.vorm.showYes }, { value: "no", label: t.vorm.showNo }]} />
+        )}
         {l.kind !== "text" && (
           <>
             <div className="a-grid3 q-sheet-qty">
@@ -875,7 +977,7 @@ function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.
                 </label>
               </div>
               <Choice label={O.rule} value={ruleKind} onChange={(k) => { if (ro) return; up({ price: { ...l.price, rule: k === "std" ? null : k === "margin" ? { margin: l.price.rule && "margin" in l.price.rule ? l.price.rule.margin : std } : { price: o.unitSell ?? 0n }, reason: k === "std" ? "" : l.price.reason } }); }}
-                options={[{ value: "std", label: O.ruleStandard(fmtBp(std)) }, { value: "margin", label: O.ruleMargin }, { value: "fixed", label: O.ruleFixed }]} />
+                options={[{ value: "std", label: base.pick ? t.vorm.baseRule(fmtBp(std), t.vorm.sources[base.source]) : O.ruleStandard(fmtBp(std)) }, { value: "margin", label: O.ruleMargin }, { value: "fixed", label: O.ruleFixed }]} />
               {ruleKind === "margin" && <label className="bw-field"><span className="bw-label">{O.marginField}</span><NumCell col="sheet-margin" label={O.marginField} value={l.price.rule && "margin" in l.price.rule ? (Number(l.price.rule.margin) / 100).toLocaleString("nl-BE") : ""} onCommit={(s) => { if (ro) return true; const bp = parsePct(s); if (bp === null || bp > 9000n) return false; up({ price: { ...l.price, rule: { margin: bp } } }); return true; }} /></label>}
               {ruleKind === "fixed" && <label className="bw-field"><span className="bw-label">{O.fixedField}</span><NumCell col="sheet-fixed" label={O.fixedField} value={l.price.rule && "price" in l.price.rule ? (Number(l.price.rule.price) / 100).toFixed(2).replace(".", ",") : ""} onCommit={(s) => { if (ro) return true; const c = parseEuro(s); if (c === null || c === undefined) return false; up({ price: { ...l.price, rule: { price: c } } }); return true; }} /></label>}
               {ruleKind !== "std" && <label className="bw-field"><span className="bw-label">{O.reason}</span><input className="bw-input" disabled={ro} value={l.price.reason} placeholder={O.reasonPh} onChange={(e) => up({ price: { ...l.price, reason: e.target.value } })} /></label>}
@@ -893,7 +995,7 @@ function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.
   );
 }
 
-function HeaderSheet({ m, orgs, workVatBp, edit, onClose }: { m: M.Model; orgs: OrgView[]; workVatBp: bigint; edit: (f: (m: M.Model) => void) => void; onClose: () => void }) {
+function HeaderSheet({ m, orgs, workVatBp, damage, edit, onClose }: { m: M.Model; orgs: OrgView[]; workVatBp: bigint; damage: boolean; edit: (f: (m: M.Model) => void) => void; onClose: () => void }) {
   const h = m.header;
   const up = (x: Partial<M.Header>) => edit((mm) => M.setHeader(mm, x));
   const clients = orgs.filter((x) => x.kind === OrgKind.client && (x.archivedAt === undefined || x.id === h.clientOrgId));
@@ -909,7 +1011,8 @@ function HeaderSheet({ m, orgs, workVatBp, edit, onClose }: { m: M.Model; orgs: 
         </label>
         <div>
           <span className="bw-label">{O.vat}</span>
-          <Choice label={O.vat} value={Number(h.vatBp)} onChange={(x) => up({ vatBp: BigInt(x) })} options={[{ value: 600, label: "6 %" }, { value: 2100, label: "21 %" }]} />
+          <Choice label={O.vat} value={Number(h.vatBp)} onChange={(x) => up({ vatBp: BigInt(x) })} options={[...(damage || h.vatBp === 0n ? [{ value: 0, label: t.vorm.vatZero }] : []), { value: 600, label: "6 %" }, { value: 2100, label: "21 %" }]} />
+          {damage && <p className="bw-muted">{t.vorm.vatZeroHelp}</p>}
           {h.vatBp !== workVatBp && <p className="a-tag a-tag--warn">{O.vatWork(fmtBp(workVatBp))}</p>}
         </div>
         <div className="a-grid2">

@@ -10,7 +10,9 @@ import { idlFactory } from "../src/frontend/src/declarations/backend.did.js";
 
 // 2b.4: een tijdelijke netwerk- of leesfout (ETIMEDOUT, fetch failed, gateway 5xx) breekt een proef niet meer af: QUERIES worden
 // tot 5 keer opnieuw geprobeerd (met wachttijd). Updates nooit: een herhaalde update kan dubbel uitgevoerd worden.
-const transient = (e) => /ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|fetch failed|socket hang up|network|Transport|50[234]/i.test(`${e?.message ?? e} ${e?.cause?.kind ?? ""} ${e?.cause?.code ?? ""}`);
+// 2c.1: een weigering van de canister (trap "Geen toegang", foutsoort Reject) is NOOIT tijdelijk. Vroeger ving "50[234]" de
+// foutcode IC0503 en "Transport" de HTTP-kop strict-transport-security in de melding: elke geweigerde query wachtte zo 22,5 s.
+const transient = (e) => e?.cause?.kind !== "Reject" && /ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|fetch failed|socket hang up|network|Transport|(?<!IC0)\b50[234]\b/i.test(`${e?.message ?? e} ${e?.cause?.kind ?? ""} ${e?.cause?.code ?? ""}`);
 const queryNames = new Set(idlFactory({ IDL })._fields.filter(([, f]) => f.annotations.includes("query")).map(([n]) => n));
 function withRetry(actor) {
   return new Proxy(actor, {

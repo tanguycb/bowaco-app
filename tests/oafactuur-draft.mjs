@@ -33,7 +33,7 @@ const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin"
 const anon = await backend(null, cid);
 const vreemd = await freshBackend(cid);
 const me = await admin.me();
-check("versie 2.11 of later op de canister", /^2\.1[1-9]|^(2b|[3-9])\./.test(me.version) || /dev/.test(me.version), me.version);
+check("versie 2.11 of later op de canister", /^2\.1[1-9]|^(2[b-z]|[3-9])\./.test(me.version) || /dev/.test(me.version), me.version);
 const cDay = BigInt(Math.floor(Number((await admin.auditLog(0n, 1n))[0].at / 1_000_000n) / 86_400_000));
 const set0 = await admin.oaInvoiceSettings();
 ok(await admin.saveOaInvoiceSettings({ thresholdBp: 200n, thresholdCents: 1_000n, oaView: false, disputeNotice: "melding" }));

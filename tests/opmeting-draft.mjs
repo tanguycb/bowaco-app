@@ -35,7 +35,7 @@ const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin"
 const anon = await backend(null, cid);
 const vreemd = await freshBackend(cid);
 const me = await admin.me();
-check("versie 2.9 of later op de canister", /^2\.(9|1\d)|^(2b|[3-9])\./.test(me.version) || /dev/.test(me.version), me.version);
+check("versie 2.9 of later op de canister", /^2\.(9|1\d)|^(2[b-z]|[3-9])\./.test(me.version) || /dev/.test(me.version), me.version);
 // De dag van de canister (de klokproeven van tests/rollen.mjs verzetten de klok van het eigen net): de jongste auditregel.
 const cDay = BigInt(Math.floor(Number((await admin.auditLog(0n, 1n))[0].at / 1_000_000n) / 86_400_000));
 const DAY = cDay;

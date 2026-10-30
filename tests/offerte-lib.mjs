@@ -25,7 +25,52 @@ export function fromRead(r) {
       const price = c ? { cost: unopt(c.costCents), rule: ruleIn(unopt(c.rule)), reason: c.reason, orgId: unopt(c.orgId), source: c.source, libCostId: unopt(c.libCostId) } : M.emptyPrice();
       return { id: l.id, chapterId: l.chapterId, order: l.order, kind: tag(l.kind), code: l.code, title: l.title, text: l.text, specRef: l.specRef, qtyMilli: l.qtyMilli, unit: l.unit, form: tag(l.form), libItemId: unopt(l.libItemId), libItemVersion: unopt(l.libItemVersion), price };
     }),
+    form: formIn(r),
   });
+}
+
+// 2c.1: korting en de vorm van een versie (ruwe Candid ↔ model).
+export const discIn = (d) => (d === null || d === undefined ? null : "amount" in d ? { amount: d.amount } : { percent: d.percent });
+export const discOut = (d) => (d === null ? [] : "amount" in d ? [{ amount: d.amount }] : [{ percent: d.percent }]);
+function formIn(r) {
+  const f = unopt(r.form ?? []);
+  if (!f) return null;
+  const tm = unopt(r.terms ?? []);
+  const g = tm ? unopt(tm.regie) : null;
+  const pick = (c) => ({ id: c.id, classId: unopt(c.classId), marginBp: c.marginBp, fixed: c.fixed });
+  return {
+    hideZeroLines: f.hideZeroLines,
+    regieText: f.regieText,
+    textBlockKeys: f.textBlockKeys,
+    subgroups: f.subgroups.map((x) => ({ id: x.id, chapterId: x.chapterId, title: x.title, order: x.order })),
+    lineForms: f.lineForms.map((x) => ({ lineId: x.lineId, subgroupId: unopt(x.subgroupId), showToClient: unopt(x.showToClient) })),
+    chapterMargins: tm ? tm.chapterMargins.map(pick) : [],
+    orgMargins: tm ? tm.orgMargins.map(pick) : [],
+    links: tm ? tm.links.map((l) => ({ key: l.key, classId: l.classId, marginBp: l.marginBp })) : [],
+    regie: g ? { orgId: unopt(g.orgId), cost: g.costCents, sell: g.sellCents } : null,
+    discount: tm ? discIn(unopt(tm.discount)) : null,
+    discountText: tm ? tm.discountText : "",
+    live: r.version.editable,
+  };
+}
+
+/** M.formSave → de argumenten van saveQuoteForm (ruwe Candid). */
+export function formArgs(m, fs) {
+  const i = fs.input;
+  return [
+    m.versionId,
+    m.rev,
+    {
+      hideZeroLines: i.hideZeroLines, regieText: i.regieText, textBlockKeys: i.textBlockKeys,
+      subgroupOps: i.subgroupOps.map((g) => ({ id: opt(g.id), ref: g.ref, chapterId: g.chapterId, title: g.title, order: g.order, remove: g.remove })),
+      lineOps: i.lineOps.map((l) => ({ lineId: l.lineId, subgroup: l.subgroup === null ? [] : "id" in l.subgroup ? [{ id: l.subgroup.id }] : [{ ref: l.subgroup.ref }], showToClient: opt(l.showToClient) })),
+      chapterMargins: i.chapterMargins.map((c) => ({ id: c.id, classId: opt(c.classId), marginBp: c.marginBp })),
+      regie: i.regie ? [{ orgId: opt(i.regie.orgId), costCents: i.regie.costCents, sellCents: opt(i.regie.sellCents) }] : [],
+      discount: discOut(i.discount),
+      discountText: i.discountText,
+    },
+    { subtotalCents: fs.expect.subtotal, discountCents: fs.expect.discount, totalCents: fs.expect.total },
+  ];
 }
 
 const refRaw = (r) => ("id" in r ? { id: r.id } : { ref: r.ref });
@@ -61,13 +106,21 @@ export async function saveAll(actor, m, max = M.MAX_OPS) {
     M.applySaved(m, b, r.ok.rev, r.ok.refs);
     last = r;
   }
+  // 2c.1: daarna de vorm (zoals de editor).
+  const fs = M.formSave(m);
+  if (fs) {
+    const r = await actor.saveQuoteForm(...formArgs(m, fs));
+    if ("err" in r) return r;
+    M.applyFormSaved(m, r.ok.rev, r.ok.refs);
+    last = r;
+  }
   return last ?? { ok: null };
 }
 
 /** Totalen van het model in de vorm van QuoteTotalsView (om met de backend te vergelijken). */
 export function totalsOf(m) {
   const t = M.totals(m);
-  return { subtotal: t.subtotal, vat: t.vat, total: t.total, optionsPlus: t.optionsPlus, optionsMinus: t.optionsMinus, cost: t.cost, margin: t.margin, noPrice: t.noPrice };
+  return { gross: t.gross, discount: t.discount, subtotal: t.subtotal, vat: t.vat, total: t.total, optionsPlus: t.optionsPlus, optionsMinus: t.optionsMinus, cost: t.cost, margin: t.margin, noPrice: t.noPrice };
 }
 
 export function sameTotals(m, view, margins) {

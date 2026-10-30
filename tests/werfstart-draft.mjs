@@ -36,7 +36,7 @@ const [admin, wl, calc, arch, oa2, klant, vc] = await Promise.all(["proef-admin"
 const anon = await backend(null, cid);
 const vreemd = await freshBackend(cid);
 const me = await admin.me();
-check("versie 2.8 of later op de canister", /^2\.([89]|1\d)|^(2b|[3-9])\./.test(me.version) || /^0\.0|dev/.test(me.version), me.version);
+check("versie 2.8 of later op de canister", /^2\.([89]|1\d)|^(2[b-z]|[3-9])\./.test(me.version) || /^0\.0|dev/.test(me.version), me.version);
 const familie = await ensureProofClientAddress(admin);
 const orgs = await admin.listOrgs(false);
 const dak = orgs.find((o) => o.name === "Proef Dak NV");

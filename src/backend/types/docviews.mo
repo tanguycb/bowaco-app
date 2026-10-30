@@ -2,6 +2,7 @@
 // (My…) hebben bewust GEEN veld voor een aankoopprijs, een marge, de reden van een marge, een interne notitie, een bibliotheek-id
 // of de kopie-verwijzing: wat er niet in het type staat, kan niet lekken (tests/review.mjs G1 controleert het in de .did).
 import Types "../types";
+import FormViews "formviews";
 
 module {
   type Address = Types.Address;
@@ -98,6 +99,7 @@ module {
     optionsMinusCents : Int;
     acceptance : ?MyAcceptanceView;
     decisionNote : Text;
+    form : ?FormViews.MyQuoteForm; // 2c.1 (calcVersion 2): subgroepen, tekstblokken, korting, regietekst, soort
   };
   public type MyQuoteAnswered = { status : Types.QuoteStatus; at : Int; hash : Text };
 };

@@ -3,6 +3,7 @@
 import Storage "mo:caffeineai-object-storage/Storage";
 import Types "../types";
 import DocViews "docviews";
+import FormViews "formviews";
 
 module {
   type PersonId = Types.PersonId;
@@ -874,6 +875,12 @@ module {
     progressInputs : [(Nat, [Types.ProgressInput])];
     progressAnswers : [Types.ProgressAnswer];
     oaInvoices : [Types.OaInvoice]; // 2.11 (intern: zonder bedragen)
+    quoteFormInfos : [Types.QuoteFormInfo]; // 2c.1 (intern)
+    quoteVersionForms : [Types.QuoteVersionForm];
+    quoteSubgroups : [Types.QuoteSubgroup];
+    quoteLineForms : [Types.QuoteLineForm];
+    textBlocks : [Types.TextBlock];
+    quoteSentExtras : [Types.QuoteSentExtra];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -973,6 +980,15 @@ module {
     #progressRevisions : [Types.ProgressRevision];
     #oaInvoices : [Types.OaInvoice]; // 2.11 (intern)
     #oaInvoiceAmounts : [(Nat, Types.Confidential<Types.OaInvoiceAmounts>)]; // 2.11 (vertrouwelijk)
+    #quoteFormInfos : [Types.QuoteFormInfo]; // 2c.1 (intern)
+    #quoteVersionForms : [Types.QuoteVersionForm];
+    #quoteSubgroups : [Types.QuoteSubgroup];
+    #quoteLineForms : [Types.QuoteLineForm];
+    #textBlocks : [Types.TextBlock];
+    #quoteSentExtras : [Types.QuoteSentExtra];
+    #marginClasses : [(Nat, Types.Confidential<Types.MarginClass>)]; // 2c.1 (vertrouwelijk)
+    #marginClassLinks : [(Text, Types.Confidential<Types.MarginClassLink>)];
+    #quoteVersionTerms : [(Nat, Types.Confidential<Types.QuoteVersionTerms>)];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -996,6 +1012,9 @@ module {
     progressRevisions : [Types.ProgressRevision];
     // 2.11: de bedragen en regels van de OA-facturen.
     oaInvoiceAmounts : [(Nat, Types.Confidential<Types.OaInvoiceAmounts>)];
+    marginClasses : [(Nat, Types.Confidential<Types.MarginClass>)]; // 2c.1
+    marginClassLinks : [(Text, Types.Confidential<Types.MarginClassLink>)];
+    quoteVersionTerms : [(Nat, Types.Confidential<Types.QuoteVersionTerms>)];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────
@@ -1688,7 +1707,9 @@ module {
   public type QuoteChapterTotal = { chapterId : Nat; sellCents : Int; noPrice : Nat };
   public type QuoteTotalsView = {
     chapters : [QuoteChapterTotal];
-    subtotalCents : Int;
+    grossCents : Int; // 2c.1: som van de hoofdstukken vóór de korting
+    discountCents : Int; // 2c.1: de korting op het totaal (staat ook in de offerte van de klant)
+    subtotalCents : Int; // na de korting: de basis van de btw
     vatBp : Nat;
     vatCents : Int;
     totalCents : Int;
@@ -1742,6 +1763,8 @@ module {
     check : ?QuoteCheckView; // enkel #full: waarschuwingen die bij het versturen doorgezet werden
     vatNote : Text; // enkel #full: de grond voor het btw-tarief op de werffiche (controleregel 2.6)
     doc : ?DocViews.QuoteDocView; // enkel #full (2.7): de vastgelegde (of huidige) velden van de PDF, het akkoord en de mail
+    form : ?FormViews.QuoteFormView; // 2c.1, calcVersion 2: soort, subgroepen, wat de klant ziet (zonder bedragen)
+    terms : ?FormViews.QuoteMarginTermsView; // 2c.1, enkel #full: marges per hoofdstuk en leverancier, regietarief, korting
   };
   public type QuoteNew = { workId : WorkId; number : Text; title : Text };
   public type QuoteCreated = { quoteId : Nat; versionId : Nat; number : Text };

@@ -14,6 +14,7 @@ import Codes "Codes";
 import Config "Config";
 import Library "Library";
 import QuoteCalc "QuoteCalc";
+import QuoteForms "QuoteForms";
 
 module {
   type QS = Types.QuotesState;
@@ -80,25 +81,55 @@ module {
     };
   };
 
+  // De rekenlijn van versie 1 (geen klasse, geen regie).
   public func calcLine(l : Types.QuoteLine, p : Price) : QuoteCalc.Line {
-    { chapter = l.chapterId; kind = l.kind; qtyMilli = l.qtyMilli; cost = p.cost; rule = p.rule };
+    { chapter = l.chapterId; kind = l.kind; qtyMilli = l.qtyMilli; cost = p.cost; rule = p.rule; baseBp = null; regie = null };
   };
 
   // ── Rekenen ──────────────────────────────────────────────────────────────
-  public type Computed = { chapters : [Types.QuoteChapter]; lines : [Types.QuoteLine]; prices : [Price]; std : Nat; totals : QuoteCalc.Totals };
+  // `calc` = de rekenlijnen zoals deze versie ze rekent: calcVersion 1 zonder iets uit quoteForms (exact zoals vroeger),
+  // calcVersion 2 met klassen, regietarief en korting (2c.1).
+  public type Computed = { chapters : [Types.QuoteChapter]; lines : [Types.QuoteLine]; prices : [Price]; std : Nat; calc : [QuoteCalc.Line]; discount : ?QuoteCalc.Discount; totals : QuoteCalc.Totals };
 
-  public func compute(qs : QS, v : Types.QuoteVersion, fallbackStd : Nat) : Computed {
+  public func compute(qs : QS, qf : Types.QuoteFormState, v : Types.QuoteVersion, fallbackStd : Nat) : Computed {
+    computeWith(qs, qf, v, fallbackStd, QuoteForms.resolver(qf, v));
+  };
+
+  // Rekenen met andere voorwaarden dan bewaard (saveQuoteForm rekent eerst na, pas dan wordt er geschreven).
+  public func computeWith(qs : QS, qf : Types.QuoteFormState, v : Types.QuoteVersion, fallbackStd : Nat, r : QuoteForms.Resolver) : Computed {
     let chapters = chaptersOf(qs, v.id);
     let lines = linesOf(qs, v.id, chapters);
     let prices = lines.map(func l = priceOf(qs, l.id));
     let std = standardMargin(qs, v.id, fallbackStd);
-    let calc = Array.tabulate<QuoteCalc.Line>(lines.size(), func i = calcLine(lines[i], prices[i]));
-    { chapters; lines; prices; std; totals = QuoteCalc.totals(chapters.map(func c = c.id), calc, v.vatBp, std) };
+    let v2 = v.calcVersion >= 2;
+    let lib = Map.empty<Nat, Nat>();
+    for (c in chapters.values()) { switch (c.libChapterId) { case (?x) lib.add(c.id, x); case null {} } };
+    let calc = Array.tabulate<QuoteCalc.Line>(
+      lines.size(),
+      func i {
+        let l = lines[i];
+        let p = prices[i];
+        if v2 QuoteForms.calcLine(qf, r, l.chapterId, ?l.chapterId, lib.get(l.chapterId), l.kind, l.form, l.qtyMilli, p.cost, p.rule, p.orgId) else calcLine(l, p);
+      },
+    );
+    let discount = if v2 QuoteForms.discountOf(r) else null;
+    { chapters; lines; prices; std; calc; discount; totals = QuoteCalc.totals(chapters.map(func c = c.id), calc, v.vatBp, std, discount) };
+  };
+
+  // De verkoopprijs per eenheid van één lijn zoals haar versie rekent (vorderingsstaten, 2.10).
+  public func unitSellOf(qs : QS, qf : Types.QuoteFormState, v : Types.QuoteVersion, l : Types.QuoteLine, fallbackStd : Nat) : ?Int {
+    let p = priceOf(qs, l.id);
+    let std = standardMargin(qs, v.id, fallbackStd);
+    if (v.calcVersion < 2) { return QuoteCalc.unitSell(p.cost, p.rule, std) };
+    let lib = switch (qs.chapters.get(l.chapterId)) { case (?c) c.libChapterId; case null null };
+    QuoteCalc.line(QuoteForms.calcLine(qf, QuoteForms.resolver(qf, v), l.chapterId, ?l.chapterId, lib, l.kind, l.form, 1000, p.cost, p.rule, p.orgId), std).unitSell;
   };
 
   public func totalsView(t : QuoteCalc.Totals, vatBp : Nat, calcVersion : Nat) : Views.QuoteTotalsView {
     {
       chapters = t.chapters.map(func(c : QuoteCalc.ChapterOut) : Views.QuoteChapterTotal = { chapterId = c.chapter; sellCents = c.sell; noPrice = c.noPrice });
+      grossCents = t.gross;
+      discountCents = t.discount;
       subtotalCents = t.subtotal;
       vatBp;
       vatCents = t.vat;
@@ -130,7 +161,7 @@ module {
     var n = 0;
     for ((i, l) in c.lines.enumerate()) {
       if (l.kind != #text) {
-        let o = QuoteCalc.line(calcLine(l, c.prices[i]), c.std);
+        let o = QuoteCalc.line(c.calc[i], c.std);
         if (o.deviates and c.prices[i].reason == "") { n += 1 };
       };
     };
@@ -241,7 +272,7 @@ module {
     Array.tabulate<Views.QuoteSellLine>(
       c.lines.size(),
       func i {
-        let o = QuoteCalc.line(calcLine(c.lines[i], c.prices[i]), c.std);
+        let o = QuoteCalc.line(c.calc[i], c.std);
         { lineId = c.lines[i].id; unitSellCents = o.unitSell; lineSellCents = o.lineSell };
       },
     );
@@ -252,7 +283,7 @@ module {
       c.lines.size(),
       func i {
         let p = c.prices[i];
-        let o = QuoteCalc.line(calcLine(c.lines[i], p), c.std);
+        let o = QuoteCalc.line(c.calc[i], c.std);
         {
           lineId = c.lines[i].id;
           costCents = p.cost;
@@ -301,16 +332,48 @@ module {
 
   // Zonder `info` (versies verstuurd vóór 2.7) het oude schema "v1"; met `info` (2.7) "v2": dan dekt de hash ook de afzender, de
   // klant, de werf, de btw-grond, de betaaltermijn, de geldigheid en de tekst van de voorwaarden zoals de klant ze kreeg.
-  public func canonical(q : Types.Quote, v : Types.QuoteVersion, c : Computed, info : ?Types.QuoteSendInfo) : Text {
-    var out = (switch info { case null "bowaco-offerte-v1;"; case (?_) "bowaco-offerte-v2;" }) # f(q.number) # fi(v.version) # fi(v.vatBp) # fo(switch (v.clientOrgId) { case (?o) ?o; case null null }) # fi(v.calcVersion) # f(v.title) # fi(v.validDays) # f(v.intro);
+  // Een versie met calcVersion 2 (2c.1) krijgt schema "v3": daarbij ook bruto en korting, de offertesoort, wat de klant ziet
+  // (subgroepen, welke lijnen, tekstblokken, regietekst) en de tekst van de korting. Een versie met calcVersion 1 houdt
+  // exact haar oude tekst, dus haar hash.
+  public func canonical(qf : Types.QuoteFormState, q : Types.Quote, v : Types.QuoteVersion, c : Computed, info : ?Types.QuoteSendInfo) : Text {
+    let v3 = v.calcVersion >= 2;
+    var out = (if v3 "bowaco-offerte-v3;" else switch info { case null "bowaco-offerte-v1;"; case (?_) "bowaco-offerte-v2;" }) # f(q.number) # fi(v.version) # fi(v.vatBp) # fo(switch (v.clientOrgId) { case (?o) ?o; case null null }) # fi(v.calcVersion) # f(v.title) # fi(v.validDays) # f(v.intro);
     for (ch in c.chapters.values()) { out #= "H;" # fi(ch.id) # f(ch.code) # f(ch.title) };
     for ((i, l) in c.lines.enumerate()) {
-      let o = QuoteCalc.line(calcLine(l, c.prices[i]), c.std);
+      let o = QuoteCalc.line(c.calc[i], c.std);
       out #= "L;" # fi(l.chapterId) # f(kindText(l.kind)) # f(l.code) # f(l.title) # f(l.text) # f(l.specRef) # fi(l.qtyMilli) # f(l.unit) # f(Library.formKey(l.form)) # fo(o.unitSell) # fi(o.lineSell);
     };
     let t = c.totals;
-    out #= "T;" # fi(t.subtotal) # fi(t.vat) # fi(t.total) # fi(t.optionsPlus) # fi(t.optionsMinus);
+    if v3 { out #= "T;" # fi(t.gross) # fi(t.discount) # fi(t.subtotal) # fi(t.vat) # fi(t.total) # fi(t.optionsPlus) # fi(t.optionsMinus) # canonicalForm(qf, q, v, c) } else {
+      out #= "T;" # fi(t.subtotal) # fi(t.vat) # fi(t.total) # fi(t.optionsPlus) # fi(t.optionsMinus);
+    };
     switch info { case (?i) { out # canonicalInfo(i) }; case null out };
+  };
+
+  // De soort van de offerte zoals ze bij het versturen vastlag (QuoteSentExtra.extra), anders de huidige.
+  public func sentKind(qf : Types.QuoteFormState, q : Types.Quote, v : Types.QuoteVersion) : (Types.QuoteKind, ?Nat, Text) {
+    switch (qf.sentExtra.get(v.id)) {
+      case (?s) {
+        let get = func(k : Text) : Text = switch (s.extra.find(func(x : (Text, Text)) : Bool = x.0 == k)) { case (?(_, t)) t; case null "" };
+        let kind : Types.QuoteKind = switch (get("soort")) { case "schadedossier" #damage; case "meerwerk" #extraWork; case "regie" #regie; case _ #standard };
+        (kind, Nat.fromText(get("verzekeraar")), get("dossier"));
+      };
+      case null { let i = QuoteForms.infoOf(qf, q.id); (i.kind, i.insurerOrgId, i.claimRef) };
+    };
+  };
+
+  func canonicalForm(qf : Types.QuoteFormState, q : Types.Quote, v : Types.QuoteVersion, c : Computed) : Text {
+    let (kind, insurer, claim) = sentKind(qf, q, v);
+    let vf = QuoteForms.versionForm(qf, v.id);
+    let regie = switch (QuoteForms.termsOf(qf, v.id)) { case (?t) { switch (t.regie) { case (?g) ?g.sellCents; case null null } }; case null null };
+    var out = "F;" # f(QuoteForms.kindText(kind)) # fo(switch insurer { case (?x) ?x; case null null }) # f(claim) # f(if (vf.hideZeroLines) "verberg-0" else "toon-0") # f(if (vf.regieText) "regietekst" else "-") # (if (vf.regieText) fo(regie) else f("-"));
+    for (g in QuoteForms.subgroupsOf(qf, v.id).values()) { out #= "G;" # fi(g.id) # fi(g.chapterId) # f(g.title) # fi(g.order) };
+    for (l in c.lines.values()) {
+      let lf = qf.lineForms.get(l.id);
+      out #= "S;" # fi(l.id) # fo(switch lf { case (?x) { switch (x.subgroupId) { case (?s) ?s; case null null } }; case null null }) # f(if (QuoteForms.shown(vf, lf, l)) "ja" else "nee");
+    };
+    for (b in QuoteForms.blocksOf(qf, v).values()) { out #= "B;" # f(b.key) # f(b.title) # f(b.text) # f(QuoteForms.placeText(b.place)) };
+    out # "K;" # f(switch (QuoteForms.termsOf(qf, v.id)) { case (?t) t.discountText; case null "" });
   };
 
   func fa(a : ?Types.Address) : Text {

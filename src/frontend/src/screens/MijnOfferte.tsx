@@ -4,7 +4,7 @@
 // daarna staat ze vast. Wat hij ziet komt uit een update-call met een auditregel (bekeek:offerte-klant).
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { QuoteLineKind, QuoteStatus, type MyQuoteBrief, type MyQuoteRead } from "../backend";
+import { QuoteKind, QuoteLineKind, QuoteStatus, type MyQuoteBrief, type MyQuoteRead } from "../backend";
 import { Button, Icon, Info, Sheet, useToast } from "../design";
 import { makePdf, pdfName } from "../pdf/adapt.ts";
 import { pdfFromMine } from "../pdf/adapt.ts";
@@ -104,6 +104,12 @@ function MyQuote({ versionId, go }: { versionId: bigint; go: (to: string) => voi
   if (!r) return <Page label={T.label} title={T.title}><p className="bw-muted">{t.common.loading}</p></Page>;
   const opts = r.lines.filter((l) => l.kind === QuoteLineKind.option);
   const chOf = (id: bigint) => r.chapters.find((c) => c.id === id);
+  // 2c.1: subgroepen per hoofdstuk, tekstblokken, korting, regietekst en soort (enkel een versie met de nieuwe rekenregels).
+  const f = r.form;
+  const subOf = new Map((f?.lineSubgroups ?? []).map(([l, g]) => [String(l), String(g)]));
+  const blocksAt = (place: string) => (f?.blocks ?? []).filter((b) => (b.place.__kind__ === "chapter" ? b.place.chapter : b.place.__kind__) === place).map((b) => (
+    <section key={b.key} className="mq-block" data-testid={`mq-block-${b.key}`}>{b.title && <b>{b.title}</b>}<p className="mq-intro">{b.text}</p></section>
+  ));
   return (
     <Page
       wide
@@ -135,11 +141,13 @@ function MyQuote({ versionId, go }: { versionId: bigint; go: (to: string) => voi
             <dl className="q-facts">
               <div><dt>{T.client}</dt><dd>{r.doc.clientName}</dd></div>
               <div><dt>{T.work}</dt><dd>{r.doc.workName}</dd></div>
-              <div><dt>{T.vat}</dt><dd>{fmtBp(r.vatBp)}</dd></div>
+              <div><dt>{T.vat}</dt><dd>{r.vatBp === 0n ? t.vorm.vatZero : fmtBp(r.vatBp)}</dd></div>
+              {f?.kind === QuoteKind.damage && <div><dt>{t.vorm.kinds.damage}</dt><dd data-testid="mq-damage">{[f.claimRef, f.insurerName].filter(Boolean).join(" · ") || "—"}</dd></div>}
               <div><dt>{T.payment}</dt><dd>{T.paymentDays(Number(r.doc.paymentDays))}</dd></div>
             </dl>
             {r.intro && <p className="mq-intro">{r.intro}</p>}
           </section>
+          {blocksAt("top")}
 
           {r.chapters.map((c) => {
             const ls = r.lines.filter((l) => l.chapterId === c.id && l.kind !== QuoteLineKind.option);
@@ -147,7 +155,18 @@ function MyQuote({ versionId, go }: { versionId: bigint; go: (to: string) => voi
             return (
               <section key={String(c.id)} className="q-ch mq-ch">
                 <div className="q-ch__head"><h2 className="bw-h2 q-ch__title"><span className="bw-mono">{c.code}</span> {c.title}</h2><span className="q-ch__sum bw-mono">{fmtEuro(c.sellCents)}</span></div>
-                {ls.map((l) => <MqRow key={String(l.id)} l={l} />)}
+                {c.code && blocksAt(c.code)}
+                {ls.filter((l) => !subOf.has(String(l.id))).map((l) => <MqRow key={String(l.id)} l={l} />)}
+                {(f?.subgroups ?? []).filter((g) => g.chapterId === c.id).sort((a, b) => (a.order < b.order ? -1 : 1)).map((g) => {
+                  const gl = ls.filter((l) => subOf.get(String(l.id)) === String(g.id));
+                  if (!gl.length) return null;
+                  return (
+                    <div key={String(g.id)} data-testid={`mq-subgroup-${g.id}`}>
+                      <div className="q-sub"><b>{g.title}</b><span className="q-ch__sum bw-mono">{fmtEuro(gl.reduce((a, l) => a + (l.kind === QuoteLineKind.item ? l.lineSellCents : 0n), 0n))}</span></div>
+                      {gl.map((l) => <MqRow key={String(l.id)} l={l} />)}
+                    </div>
+                  );
+                })}
               </section>
             );
           })}
@@ -159,6 +178,8 @@ function MyQuote({ versionId, go }: { versionId: bigint; go: (to: string) => voi
             </section>
           )}
 
+          {blocksAt("end")}
+          {f?.regieSellCents !== undefined && <p className="mq-intro" data-testid="mq-regie">{t.vorm.regieSentence(fmtEuro(f.regieSellCents))}</p>}
           <details className="mq-terms">
             <summary>{T.terms(Number(r.doc.termsVersion), r.doc.termsProvisional)}</summary>
             {r.doc.termsProvisional && <p className="a-tag a-tag--warn">{T.termsProvisional}</p>}
@@ -169,8 +190,9 @@ function MyQuote({ versionId, go }: { versionId: bigint; go: (to: string) => voi
         <aside className="q-side">
           <section className="q-totals mq-totals" data-testid="mq-totals">
             <dl className="a-dl">
+              {f && f.discountCents !== 0n && <><dt>{t.vorm.gross}</dt><dd className="bw-mono">{fmtEuro(f.grossCents)}</dd><dt data-testid="mq-discount">{t.vorm.discountLine(f.discountText)}</dt><dd className="bw-mono">−{fmtEuro(f.discountCents)}</dd></>}
               <dt>{t.offertes.subtotal}</dt><dd className="bw-mono">{fmtEuro(r.subtotalCents)}</dd>
-              <dt>{t.offertes.vatLine(fmtBp(r.vatBp))}</dt><dd className="bw-mono">{fmtEuro(r.vatCents)}</dd>
+              <dt>{r.vatBp === 0n ? t.vorm.vatZero : t.offertes.vatLine(fmtBp(r.vatBp))}</dt><dd className="bw-mono">{fmtEuro(r.vatCents)}</dd>
               <dt><b>{t.offertes.total}</b></dt><dd className="bw-mono"><b>{fmtEuro(r.totalCents)}</b></dd>
               {(r.optionsPlusCents !== 0n || r.optionsMinusCents !== 0n) && <><dt className="bw-muted">{t.offertes.options}</dt><dd className="bw-mono bw-muted">{fmtEuro(r.optionsPlusCents)} / {fmtEuro(r.optionsMinusCents)}</dd></>}
             </dl>

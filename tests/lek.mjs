@@ -320,6 +320,14 @@ const table = {
   setQuoteRule: [ADMIN, () => [{ key: "bestaat-niet", enabled: true, severity: { warn: null }, thresholdBp: [] }]],
   setQuoteStdPost: [ADMIN, () => [{ key: "", name: "", keywords: [], enabled: true, severity: { warn: null }, order: 0n, archived: false }]],
   checkQuoteVersion: [["admin", "calculator"], () => [X]],
+  // 2c.1: margeklassen en hun koppeling (vertrouwelijk: #readCosts + #editLibrary), tekstblokken, soort en vorm van een offerte
+  listMarginClasses: [["admin", "calculator"], () => []],
+  setMarginClass: [["admin", "calculator"], () => [{ id: [X], name: "", marginBp: 0n, note: "", archived: false }]],
+  setMarginClassLink: [["admin", "calculator"], () => ["bestaat-niet:1", []]],
+  listTextBlocks: [["admin", "calculator"], () => [true]],
+  setTextBlock: [["admin", "calculator"], () => [{ key: "", title: "", text: "", defaultOn: false, place: { top: null }, order: 0n, archived: false }]],
+  setQuoteInfo: [["admin", "calculator"], () => [X, { kind: { standard: null }, insurerOrgId: [], claimRef: "" }]],
+  saveQuoteForm: [["admin", "calculator"], () => [X, 0n, { hideZeroLines: true, regieText: false, textBlockKeys: [], subgroupOps: [], lineOps: [], chapterMargins: [], regie: [], discount: [], discountText: "" }, { subtotalCents: 0n, discountCents: 0n, totalCents: 0n }]],
   // 2.7: voorwaarden, getekend bewijs, mail naar de klant (kantoor) en de offerte voor de klant
   getQuoteDocSettings: [["admin", "calculator"], () => []],
   setQuoteDocSettings: [ADMIN, () => [{ issuer: "", paymentDays: 0n }]],
@@ -458,7 +466,10 @@ for (const m of methods) {
   const only = process.env.LEK_ROLLEN ? process.env.LEK_ROLLEN.split(",") : null;
   for (const role of [...ALL.filter((r) => r !== "admin"), "admin"].filter((r) => !only || only.includes(r))) {
     calls++;
+    const t0 = Date.now();
     const ok = await allowed(roles[role][m], args());
+    // LEK_VOORTGANG=1: per oproep de duur (een oproep die blijft hangen, valt zo op).
+    if (process.env.LEK_VOORTGANG) console.log(`  ${m} · ${role}: ${Date.now() - t0} ms`);
     if (ok) got.push(role);
     const want = expect.includes(role);
     if (ok && !want) {

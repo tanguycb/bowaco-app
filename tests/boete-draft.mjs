@@ -16,7 +16,7 @@ const today = BigInt(Math.floor(Date.now() / 86_400_000));
 
 const [admin, wl, calc, oa2] = await Promise.all(["proef-admin", "proef-werfleider", "proef-calculator", "proef-oa2"].map((n) => backend(n, cid)));
 const me = await admin.me();
-check("versie 1b.2 of later op de canister", /^1b\.([2-9])|^[2-9]b?\./.test(me.version), me.version);
+check("versie 1b.2 of later op de canister", /^1b\.([2-9])|^[2-9][b-z]?\./.test(me.version), me.version);
 const B = (await admin.listWorks()).find((w) => w.code === "P-B")?.id;
 if (B === undefined) throw new Error("P-B ontbreekt");
 const wlId = (await wl.me()).person[0].id;

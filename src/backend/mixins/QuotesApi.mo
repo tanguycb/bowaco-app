@@ -21,12 +21,14 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Types "../types";
 import Views "../types/views";
+import FormViews "../types/formviews";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Ids "../lib/Ids";
 import Library "../lib/Library";
 import QuoteCalc "../lib/QuoteCalc";
 import QuoteDocs "../lib/QuoteDocs";
+import QuoteForms "../lib/QuoteForms";
 import QuoteRules "../lib/QuoteRules";
 import DocViews "../types/docviews";
 import Quotes "../lib/Quotes";
@@ -43,6 +45,7 @@ mixin (
   quotes : Types.QuotesState,
   quoteChecks : Types.QuoteChecksState,
   quoteDocs : Types.QuoteDocsState,
+  quoteForms : Types.QuoteFormState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -90,6 +93,9 @@ mixin (
       check = if full qtCheckView(v.id) else null;
       doc = if full qtDocView(q, v) else null;
       vatNote = if full (switch (dossier.info.get(q.workId)) { case (?i) i.vatNote; case null "" }) else "";
+      // 2c.1: een versie die met versie 2 rekent (of een ontwerp, dat het bij de volgende bewaring wordt).
+      form = if (qtV2(v)) ?QuoteForms.formView(quoteForms, org, Quotes.sentKind(quoteForms, q, v), v, c.lines) else null;
+      terms = if (full and qtV2(v)) ?qtTermsView(v, c) else null;
     });
   };
 
@@ -108,7 +114,7 @@ mixin (
     if (wanted.size() > Config.maxQuoteNumber) { return #err("Nummer: hoogstens " # Config.maxQuoteNumber.toText() # " tekens") };
     let (number, seqUsed) = if (wanted == "") { let (t, n) = qtNextNumber(); (t, ?n) } else (wanted, null);
     if (quotes.numbers.get(number) != null) { return #err("Offertenummer " # number # " bestaat al") };
-    switch seqUsed { case (?n) settings.sequences.add(qtSeqKey(), n); case null {} };
+    switch seqUsed { case (?n) settings.sequences.add(Config.quoteSeqKey, n); case null {} };
     let now = Time.now();
     let qid = Ids.next(ctr, "quote");
     quotes.quotes.add(qid, { id = qid; workId = w.id; number; title; createdAt = now; createdBy = p.id; updatedAt = now; updatedBy = p.id; archivedAt = null; archivedBy = null; archiveReason = ""; extra = [] });
@@ -117,26 +123,28 @@ mixin (
     let vid = Ids.next(ctr, "quoteVersion");
     quotes.versions.add(vid, { id = vid; quoteId = qid; version = 1; status = #draft; title; vatBp = w.vatBp; clientOrgId = w.clientOrgId; validDays = Config.quoteValidDaysDefault; intro = ""; note = ""; basedOnId = null; rev = 0; calcVersion = QuoteCalc.version; sent = null; decision = null; createdAt = now; createdBy = p.id; updatedAt = now; updatedBy = p.id; extra = [] });
     quotes.versionConf.add(vid, { versionId = vid; standardMarginBp = #plain(Library.standardMargin(settings)); extra = [] });
+    quoteForms.versionForms.add(vid, QuoteForms.defaultForm(quoteForms, vid));
     Quotes.addIndex(quotes.byQuote, qid, vid);
     Access.audit(audit, caller, ?p.id, ?w.id, "offerte-gemaakt", number);
     #ok({ quoteId = qid; versionId = vid; number });
   };
 
-  // Het laatste volgnummer van een jaar (om verder te nummeren na de offertes van vóór de app). Enkel admin (R17).
+  // Het laatste offertenummer (om verder te nummeren na de offertes van vóór de app). 2c.1 (D1): de teller loopt DOOR over
+  // de jaren heen ("offerte:seq"); `year` blijft in de oproep (vaste API) maar telt niet meer. Enkel admin (R17).
   public shared ({ caller }) func setQuoteSequence(year : Nat, last : Nat) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #manageSettings, null);
     if (year < 2000 or year > 2100 or last > 99_999) { return #err("Jaar 2000–2100, nummer tot 99.999") };
-    settings.sequences.add("offerte:" # year.toText(), last);
-    Access.audit(audit, caller, ?p.id, null, "offertenummer-gezet", year.toText() # "/" # last.toText());
+    settings.sequences.add(Config.quoteSeqKey, last);
+    Access.audit(audit, caller, ?p.id, null, "offertenummer-gezet", "doorlopend " # last.toText());
     #ok;
   };
 
-  // Het laatste uitgegeven volgnummer van een jaar (voor het veld in Instellingen). Enkel admin.
+  // Het laatste uitgegeven offertenummer (doorlopend; voor het veld in Instellingen). Enkel admin.
   public query ({ caller }) func quoteSequence(year : Nat) : async Nat {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #manageSettings, null);
-    switch (settings.sequences.get("offerte:" # year.toText())) { case (?n) n; case null 0 };
+    qtLastNumber(year);
   };
 
   // Een nieuwe versie (ontwerp) als kopie van een bestaande (standaard de nieuwste). Er is hoogstens één ontwerp per offerte.
@@ -171,14 +179,18 @@ mixin (
     };
     quotes.chaptersByVersion.add(vid, chIds);
     var lnIds : [Nat] = [];
+    let lnMap = Map.empty<Nat, Nat>();
     for (l in Quotes.linesOf(quotes, from.id, chapters).values()) {
       let id = Ids.next(ctr, "quoteLine");
       let ch = chMap.get(l.chapterId) ?? Runtime.trap("hoofdstuk ontbreekt bij het kopiëren");
       quotes.lines.add(id, { l with id; versionId = vid; chapterId = ch; copiedFrom = ?l.id });
       switch (quotes.prices.get(l.id)) { case (?pr) quotes.prices.add(id, { pr with lineId = id; versionId = vid }); case null {} };
       lnIds := lnIds.concat([id]);
+      lnMap.add(l.id, id);
     };
     quotes.linesByVersion.add(vid, lnIds);
+    // 2c.1: subgroepen, lijnvorm, wat de klant ziet, marges, regietarief en korting gaan mee.
+    QuoteForms.copyVersion(quoteForms, ctr, from.id, vid, chMap, lnMap);
     quotes.quotes.add(quoteId, { q with updatedAt = now; updatedBy = p.id });
     Access.audit(audit, caller, ?p.id, ?q.workId, "offerte-nieuwe-versie", q.number # " v" # nr.toText() # " uit v" # from.version.toText());
     #ok(vid);
@@ -206,7 +218,9 @@ mixin (
     switch header {
       case (?h) {
         let title = Access.cleanText(h.title, Config.maxLibTitle) ?? return #err("Titel: 1 tot " # Config.maxLibTitle.toText() # " tekens");
-        if (h.vatBp != 600 and h.vatBp != 2100) { return #err("Btw-tarief: 6 of 21 %") };
+        // 2c.1: 0 % (btw verlegd) enkel bij een schadedossier (AC-27, VOORLOPIG tot de boekhouder bevestigt).
+        let damage = QuoteForms.infoOf(quoteForms, q.id).kind == #damage;
+        if (h.vatBp != 600 and h.vatBp != 2100 and not (h.vatBp == 0 and damage)) { return #err(if damage "Btw-tarief: 0 (verlegd), 6 of 21 %" else "Btw-tarief: 6 of 21 % (0 % enkel bij een schadedossier)") };
         switch (h.clientOrgId) {
           case (?o) { let x = org.orgs.get(o) ?? return #err("Onbekende klant"); if (x.kind != #client) { return #err("Kies een klant (organisatie van de soort klant)") } };
           case null {};
@@ -222,6 +236,8 @@ mixin (
 
     // 2. Werkkopie van wat er nu is (enkel actieve hoofdstukken en lijnen)
     type WCh = { id : ?Nat; code : Text; title : Text; order : Nat; libChapterId : ?Nat; active : Bool; touched : Bool; seq : Nat };
+    // 2c.1: een bewaard ontwerp rekent voortaan met versie 2 (zonder klasse, regie en korting is dat exact versie 1).
+    nv := { nv with calcVersion = QuoteCalc.version };
     type WLn = { id : ?Nat; chapter : Text; order : Nat; kind : Types.QuoteLineKind; code : Text; title : Text; text : Text; specRef : Text; qtyMilli : Int; unit : Text; form : Types.ContractForm; libItemId : ?Nat; libItemVersion : ?Nat; copiedFrom : ?Nat; price : Quotes.Price; active : Bool; touched : Bool };
     let chs = Map.empty<Text, WCh>();
     let lns = Map.empty<Text, WLn>();
@@ -331,8 +347,10 @@ mixin (
     if (textTotal > Config.maxQuoteTextTotal) { return #err("Alle tekst samen is te lang voor één versie (hoogstens " # Config.maxQuoteTextTotal.toText() # " tekens): kort de lastenboekteksten in of verdeel de offerte") };
 
     // 6. Rekenen (zelfde regels als de browser) en vergelijken: bij één verschil wordt niets bewaard.
-    let calcLines = activeLns.map(func((_, l) : (Text, WLn)) : QuoteCalc.Line = { chapter = qtPos(chPos.get(l.chapter)); kind = l.kind; qtyMilli = l.qtyMilli; cost = l.price.cost; rule = l.price.rule });
-    let t = QuoteCalc.totals(Array.tabulate<Nat>(activeChs.size(), func i = i), calcLines, nv.vatBp, std);
+    let rv = QuoteForms.resolver(quoteForms, v);
+    let chOf = func(k : Text) : (?Nat, ?Nat) = switch (chs.get(k)) { case (?c) (c.id, c.libChapterId); case null (null, null) };
+    let calcLines = activeLns.map(func((_, l) : (Text, WLn)) : QuoteCalc.Line { let (cid, lc) = chOf(l.chapter); QuoteForms.calcLine(quoteForms, rv, qtPos(chPos.get(l.chapter)), cid, lc, l.kind, l.form, l.qtyMilli, l.price.cost, l.price.rule, l.price.orgId) });
+    let t = QuoteCalc.totals(Array.tabulate<Nat>(activeChs.size(), func i = i), calcLines, nv.vatBp, std, QuoteForms.discountOf(rv));
     for (cl in calcLines.values()) {
       if (Int.abs(QuoteCalc.line(cl, std).lineSell) > Int.abs(Config.maxAmountCents)) { return #err("Een lijn komt boven € 1 miljard: tikfout?") };
     };
@@ -508,13 +526,15 @@ mixin (
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #sendQuote, null);
-    let v = quotes.versions.get(versionId) ?? return #err("Onbekende versie");
-    let q = quotes.quotes.get(v.quoteId) ?? return #err("Onbekende offerte");
+    let v0 = quotes.versions.get(versionId) ?? return #err("Onbekende versie");
+    let q = quotes.quotes.get(v0.quoteId) ?? return #err("Onbekende offerte");
     Rights.require(ctx, p, #readQuotes, ?q.workId);
     if (q.archivedAt != null) { return #err("Deze offerte is gearchiveerd") };
-    if (v.status != #draft) { return #err("Versie " # v.version.toText() # " is al " # Quotes.statusText(v.status)) };
-    if (rev != v.rev) { return #err("Iemand anders bewaarde deze versie intussen; laad opnieuw") };
-    if (v.calcVersion != QuoteCalc.version) { return #err("Deze versie rekent met oude regels: maak een nieuwe versie") };
+    if (v0.status != #draft) { return #err("Versie " # v0.version.toText() # " is al " # Quotes.statusText(v0.status)) };
+    if (rev != v0.rev) { return #err("Iemand anders bewaarde deze versie intussen; laad opnieuw") };
+    // 2c.1: een ontwerp van vóór versie 2 rekent vanaf nu met versie 2 (zonder klasse, regie en korting: hetzelfde; anders
+    // vangt de controle van het totaal hieronder het verschil op).
+    let v = { v0 with calcVersion = QuoteCalc.version };
     let c = qtCompute(v);
     let findings = qtFindings(q, v, c);
     let bl = QuoteRules.blocks(findings);
@@ -530,7 +550,13 @@ mixin (
     // 2.7: wat de klant te zien krijgt naast de inhoud (afzender, klant, werf, btw-grond, betaaltermijn, geldigheid, tekst van de
     // voorwaarden) ligt mee vast en valt onder de hash.
     let info = QuoteDocs.buildInfo(settings, org, works, dossier, quoteDocs, q, v, qtToday());
-    let h = Quotes.hash(Quotes.canonical(q, v, c, ?info));
+    // 2c.1: de marges die de versie gebruikt (ook via een koppeling) liggen voortaan in de versie vast, net als de soort,
+    // wat de klant ziet en de tekst van de tekstblokken (valt onder de hash).
+    QuoteForms.freeze(quoteForms, v, qtChLib(c), c.prices.filterMap(func(pr : Quotes.Price) : ?Nat = pr.orgId));
+    if (quoteForms.versionForms.get(v.id) == null) { quoteForms.versionForms.add(v.id, QuoteForms.defaultForm(quoteForms, v.id)) };
+    let fi = QuoteForms.infoOf(quoteForms, q.id);
+    quoteForms.sentExtra.add(v.id, { versionId = v.id; grossCents = c.totals.gross; discountCents = c.totals.discount; blocks = QuoteForms.blocksOf(quoteForms, v); extra = [("soort", QuoteForms.kindText(fi.kind)), ("verzekeraar", switch (fi.insurerOrgId) { case (?o) o.toText(); case null "" }), ("dossier", fi.claimRef)] });
+    let h = Quotes.hash(Quotes.canonical(quoteForms, q, v, c, ?info));
     quoteDocs.sendInfo.add(v.id, info);
     for (o in Quotes.versionsOf(quotes, q.id).values()) {
       if (o.id != v.id and o.status == #sent) { quotes.versions.add(o.id, { o with status = #superseded; updatedAt = now; updatedBy = p.id }) };
@@ -594,13 +620,23 @@ mixin (
   func qtCtx() : Quotes.Ctx { { settings; access; org; works; qs = quotes } };
 
   func qtCompute(v : Types.QuoteVersion) : Quotes.Computed {
-    if (v.calcVersion != QuoteCalc.version) { Runtime.trap("Onbekende rekenversie " # v.calcVersion.toText()) };
-    Quotes.compute(quotes, v, Library.standardMargin(settings));
+    if (v.calcVersion == 0 or v.calcVersion > QuoteCalc.version) { Runtime.trap("Onbekende rekenversie " # v.calcVersion.toText()) };
+    Quotes.compute(quotes, quoteForms, v, Library.standardMargin(settings));
+  };
+
+  func qtChLib(c : Quotes.Computed) : [(Nat, ?Nat)] { Array.tabulate<(Nat, ?Nat)>(c.chapters.size(), func i = (c.chapters[i].id, c.chapters[i].libChapterId)) };
+
+  // 2c.1: rekent (of zal bij de volgende bewaring rekenen) met versie 2: de vorm en de voorwaarden horen erbij.
+  func qtV2(v : Types.QuoteVersion) : Bool { v.calcVersion >= 2 or v.status == #draft };
+
+  func qtTermsView(v : Types.QuoteVersion, c : Quotes.Computed) : FormViews.QuoteMarginTermsView {
+    let lines = Array.tabulate<QuoteForms.TermLine>(c.lines.size(), func i { let l = c.lines[i]; { id = l.id; chapterId = l.chapterId; libChapterId = switch (quotes.chapters.get(l.chapterId)) { case (?ch) ch.libChapterId; case null null }; kind = l.kind; form = l.form; rule = c.prices[i].rule; orgId = c.prices[i].orgId } });
+    QuoteForms.termsView(quoteForms, org, v, qtChLib(c), lines, c.std);
   };
 
   // Een verzonden versie: geeft de inhoud nog dezelfde hash? (Een ontwerp is altijd "intact".)
   func qtIntact(q : Types.Quote, v : Types.QuoteVersion, c : Quotes.Computed) : Bool {
-    switch (v.sent) { case (?s) Quotes.hash(Quotes.canonical(q, v, c, quoteDocs.sendInfo.get(v.id))) == s.hash; case null true };
+    switch (v.sent) { case (?s) Quotes.hash(Quotes.canonical(quoteForms, q, v, c, quoteDocs.sendInfo.get(v.id))) == s.hash; case null true };
   };
 
   // 2.7: de velden van de PDF en het akkoord. Een verzonden versie toont wat bij het versturen vastgelegd werd; een ontwerp de
@@ -620,7 +656,9 @@ mixin (
 
   // De controleregels (2.6) op de actuele inhoud van een versie.
   func qtFindings(q : Types.Quote, v : Types.QuoteVersion, c : Quotes.Computed) : [QuoteRules.Finding] {
-    let workVat = switch (works.works.get(q.workId)) { case (?w) w.vatBp; case null v.vatBp };
+    // 2c.1: een schadedossier aan 0 % (btw verlegd) wijkt bewust af van de werf.
+    let damage0 = v.vatBp == 0 and QuoteForms.infoOf(quoteForms, q.id).kind == #damage;
+    let workVat = if damage0 0 else switch (works.works.get(q.workId)) { case (?w) w.vatBp; case null v.vatBp };
     let client = switch (v.clientOrgId) { case (?o) org.orgs.get(o); case null null };
     let filled = func(t : Text) : Bool = t.trim(#char ' ').size() > 0;
     let addrOk = switch client {
@@ -631,10 +669,11 @@ mixin (
       chapters = c.chapters.map(func ch = { id = ch.id; code = ch.code; title = ch.title });
       lines = Array.tabulate<QuoteRules.Line>(
         c.lines.size(),
-        func i = { id = c.lines[i].id; chapter = c.lines[i].chapterId; kind = c.lines[i].kind; code = c.lines[i].code; title = c.lines[i].title; qtyMilli = c.lines[i].qtyMilli; cost = c.prices[i].cost; rule = c.prices[i].rule; reason = c.prices[i].reason },
+        func i = { id = c.lines[i].id; chapter = c.lines[i].chapterId; kind = c.lines[i].kind; code = c.lines[i].code; title = c.lines[i].title; qtyMilli = c.lines[i].qtyMilli; cost = c.prices[i].cost; rule = c.prices[i].rule; reason = c.prices[i].reason; baseBp = c.calc[i].baseBp; regie = c.calc[i].regie },
       );
       standardBp = c.std;
       vatBp = v.vatBp;
+      discount = c.discount;
       workVatBp = workVat;
       vatNote = switch (dossier.info.get(q.workId)) { case (?i) i.vatNote; case null "" };
       clientSet = (switch client { case (?_) true; case null false });
@@ -678,11 +717,16 @@ mixin (
   };
 
   func qtToday() : Nat { let t = Time.now(); if (t <= 0) 0 else Int.abs(t) / Int.abs(Config.day) };
-  func qtSeqKey() : Text { "offerte:" # Quotes.yearOf(qtToday()).toText() };
-  // Het volgende vrije nummer van dit jaar (een met de hand gegeven nummer kan het volgende al bezetten).
+  // 2c.1 (D1): het laatste nummer van de doorlopende teller; nog niet gezet = de jaarteller van vóór 2c.1 (zo loopt een
+  // canister met offertes gewoon verder). De oude sleutels "offerte:<jaar>" blijven staan.
+  func qtLastNumber(year : Nat) : Nat {
+    switch (settings.sequences.get(Config.quoteSeqKey)) { case (?x) x; case null { switch (settings.sequences.get("offerte:" # year.toText())) { case (?x) x; case null 0 } } };
+  };
+  // Het volgende vrije nummer; het jaar is dat van vandaag (de eerste versie). Een met de hand gegeven nummer kan het
+  // volgende al bezetten.
   func qtNextNumber() : (Text, Nat) {
-    var n = (switch (settings.sequences.get(qtSeqKey())) { case (?x) x; case null 0 }) + 1;
     let year = Quotes.yearOf(qtToday());
+    var n = qtLastNumber(year) + 1;
     while (quotes.numbers.get(Quotes.formatNumber(year, n)) != null) { n += 1 };
     (Quotes.formatNumber(year, n), n);
   };

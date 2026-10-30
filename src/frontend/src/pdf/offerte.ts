@@ -21,6 +21,20 @@ export type PdfLine = {
   form: string; // fixed · vh · regie · estimate · budget · perAttachment
   unitSellCents: bigint | null;
   lineSellCents: bigint;
+  key?: string; // 2c.1: het id van de lijn (voor de subgroep)
+};
+// 2c.1: soort, subgroepen, tekstblokken, korting en regietekst (enkel een versie die met de nieuwe rekenregels rekent).
+export type PdfForm = {
+  kind: string; // "standard" · "damage" · "regie"
+  insurer: string;
+  claimRef: string;
+  subgroups: { key: string; chapter: string; title: string }[]; // in hun volgorde
+  lineSub: Record<string, string>; // lijn → subgroep
+  blocks: { title: string; text: string; place: string }[]; // place: "top" · "end" · de code van een hoofdstuk
+  grossCents: bigint;
+  discountCents: bigint;
+  discountText: string;
+  regieSellCents: bigint | null;
 };
 export type PdfChapter = { key: string; code: string; title: string; sellCents: bigint };
 export type PdfAddress = { street: string; number: string; zip: string; city: string; country: string } | null;
@@ -54,6 +68,7 @@ export type QuotePdfData = {
   optionsMinusCents: bigint;
   terms: { version: number; title: string; text: string; provisional: boolean };
   accepted: { digital: { atDay: number; byName: string } | null; signed: { atDay: number; byName: string } | null } | null;
+  form?: PdfForm | null;
 };
 
 // ── Opmaak van getallen en data ───────────────────────────────────────────
@@ -250,7 +265,8 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     `Datum: ${d.sentDay !== null ? dayText(d.sentDay) : "—"}`,
     d.validUntilDay !== null ? `Geldig tot: ${dayText(d.validUntilDay)}` : `Geldig: ${d.validDays} dagen na datum`,
     `Betaaltermijn: ${d.paymentDays} dagen`,
-    `Btw-tarief: ${pct(d.vatBp)}`,
+    d.vatBp === 0n ? "Btw: verlegd (0 %)" : `Btw-tarief: ${pct(d.vatBp)}`,
+    ...(d.form?.kind === "damage" ? [`Schadedossier${d.form.claimRef ? ` ${d.form.claimRef}` : ""}`, ...(d.form.insurer ? [`Verzekeraar: ${d.form.insurer}`] : [])] : []),
   ];
   const h3 = block(2, "Offerte", facts, false);
   y = top - Math.max(h1, h2, h3) - 14;
@@ -264,6 +280,16 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     for (const l of wrap(F.r, 9.5, d.intro, CW)) { need(14); if (l) text(l, ML, y, F.r, 9.5, INK); y -= 13; }
   }
   y -= 12;
+  // 2c.1: tekstblokken (bovenaan, bij een hoofdstuk, onderaan).
+  const blocksAt = (place: string, x = ML, w = CW) => {
+    for (const b of (d.form?.blocks ?? []).filter((x2) => x2.place === place)) {
+      need(30);
+      if (b.title) { for (const t of wrap(F.m, 9, b.title, w)) { need(12); text(t, x, y, F.m, 9, INK); y -= 12; } }
+      for (const t of wrap(F.r, 8.5, b.text, w)) { need(11); if (t) text(t, x, y, F.r, 8.5, GRAY); y -= 11; }
+      y -= 6;
+    }
+  };
+  blocksAt("top");
 
   // ── Posten per hoofdstuk ─────────────────────────────────────────────────
   const X = { code: ML, desc: ML + 44, form: ML + 262, qty: ML + 346, unit: ML + 352, price: ML + 440, total: ML + CW };
@@ -291,7 +317,27 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     text(c.title, X.desc, y, F.b, 10, INK);
     right(eur(c.sellCents), X.total - 4, y, F.monoB, 9, INK);
     y -= 22;
-    for (const l of ls) {
+    if (c.code) blocksAt(c.code, X.desc, CW - 44);
+    // 2c.1: eerst de posten zonder subgroep, dan per subgroep een kop met het eigen subtotaal.
+    const subOf = (l: PdfLine) => (l.key !== undefined ? d.form?.lineSub[l.key] : undefined);
+    const subs = (d.form?.subgroups ?? []).filter((g) => g.chapter === c.key);
+    const ordered: (PdfLine | { sub: string; title: string; sum: bigint })[] = [...ls.filter((l) => !subs.some((g) => g.key === subOf(l)))];
+    for (const g of subs) {
+      const gl = ls.filter((l) => subOf(l) === g.key);
+      if (!gl.length) continue;
+      ordered.push({ sub: g.key, title: g.title, sum: gl.reduce((a, l) => a + (l.kind === "item" ? l.lineSellCents : 0n), 0n) }, ...gl);
+    }
+    for (const l of ordered) {
+      if ("sub" in l) {
+        need(40);
+        y -= 2;
+        text(l.title, X.desc, y, F.m, 9.5, INK);
+        right(eur(l.sum), X.total - 4, y, F.mono, 8.5, GRAY);
+        y -= 6;
+        hline(y, X.desc, W - MR, LINE2, 0.6);
+        y -= 12;
+        continue;
+      }
       if (l.kind === "text") {
         const tl = wrap(F.r, 9, `${l.title}${l.title && l.text ? "\n" : ""}${l.text}`, CW - 44);
         // Per regel naar een volgende bladzijde: een blok hoger dan een bladzijde liep anders stil onder de marge (review 2.12).
@@ -370,8 +416,12 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     right(v, W - MR, y, big ? F.monoB : F.mono, big ? 11 : 9.5, INK);
     y -= big ? 18 : 14;
   };
+  if (d.form && d.form.discountCents !== 0n) {
+    row("Totaal vóór korting", eur(d.form.grossCents));
+    row(d.form.discountText ? `Korting: ${d.form.discountText}` : "Korting", `−${eur(d.form.discountCents)}`);
+  }
   row("Subtotaal excl. btw", eur(d.subtotalCents));
-  row(`Btw ${pct(d.vatBp)}`, eur(d.vatCents));
+  row(d.vatBp === 0n ? "Btw verlegd (0 %)" : `Btw ${pct(d.vatBp)}`, eur(d.vatCents));
   if (d.vatBp === 600n && d.vatNote.trim()) {
     for (const t of wrap(F.r, 7.8, `Grond voor het btw-tarief: ${d.vatNote}`, W - MR - bx)) { text(t, bx, y + 1, F.r, 7.8, GRAY); y -= 10; }
     y -= 2;
@@ -392,7 +442,10 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
   cond.push(`Betaaltermijn: ${d.paymentDays} dagen.`);
   cond.push("Prijzen in euro. Opties zijn niet in het totaal begrepen.");
   if (legendForms.length) cond.push(`Vorm: ${legendForms.join(" · ")}.`);
+  if (d.form?.regieSellCents != null) cond.push(`Werken buiten de offerte worden uitgevoerd in regie à ${eur(d.form.regieSellCents)}/u (excl. btw).`);
+  if (d.vatBp === 0n) cond.push("Btw verlegd: de btw is verschuldigd door de medecontractant.");
   cond.push(`De algemene voorwaarden (versie ${d.terms.version === 0 ? "voorlopig" : d.terms.version}) staan op de volgende bladzijden en maken deel uit van deze offerte.`);
+  blocksAt("end");
   const condLines = cond.flatMap((c) => wrap(F.r, 8.5, c, CW));
   need(condLines.length * 12 + 20);
   for (const t of condLines) { text(t, ML, y, F.r, 8.5, GRAY); y -= 12; }

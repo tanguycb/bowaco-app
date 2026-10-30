@@ -5,9 +5,9 @@
 // volgen tests/herstel.mjs: een collectie erbij = op beide plaatsen (en in RestoreApi.mo, docs/herstel.md).
 import type { Backend } from "./backend";
 
-export const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "counters", "planVersions", "reportKeys", "ops"];
-export const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines"];
-export const CONFIDENTIAL: [string, string][] = [["orgs", "orgConfidential"], ["persons", "personConfidential"], ["files", "confidentialFiles"], ["workConfidential", "workConfidential"], ["workConfidentialHistory", "workConfidentialHistory"], ["libCosts", "libCosts"], ["libSells", "libSells"], ["libSellVersions", "libSellVersions"], ["quotePrices", "quotePrices"], ["quoteVersionConf", "quoteVersionConf"]];
+export const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "planVersions", "reportKeys", "ops"];
+export const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices", "quoteFormInfos", "quoteVersionForms", "quoteSubgroups", "quoteLineForms", "textBlocks", "quoteSentExtras"];
+export const CONFIDENTIAL: [string, string][] = [["orgs", "orgConfidential"], ["persons", "personConfidential"], ["files", "confidentialFiles"], ["workConfidential", "workConfidential"], ["workConfidentialHistory", "workConfidentialHistory"], ["libCosts", "libCosts"], ["libSells", "libSells"], ["libSellVersions", "libSellVersions"], ["quotePrices", "quotePrices"], ["quoteVersionConf", "quoteVersionConf"], ["progressConf", "progressConf"], ["progressFrozen", "progressFrozen"], ["progressRevisions", "progressRevisions"], ["oaInvoiceAmounts", "oaInvoiceAmounts"], ["marginClasses", "marginClasses"], ["marginClassLinks", "marginClassLinks"], ["quoteVersionTerms", "quoteVersionTerms"]];
 
 type Raw = { exportChunk: (kind: string, from: bigint, limit: bigint) => Promise<unknown> };
 
@@ -30,7 +30,7 @@ async function part(b: Backend, kind: string, n = 500): Promise<unknown> {
 }
 
 // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
-const SIZE: Record<string, number> = { libItems: 100, libItemVersions: 50, quoteLines: 100 };
+const SIZE: Record<string, number> = { libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10, oaInvoiceAmounts: 50, textBlocks: 50, quoteSentExtras: 20, quoteVersionTerms: 100 };
 
 async function partOpt(b: Backend, kind: string): Promise<unknown> {
   try {
@@ -47,6 +47,9 @@ export async function backupIntern(b: Backend, onStep?: (k: string) => void): Pr
   const intern: Record<string, unknown> = { version: me.version, at: BigInt(Date.now()) * 1_000_000n, trades: await r.listTrades(true), settings: await part(b, "settings"), auditCount: await r.auditCount() };
   for (const k of INTERN) { onStep?.(k); intern[k] = await part(b, k); }
   for (const k of LATER) { onStep?.(k); intern[k] = await partOpt(b, k); }
+  // 2c.1 (les M1 van 2.12, zoals tests/herstel.mjs): de tellers als ALLERLAATSTE, na alle records.
+  onStep?.("counters");
+  intern.counters = await part(b, "counters");
   return intern;
 }
 

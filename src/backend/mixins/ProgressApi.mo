@@ -42,6 +42,7 @@ mixin (
   plan : Types.PlanState,
   reports : Types.ReportState,
   quotes : Types.QuotesState,
+  quoteForms : Types.QuoteFormState,
   workStarts : Types.WorkStartState,
   surveys : Types.SurveyState,
   progress : Types.ProgressState,
@@ -475,7 +476,7 @@ mixin (
   };
 
   // ── Hulp ───────────────────────────────────────────────────────────────
-  func pgCtx() : Progress.Ctx { { settings; access; org; works; dossier; plan; reports; qs = quotes; starts = workStarts; ss = surveys; ps = progress } };
+  func pgCtx() : Progress.Ctx { { settings; access; org; works; dossier; plan; reports; qs = quotes; qf = quoteForms; starts = workStarts; ss = surveys; ps = progress } };
 
   func pgDay(d : Nat) : Text { Plan.fmtDay(d) };
   func pgEuro(c : Int) : Text { Progress.euro(c) };

@@ -2,7 +2,7 @@
 // de vastgelegde of de huidige velden van de PDF) en de klant (readMyQuote). Beide leveren enkel verkoopprijzen: er is geen
 // pad waarlangs een aankoopprijs of een marge in de PDF komt.
 import type { Address, MyQuoteRead, QuoteDocInfo, QuoteRead } from "../backend";
-import type { PdfAddress, PdfLine, QuotePdfData } from "./offerte.ts";
+import type { PdfAddress, PdfForm, PdfLine, QuotePdfData } from "./offerte.ts";
 
 const addr = (a: Address | undefined): PdfAddress => (a ? { street: a.street, number: a.number, zip: a.zip, city: a.city, country: a.country } : null);
 const dayOfNs = (ns: bigint) => Math.floor(Number(ns / 1_000_000_000n) / 86_400);
@@ -32,6 +32,29 @@ function head(i: QuoteDocInfo) {
   };
 }
 
+type Block = { title: string; text: string; place: { __kind__: string; chapter?: string } };
+const blockPlace = (b: Block) => (b.place.__kind__ === "chapter" ? b.place.chapter ?? "" : b.place.__kind__);
+
+/** 2c.1, kantoor: de vorm van de versie (null = rekent nog met de oude regels). `regieSell` en `discountText` komen uit de
+ *  vertrouwelijke voorwaarden (enkel wie ze mag zien). */
+function formFromRead(r: QuoteRead): PdfForm | null {
+  const f = r.form;
+  if (!f) return null;
+  const tm = r.terms;
+  return {
+    kind: f.kind as string,
+    insurer: f.insurerName,
+    claimRef: f.claimRef,
+    subgroups: [...f.subgroups].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0)).map((g) => ({ key: String(g.id), chapter: String(g.chapterId), title: g.title })),
+    lineSub: Object.fromEntries(f.lineForms.filter((l) => l.subgroupId !== undefined && l.shown).map((l) => [String(l.lineId), String(l.subgroupId)])),
+    blocks: f.blocks.map((b) => ({ title: b.title, text: b.text, place: blockPlace(b as Block) })),
+    grossCents: r.totals.grossCents,
+    discountCents: r.totals.discountCents,
+    discountText: tm?.discountText ?? "",
+    regieSellCents: f.regieText && tm?.regie ? tm.regie.sellCents : null,
+  };
+}
+
 /** Voor kantoor: de versie zoals ze nu in de backend staat (een ontwerp wordt een voorbeeld met watermerk). */
 export function pdfFromRead(r: QuoteRead): QuotePdfData | null {
   if (!r.doc) return null;
@@ -39,11 +62,13 @@ export function pdfFromRead(r: QuoteRead): QuotePdfData | null {
   const info = r.doc.info;
   const sell = new Map(r.sell.map((s) => [String(s.lineId), s]));
   const chSell = new Map(r.totals.chapters.map((c) => [String(c.chapterId), c.sellCents]));
-  const lines: PdfLine[] = r.lines.map((l) => {
+  // 2c.1: een post met hoeveelheid 0 die de klant niet ziet, staat ook niet in de PDF.
+  const hidden = new Set((r.form?.lineForms ?? []).filter((x) => !x.shown).map((x) => String(x.lineId)));
+  const lines: PdfLine[] = r.lines.filter((l) => !hidden.has(String(l.id))).map((l) => {
     const s = sell.get(String(l.id));
     return {
       chapter: String(l.chapterId), kind: l.kind as PdfLine["kind"], code: l.code, title: l.title, text: l.text, specRef: l.specRef, qtyMilli: l.qtyMilli, unitName: l.unitName,
-      form: l.form as string, unitSellCents: s?.unitSellCents ?? null, lineSellCents: s?.lineSellCents ?? 0n,
+      form: l.form as string, unitSellCents: s?.unitSellCents ?? null, lineSellCents: s?.lineSellCents ?? 0n, key: String(l.id),
     };
   });
   return {
@@ -67,6 +92,7 @@ export function pdfFromRead(r: QuoteRead): QuotePdfData | null {
     optionsPlusCents: r.totals.optionsPlusCents,
     optionsMinusCents: r.totals.optionsMinusCents,
     accepted: accepted(r.doc.acceptance),
+    form: formFromRead(r),
   };
 }
 
@@ -88,7 +114,7 @@ export function pdfFromMine(r: MyQuoteRead): QuotePdfData {
     chapters: r.chapters.map((c) => ({ key: String(c.id), code: c.code, title: c.title, sellCents: c.sellCents })),
     lines: r.lines.map((l) => ({
       chapter: String(l.chapterId), kind: l.kind as PdfLine["kind"], code: l.code, title: l.title, text: l.text, specRef: l.specRef, qtyMilli: l.qtyMilli, unitName: l.unitName,
-      form: l.form as string, unitSellCents: l.unitSellCents ?? null, lineSellCents: l.lineSellCents,
+      form: l.form as string, unitSellCents: l.unitSellCents ?? null, lineSellCents: l.lineSellCents, key: String(l.id),
     })),
     subtotalCents: r.subtotalCents,
     vatCents: r.vatCents,
@@ -96,6 +122,20 @@ export function pdfFromMine(r: MyQuoteRead): QuotePdfData {
     optionsPlusCents: r.optionsPlusCents,
     optionsMinusCents: r.optionsMinusCents,
     accepted: accepted(r.acceptance),
+    form: r.form
+      ? {
+          kind: r.form.kind as string,
+          insurer: r.form.insurerName,
+          claimRef: r.form.claimRef,
+          subgroups: [...r.form.subgroups].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0)).map((g) => ({ key: String(g.id), chapter: String(g.chapterId), title: g.title })),
+          lineSub: Object.fromEntries(r.form.lineSubgroups.map(([l, g]) => [String(l), String(g)])),
+          blocks: r.form.blocks.map((b) => ({ title: b.title, text: b.text, place: blockPlace(b as Block) })),
+          grossCents: r.form.grossCents,
+          discountCents: r.form.discountCents,
+          discountText: r.form.discountText,
+          regieSellCents: r.form.regieSellCents ?? null,
+        }
+      : null,
   };
 }
 

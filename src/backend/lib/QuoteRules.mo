@@ -29,13 +29,16 @@ module {
   public type RuleSet = { key : Text; name : Text; fixed : Bool; enabled : Bool; severity : Severity; thresholdBp : ?Nat };
 
   public type Chapter = { id : Nat; code : Text; title : Text };
-  public type Line = { id : Nat; chapter : Nat; kind : QuoteCalc.Kind; code : Text; title : Text; qtyMilli : Int; cost : ?Int; rule : ?QuoteCalc.Rule; reason : Text };
+  // baseBp en regie: QuoteCalc versie 2 (klasse en regietarief); null in een versie die met versie 1 rekent. Een verborgen
+  // "mogelijke post" met hoeveelheid 0 (2c.1) blijft meetellen voor qty-zero: een vergeten hoeveelheid mag niet stil verdwijnen.
+  public type Line = { id : Nat; chapter : Nat; kind : QuoteCalc.Kind; code : Text; title : Text; qtyMilli : Int; cost : ?Int; rule : ?QuoteCalc.Rule; reason : Text; baseBp : ?Nat; regie : ?QuoteCalc.Regie };
 
   public type Input = {
     chapters : [Chapter];
     lines : [Line];
     standardBp : Nat;
     vatBp : Nat;
+    discount : ?QuoteCalc.Discount; // 2c.1
     workVatBp : Nat;
     vatNote : Text; // de grond voor het btw-tarief op de werffiche
     clientSet : Bool;
@@ -65,7 +68,7 @@ module {
     if (cs.stdPosts.size() == 0) {
       let now : Int = 0;
       return Config.quoteStdPostDefaults().enumerate().map(
-        func((i, (key, name, kw)) : (Nat, (Text, Text, [Text]))) : Types.QuoteStdPost = { key; name; keywords = kw; enabled = true; severity = #warn; order = i; updatedAt = now; updatedBy = 0; archivedAt = null }
+        func((i, (key, name, kw, on)) : (Nat, (Text, Text, [Text], Bool))) : Types.QuoteStdPost = { key; name; keywords = kw; enabled = on; severity = #warn; order = i; updatedAt = now; updatedBy = 0; archivedAt = null }
       ).toArray();
     };
     cs.stdPosts.values().filter(func s = withArchived or s.archivedAt == null).toArray().sort(
@@ -101,9 +104,9 @@ module {
   public func evaluate(i : Input, rules : [RuleSet], std : [Types.QuoteStdPost]) : [Finding] {
     var found : [Finding] = [];
     let std0 = i.standardBp;
-    let calcLines = i.lines.map(func(l : Line) : QuoteCalc.Line = { chapter = l.chapter; kind = l.kind; qtyMilli = l.qtyMilli; cost = l.cost; rule = l.rule });
-    let t = QuoteCalc.totals(i.chapters.map(func c = c.id), calcLines, i.vatBp, std0);
-    let outs = i.lines.map(func(l : Line) : QuoteCalc.LineOut = QuoteCalc.line({ chapter = l.chapter; kind = l.kind; qtyMilli = l.qtyMilli; cost = l.cost; rule = l.rule }, std0));
+    let calcLines = i.lines.map(func(l : Line) : QuoteCalc.Line = { chapter = l.chapter; kind = l.kind; qtyMilli = l.qtyMilli; cost = l.cost; rule = l.rule; baseBp = l.baseBp; regie = l.regie });
+    let t = QuoteCalc.totals(i.chapters.map(func c = c.id), calcLines, i.vatBp, std0, i.discount);
+    let outs = calcLines.map(func(l : QuoteCalc.Line) : QuoteCalc.LineOut = QuoteCalc.line(l, std0));
     let items = i.lines.filter(func l = l.kind == #item);
 
     func add(r : RuleSet, name : Text, ls : [Line], chs : [Chapter]) {
