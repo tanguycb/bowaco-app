@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2b.5-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2b.6-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
