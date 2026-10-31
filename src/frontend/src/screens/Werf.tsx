@@ -26,10 +26,11 @@ import { OpmetingWerf } from "./Opmeting";
 import { MyStatements, WorkStatements } from "./Vorderingen";
 import { WorkOaInvoices } from "./OaFacturen";
 import { MyQuotes } from "./MijnOfferte";
+import { WorkTenders } from "./Prijsvragen";
 
 const F = t.fase;
 
-export function WerfDetail({ id, caps, go, tab }: { id: bigint; caps: Caps; go: (to: string) => void; tab?: string }) {
+export function WerfDetail({ id, caps, go, tab, sub }: { id: bigint; caps: Caps; go: (to: string) => void; tab?: string; sub?: string }) {
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
   const work = useQuery({ queryKey: ["work", String(id)], queryFn: () => actor!.getWork(id), enabled: on });
@@ -76,7 +77,7 @@ export function WerfDetail({ id, caps, go, tab }: { id: bigint; caps: Caps; go: 
   const addr = [w.address.street, w.address.number].filter(Boolean).join(" ") + (w.address.city ? `, ${w.address.zip} ${w.address.city}` : "");
   const tabOpen = phone && cur !== null; // gsm: één onderdeel volledig in beeld
 
-  const body = cur && <TabBody key={cur.key} tab={cur} w={w} caps={caps} go={go} fase={fase} facts={facts} stap={stap} act={act} client={client} />;
+  const body = cur && <TabBody key={cur.key} tab={cur} w={w} caps={caps} go={go} fase={fase} facts={facts} stap={stap} act={act} client={client} sub={sub} />;
   return (
     <Page label={w.code} title={tabOpen && cur ? cur.label : w.name} wide={cur?.key === "planning" && !phone} actions={<>
       {w.caps.edit && !tabOpen && <Button icon="edit" onClick={() => setEditing(true)}>{t.werven.edit}</Button>}
@@ -151,7 +152,7 @@ function NextCard({ stap, onAct }: { stap: Stap; onAct: () => void }) {
 }
 
 /** Eén tabblad: wat er vroeger als blok op de werfpagina stond (zie het verslag van 2b.3, §2). */
-function TabBody({ tab, w, caps, go, fase, facts, stap, act, client }: { tab: WerfTab; w: WorkView; caps: Caps; go: (to: string) => void; fase: Fase; facts: StageFacts; stap: Stap | null; act: () => void; client: boolean }) {
+function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { tab: WerfTab; w: WorkView; caps: Caps; go: (to: string) => void; fase: Fase; facts: StageFacts; stap: Stap | null; act: () => void; client: boolean; sub?: string }) {
   const [force, setForce] = useState(false);
   const works = useWorks();
   const none = <p className="a-empty">{F.noRight}</p>;
@@ -174,15 +175,30 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client }: { tab: We
   switch (tab.key) {
     case "overzicht":
       return client || !caps.readTeam ? <ExternOverzicht w={w} caps={caps} go={go} client={client} /> : <Overzicht w={w} caps={caps} go={go} fase={fase} />;
-    case "offerte":
+    case "offerte": {
       if (client) return <MyQuotes go={go} embedded workName={w.name} />;
+      // 2c.2: subtabbladen Versies · Prijsvragen (interne rollen; de werfleider ziet enkel firma's, stand en deadline).
+      const subs = caps.readTeam ? [{ key: "versies", label: t.prijsvragen.subVersions }, { key: "prijsvragen", label: t.prijsvragen.subTenders }] : [];
+      const curSub = subs.find((x) => x.key === sub)?.key ?? "versies";
       return (
         <div className="a-tabbody">
-          <PendingStarts workId={id} caps={caps} go={go} />
-          <WorkQuotes workId={id} caps={caps} go={go} />
-          {fase.index >= 2 && <Meerwerk workId={id} caps={caps} go={go} facts={facts} />}
+          {subs.length > 0 && (
+            <div className="a-wtabs a-wtabs--sub" role="tablist" aria-label={t.prijsvragen.tab}>
+              {subs.map((x) => (
+                <a key={x.key} role="tab" href={`#/werven/${id}/offerte${x.key === "versies" ? "" : `/${x.key}`}`} aria-selected={curSub === x.key} className="a-wtab" onClick={(e) => { e.preventDefault(); go(`werven/${id}/offerte${x.key === "versies" ? "" : `/${x.key}`}`); }} data-testid={`sub-${x.key}`}>{x.label}</a>
+              ))}
+            </div>
+          )}
+          {curSub === "prijsvragen" ? <WorkTenders workId={id} caps={caps} go={go} /> : (
+            <>
+              <PendingStarts workId={id} caps={caps} go={go} />
+              <WorkQuotes workId={id} caps={caps} go={go} />
+              {fase.index >= 2 && <Meerwerk workId={id} caps={caps} go={go} facts={facts} />}
+            </>
+          )}
         </div>
       );
+    }
     case "planning":
       return (
         <div className="a-tabbody">

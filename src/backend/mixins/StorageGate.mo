@@ -13,11 +13,14 @@ import Types "../types";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Rights "../lib/Rights";
+import Post "../lib/Post";
+import Tenders "../lib/Tenders";
 
 mixin (
   settings : Types.SettingsState,
   access : Types.AccessState,
   works : Types.WorksState,
+  tenders : Types.TenderState,
 ) {
   transient let _immutableObjectStorageState : Storage.State = Storage.new();
   transient var _gatewayRefreshedAt : Int = 0;
@@ -65,7 +68,9 @@ mixin (
   // een duidelijke weigering ("backend canister rejected …") en kost ons geen opslag.
   public shared ({ caller }) func _immutableObjectStorageCreateCertificate(blobHash : Text) : async _ImmutableObjectStorageCreateCertificateResult {
     let p = Access.requireActive(access, caller);
-    Rights.require({ works; settings }, p, #upload, null);
+    // 2c.2 (R39): ook een OA met een open uitnodiging (zijn eigen offerte-PDF), zonder lid te zijn van een werf.
+    let ctx = { works; settings };
+    if (not Rights.may(ctx, p, #upload, null) and not Rights.mayUpload(ctx, p, Tenders.hasOpenInvite(ctx, tenders, p, Time.now(), Post.local(Time.now()).day))) { Runtime.trap("Geen toegang") };
     if (blobHash.size() > 100) { Runtime.trap("Het bestand is beschadigd; probeer opnieuw") };
     { method = "upload"; blob_hash = blobHash };
   };

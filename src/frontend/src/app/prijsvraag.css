@@ -1,0 +1,34 @@
+/* 2c.2: prijsvragen. Zelfde vorm als de vorderingsstaten (vordering.css): kaarten, dunne lijnen, monoletter voor codes en bedragen. */
+@import "./vordering.css";
+.pv-lead { max-width: 760px; }
+.pv-card { border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); padding: 12px 14px; display: grid; gap: 8px; }
+.pv-card + .pv-card { margin-top: 10px; }
+.pv-card__h { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.pv-firms li { display: flex; align-items: center; gap: 8px; }
+.pv-detail { display: grid; gap: 10px; border-top: 1px solid var(--bw-line); padding-top: 10px; }
+.pv-table td { vertical-align: top; }
+.pv-acts { flex-wrap: wrap; gap: 6px; }
+.pv-oq { display: block; }
+.pv-posts summary { cursor: pointer; font-size: var(--bw-fs-sm); color: var(--bw-ink-2); }
+.pv-pick { border: 1px solid var(--bw-line); border-radius: var(--bw-radius); padding: 10px 12px; display: grid; gap: 6px; margin: 0; }
+.pv-ch summary { cursor: pointer; list-style: none; }
+.pv-line { padding-left: 26px; font-size: var(--bw-fs-sm); }
+.pv-code { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--bw-accent); border-radius: var(--bw-radius); background: var(--bw-accent-soft); }
+.pv-code__v { font-size: 1.25rem; letter-spacing: 0.06em; }
+.pv-kv { display: grid; grid-template-columns: minmax(110px, 30%) minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: var(--bw-fs-sm); }
+.pv-kv dt { color: var(--bw-ink-2); }
+.pv-kv dd { margin: 0; }
+.pv-fill td { vertical-align: top; }
+.pv-fill .pv-in { min-width: 96px; background: #fff7d1; }
+.pv-chrow td { background: var(--bw-sunken); }
+.pv-subrow td { color: var(--bw-ink-2); }
+.pv-text { white-space: pre-wrap; display: block; max-width: 520px; }
+.pv-own { flex-wrap: wrap; gap: 6px; }
+.pv-own .bw-input { flex: 1 1 180px; }
+.pv-own .pv-sm, .pv-head .pv-sm { flex: 0 1 110px; max-width: 120px; }
+.pv-total { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.pv-head .a-row { flex-wrap: wrap; align-items: flex-end; }
+.pv-ok { background: var(--bw-st-done-bg); color: var(--bw-st-done); }
+@media (max-width: 899px) {
+  .pv-fill .pv-in { min-width: 0; width: 100%; }
+}

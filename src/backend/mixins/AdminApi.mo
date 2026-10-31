@@ -43,6 +43,7 @@ mixin (
   progress : Types.ProgressState,
   oaInvoices : Types.OaInvoiceState,
   quoteForms : Types.QuoteFormState,
+  tenders : Types.TenderState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -263,6 +264,10 @@ mixin (
       quoteLineForms = quoteForms.lineForms.values().toArray();
       textBlocks = quoteForms.textBlocks.values().toArray();
       quoteSentExtras = quoteForms.sentExtra.values().toArray();
+      tenders = tenders.tenders.values().toArray();
+      tenderItems = tenders.items.values().toArray();
+      tenderInvites = tenders.invites.values().toArray();
+      oaQuotes = tenders.oaQuotes.values().toArray();
     };
   };
 
@@ -274,10 +279,10 @@ mixin (
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #export, null);
-    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "marginClasses" or kind == "marginClassLinks" or kind == "quoteVersionTerms";
+    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "marginClasses" or kind == "marginClassLinks" or kind == "quoteVersionTerms" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices";
     // 2.2/2.4: de prijzen van de bibliotheek en van de offertes vragen daarbovenop #readCosts (aankoopprijzen, R20).
     // 2.12 (review L1): ook de opslag-URL's van vertrouwelijke bestanden (contracten, OA-facturen): lezen ervan vraagt #readCosts (R12).
-    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "confidentialFiles") { Rights.require(ctx, p, #readCosts, null) };
+    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "confidentialFiles" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices") { Rights.require(ctx, p, #readCosts, null) };
     if (confidentialKind) { Rights.require(ctx, p, #readConfidentialContact, null) };
     if (from == 0) { Access.audit(audit, caller, ?p.id, null, if confidentialKind "bekeek:export-vertrouwelijk-deel" else "export-deel", kind) };
     func pg<T>(xs : [T]) : [T] { Access.page(xs, from, limit) };
@@ -388,6 +393,13 @@ mixin (
       case "marginClasses" ?#marginClasses(pg(quoteForms.classes.entries().toArray()));
       case "marginClassLinks" ?#marginClassLinks(pg(quoteForms.classLinks.entries().toArray()));
       case "quoteVersionTerms" ?#quoteVersionTerms(pg(quoteForms.versionTerms.entries().toArray()));
+      case "tenders" ?#tenders(pg(tenders.tenders.values().toArray()));
+      case "tenderItems" ?#tenderItems(pg(tenders.items.values().toArray()));
+      case "tenderInvites" ?#tenderInvites(pg(tenders.invites.values().toArray()));
+      case "oaQuotes" ?#oaQuotes(pg(tenders.oaQuotes.values().toArray()));
+      case "oaQuoteAmounts" ?#oaQuoteAmounts(pg(tenders.amounts.entries().toArray()));
+      case "oaQuoteDrafts" ?#oaQuoteDrafts(pg(tenders.drafts.entries().toArray()));
+      case "tenderChoices" ?#tenderChoices(pg(tenders.choices.entries().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
@@ -426,6 +438,9 @@ mixin (
       marginClasses = quoteForms.classes.entries().toArray();
       marginClassLinks = quoteForms.classLinks.entries().toArray();
       quoteVersionTerms = quoteForms.versionTerms.entries().toArray();
+      oaQuoteAmounts = tenders.amounts.entries().toArray();
+      oaQuoteDrafts = tenders.drafts.entries().toArray();
+      tenderChoices = tenders.choices.entries().toArray();
     };
   };
 

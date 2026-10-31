@@ -1,4 +1,4 @@
-// De stand van alle offertes, vorderingsstaten en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
+// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
 //   node tools/offerte-stand.mjs <canister> <uit.json>           met de .did van DEZE map (oude kopie of nieuwe code)
 //   node tools/offerte-stand.mjs vergelijk <voor.json> <na.json>   elk veld van "voor" moet in "na" gelijk zijn (nieuwe velden
 //                                                                   en nieuwe offertes tellen niet); geeft de verschillen
@@ -75,6 +75,30 @@ for (const w of await who.admin.listWorks()) {
   if (!list.ok || list.ok.length === 0) continue;
   stand.vorderingen[String(w.id)] = list.ok;
   for (const p of list.ok) stand.vorderingen[`staat-${p.id}`] = await res(who.admin.readProgressStatement(p.id));
+}
+// 2c.2: de prijsvragen (enkel als de code ze kent): de prijsvraag zelf (kantoor), de stand per rol, wat de OA van zijn eigen
+// uitnodiging ziet en de bedragen van elke OA-offerte (update-call met auditregel). Een oudere code kent geen prijsvragen: dan
+// staat de sleutel er niet, en telt hij bij de vergelijking niet mee.
+if (typeof who.admin.listTenders === "function") {
+  stand.prijsvragen = {};
+  stand.prijsvraagRechten = {};
+  stand.oaOffertes = {};
+  stand.mijnPrijsvragen = {};
+  for (const w of await who.admin.listWorks()) {
+    const list = await res(who.admin.listTenders([w.id]));
+    if (!list.ok || list.ok.length === 0) continue;
+    const per = {};
+    for (const rol of ["calculator", "werfleider", "architect", "oa", "klant", "vc"]) per[rol] = allowed(await res(who[rol].listTenders([w.id])));
+    stand.prijsvraagRechten[String(w.id)] = per;
+    for (const t of list.ok) {
+      const full = await res(who.admin.readTender(t.id));
+      stand.prijsvragen[String(t.id)] = { status: t, full, werfleider: allowed(await res(who.werfleider.readTender(t.id))) };
+      if (full.ok) for (const i of full.ok.invites) for (const q of i.oaQuotes) stand.oaOffertes[String(q.id)] = await res(who.admin.readOaQuote(q.id));
+    }
+  }
+  const mine = await res(who.oa.listMyTenders());
+  stand.mijnPrijsvragen.lijst = mine;
+  if (mine.ok) for (const b of mine.ok) stand.mijnPrijsvragen[String(b.inviteId)] = await res(who.oa.readMyTender(b.inviteId));
 }
 const ex = await who.admin.exportIntern();
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;

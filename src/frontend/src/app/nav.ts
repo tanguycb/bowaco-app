@@ -27,6 +27,7 @@ export function pagesFor(caps: Caps): Set<string> {
   if (caps.myProgress) s.add("mijn-vordering");
   if (caps.oaInvoices) s.add("oa-facturen");
   if (caps.myOaInvoices) s.add("mijn-facturen");
+  if (caps.tenders || caps.myTenders) s.add("prijsvragen"); // 2c.2: werklijst (kantoor) of Mijn prijsvragen (OA)
   if (caps.readLibrary) s.add("posten");
   if (caps.permits) s.add("vergunningen");
   if (caps.readMunicipalities) s.add("gemeenten");
@@ -101,7 +102,7 @@ export function planningTabs(caps: Caps): Tab[] {
 export function hubTabs(page: string, caps: Caps): Tab[] {
   const tab = (key: string, label: string, ok: boolean): [string, string, boolean] => [key, label, ok];
   let list: [string, string, boolean][] = [];
-  if (page === "offertes" || page === "posten") list = [tab("offertes", M.offertesTab, caps.quotes), tab("posten", M.postenTab, caps.readLibrary)];
+  if (page === "offertes" || page === "posten" || (page === "prijsvragen" && caps.tenders)) list = [tab("offertes", M.offertesTab, caps.quotes), tab("prijsvragen", M.prijsvragenTab, caps.tenders), tab("posten", M.postenTab, caps.readLibrary)];
   else if (page === "vorderingen" || page === "oa-facturen") list = [tab("vorderingen", M.vorderingenTab, caps.progress), tab("oa-facturen", M.oaFacturenTab, caps.oaInvoices)];
   else if (page === "vergunningen" || page === "werfadministratie" || page === "gemeenten") list = [tab("vergunningen", M.vergunningenTab, caps.permits), tab("werfadministratie", M.wadmTab, caps.wadm), tab("gemeenten", M.gemeentenTab, caps.readMunicipalities)];
   else if (isClient(caps) && (page === "werven" || page === "mijn-offerte" || page === "mijn-vordering")) list = [tab("werven", M.mijnWerfTab, true), tab("mijn-offerte", M.mijnOfferteTab, caps.myQuotes), tab("mijn-vordering", M.mijnVorderingTab, caps.myProgress)];
@@ -127,7 +128,7 @@ export function navFor(caps: Caps): NavGroup[] {
   if (admin) werk.push(item("overzicht", t.nav.overzicht, "grid", ["overzicht", "vandaag", "verslag", "werfstart"]));
   if (lead) werk.push(item("vandaag", t.nav.vandaag, "home", ["vandaag", "verslag", "werfstart"]));
   if (caps.home === "week") {
-    werk.push(item("week", t.nav.week, "calendar", ["week", "opmeting"]));
+    werk.push(item("week", t.nav.week, "calendar", ["week", "opmeting", "prijsvragen"]));
     werk.push(item("uren", t.nav.uren, "clock"));
     if (caps.myOaInvoices) werk.push(item("mijn-facturen", t.nav.mijnFacturen, "receipt"));
   } else if (isInternal(caps)) {
@@ -138,7 +139,7 @@ export function navFor(caps: Caps): NavGroup[] {
   if (caps.readOrgPlanning) (deskFirst ? werk : meer).push(item("weekbord", M.planning, "calendar"));
 
   // Geld: wie prijzen ziet. De werfleider ziet offertes en facturatie (zonder bedragen) in de werf.
-  if (caps.quotes && caps.quotePrices) geld.push(item("offertes", t.nav.offertes, "euro", ["offertes", "posten"]));
+  if (caps.quotes && caps.quotePrices) geld.push(item("offertes", t.nav.offertes, "euro", ["offertes", "posten", "prijsvragen"]));
   if ((caps.progress || caps.oaInvoices) && caps.quotePrices) geld.push(item("facturatie", M.facturatie, "receipt", ["vorderingen", "oa-facturen"], caps.progress ? "vorderingen" : "oa-facturen"));
   if (caps.readLibrary && !caps.quotePrices) meer.push(item("posten", t.nav.posten, "doc"));
 

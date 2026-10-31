@@ -129,7 +129,7 @@ export type NoteGroupKey = "planning" | "offerte" | "opmeting" | "facturatie" | 
 export function noteGroup(kind: string): NoteGroupKey {
   const rules: [RegExp, NoteGroupKey][] = [
     [/^(planning|afwezigheid|vallen|valt|remming)/, "planning"],
-    [/^(offerte|werfstart)/, "offerte"],
+    [/^(offerte|werfstart|prijsvraag)/, "offerte"],
     [/^opmeting/, "opmeting"],
     [/^vordering/, "facturatie"],
     [/^(vergunning|inhoudingsplicht)/, "vergunning"],

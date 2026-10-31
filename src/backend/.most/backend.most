@@ -304,6 +304,7 @@ type Confidential__675319516<T> = {#plain : T; #sealed : Sealed__1041298352};
 type Confidential__757977450<T> = {#plain : T; #sealed : Sealed__325177826};
 type Confidential__861245145<T> = {#plain : T; #sealed : Sealed__703332956};
 type Confidential__886369716<T> = {#plain : T; #sealed : Sealed__566922365};
+type Confidential__887711100<T> = {#plain : T; #sealed : Sealed__380469911};
 type Confidential__96824572<T> = {#plain : T; #sealed : Sealed__29180127};
 type Confidential__978755673<T> = {#plain : T; #sealed : Sealed__56403581};
 type Confirmation__1046287337 =
@@ -331,6 +332,8 @@ type ContractForm__243403253 =
 type ContractForm__592914701 =
   {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
 type ContractForm__792389254 =
+  {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
+type ContractForm__944872250 =
   {#budget; #estimate; #fixed; #perAttachment; #regie; #vh};
 type ContractParams__65105207 =
   {
@@ -391,6 +394,7 @@ type DayReport__682189017 =
 type Day__1060919207 = Nat;
 type Day__162369424 = Nat;
 type Day__198685096 = Nat;
+type Day__23369103 = Nat;
 type Day__253571679 = Nat;
 type Day__315760598 = Nat;
 type Day__432051804 = Nat;
@@ -536,6 +540,7 @@ type Extra__646433706 = [(Text, Text)];
 type Extra__708758806 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
 type Extra__758661032 = [(Text, Text)];
+type Extra__888094855 = [(Text, Text)];
 type Extra__911541576 = [(Text, Text)];
 type Extra__914969358 = [(Text, Text)];
 type Extra__931464864 = [(Text, Text)];
@@ -1315,6 +1320,7 @@ type NewActor__305373795 = {quoteChecks : QuoteChecksState__658482826};
 type NewActor__369284664 = {quotes : QuotesState__146412283};
 type NewActor__398557116 = {imp : ImportState__440367384};
 type NewActor__410098017 = {library : LibraryState__89257550};
+type NewActor__431720327 = {tenders : TenderState__988369423};
 type NewActor__473839593 = {wadm : WadmState__864899804};
 type NewActor__502640867 = {oaInvoices : OaInvoiceState__866295989};
 type NewActor__542837279 = {reports : ReportState__211051397};
@@ -1381,6 +1387,8 @@ type Notification__821136752 =
     text : Text;
     workId : ?WorkId__111716167
   };
+type OaIncluded__281997571 = {#alt : Text; #no; #yes};
+type OaIncluded__60770566 = {#alt : Text; #no; #yes};
 type OaInvoiceAmounts__1005394496 =
   {
     extra : Extra__708758806;
@@ -1500,6 +1508,126 @@ type OaInvoice__811173031 =
     vatRegime : OaVatRegime__244662200;
     workId : WorkId__929594816
   };
+type OaQuoteAmounts__418278227 =
+  {
+    chapterTotals : [(Text, Int)];
+    discountBp : ?Nat;
+    extra : Extra__888094855;
+    lines : [OaQuoteLine__575772257];
+    netCents : Int;
+    oaQuoteId : Nat;
+    remark : Text
+  };
+type OaQuoteAmounts__498492153 =
+  {
+    chapterTotals : [(Text, Int)];
+    discountBp : ?Nat;
+    extra : Extra__945213800;
+    lines : [OaQuoteLine__495321454];
+    netCents : Int;
+    oaQuoteId : Nat;
+    remark : Text
+  };
+type OaQuoteDraft__1054670036 =
+  {
+    discountBp : ?Nat;
+    extra : Extra__888094855;
+    fileId : ?Nat;
+    inviteId : Nat;
+    lines : [OaQuoteLine__575772257];
+    number : Text;
+    quoteDay : ?Day__23369103;
+    remark : Text;
+    reverse : Bool;
+    updatedAt : Int;
+    updatedBy : PersonId__192734764;
+    validUntil : ?Day__23369103
+  };
+type OaQuoteDraft__197544433 =
+  {
+    discountBp : ?Nat;
+    extra : Extra__945213800;
+    fileId : ?Nat;
+    inviteId : Nat;
+    lines : [OaQuoteLine__495321454];
+    number : Text;
+    quoteDay : ?Day__162369424;
+    remark : Text;
+    reverse : Bool;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    validUntil : ?Day__162369424
+  };
+type OaQuoteLine__495321454 =
+  {
+    amountCents : ?Int;
+    changed : [Text];
+    description : Text;
+    included : OaIncluded__281997571;
+    itemId : ?Nat;
+    qtyMilli : Int;
+    remark : Text;
+    unit : Text;
+    unitCents : ?Int
+  };
+type OaQuoteLine__575772257 =
+  {
+    amountCents : ?Int;
+    changed : [Text];
+    description : Text;
+    included : OaIncluded__60770566;
+    itemId : ?Nat;
+    qtyMilli : Int;
+    remark : Text;
+    unit : Text;
+    unitCents : ?Int
+  };
+type OaQuoteSource__142872236 = {#app; #hand; #sheet};
+type OaQuoteSource__875047800 = {#app; #hand; #sheet};
+type OaQuoteStatus__261370025 = {#received; #withdrawn : Text};
+type OaQuoteStatus__917858353 = {#received; #withdrawn : Text};
+type OaQuote__163470372 =
+  {
+    createdAt : Int;
+    createdBy : PersonId__192734764;
+    extra : Extra__888094855;
+    fileId : ?Nat;
+    id : Nat;
+    inviteId : ?Nat;
+    note : Text;
+    number : Text;
+    orgId : OrgId__1068690298;
+    quoteDay : Day__23369103;
+    source : OaQuoteSource__875047800;
+    status : OaQuoteStatus__261370025;
+    supersedes : ?Nat;
+    tenderId : ?Nat;
+    validUntil : ?Day__23369103;
+    vatRegime : OaVatRegime__935319268;
+    version : Nat;
+    workId : WorkId__564296267
+  };
+type OaQuote__898917628 =
+  {
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    fileId : ?Nat;
+    id : Nat;
+    inviteId : ?Nat;
+    note : Text;
+    number : Text;
+    orgId : OrgId__17031398;
+    quoteDay : Day__162369424;
+    source : OaQuoteSource__142872236;
+    status : OaQuoteStatus__917858353;
+    supersedes : ?Nat;
+    tenderId : ?Nat;
+    validUntil : ?Day__162369424;
+    vatRegime : OaVatRegime__244662200;
+    version : Nat;
+    workId : WorkId__929594816
+  };
 type OaState__978871092 =
   {
     orgContacts : Map__230067015<OrgId__98679714, OrgContact__467829229>;
@@ -1508,6 +1636,7 @@ type OaState__978871092 =
   };
 type OaVatRegime__244662200 = {#normal : Nat; #reverse};
 type OaVatRegime__423312867 = {#normal : Nat; #reverse};
+type OaVatRegime__935319268 = {#normal : Nat; #reverse};
 type OaWithholdingProof__1007142111 =
   {
     #check :
@@ -1551,6 +1680,7 @@ type OldActor__675047732 = {};
 type OldActor__74197155 = {};
 type OldActor__804964816 = {};
 type OldActor__853471898 = {};
+type OldActor__885308482 = {};
 type OldOrgKind__251334601 =
   {
     #architect;
@@ -1650,6 +1780,7 @@ type OrgContact__539818738 =
     website : ?Text
   };
 type OrgId__1000487066 = Nat;
+type OrgId__1068690298 = Nat;
 type OrgId__137103020 = Nat;
 type OrgId__168115520 = Nat;
 type OrgId__17031398 = Nat;
@@ -1884,6 +2015,7 @@ type PersonId__1007515609 = Nat;
 type PersonId__1012124006 = Nat;
 type PersonId__184143711 = Nat;
 type PersonId__185004052 = Nat;
+type PersonId__192734764 = Nat;
 type PersonId__199562452 = Nat;
 type PersonId__24135035 = Nat;
 type PersonId__253911295 = Nat;
@@ -3012,6 +3144,7 @@ type Role__679663545 =
 type Sealed__1041298352 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__29180127 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__325177826 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__380469911 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__56403581 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__566922365 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__69262316 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
@@ -3243,6 +3376,195 @@ type Template__948731008 =
     steps : [TemplateStep__570131438];
     updatedAt : Int;
     updatedBy : PersonId__185004052
+  };
+type TenderAddressMode__145746234 = {#city; #full};
+type TenderAddressMode__749091754 = {#city; #full};
+type TenderChoice__299608441 =
+  {
+    appliedVersionId : ?Nat;
+    at : Int;
+    by : PersonId__192734764;
+    itemId : Nat;
+    libCostId : ?Nat;
+    oaQuoteId : ?Nat;
+    reason : Text;
+    tenderId : Nat;
+    unitCents : ?Int
+  };
+type TenderChoice__519817070 =
+  {
+    appliedVersionId : ?Nat;
+    at : Int;
+    by : PersonId__967516914;
+    itemId : Nat;
+    libCostId : ?Nat;
+    oaQuoteId : ?Nat;
+    reason : Text;
+    tenderId : Nat;
+    unitCents : ?Int
+  };
+type TenderInviteStatus__462318866 =
+  {#asked; #declined; #noAnswer; #ready; #received; #reminded};
+type TenderInviteStatus__582714065 =
+  {#asked; #declined; #noAnswer; #ready; #received; #reminded};
+type TenderInvite__340364377 =
+  {
+    accessCodeId : ?Nat;
+    answeredAt : ?Int;
+    askedDay : ?Day__162369424;
+    channels : [Text];
+    contactPersonId : ?PersonId__967516914;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    declineReason : Text;
+    extra : Extra__945213800;
+    id : Nat;
+    orgId : OrgId__17031398;
+    outcome : TenderOutcome__164466503;
+    ownDeadline : ?Day__162369424;
+    remindedDay : ?Day__162369424;
+    sheetKey : Text;
+    status : TenderInviteStatus__462318866;
+    tenderId : Nat
+  };
+type TenderInvite__534496098 =
+  {
+    accessCodeId : ?Nat;
+    answeredAt : ?Int;
+    askedDay : ?Day__23369103;
+    channels : [Text];
+    contactPersonId : ?PersonId__192734764;
+    createdAt : Int;
+    createdBy : PersonId__192734764;
+    declineReason : Text;
+    extra : Extra__888094855;
+    id : Nat;
+    orgId : OrgId__1068690298;
+    outcome : TenderOutcome__511047346;
+    ownDeadline : ?Day__23369103;
+    remindedDay : ?Day__23369103;
+    sheetKey : Text;
+    status : TenderInviteStatus__582714065;
+    tenderId : Nat
+  };
+type TenderItem__113722343 =
+  {
+    chapter : Text;
+    code : Text;
+    form : ContractForm__243403253;
+    id : Nat;
+    key : Text;
+    lineId : Nat;
+    order : Nat;
+    qtyMilli : Int;
+    root : Nat;
+    subgroup : Text;
+    tenderId : Nat;
+    text : Text;
+    title : Text;
+    unit : Text
+  };
+type TenderItem__714478104 =
+  {
+    chapter : Text;
+    code : Text;
+    form : ContractForm__944872250;
+    id : Nat;
+    key : Text;
+    lineId : Nat;
+    order : Nat;
+    qtyMilli : Int;
+    root : Nat;
+    subgroup : Text;
+    tenderId : Nat;
+    text : Text;
+    title : Text;
+    unit : Text
+  };
+type TenderOutcome__164466503 =
+  {#chosen; #open; #thanked : {at : Int; notified : Bool}};
+type TenderOutcome__511047346 =
+  {#chosen; #open; #thanked : {at : Int; notified : Bool}};
+type TenderState__988369423 =
+  {
+    amounts :
+      Map__230067015<Nat, Confidential__887711100<OaQuoteAmounts__418278227>>;
+    byWork : Map__230067015<Nat, [Nat]>;
+    choices :
+      Map__230067015<Nat, Confidential__887711100<TenderChoice__299608441>>;
+    drafts :
+      Map__230067015<Nat, Confidential__887711100<OaQuoteDraft__1054670036>>;
+    invites : Map__230067015<Nat, TenderInvite__534496098>;
+    invitesByOrg : Map__230067015<Nat, [Nat]>;
+    invitesByTender : Map__230067015<Nat, [Nat]>;
+    items : Map__230067015<Nat, TenderItem__714478104>;
+    itemsByTender : Map__230067015<Nat, [Nat]>;
+    oaQuotes : Map__230067015<Nat, OaQuote__163470372>;
+    oaQuotesByWork : Map__230067015<Nat, [Nat]>;
+    sheetKeys : Map__230067015<Text, Nat>;
+    tenders : Map__230067015<Nat, Tender__698393233>
+  };
+type TenderStatus__1068124073 =
+  {
+    #cancelled : {at : Int; by : PersonId__192734764; reason : Text};
+    #closed : {at : Int; by : PersonId__192734764};
+    #draft;
+    #open
+  };
+type TenderStatus__361411033 =
+  {
+    #cancelled : {at : Int; by : PersonId__967516914; reason : Text};
+    #closed : {at : Int; by : PersonId__967516914};
+    #draft;
+    #open
+  };
+type Tender__134926416 =
+  {
+    addressMode : TenderAddressMode__749091754;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    deadlineDay : Day__162369424;
+    extra : Extra__945213800;
+    fileIds : [Nat];
+    id : Nat;
+    internalNote : Text;
+    noteForOa : Text;
+    number : Nat;
+    quoteId : Nat;
+    remindDays : Nat;
+    rev : Nat;
+    sentHash : Text;
+    status : TenderStatus__361411033;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    versionId : Nat;
+    workId : WorkId__929594816
+  };
+type Tender__698393233 =
+  {
+    addressMode : TenderAddressMode__145746234;
+    code : Text;
+    createdAt : Int;
+    createdBy : PersonId__192734764;
+    deadlineDay : Day__23369103;
+    extra : Extra__888094855;
+    fileIds : [Nat];
+    id : Nat;
+    internalNote : Text;
+    noteForOa : Text;
+    number : Nat;
+    quoteId : Nat;
+    remindDays : Nat;
+    rev : Nat;
+    sentHash : Text;
+    status : TenderStatus__1068124073;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__192734764;
+    versionId : Nat;
+    workId : WorkId__564296267
   };
 type TextBlockPlace__64821706 = {#chapter : Text; #end; #top};
 type TextBlockPlace__760510960 = {#chapter : Text; #end; #top};
@@ -3505,6 +3827,7 @@ type WorkId__35351127 = Nat;
 type WorkId__386895530 = Nat;
 type WorkId__448300686 = Nat;
 type WorkId__547794872 = Nat;
+type WorkId__564296267 = Nat;
 type WorkId__642659770 = Nat;
 type WorkId__72456761 = Nat;
 type WorkId__815998652 = Nat;
@@ -3668,7 +3991,8 @@ type WorksState__605582232 =
   "20261026_100000" : OldActor__673165591 -> NewActor__915174763;
   "20261026_140000" : OldActor__161490713 -> NewActor__502640867;
   "20261026_180000" : (old : OldActor__18648432) -> NewActor__237472822;
-  "20261030_120000" : OldActor__74197155 -> NewActor__993246018
+  "20261030_120000" : OldActor__74197155 -> NewActor__993246018;
+  "20261030_211706" : OldActor__885308482 -> NewActor__431720327
 }
 actor  {
   stable access :
@@ -3873,6 +4197,26 @@ actor  {
       ops : Map__230067015<Text, SurveyOpRecord__392605083>;
       snapshots : Map__230067015<Nat, [SurveyPostSnap__802580020]>;
       surveys : Map__230067015<Nat, Survey__900328588>
+    };
+  stable tenders :
+    {
+      amounts :
+        Map__230067015<Nat,
+                        Confidential__546665525<OaQuoteAmounts__498492153>>;
+      byWork : Map__230067015<Nat, [Nat]>;
+      choices :
+        Map__230067015<Nat, Confidential__546665525<TenderChoice__519817070>>;
+      drafts :
+        Map__230067015<Nat, Confidential__546665525<OaQuoteDraft__197544433>>;
+      invites : Map__230067015<Nat, TenderInvite__340364377>;
+      invitesByOrg : Map__230067015<Nat, [Nat]>;
+      invitesByTender : Map__230067015<Nat, [Nat]>;
+      items : Map__230067015<Nat, TenderItem__113722343>;
+      itemsByTender : Map__230067015<Nat, [Nat]>;
+      oaQuotes : Map__230067015<Nat, OaQuote__898917628>;
+      oaQuotesByWork : Map__230067015<Nat, [Nat]>;
+      sheetKeys : Map__230067015<Text, Nat>;
+      tenders : Map__230067015<Nat, Tender__134926416>
     };
   stable wadm :
     {

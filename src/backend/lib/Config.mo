@@ -1,7 +1,7 @@
 // Vaste waarden van de app. Hier staan alleen hashes, nooit geheimen. Robotprincipals beheert de
 // admin in de app (robot.robots), niet meer hier.
 module {
-  public let version = "2c.1-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
+  public let version = "2c.2-dev"; // tools/push.sh zet hier "<stap>-draft<N> <commit>" in de schone kopie
   public let schema : Nat = 12; // 12 = met de postenbibliotheek (2.2); 11 = met het mailboek (mail via Caffeine); 10 = met werfadministratie (1b.4); 9 = 9 = met de werkwachtrij van de postbode (1b.3); 8 = met vergunningen (1b.1); 7 = met werfverslagen (1.6); 6 = import van de planning (1.5); 5 = weekbord (1.4)
 
   // SHA-256("bowaco-code-v1|" # code) van de ECHTE opstartcode (16 tekens, 80 bit), gemaakt door de
@@ -334,6 +334,18 @@ module {
   public let maxQuoteSubgroups : Nat = 200; // per versie
   public let maxClaimRef : Nat = 60;
   public let maxQuoteRead : Nat = 400; // offertes in één overzicht
+  // 2c.2: prijsvragen (AC-11: antwoord binnen 10 werkdagen, herinnering 3 werkdagen vooraf; settings.values "tender.deadlineDays"
+  // en "tender.remindDays" kunnen ze overschrijven). Grenzen per prijsvraag; een OA voegt hoogstens 100 eigen posten toe.
+  public let tenderDeadlineDays : Nat = 10;
+  public let tenderRemindDays : Nat = 3;
+  public let maxTenderItems : Nat = 300;
+  public let maxTenderFirms : Nat = 30;
+  public let maxTenderFiles : Nat = 20;
+  public let maxTendersPerQuote : Nat = 60;
+  public let maxTenderOwnLines : Nat = 100;
+  public let maxTenderNote : Nat = 4_000;
+  public let maxTenderRemindDays : Nat = 30;
+  public let maxTenderList : Nat = 400;
   // Herkomst van een aankoopprijs in een offertelijn (sleutel, naam).
   public func quoteCostSources() : [(Text, Text)] {
     [("bibliotheek", "Uit de postenbibliotheek"), ("oa-offerte", "Offerte van de OA"), ("eigen", "Eigen raming"), ("handmatig", "Met de hand"), ("vorige-versie", "Uit de vorige versie")];

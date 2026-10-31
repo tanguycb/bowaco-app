@@ -39,6 +39,7 @@ import StageApi "mixins/StageApi";
 import StartApi "mixins/StartApi";
 import ReviewApi "mixins/ReviewApi";
 import QuoteFormsApi "mixins/QuoteFormsApi";
+import TendersApi "mixins/TendersApi";
 import Post "lib/Post";
 import Mail "lib/Mail";
 import Principal "mo:core/Principal";
@@ -68,6 +69,7 @@ persistent actor Self {
   let progress : Types.ProgressState; // 2.10: vorderingsstaten (ontwerp → verzonden onder een hash, creditnota, klantakkoord)
   let oaInvoices : Types.OaInvoiceState; // 2.11: facturen van onderaannemers (intern) + bedragen en regels (vertrouwelijk)
   let quoteForms : Types.QuoteFormState; // 2c.1: offertesoort, subgroepen, tekstblokken (intern) + klassen, marges, regie, korting (vertrouwelijk)
+  let tenders : Types.TenderState; // 2c.2: prijsvragen, posten, gevraagde firma's, OA-offertes (intern) + bedragen, ontwerpen van de OA, keuzes (vertrouwelijk)
   let robot : Types.RobotState;
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -79,12 +81,12 @@ persistent actor Self {
   // 1b.5: enkel de livecanister (Config.mailLiveBackends) kan echte mail sturen; elders blijft de testmodus aan.
   func isLive() : Bool { Mail.isLive(Principal.fromActor(Self)) };
 
-  include StorageGate(settings, access, works);
+  include StorageGate(settings, access, works, tenders);
   include AccessApi(settings, access, works, robot, audit, ctr, org);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
-  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, robot, audit, ctr);
-  include FilesApi(settings, access, works, files, dossier, reports, permits, surveys, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, robot, audit, ctr);
+  include FilesApi(settings, access, works, files, dossier, reports, permits, surveys, tenders, audit, ctr);
   include DossierApi(settings, access, org, works, files, dossier, plan, wadm, audit, ctr);
   include OaApi(settings, access, org, works, oa, audit, ctr);
   include PlanApi(settings, access, org, works, plan, audit, ctr);
@@ -95,7 +97,7 @@ persistent actor Self {
   include DashboardApi(settings, access, org, works, plan, reports, permits);
   include TicketsApi(settings, access, works, robot, audit, ctr);
   // 1.9: herstel uit een export op een LEGE canister met de opstartcode (M9, T16).
-  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, robot, audit, ctr);
+  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, robot, audit, ctr);
   // 1b.1: vergunningenregister (R13), kennisbank per gemeente.
   include PermitsApi(settings, access, works, files, plan, permits, audit, ctr);
   // 1b.2: boete-opzoeking op de ritten van het werfverslag (R14) met de vergunningen van die dag.
@@ -135,6 +137,10 @@ persistent actor Self {
   // 2c.1: de offerte zoals Alexis ze maakt (margeklassen, tekstblokken, schadedossier, subgroepen, regietarief, korting).
   include QuoteFormsApi(settings, access, org, works, library, quotes, quoteForms, audit, ctr);
 
+  // 2c.2: prijsvraag naar onderaannemers (posten kopiëren, firma's, deadline, PDF + Excel in de browser, toegang voor de OA zonder
+  // werf, Mijn prijsvragen van de OA, eigen PDF opladen); herinnering en "geen antwoord" in Post.tick.
+  include TendersApi(settings, access, org, oa, works, files, plan, library, quotes, quoteForms, tenders, audit, ctr);
+
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).
   // 1b.1: hoogstens eens per uur de vergunningen nakijken en melden wat aandacht vraagt (één keer per ding). Het
@@ -145,7 +151,7 @@ persistent actor Self {
     func() : async () {
       Housekeeping.tick(access, robot, reports, surveys);
       // 1b.3: verlopen leases terug in de wachtrij; op het ingestelde moment de weekmails en herinneringen klaarzetten.
-      Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr);
+      Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr, tenders);
       if (Time.now() - permitScanAt >= Config.permitScanEvery) {
         permitScanAt := Time.now();
         ignore Permits.scan({ settings; access; works; plan; ps = permits; audit; ctr });

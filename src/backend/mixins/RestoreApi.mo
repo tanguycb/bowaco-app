@@ -29,6 +29,7 @@ import Library "../lib/Library";
 import Quotes "../lib/Quotes";
 import OaInvoice "../lib/OaInvoice";
 import QuoteForms "../lib/QuoteForms";
+import Tenders "../lib/Tenders";
 import Reports "../lib/Reports";
 
 mixin (
@@ -56,6 +57,7 @@ mixin (
   progress : Types.ProgressState,
   oaInvoices : Types.OaInvoiceState,
   quoteForms : Types.QuoteFormState,
+  tenders : Types.TenderState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -114,7 +116,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0 and tenders.tenders.size() == 0 and tenders.oaQuotes.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -292,6 +294,13 @@ mixin (
       case (#marginClasses xs) { for ((id, x) in xs.values()) { quoteForms.classes.add(id, x) }; xs.size() };
       case (#marginClassLinks xs) { for ((k, x) in xs.values()) { quoteForms.classLinks.add(k, x) }; xs.size() };
       case (#quoteVersionTerms xs) { for ((id, x) in xs.values()) { quoteForms.versionTerms.add(id, x) }; xs.size() };
+      case (#tenders xs) { for (x in xs.values()) { tenders.tenders.add(x.id, x) }; xs.size() };
+      case (#tenderItems xs) { for (x in xs.values()) { tenders.items.add(x.id, x) }; xs.size() };
+      case (#tenderInvites xs) { for (x in xs.values()) { tenders.invites.add(x.id, x) }; xs.size() };
+      case (#oaQuotes xs) { for (x in xs.values()) { tenders.oaQuotes.add(x.id, x) }; xs.size() };
+      case (#oaQuoteAmounts xs) { for ((id, x) in xs.values()) { tenders.amounts.add(id, x) }; xs.size() };
+      case (#oaQuoteDrafts xs) { for ((id, x) in xs.values()) { tenders.drafts.add(id, x) }; xs.size() };
+      case (#tenderChoices xs) { for ((id, x) in xs.values()) { tenders.choices.add(id, x) }; xs.size() };
     };
   };
 
@@ -473,6 +482,12 @@ mixin (
     QuoteForms.rebuildIndex(quoteForms);
     rsAtLeast("quoteSubgroup", rsMaxKey(quoteForms.subgroups));
     rsAtLeast("marginClass", rsMaxKey(quoteForms.classes));
+    // 2c.2: de indexen van de prijsvragen (per werf, posten, firma's, OA-offertes, sleutels van de Excel) uit de records zelf.
+    Tenders.rebuildIndex(tenders);
+    rsAtLeast("tender", rsMaxKey(tenders.tenders));
+    rsAtLeast("tenderItem", rsMaxKey(tenders.items));
+    rsAtLeast("tenderInvite", rsMaxKey(tenders.invites));
+    rsAtLeast("oaQuote", rsMaxKey(tenders.oaQuotes));
   };
 
   func rsSummary() : Views.RestoreSummary {

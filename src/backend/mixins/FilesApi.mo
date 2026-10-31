@@ -15,6 +15,7 @@ import Config "../lib/Config";
 import Ids "../lib/Ids";
 import Rights "../lib/Rights";
 import Dossier "../lib/Dossier";
+import Tenders "../lib/Tenders";
 
 mixin (
   settings : Types.SettingsState,
@@ -25,6 +26,7 @@ mixin (
   reports : Types.ReportState,
   permits : Types.PermitState,
   surveys : Types.SurveyState,
+  tenders : Types.TenderState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -74,8 +76,10 @@ mixin (
       };
     };
     // 1b.1: de vergunning zelf toont enkel bij de vergunning (wie vergunningen mag lezen, R13).
+    // 2c.2: de eigen PDF van een OA (ontwerp of ingediend) toont bij de OA-offerte, niet hier.
+    let tenderFiles = Tenders.ownedFiles(tenders);
     let permitFiles = switch workId { case (?w) permits.permits.values().filter(func x = x.workId == w).flatMap(func(x : Types.Permit) : Iter.Iter<Nat> = x.fileIds.values()).toArray(); case null [] };
-    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id) and not surveys.fileOwners.containsKey(f.id) and permitFiles.find(func x = x == f.id) == null and (internal or (not f.confidential and own(f)))).map(Dossier.fileView).toArray();
+    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id) and not surveys.fileOwners.containsKey(f.id) and permitFiles.find(func x = x == f.id) == null and not tenderFiles.containsKey(f.id) and (internal or (not f.confidential and own(f)))).map(Dossier.fileView).toArray();
   };
 
   public shared ({ caller }) func readConfidentialFile(id : Nat) : async Result.Result<Views.FileView, Text> {
@@ -96,6 +100,7 @@ mixin (
     if (f.archivedAt != null) { return #err("Al gearchiveerd") };
     if (reports.fileOwners.containsKey(id)) { return #err("Dit bestand hoort bij een werfverslag: haal het daar weg") };
     if (surveys.fileOwners.containsKey(id)) { return #err("Dit bestand hoort bij een opmeting: haal het daar weg") };
+    if (Tenders.ownedFiles(tenders).containsKey(id)) { return #err("Dit bestand hoort bij een OA-offerte") };
     f.archivedAt := ?Time.now();
     Access.audit(audit, caller, ?p.id, f.workId, "bestand-gearchiveerd", f.name # " #" # id.toText());
     #ok;

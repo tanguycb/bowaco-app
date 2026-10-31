@@ -23,6 +23,7 @@ import Ids "Ids";
 import Plan "Plan";
 import Reports "Reports";
 import Rights "Rights";
+import Tenders "Tenders";
 
 module {
   type Day = Types.Day;
@@ -424,9 +425,12 @@ module {
 
   // Timer (main.mo, elke 10 min): verlopen leases terug (een lease van de app zelf: "onzeker"), en op het ingestelde moment de weekmails (planning van
   // VOLGENDE week) en de herinneringen (één keer per week). Begrensd: enkel de open opdrachten.
-  public func tick(c : Ctx, ps : Types.PostState, audit : Types.AuditState, ctr : Types.Counters) {
+  public func tick(c : Ctx, ps : Types.PostState, audit : Types.AuditState, ctr : Types.Counters, tenders : Types.TenderState) {
     let now = Time.now();
     let l = local(now);
+    // 2c.2: prijsvragen: op de dag van de herinnering een melding aan kantoor, na de deadline "geen antwoord" (één keer per
+    // uitnodiging; een mail naar de firma pas als de mail live staat, G7).
+    ignore Tenders.tick({ access = c.access; org = c.org; works = c.works; plan = c.plan }, tenders, audit, ctr, l.day);
     let ids = ps.open.keys().toArray();
     for (id in ids.values()) {
       switch (ps.jobs.get(id)) {

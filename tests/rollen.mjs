@@ -1980,6 +1980,47 @@ await sec("── OA-facturen (2.11): caps en poorten per rol (de rest staat in 
   check("instellingen: enkel de beheerder schrijft; ongeldige betwistingsmelding geweigerd", (await denied(calc.saveOaInvoiceSettings(s0))) && "err" in (await admin.saveOaInvoiceSettings({ ...s0, disputeNotice: "soms" })));
 }
 
+await sec("── 2c.2 prijsvragen: caps en poorten per rol (de rest staat in tests/prijsvraag-2c2.mjs)");
+{
+  const cp = async (x) => (await x.me()).caps[0];
+  const c = { admin: await cp(admin), wl: await cp(wl), calc: await cp(calc), arch: await cp(arch), oa: await cp(oa2), klant: await cp(klant), vc: await cp(vc) };
+  check("caps.tenders: admin en calculator; werfleider, OA, architect, klant en veiligheid nee", c.admin.tenders && c.calc.tenders && !c.wl.tenders && !c.oa.tenders && !c.arch.tenders && !c.klant.tenders && !c.vc.tenders);
+  check("caps.myTenders (Mijn prijsvragen): enkel een OA met een firma", c.oa.myTenders && !c.admin.myTenders && !c.calc.myTenders && !c.wl.myTenders && !c.arch.myTenders && !c.klant.myTenders && !c.vc.myTenders);
+  const qB = (await admin.listQuotes([B], false)).find((q) => q.title === "Proef rollentest B");
+  const vB = qB.versions.find((v) => v.lines > 0n && !("superseded" in v.status) && !("withdrawn" in v.status) && !("rejected" in v.status));
+  const rB = ok1b(await calc.readQuoteVersion(vB.id));
+  const lineIds = rB.lines.filter((l) => !("text" in l.kind)).map((l) => l.id).slice(0, 3);
+  const plan = await wl.addFile("plan gelijkvloers (proef).pdf", "application/pdf", 1000n, blob("9"), [B], false);
+  const sug = ok1b(await calc.tenderSuggestions(vB.id, lineIds));
+  const tIn = { versionId: vB.id, lineIds, title: "Proef prijsvraag rollentest", noteForOa: "verzonnen", internalNote: "intern", deadlineDay: sug.deadlineDay + 20n, remindDays: 3n, fileIds: [plan.ok], addressMode: { full: null }, firms: [{ orgId: orgY.ok.id, contactPersonId: [] }] };
+  for (const [n, x] of [["werfleider", wl], ["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon], ["de robot", robot]]) {
+    check(`${n}: geen prijsvraag maken`, await denied(x.createTender(tIn)));
+  }
+  const t1 = await calc.createTender(tIn);
+  check("calculator zet een prijsvraag klaar (posten van P-B, firma Proef Dak NV, plan als bijlage)", isOk(t1), errOf(t1));
+  const t2 = ok1b(await admin.createTender({ ...tIn, title: "Proef prijsvraag rollentest (geannuleerd)" }));
+  const v1 = ok1b(await calc.readTender(t1.ok));
+  const inv1 = v1.invites[0];
+  check("klaargezet: posten gekopieerd, controlecode, firma klaar (nog niet verstuurd), contactpersoon gekozen", v1.items.length === lineIds.length && v1.sentHash.length === 64 && "ready" in inv1.status && inv1.contactPersonId.length === 1 && v1.code.startsWith("PV "));
+  ok1b(await admin.updateTender(t2, 0n, { cancel: "proef rollentest" }));
+  check("werfleider ziet de prijsvragen van de werf (firma's, stand, deadline), niet de prijsvraag zelf", (await wl.listTenders([B])).length >= 2 && (await denied(wl.readTender(t1.ok))));
+  check("architect, OA, klant en veiligheid zien de prijsvragen van de werf niet", (await Promise.all([arch, oa2, klant, vc].map((x) => denied(x.listTenders([B]))))).every(Boolean));
+  check("OA: klaar (nog niet verstuurd) = niets in Mijn prijsvragen", (await oa2.listMyTenders()).length === 0 && (await denied(oa2.readMyTender(inv1.id))));
+  ok1b(await calc.updateTenderInvite(inv1.id, { markSent: ["pdf", "excel"] }));
+  const mine = await oa2.listMyTenders();
+  check("na Markeer als verstuurd: de OA ziet zijn prijsvraag (en niet de geannuleerde)", mine.length === 1 && mine[0].inviteId === inv1.id && mine[0].canAnswer);
+  check("een OA van een andere firma ziet ze niet (lijst leeg, lezen geweigerd)", (await oa.listMyTenders()).length === 0 && (await denied(oa.readMyTender(inv1.id))) && (await denied(oa.readMyTenderAnswer(inv1.id))));
+  const my = ok1b(await oa2.readMyTender(inv1.id));
+  const line = { itemId: [my.items[0].id], description: "", unit: "", qtyMilli: 0n, unitCents: [1234n], included: { yes: null }, remark: "" };
+  const draft = { number: "PROEF-1", quoteDay: [], validUntil: [], discountBp: [], reverse: true, lines: [line], remark: "" };
+  const saved = ok1b(await oa2.saveMyTender(inv1.id, draft, false, 0n));
+  check("OA bewaart een ontwerp (enkel zijn firma); kantoor ziet nog geen offerte", saved.oaQuoteId.length === 0 && ok1b(await calc.readTender(t1.ok)).invites[0].oaQuotes.length === 0);
+  const sub = ok1b(await oa2.saveMyTender(inv1.id, draft, true, saved.netCents));
+  check("OA dient in (versie 1); kantoor leest de bedragen (update-call, auditregel); werfleider en OA niet", sub.version[0] === 1n && isOk(await calc.readOaQuote(sub.oaQuoteId[0])) && (await denied(wl.readOaQuote(sub.oaQuoteId[0]))) && (await denied(oa2.readOaQuote(sub.oaQuoteId[0]))) && (await admin.auditLog(0n, 30n)).some((e) => e.action === `bekeek:oa-offerte:${sub.oaQuoteId[0]}`));
+  check("bijlage: de OA leest het plan van de prijsvraag; een bestand dat er niet aan hangt niet; een andere OA niet", isOk(await oa2.readTenderFile(inv1.id, plan.ok)) && (await denied(oa2.readTenderFile(inv1.id, fA.ok))) && (await denied(oa.readTenderFile(inv1.id, plan.ok))));
+  check("prijsvragen maken en beheren: architect, klant, VC, OA geweigerd (verlengen, firma erbij, toegang, verstuurd)", (await Promise.all([arch, klant, vc, oa2, wl].flatMap((x) => [denied(x.updateTender(t1.ok, 0n, { extend: sug.deadlineDay + 30n })), denied(x.updateTenderInvite(inv1.id, { markSent: ["pdf"] })), denied(x.tenderAccess(inv1.id, 0n)), denied(x.addTenderFirm(t1.ok, { orgId: orgX.ok.id, contactPersonId: [] }))]))).every(Boolean));
+}
+
 await sec("── afzetten (R16, T7)");
 const oaId = (await oa.me()).person[0].id;
 const invOa3 = await invite(admin, "Nog een code voor OA", roles("onderaannemer"));
@@ -2136,7 +2177,8 @@ await sec("── 2b.2 menu per rol: welke menu-items en welke Beheer-tabbladen 
   check("Beheer werfleider: enkel voertuigen & ritten en toegang & codes", eq(tabs(caps.werfleider), ["voertuigen", "toegang"]), tabs(caps.werfleider).join());
   check("Beheer calculator, OA, architect, klant en VC: geen tabbladen", ["calculator", "oa", "architect", "klant", "vc"].every((k) => tabs(caps[k]).length === 0), ["calculator", "oa", "architect", "klant", "vc"].map((k) => tabs(caps[k]).join("-")).join(" / "));
   check("hubs: Facturatie toont vorderingsstaten en OA-facturen enkel waar de rol ze mag", eq(nav.hubTabs("vorderingen", caps.admin).map((x) => x.key), ["vorderingen", "oa-facturen"]) && nav.hubTabs("vorderingen", caps.werfleider).length >= 1);
-  check("hub Offertes · Posten voor admin en calculator, Posten alleen voor de werfleider", eq(nav.hubTabs("offertes", caps.admin).map((x) => x.key), ["offertes", "posten"]) && eq(nav.hubTabs("offertes", caps.calculator).map((x) => x.key), ["offertes", "posten"]) && !keys(caps.werfleider).includes("offertes"));
+  // 2c.2: de werklijst Offertes kreeg het tabblad Prijsvragen (ontwerp 2c §3.2; geen nieuw menu-item).
+  check("hub Offertes · Prijsvragen · Posten voor admin en calculator, Posten alleen voor de werfleider", eq(nav.hubTabs("offertes", caps.admin).map((x) => x.key), ["offertes", "prijsvragen", "posten"]) && eq(nav.hubTabs("offertes", caps.calculator).map((x) => x.key), ["offertes", "prijsvragen", "posten"]) && eq(nav.hubTabs("prijsvragen", caps.calculator).map((x) => x.key), ["offertes", "prijsvragen", "posten"]) && !keys(caps.werfleider).includes("offertes") && nav.hubTabs("prijsvragen", caps.oa).length === 0 && nav.pagesFor(caps.oa).has("prijsvragen") && !nav.pagesFor(caps.werfleider).has("prijsvragen"));
   check("hub Mijn werf voor de klant: voortgang · offerte · vorderingsstaten", eq(nav.hubTabs("werven", caps.klant).map((x) => x.key), ["werven", "mijn-offerte", "mijn-vordering"]) && nav.hubTabs("werven", caps.architect).length === 0);
   check("vaste balk onderaan enkel voor de werfleider: Vandaag · Werven · + Verslag · Meer", eq(nav.bottomBar(caps.werfleider), ["vandaag", "werven", "verslag", "meer"]) && ["admin", "calculator", "oa", "architect", "klant", "vc"].every((k) => nav.bottomBar(caps[k]).length === 0));
   // Elk menu-item opent iets dat de rol mag; Rights.mo blijft de enige matrix (het menu kent geen eigen regels)

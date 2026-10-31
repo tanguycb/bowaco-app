@@ -66,6 +66,14 @@ const pmGone = ex.permits?.find((x) => x.archivedAt.length === 1);
 if (!pmB || !pmGone) throw new Error("eerst tests/rollen.mjs (lokaal) of tests/vergunning-draft.mjs (draft) draaien: geen vergunningen");
 if (!ended || !file || !decided || !doc || !docGone || !taskB || !asgB || !blkGone || !orgDak || !absGone || !repA || !issDone || !attDak || !memDakB) throw new Error("eerst tests/rollen.mjs draaien op deze canister");
 const X = 999_999n;
+// 2c.2: de prijsvraag van de rollentest op P-B (open, Proef Dak NV gevraagd en ingediend) en de geannuleerde.
+const tOpen = ex.tenders?.find((x) => x.title === "Proef prijsvraag rollentest");
+const tGone = ex.tenders?.find((x) => x.title === "Proef prijsvraag rollentest (geannuleerd)");
+const invOpen = ex.tenderInvites?.find((i) => tOpen && i.tenderId === tOpen.id);
+const invGone = ex.tenderInvites?.find((i) => tGone && i.tenderId === tGone.id);
+const oaq = ex.oaQuotes?.find((q) => tOpen && q.tenderId[0] === tOpen.id);
+if (!tOpen || !tGone || !invOpen || !invGone || !oaq) throw new Error("eerst tests/rollen.mjs draaien op deze canister (geen prijsvraag)");
+const draftIn = { number: "N".repeat(41), quoteDay: [], validUntil: [], discountBp: [], reverse: true, lines: [], remark: "" };
 const wsIn = { target: { existing: null }, startDay: 0n, templateKey: "", leaderPersonId: [], lineSteps: [], options: [], groupDays: [], skipPermits: [], declaration: true };
 const someone = identity("proef-lek-onbekend").getPrincipal();
 const hash = "sha256:" + "c".repeat(64);
@@ -392,6 +400,25 @@ const table = {
   disputeOaInvoice: [NONE, () => [X, 0n, ""]],
   withdrawOaInvoice: [NONE, () => [X, 0n, ""]],
   myOaInvoices: [NONE, () => []],
+  // 2c.2: prijsvragen (R35–R39). Per werf: admin, calculator en de werfleider van de werf (enkel stand, geen bedrag). Maken, beheren
+  // en OA-offertes lezen: admin en calculator (de invoer is telkens ongeldig of de prijsvraag is afgesloten: geen wijziging). De OA
+  // (proef-oa2 = Proef Dak NV, gevraagd op de open prijsvraag): enkel zijn eigen uitnodiging; een bijlage die eraan hangt.
+  listTenders: [["admin", "werfleider", "calculator"], () => [[B]]],
+  readTender: [["admin", "calculator"], () => [tOpen.id]],
+  tenderSuggestions: [["admin", "calculator"], () => [X, []]],
+  createTender: [["admin", "calculator"], () => [{ versionId: X, lineIds: [], title: "", noteForOa: "", internalNote: "", deadlineDay: 0n, remindDays: 0n, fileIds: [], addressMode: { full: null }, firms: [] }]],
+  addTenderFirm: [["admin", "calculator"], () => [tOpen.id, { orgId: X, contactPersonId: [] }]],
+  updateTender: [["admin", "calculator"], () => [tOpen.id, 999n, { internalNote: "" }]],
+  updateTenderInvite: [["admin", "calculator"], () => [invOpen.id, { markSent: [] }]],
+  tenderAccess: [["admin", "calculator"], () => [invGone.id, 0n]],
+  readOaQuote: [["admin", "calculator"], () => [oaq.id]],
+  listMyTenders: [["oa"], () => []],
+  readMyTender: [["oa"], () => [invOpen.id]],
+  readMyTenderAnswer: [["oa"], () => [invOpen.id]],
+  saveMyTender: [["oa"], () => [invOpen.id, draftIn, false, 0n]],
+  declineMyTender: [["oa"], () => [invOpen.id, "x".repeat(1001)]],
+  readTenderFile: [["oa"], () => [invOpen.id, tOpen.fileIds[0]]],
+  addMyTenderFile: [["oa"], () => [invOpen.id, "", "application/pdf", 0n, blob]],
   setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],

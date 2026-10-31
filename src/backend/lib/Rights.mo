@@ -70,6 +70,10 @@ module {
     // 2.12: #ownOaInvoices = de OA ziet de status van de facturen van zijn eigen firma ("Mijn facturen"): enkel met de
     // schakelaar van de beheerder, en enkel zolang hij ergens actief OA is (R31: een beëindigd lidmaatschap sluit meteen).
     #ownOaInvoices;
+    // 2c.2: prijsvragen naar onderaannemers (R35–R39). #readTenders = de prijsvragen van een werf zien (admin en calculator alles,
+    // de werfleider van die werf enkel firma's, status en deadline: tenderScope); #editTenders = maken, versturen, verlengen,
+    // afsluiten, OA-offertes lezen (admin, calculator); #ownTenders = een OA: "Mijn prijsvragen" (enkel zijn eigen firma, inviteScope).
+    #readTenders; #editTenders; #ownTenders;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -253,6 +257,11 @@ module {
       case (#progressAny) admin or calc or wl;
       case (#oaInvoicesAny) admin or calc or wl;
       case (#ownOaInvoices) has(p, #onderaannemer) and p.orgId != null and ctx.settings.values.get("oaInvoice.oaView") == ?"ja" and activeOa(ctx, p);
+      // 2c.2 (R35, R36): per werf de prijsvragen zien; maken en beheren enkel kantoor. R37: elke OA met een firma heeft "Mijn
+      // prijsvragen" (ook zonder werf: hij wordt geen lid); welke uitnodiging hij leest, beslist inviteScope hieronder.
+      case (#readTenders) on(func w = tenderScope(ctx, p, w) != #none);
+      case (#editTenders) admin or calc;
+      case (#ownTenders) has(p, #onderaannemer) and p.orgId != null;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -323,6 +332,51 @@ module {
     if (has(p, #admin) or has(p, #calculator)) { return #full };
     if (leaderOn(ctx, p, w)) { return #qty };
     #none;
+  };
+
+  // ── Prijsvragen naar onderaannemers (2c.2, R35–R39) ─────────────────────
+  // #full = admin en calculator: posten, firma's, notities, OA-offertes (bedragen enkel via een update-call, R38). #status = de
+  // werfleider van de werf: welke firma's, de status en de deadline (om een plaatsbezoek te regelen), nooit een bedrag. Architect,
+  // klant, VC en OA: niets via de werf (een OA leest enkel zijn eigen uitnodiging, inviteScope).
+  public type TenderScope = { #full; #status; #none };
+
+  public func tenderScope(ctx : Ctx, p : Person, w : WorkId) : TenderScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (has(p, #admin) or has(p, #calculator)) { return #full };
+    if (leaderOn(ctx, p, w)) { return #status };
+    #none;
+  };
+
+  // R37: een OA leest een uitnodiging enkel als ze aan ZIJN firma gericht is, verstuurd is (gevraagd, herinnerd, ontvangen, geen
+  // interesse, geen antwoord: nooit "klaar"), de prijsvraag open is of hoogstens 90 dagen afgesloten, en de werf bestaat.
+  // Geannuleerd = niets. #own = lezen; of hij nog mag indienen, zegt mayAnswerInvite.
+  public type InviteScope = { #own; #none };
+
+  public func tenderClosedDays() : Int { 90 };
+
+  public func inviteScope(ctx : Ctx, p : Person, t : Types.Tender, i : Types.TenderInvite, now : Int) : InviteScope {
+    if (p.archivedAt != null or not has(p, #onderaannemer) or p.orgId != ?i.orgId or i.tenderId != t.id) { return #none };
+    if (not workExists(ctx, t.workId)) { return #none };
+    if (i.status == #ready) { return #none };
+    switch (t.status) {
+      case (#open) #own;
+      case (#closed c) { if (now - c.at <= tenderClosedDays() * 86_400_000_000_000) #own else #none };
+      case (#draft or #cancelled _) #none;
+    };
+  };
+
+  // Indienen, bewaren, opladen of "geen interesse": enkel met #own, de prijsvraag open en vandaag op of vóór zijn deadline
+  // (de eigen verlenging van zijn firma telt).
+  public func mayAnswerInvite(ctx : Ctx, p : Person, t : Types.Tender, i : Types.TenderInvite, now : Int, today : Types.Day) : Bool {
+    if (inviteScope(ctx, p, t, i, now) != #own) { return false };
+    if (t.status != #open) { return false };
+    let deadline = switch (i.ownDeadline) { case (?d) { if (d > t.deadlineDay) d else t.deadlineDay }; case null t.deadlineDay };
+    today <= deadline;
+  };
+
+  // R39: de opslagpoort. Bovenop #upload: een OA met een open uitnodiging (hij laadt zijn eigen offerte-PDF op, ook zonder werf).
+  public func mayUpload(ctx : Ctx, p : Person, openInvite : Bool) : Bool {
+    may(ctx, p, #upload, null) or (p.archivedAt == null and has(p, #onderaannemer) and p.orgId != null and openInvite);
   };
 
   // ── Afwezigheden (1.4) ──────────────────────────────────────────────────
@@ -572,6 +626,8 @@ module {
       myProgress = has(p, #klant);
       oaInvoices = may(ctx, p, #oaInvoicesAny, null);
       myOaInvoices = may(ctx, p, #ownOaInvoices, null);
+      tenders = may(ctx, p, #editTenders, null);
+      myTenders = may(ctx, p, #ownTenders, null);
       home = home(p);
     };
   };

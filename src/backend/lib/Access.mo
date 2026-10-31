@@ -1,6 +1,7 @@
 // Wie belt er? Elke API-functie begint hier (R1: anoniem altijd geweigerd), daarna Rights.require.
 // Plus: pogingenlimiet per principal, globale remming, auditlog, meldingen en de views.
 import Array "mo:core/Array";
+import Blob "mo:core/Blob";
 import Int "mo:core/Int";
 import Iter "mo:core/Iter";
 import List "mo:core/List";
@@ -12,6 +13,7 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Types "../types";
 import Views "../types/views";
+import Codes "Codes";
 import Config "Config";
 import Ids "Ids";
 import Rights "Rights";
@@ -123,6 +125,31 @@ module {
     };
     for (p in gone.values()) { access.attempts.remove(p) };
     gone.size();
+  };
+
+  // ── Codes (bouwplan §3.3): een uitnodigings- of herstelcode maken; enkel de hash wordt bewaard ─────────
+  // Gedeeld door AccessApi (uitnodigen, herstelcode) en TendersApi (2c.2: toegang voor de contactpersoon van een gevraagde firma).
+  public func newCode(access : AccessState, settings : Types.SettingsState, ctr : Types.Counters, personId : Nat, kind : Types.CodeKind, by : Nat, validDays : Nat, tag : Text, workIds : [Nat], entropy : Blob) : { id : Nat; body : Text; expiresAt : Int } {
+    let body = Codes.fromEntropy(entropy, Codes.inviteLength);
+    let days = if (validDays == 0 or validDays > Config.inviteDaysMax) { settings.inviteDays } else { validDays };
+    let now = Time.now();
+    let id = Ids.next(ctr, "invite");
+    let inv : Types.Invite = {
+      id;
+      hash = Codes.hash(body);
+      personId;
+      kind;
+      createdBy = by;
+      createdAt = now;
+      expiresAt = now + days * Config.day;
+      hint = Codes.hint(body);
+      tag;
+      workIds;
+      var state = #open;
+    };
+    access.invites.add(id, inv);
+    access.codeIndex.add(inv.hash, id);
+    { id; body; expiresAt = inv.expiresAt };
   };
 
   // ── Audit en meldingen ──────────────────────────────────────────────────

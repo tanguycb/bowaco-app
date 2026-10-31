@@ -38,6 +38,7 @@ import { WerfStartPage } from "../screens/WerfStart";
 import { OpmetingPage } from "../screens/Opmeting";
 import { MijnVorderingPage, VorderingenPage } from "../screens/Vorderingen";
 import { MijnFacturenPage, OaFacturenPage } from "../screens/OaFacturen";
+import { MyTendersPage, TendersOverview } from "../screens/Prijsvragen";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
 function useRoute(): [string[], (to: string) => void] {
@@ -234,11 +235,16 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       case "offertes":
         if (caps.quotes) return <OffertesPage caps={caps} go={go} route={route} />;
         return <Home kind={page} go={go} caps={caps} />;
+      // 2c.2: kantoor = de werklijst Offertes → Prijsvragen; een OA = Mijn prijsvragen (enkel zijn firma).
+      case "prijsvragen":
+        if (caps.tenders) return <TendersOverview go={go} />;
+        if (caps.myTenders) return <MyTendersPage go={go} route={route} />;
+        return <Home kind={caps.home} go={go} caps={caps} />;
       case "week":
       case "werven":
         // 2b.3: de werf met het tabblad in de URL (#/werven/12/planning); de planning is het tabblad Planning.
         if (route[0] === "werven" && route[1] && /^\d+$/.test(route[1])) {
-          return <WerfDetail key={route[1]} id={BigInt(route[1])} caps={caps} go={go} tab={route[2]} />;
+          return <WerfDetail key={route[1]} id={BigInt(route[1])} caps={caps} go={go} tab={route[2]} sub={route[3]} />;
         }
         return page === "werven" ? <Werven caps={caps} go={go} route={route} /> : <Home kind={page} go={go} caps={caps} />;
       case "uren": return <MijnUren />;

@@ -426,25 +426,6 @@ mixin (
     body : Text;
     expiresAt : Int;
   } {
-    let body = Codes.fromEntropy(entropy, Codes.inviteLength);
-    let days = if (validDays == 0 or validDays > Config.inviteDaysMax) { settings.inviteDays } else { validDays };
-    let now = Time.now();
-    let id = Ids.next(ctr, "invite");
-    let inv : Types.Invite = {
-      id;
-      hash = Codes.hash(body);
-      personId;
-      kind;
-      createdBy = by;
-      createdAt = now;
-      expiresAt = now + days * Config.day;
-      hint = Codes.hint(body);
-      tag;
-      workIds;
-      var state = #open;
-    };
-    access.invites.add(id, inv);
-    access.codeIndex.add(inv.hash, id);
-    { id; body; expiresAt = inv.expiresAt };
+    Access.newCode(access, settings, ctr, personId, kind, by, validDays, tag, workIds, entropy);
   };
 };

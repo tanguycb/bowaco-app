@@ -1734,6 +1734,159 @@ module {
     byWork : Map.Map<Nat, [Nat]>; // werf → facturen (index)
   };
 
+  // ── Prijsvragen naar onderaannemers en OA-offertes (stap 2c.2, ook voor 2c.3; ontwerp 2c §4.2, §9 migratie 2) ──
+  // Eigen domein `tenders` (nieuw stabiel veld, deelvorm, OldActor = {}). Een prijsvraag kopieert posten uit een offerteversie
+  // (zonder prijs) en vraagt één of meer firma's (uitnodigingen) om een prijs; een firma antwoordt met de Excel, zijn eigen PDF of
+  // in de app (Mijn prijsvragen). Het antwoord is een OA-offerte (intern: wie, wat, wanneer); de BEDRAGEN, het ontwerp van de OA
+  // en de keuze per post (2c.3) zijn VERTROUWELIJK en staan in eigen Maps (D6, G3). Een OA leest enkel de uitnodiging aan zijn
+  // eigen firma (Rights.inviteScope, R37) en wordt geen lid van de werf. Volledig vanaf het begin (D1a): 2c.3 heeft geen migratie.
+  public type TenderStatus = { #draft; #open; #closed : { at : Int; by : PersonId }; #cancelled : { at : Int; by : PersonId; reason : Text } };
+  // klaar · gevraagd (verstuurd) · herinnerd · ontvangen · geen interesse · geen antwoord (deadline voorbij)
+  public type TenderInviteStatus = { #ready; #asked; #reminded; #received; #declined; #noAnswer };
+  public type TenderOutcome = { #open; #chosen; #thanked : { at : Int; notified : Bool } };
+  public type TenderAddressMode = { #full; #city }; // wat de OA van het werfadres ziet (⚖4): volledig of enkel de gemeente
+
+  // klasse: intern. Een prijsvraag (code "PV 2026/412-1": offertenummer + volgnummer per offerte uit settings.sequences).
+  public type Tender = {
+    id : Nat;
+    workId : WorkId;
+    quoteId : Nat;
+    versionId : Nat; // de versie waaruit de posten kwamen
+    number : Nat; // volgnummer per offerte
+    code : Text;
+    title : Text;
+    noteForOa : Text; // bericht aan de firma's (valt onder de controlecode)
+    internalNote : Text; // enkel kantoor
+    deadlineDay : Day; // antwoord vóór (een firma kan een eigen, latere deadline krijgen)
+    remindDays : Nat; // herinnering zoveel werkdagen vóór de deadline (0 = geen)
+    status : TenderStatus;
+    fileIds : [Nat]; // bijlagen die de OA mag lezen (nooit een vertrouwelijk bestand, R39)
+    addressMode : TenderAddressMode;
+    sentHash : Text; // controlecode van de inhoud bij het klaarzetten ("" = nog niet)
+    rev : Nat;
+    createdAt : Int;
+    createdBy : PersonId; // ook de contactpersoon van BOWACO voor de firma's
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: intern (geen prijs). Kopie van een post bij het klaarzetten; de offerte kan nog veranderen, de prijsvraag niet.
+  // `key` = "PV<prijsvraag>.<post>"; in de Excel komt er per firma een controleteken achter (ontwerp §5).
+  public type TenderItem = {
+    id : Nat;
+    tenderId : Nat;
+    root : Nat; // de lijn van de eerste versie (WorkStart.root): zo blijft het dezelfde post in een latere versie
+    lineId : Nat;
+    chapter : Text; // "5 Elektriciteit"
+    subgroup : Text;
+    code : Text;
+    title : Text;
+    text : Text;
+    unit : Text;
+    qtyMilli : Int;
+    form : ContractForm;
+    order : Nat;
+    key : Text;
+  };
+
+  // klasse: intern. Eén gevraagde firma.
+  public type TenderInvite = {
+    id : Nat;
+    tenderId : Nat;
+    orgId : OrgId;
+    contactPersonId : ?PersonId;
+    status : TenderInviteStatus;
+    outcome : TenderOutcome;
+    askedDay : ?Day;
+    remindedDay : ?Day;
+    ownDeadline : ?Day; // eigen, langere deadline voor deze firma
+    answeredAt : ?Int;
+    declineReason : Text;
+    channels : [Text]; // "pdf" · "excel" · "app" · "mail"
+    accessCodeId : ?Nat; // de uitnodiging (toegangscode) van de contactpersoon, rol onderaannemer, zonder werf
+    sheetKey : Text; // 12 tekens per firma: herkent de teruggestuurde Excel (index sheetKeys)
+    createdAt : Int;
+    createdBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: intern (zonder bedragen). Een OA-offerte: op een prijsvraag of los (2c.3). Een nieuwe indiening = een nieuwe versie
+  // die de vorige vervangt (`supersedes`); de vorige blijft in de historiek.
+  public type OaQuoteSource = { #sheet; #app; #hand };
+  public type OaQuoteStatus = { #received; #withdrawn : Text };
+  public type OaQuote = {
+    id : Nat;
+    workId : WorkId;
+    orgId : OrgId;
+    tenderId : ?Nat;
+    inviteId : ?Nat;
+    number : Text; // het offertenummer van de OA
+    quoteDay : Day;
+    validUntil : ?Day;
+    fileId : ?Nat; // de eigen PDF of de ingelezen Excel (vertrouwelijk bestand)
+    source : OaQuoteSource;
+    version : Nat;
+    supersedes : ?Nat;
+    status : OaQuoteStatus;
+    vatRegime : OaVatRegime;
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    extra : Extra;
+  };
+
+  public type OaIncluded = { #yes; #no; #alt : Text }; // inbegrepen · niet inbegrepen · alternatief (wat)
+  // klasse: vertrouwelijk. Eén regel van een OA-offerte (itemId null = eigen post van de OA).
+  public type OaQuoteLine = {
+    itemId : ?Nat;
+    description : Text;
+    unit : Text;
+    qtyMilli : Int;
+    unitCents : ?Int;
+    amountCents : ?Int;
+    included : OaIncluded;
+    remark : Text;
+    changed : [Text]; // wat de OA veranderde aan de post van BOWACO: "vh", "eenheid"
+  };
+  // klasse: vertrouwelijk. De bedragen van een OA-offerte (excl. btw; gerekend uit de regels, lib/TenderCalc.mo = tender/calc.ts).
+  public type OaQuoteAmounts = { oaQuoteId : Nat; netCents : Int; discountBp : ?Nat; lines : [OaQuoteLine]; chapterTotals : [(Text, Int)]; remark : Text; extra : Extra };
+  // klasse: vertrouwelijk. Het ontwerp van de OA in de app (sleutel = uitnodiging): enkel zijn eigen firma leest het (kantoor
+  // niet, tot hij indient). Afwijking van het ontwerp: ook de datum, de eigen PDF en een opmerking (wat hij invult, R37).
+  public type OaQuoteDraft = {
+    inviteId : Nat;
+    number : Text;
+    quoteDay : ?Day;
+    validUntil : ?Day;
+    discountBp : ?Nat;
+    reverse : Bool;
+    lines : [OaQuoteLine];
+    fileId : ?Nat;
+    remark : Text;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+  // klasse: vertrouwelijk. De keuze per post (sleutel = TenderItem), 2c.3.
+  public type TenderChoice = { itemId : Nat; tenderId : Nat; oaQuoteId : ?Nat; unitCents : ?Int; reason : Text; appliedVersionId : ?Nat; libCostId : ?Nat; at : Int; by : PersonId };
+
+  public type TenderState = {
+    tenders : Map.Map<Nat, Tender>;
+    items : Map.Map<Nat, TenderItem>;
+    invites : Map.Map<Nat, TenderInvite>;
+    oaQuotes : Map.Map<Nat, OaQuote>;
+    amounts : Map.Map<Nat, Confidential<OaQuoteAmounts>>; // vertrouwelijk; sleutel = OA-offerte
+    drafts : Map.Map<Nat, Confidential<OaQuoteDraft>>; // vertrouwelijk; sleutel = uitnodiging
+    choices : Map.Map<Nat, Confidential<TenderChoice>>; // vertrouwelijk; sleutel = post van de prijsvraag (2c.3)
+    // Indexen (herrekend bij een herstel)
+    byWork : Map.Map<Nat, [Nat]>; // werf → prijsvragen
+    itemsByTender : Map.Map<Nat, [Nat]>;
+    invitesByTender : Map.Map<Nat, [Nat]>;
+    invitesByOrg : Map.Map<Nat, [Nat]>;
+    oaQuotesByWork : Map.Map<Nat, [Nat]>;
+    sheetKeys : Map.Map<Text, Nat>; // sleutel van de Excel → uitnodiging
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;
