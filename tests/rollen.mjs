@@ -2027,6 +2027,25 @@ await sec("── 2c.2 prijsvragen: caps en poorten per rol (de rest staat in te
   check("prijsvragen maken en beheren: architect, klant, VC, OA geweigerd (verlengen, firma erbij, toegang, verstuurd)", (await Promise.all([arch, klant, vc, oa2, wl].flatMap((x) => [denied(x.updateTender(t1.ok, 0n, { extend: sug.deadlineDay + 30n })), denied(x.updateTenderInvite(inv1.id, { markSent: ["pdf"] })), denied(x.tenderAccess(inv1.id, 0n)), denied(x.addTenderFirm(t1.ok, { orgId: orgX.ok.id, contactPersonId: [] }))]))).every(Boolean));
 }
 
+await sec("── 2c.3 OA-offertes: vergelijken, kiezen, overnemen per rol (de rest staat in tests/oaofferte-2c3.mjs)");
+{
+  const tB = (await calc.listTenders([B])).find((x) => x.title === "Proef prijsvraag rollentest");
+  const v = ok1b(await calc.readTender(tB.id));
+  const oq = v.invites[0].oaQuotes[0];
+  const others = [["werfleider", wl], ["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon]];
+  check("vergelijken (R38, update-call): admin en calculator; de vergelijking rekent zoals de browser (versie 1)", isOk(await admin.compareTender(tB.id)) && ok1b(await calc.compareTender(tB.id)).calc.version === 1n);
+  for (const [n, x] of others) check(`${n}: geen vergelijking, geen lijst van OA-offertes, niet kiezen of overnemen`, (await denied(x.compareTender(tB.id))) && (await denied(x.listOaQuotes(B))) && (await denied(x.saveTenderChoices(tB.id, [{ itemId: v.items[0].id, oaQuoteId: [oq.id], reason: "" }]))) && (await denied(x.applyTenderChoices(tB.id, v.versionId))));
+  const loose = { inviteId: [], workId: B, orgId: orgY.ok.id, source: { hand: null }, sheetKey: "", number: "PROEF-LOS-1", quoteDay: BigInt(Math.floor(Date.now() / 86_400_000)), validUntil: [], discountBp: [], reverse: true, prices: { total: 12_345n }, remark: "", note: "", file: [] };
+  for (const [n, x] of others) check(`${n}: geen OA-offerte registreren`, await denied(x.registerOaQuote(loose, 12_345n)));
+  const reg = await calc.registerOaQuote(loose, 12_345n);
+  check("calculator registreert een losse OA-offerte (enkel het totaal); de lijst van de werf toont ze, zonder bedrag", isOk(reg) && (await calc.listOaQuotes(B)).some((x) => x.id === reg.ok.oaQuoteId && x.tenderId.length === 0) && !JSON.stringify(await calc.listOaQuotes(B), (_, y) => (typeof y === "bigint" ? y.toString() : y)).includes("12345"));
+  const pk = await calc.saveTenderChoices(tB.id, [{ itemId: v.items[0].id, oaQuoteId: [oq.id], reason: "" }]);
+  check("calculator kiest een post (per post); de keuze staat in de vergelijking", isOk(pk) && ok1b(await calc.compareTender(tB.id)).choices.length === 1);
+  check("werfleider: zolang de prijsvraag loopt, geen gekozen firma in de stand (geen prijs)", (await wl.listTenders([B])).find((x) => x.id === tB.id).picks.length === 0);
+  const s0 = await calc.tenderSettings();
+  check("instellingen prijsvragen: interne rollen lezen; enkel de beheerder bewaart; OA en klant niets", s0.thanksMode === "melding" && (await denied(calc.saveTenderSettings(s0))) && (await denied(wl.saveTenderSettings(s0))) && isOk(await admin.saveTenderSettings(s0)) && (await denied(oa2.tenderSettings())) && (await denied(klant.tenderSettings())));
+}
+
 await sec("── afzetten (R16, T7)");
 const oaId = (await oa.me()).person[0].id;
 const invOa3 = await invite(admin, "Nog een code voor OA", roles("onderaannemer"));

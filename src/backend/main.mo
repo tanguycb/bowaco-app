@@ -40,6 +40,7 @@ import StartApi "mixins/StartApi";
 import ReviewApi "mixins/ReviewApi";
 import QuoteFormsApi "mixins/QuoteFormsApi";
 import TendersApi "mixins/TendersApi";
+import OaQuotesApi "mixins/OaQuotesApi";
 import Post "lib/Post";
 import Mail "lib/Mail";
 import Principal "mo:core/Principal";
@@ -139,7 +140,9 @@ persistent actor Self {
 
   // 2c.2: prijsvraag naar onderaannemers (posten kopiëren, firma's, deadline, PDF + Excel in de browser, toegang voor de OA zonder
   // werf, Mijn prijsvragen van de OA, eigen PDF opladen); herinnering en "geen antwoord" in Post.tick.
-  include TendersApi(settings, access, org, oa, works, files, plan, library, quotes, quoteForms, tenders, audit, ctr);
+  include TendersApi(settings, access, org, oa, works, files, plan, library, quotes, quoteForms, tenders, post, audit, ctr);
+
+  include OaQuotesApi(settings, access, org, oa, works, files, library, quotes, tenders, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

@@ -27,6 +27,7 @@ import { MyStatements, WorkStatements } from "./Vorderingen";
 import { WorkOaInvoices } from "./OaFacturen";
 import { MyQuotes } from "./MijnOfferte";
 import { WorkTenders } from "./Prijsvragen";
+import { WorkOaQuotes } from "./OaOffertes";
 
 const F = t.fase;
 
@@ -177,8 +178,8 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
       return client || !caps.readTeam ? <ExternOverzicht w={w} caps={caps} go={go} client={client} /> : <Overzicht w={w} caps={caps} go={go} fase={fase} />;
     case "offerte": {
       if (client) return <MyQuotes go={go} embedded workName={w.name} />;
-      // 2c.2: subtabbladen Versies · Prijsvragen (interne rollen; de werfleider ziet enkel firma's, stand en deadline).
-      const subs = caps.readTeam ? [{ key: "versies", label: t.prijsvragen.subVersions }, { key: "prijsvragen", label: t.prijsvragen.subTenders }] : [];
+      // 2c.2/2c.3: subtabbladen Versies · Prijsvragen · OA-offertes (interne rollen; de werfleider ziet enkel firma's, stand en deadline).
+      const subs = caps.readTeam ? [{ key: "versies", label: t.prijsvragen.subVersions }, { key: "prijsvragen", label: t.prijsvragen.subTenders }, { key: "oa-offertes", label: t.prijsvragen.subOaQuotes }] : [];
       const curSub = subs.find((x) => x.key === sub)?.key ?? "versies";
       return (
         <div className="a-tabbody">
@@ -189,7 +190,7 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
               ))}
             </div>
           )}
-          {curSub === "prijsvragen" ? <WorkTenders workId={id} caps={caps} go={go} /> : (
+          {curSub === "prijsvragen" ? <WorkTenders workId={id} caps={caps} go={go} /> : curSub === "oa-offertes" ? <WorkOaQuotes workId={id} caps={caps} go={go} /> : (
             <>
               <PendingStarts workId={id} caps={caps} go={go} />
               <WorkQuotes workId={id} caps={caps} go={go} />

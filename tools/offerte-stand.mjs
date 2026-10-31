@@ -1,4 +1,4 @@
-// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
+// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2), OA-offertes, keuzes en hun prijzen in de bibliotheek (2c.3) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
 //   node tools/offerte-stand.mjs <canister> <uit.json>           met de .did van DEZE map (oude kopie of nieuwe code)
 //   node tools/offerte-stand.mjs vergelijk <voor.json> <na.json>   elk veld van "voor" moet in "na" gelijk zijn (nieuwe velden
 //                                                                   en nieuwe offertes tellen niet); geeft de verschillen
@@ -99,6 +99,31 @@ if (typeof who.admin.listTenders === "function") {
   const mine = await res(who.oa.listMyTenders());
   stand.mijnPrijsvragen.lijst = mine;
   if (mine.ok) for (const b of mine.ok) stand.mijnPrijsvragen[b.ref] = await res(who.oa.readMyTender(b.ref));
+}
+// 2c.3: de vergelijking, de keuzes en het prijsgeheugen (enkel als de code ze kent): per prijsvraag de vergelijking (update-call met
+// auditregel) en wie ze mag lezen, de OA-offertes per werf (ook de losse), alle keuzes (vertrouwelijke export) en de aankoopprijzen
+// uit OA-offertes in de bibliotheek (bron "oa-offerte", gekozen en niet gekozen), de instellingen van de prijsvragen.
+if (typeof who.admin.compareTender === "function") {
+  stand.vergelijkingen = {};
+  stand.vergelijkingRechten = {};
+  stand.oaOffertesPerWerf = {};
+  for (const w of await who.admin.listWorks()) {
+    const l = await res(who.admin.listOaQuotes(w.id));
+    if (l.ok && l.ok.length) stand.oaOffertesPerWerf[String(w.id)] = l.ok;
+    const ts = await res(who.admin.listTenders([w.id]));
+    if (!ts.ok) continue;
+    for (const t of ts.ok) {
+      stand.vergelijkingen[String(t.id)] = await res(who.admin.compareTender(t.id));
+      const per = {};
+      for (const rol of ["calculator", "werfleider", "architect", "oa", "klant", "vc"]) per[rol] = allowed(await res(who[rol].compareTender(t.id)));
+      stand.vergelijkingRechten[String(t.id)] = per;
+    }
+  }
+  const chunk = async (kind) => { const out = []; for (let from = 0n; ; from += 500n) { const r = await res(who.admin.exportChunk(kind, from, 500n)); const xs = r.ok ? Object.values(r.ok)[0] : []; out.push(...xs); if (xs.length < 500) return out; } };
+  // Als object per id: nieuwe keuzes en prijzen tellen bij de vergelijking niet, gewijzigde wel.
+  stand.keuzes = Object.fromEntries((await chunk("tenderChoices")).map(([k, v]) => [String(k), v]));
+  stand.oaPrijzen = Object.fromEntries((await chunk("libCosts")).filter((c) => c.source === "oa-offerte").map((c) => [String(c.id), c]));
+  stand.prijsvraagInstellingen = await res(who.admin.tenderSettings());
 }
 const ex = await who.admin.exportIntern();
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;

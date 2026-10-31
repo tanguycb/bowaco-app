@@ -26,6 +26,7 @@ import Codes "../lib/Codes";
 import Config "../lib/Config";
 import Dossier "../lib/Dossier";
 import Ids "../lib/Ids";
+import OaQuotes "../lib/OaQuotes";
 import Plan "../lib/Plan";
 import Post "../lib/Post";
 import Quotes "../lib/Quotes";
@@ -46,6 +47,7 @@ mixin (
   quotes : Types.QuotesState,
   quoteForms : Types.QuoteFormState,
   tenders : Types.TenderState,
+  post : Types.PostState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -345,12 +347,14 @@ mixin (
         for (c in chosen0.values()) { if (chosen.find(func(x : Nat) : Bool = x == c) == null) { chosen := chosen.concat([c]) } };
         let invs = Tenders.invitesOf(tenders, t.id);
         for (c in chosen.values()) { if (invs.find(func(i : Types.TenderInvite) : Bool = i.id == c) == null) { return #err("Deze firma is niet gevraagd in deze prijsvraag") } };
-        for (i in invs.values()) {
-          let pick = chosen.find(func(c : Nat) : Bool = c == i.id) != null;
-          tenders.invites.add(i.id, { i with outcome = if pick #chosen else #thanked({ at = now; notified = false }) });
-        };
-        tenders.tenders.add(t.id, { next with status = #closed({ at = now; by = p.id }) });
-        Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-afgesloten", t.code # ": " # chosen.size().toText() # " gekozen, " # (invs.size() - chosen.size()).toText() # " bedankt");
+        // 2c.3: gekozen = wat kantoor aanvinkte + de firma's van de keuzes per post; de rest bedankt, met het bericht (AC-13,
+        // instelbaar) aan wie een offerte gaf; de prijzen gaan als prijsgeheugen naar de bibliotheek (⚖5).
+        let all = OaQuotes.chosenInvites(tenders, t, chosen);
+        let (nc, nt, nm) = OaQuotes.close({ settings; access; org; oa; post; audit; ctr }, tenders, t, all, p.id, now);
+        let closedT = { next with status = #closed({ at = now; by = p.id }) };
+        tenders.tenders.add(t.id, closedT);
+        ignore OaQuotes.remember(org, library, quotes, tenders, ctr, closedT, p.id, now);
+        Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-afgesloten", t.code # ": " # nc.toText() # " gekozen, " # nt.toText() # " bedankt, " # nm.toText() # " berichten (" # OaQuotes.thanksMode(settings) # ")");
       };
       case (#internalNote x) {
         if (x.size() > Config.maxNote) { return #err("Notitie te lang") };

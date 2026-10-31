@@ -40,7 +40,10 @@ module {
     items : Nat;
     invites : [TenderInviteStatusView];
     createdAt : Int;
+    picks : [TenderPickView]; // 2c.3: na het afsluiten per hoofdstuk de gekozen firma('s) (wie komt), nooit een prijs
   };
+  // 2c.3: de gekozen firma per hoofdstuk ("" = de hele prijsvraag: gekozen zonder keuze per post). Zonder bedrag.
+  public type TenderPickView = { chapter : Text; orgNames : [Text] };
 
   public type TenderItemView = {
     id : Nat;
@@ -252,4 +255,67 @@ module {
   public type OaQuoteFull = { quote : OaQuoteBrief; netCents : Int; discountBp : ?Nat; lines : [Types.OaQuoteLine]; chapterTotals : [(Text, Int)]; remark : Text; file : ?MyTenderFile; fileId : ?Nat };
   public type MyTenderAnswer = { draft : ?OaDraftView; versions : [MyOaQuoteView]; calcVersion : Nat };
   public type MyTenderSaved = { netCents : Int; version : ?Nat };
+
+  // ── 2c.3: OA-offertes ontvangen, vergelijken, kiezen en overnemen (enkel kantoor; bedragen enkel via update-calls) ──
+  // Registreren door kantoor: een ingelezen Excel (#sheet, met de verborgen sleutel), met de hand naast de PDF (#hand: per post,
+  // enkel hoofdstuktotalen of enkel het totaal) of los zonder prijsvraag (#hand, enkel eigen regels). #app is enkel de OA zelf.
+  public type OaRegLine = { itemId : ?Nat; description : Text; unit : Text; qtyMilli : Int; unitCents : ?Int; included : Types.OaIncluded; remark : Text };
+  public type OaRegPrices = { #lines : [OaRegLine]; #chapters : [(Text, Int)]; #total : Int };
+  public type OaRegFile = { name : Text; mime : Text; size : Nat; blob : Storage.ExternalBlob }; // de Excel of de PDF (vertrouwelijk aan de werf)
+  public type OaQuoteInput = {
+    inviteId : ?Nat; // op een prijsvraag (de firma van de uitnodiging) of null = los
+    workId : Nat;
+    orgId : Nat;
+    source : Types.OaQuoteSource;
+    sheetKey : Text; // #sheet: de verborgen sleutel uit het tabblad _bowaco
+    number : Text;
+    quoteDay : Day;
+    validUntil : ?Day;
+    discountBp : ?Nat;
+    reverse : Bool;
+    prices : OaRegPrices;
+    remark : Text;
+    note : Text; // intern
+    file : ?OaRegFile;
+  };
+  public type OaQuoteSaved = { oaQuoteId : Nat; version : Nat; netCents : Int };
+
+  // De vergelijking (lib/TenderCompare.mo = tender/compare.ts, G4): de invoer en de uitkomst staan allebei in de view, zodat de
+  // browser dezelfde uitkomst narekent. form: "posten" · "hoofdstukken" · "totaal".
+  public type CmpItem = { id : Nat; chapter : Text; qtyMilli : Int; unit : Text; libItemId : ?Nat };
+  public type CmpQuote = { id : Nat; orgId : Nat; form : Text; discountBp : ?Nat; netCents : Int; lines : [Types.OaQuoteLine]; chapterTotals : [(Text, Int)] };
+  public type CmpHistory = { itemId : Nat; lastByOrg : [(Nat, Int)]; recent : [Int] }; // laatste prijs per firma, prijzen van de laatste 12 maanden
+  public type CmpPick = { itemId : Nat; oaQuoteId : Nat };
+  public type CmpInput = { items : [CmpItem]; quotes : [CmpQuote]; history : [CmpHistory]; thresholdBp : Nat; picks : [CmpPick] };
+  // state: "prijs" · "geen-prijs" · "niet-inbegrepen" · "ontbreekt" · "geen-detail" (enkel hoofdstuktotalen of totaal)
+  public type CmpCell = { itemId : Nat; oaQuoteId : Nat; state : Text; unitCents : ?Int; amountCents : ?Int; alt : Bool; vhChanged : Bool; unitChanged : Bool; lowest : Bool; devLastBp : ?Int; devMedianBp : ?Int; deviates : Bool };
+  public type CmpQuoteTotals = { oaQuoteId : Nat; chapters : [(Text, Int)]; ownCents : Int; gross : Int; discount : Int; net : Int; priced : Nat; items : Nat; complete : Bool };
+  public type CmpChapter = { chapter : Text; lowest : [Nat] };
+  public type CmpChoice = { chosen : Nat; stale : [Nat]; chapters : [(Text, Int)]; total : Int };
+  public type CmpResult = { version : Nat; cells : [CmpCell]; quotes : [CmpQuoteTotals]; chapters : [CmpChapter]; lowestTotal : [Nat]; choice : CmpChoice };
+
+  public type TenderChoiceView = { itemId : Nat; oaQuoteId : ?Nat; orgId : ?Nat; orgName : Text; unitCents : ?Int; reason : Text; appliedVersionId : ?Nat; libCostId : ?Nat; at : Int; byName : Text; stale : Bool };
+  public type TenderDraftRef = { versionId : Nat; version : Nat; title : Text };
+  public type TenderCompareView = {
+    tenderId : Nat;
+    workId : Nat;
+    quoteId : Nat;
+    quoteNumber : Text;
+    code : Text;
+    title : Text;
+    status : Types.TenderStatus;
+    rev : Nat;
+    items : [TenderItemView];
+    quotes : [OaQuoteFull]; // de geldende offerte per firma (een tweede indiening vervangt de eerste)
+    history : [OaQuoteBrief]; // alle OA-offertes op deze prijsvraag, ook de vervangen versies
+    invites : [TenderInviteStatusView];
+    input : CmpInput;
+    calc : CmpResult;
+    choices : [TenderChoiceView];
+    drafts : [TenderDraftRef]; // ontwerpversies van de offerte: het doel van "Overnemen in de offerte"
+    thanksMode : Text; // "melding" · "mail" · "niets" (bericht aan de niet-gekozen firma's bij het afsluiten)
+  };
+  public type TenderPickInput = { itemId : Nat; oaQuoteId : ?Nat; reason : Text }; // null = keuze weg
+  public type TenderApplyResult = { lines : Nat; libCosts : Nat; memory : Nat; skipped : [Text] };
+  public type TenderSettings = { deadlineDays : Nat; remindDays : Nat; thanksMode : Text; deviationBp : Nat };
 };

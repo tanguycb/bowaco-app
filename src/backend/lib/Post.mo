@@ -94,7 +94,7 @@ module {
 
   // De mails verstuurt de app zelf (lib/Mail.mo); geen robot mag ze leasen.
   public func isMail(kind : Text) : Bool {
-    kind == "weekplanning" or kind == "herinnering-planning" or kind == "herinnering-uren" or kind == "proef" or kind == "offerte-klant";
+    kind == "weekplanning" or kind == "herinnering-planning" or kind == "herinnering-uren" or kind == "proef" or kind == "offerte-klant" or kind == "prijsvraag-bedankt";
   };
 
   // Welke robotsoort mag een opdracht leasen. Mail: "app" (die soort kan geen robot krijgen, Config.robotKinds).
@@ -289,6 +289,24 @@ module {
     };
     let orgId = j.orgId ?? return #skip("geen firma");
     if (optedOut(c.settings, orgId)) { return #skip("firma ontvangt geen mails") };
+    // 2c.3 (AC-13): "niet gekozen, bedankt" aan de contactpersoon van de uitnodiging (anders de adressen van de firma); geen
+    // prijs, geen naam van de gekozen firma.
+    if (j.kind == "prijsvraag-bedankt") {
+      let get = func(k : Text) : Text = switch (j.extra.find(func(x : (Text, Text)) : Bool = x.0 == k)) { case (?(_, v)) v; case null "" };
+      let to = if (get("aan") != "") [{ name = get("naam"); email = get("aan") }] else orgRecipients(c.access, c.org, c.oa, orgId);
+      if (to.size() == 0) { return #skip("geen e-mailadres bij de firma") };
+      return #mail({
+        to;
+        subject = tx.thanksSubject(get("code"));
+        preheader = tx.thanksPre;
+        heading = tx.thanksHeading;
+        intro = tx.thanksIntro(get("naam"), get("code"), get("titel"));
+        sections = [];
+        outro = tx.thanksOutro;
+        link = link(c, "#/prijsvragen");
+        tag = "prijsvraag";
+      });
+    };
     let to = orgRecipients(c.access, c.org, c.oa, orgId);
     if (to.size() == 0) { return #skip("geen e-mailadres bij de firma") };
     let name = switch (c.org.orgs.get(orgId)) { case (?o) o.name; case null "" };

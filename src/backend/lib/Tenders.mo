@@ -175,7 +175,31 @@ module {
       items = ids(ts.itemsByTender, t.id).size();
       invites = invitesOf(ts, t.id).map(func(i : Types.TenderInvite) : TV.TenderInviteStatusView = inviteStatusView(c, t, i));
       createdAt = t.createdAt;
+      picks = picksOf(c, ts, t);
     };
+  };
+
+  // 2c.3: na het afsluiten per hoofdstuk de gekozen firma('s), zonder prijs (de keuze zelf is vertrouwelijk; enkel de naam komt mee).
+  func picksOf(c : Ctx, ts : TS, t : Types.Tender) : [TV.TenderPickView] {
+    switch (t.status) { case (#closed _) {}; case _ return [] };
+    var chs : [Text] = [];
+    let by = Map.empty<Text, [Text]>();
+    let covered = Map.empty<Nat, Bool>();
+    let add = func(ch : Text, o : Nat) {
+      let n = orgName(c, o);
+      let cur = switch (by.get(ch)) { case (?x) x; case null { chs := chs.concat([ch]); [] } };
+      by.add(ch, if (cur.find(func(y : Text) : Bool = y == n) == null) cur.concat([n]) else cur);
+      covered.add(o, true);
+    };
+    for (x in itemsOf(ts, t.id).values()) {
+      switch (ts.choices.get(x.id)) {
+        case (?#plain(ch)) { switch (ch.oaQuoteId) { case (?qid) { switch (ts.oaQuotes.get(qid)) { case (?q) add(x.chapter, q.orgId); case null {} } }; case null {} } };
+        case _ {};
+      };
+    };
+    // Gekozen zonder keuze per post (bv. enkel een totaal): voor de hele prijsvraag ("").
+    for (i in invitesOf(ts, t.id).values()) { if (i.outcome == #chosen and not covered.containsKey(i.orgId)) { add("", i.orgId) } };
+    chs.map(func(ch : Text) : TV.TenderPickView = { chapter = ch; orgNames = switch (by.get(ch)) { case (?x) x; case null [] } });
   };
 
   public func itemView(x : Types.TenderItem, pos : Nat) : TV.TenderItemView {

@@ -32,3 +32,17 @@
 @media (max-width: 899px) {
   .pv-fill .pv-in { min-width: 0; width: 100%; }
 }
+/* 2c.3: OA-offertes en de vergelijking (matrix: posten onder elkaar, firma's naast elkaar). */
+.oq-matrix { font-size: var(--bw-fs-sm); }
+.oq-matrix th, .oq-matrix td { vertical-align: top; }
+.oq-matrix td.oq-cell { text-align: right; cursor: default; min-width: 110px; }
+.oq-matrix td.oq-cell--pick { cursor: pointer; }
+.oq-matrix td.oq-low { background: var(--bw-st-done-bg); }
+.oq-matrix td.oq-chosen { box-shadow: inset 0 0 0 2px var(--bw-accent); }
+.oq-matrix tr.oq-ch td { background: var(--bw-sunken); font-weight: 600; }
+.oq-matrix tr.oq-sum td { border-top: 1px solid var(--bw-line-2, var(--bw-line)); }
+.oq-flag { color: var(--bw-st-warn, #b45309); display: block; font-size: 0.78rem; }
+.oq-sub { color: var(--bw-ink-2); display: block; font-size: 0.78rem; }
+.oq-strip { display: flex; flex-wrap: wrap; gap: 14px; }
+.oq-strip > div { display: grid; }
+.oq-bar { position: sticky; bottom: 0; background: var(--bw-surface); border-top: 1px solid var(--bw-line); padding: 8px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

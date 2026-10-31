@@ -36,6 +36,12 @@ module {
     quoteHeading : Text;
     quoteIntro : (name : Text, nr : Text, work : Text) -> Text;
     quoteOutro : Text;
+    // 2c.3 (AC-13): de firma werd niet gekozen; nooit een prijs, nooit de gekozen firma.
+    thanksSubject : (code : Text) -> Text;
+    thanksPre : Text;
+    thanksHeading : Text;
+    thanksIntro : (name : Text, code : Text, title : Text) -> Text;
+    thanksOutro : Text;
     button : Text;
     footer : (contact : Text) -> Text;
     stop : Text;
@@ -85,6 +91,11 @@ module {
     quoteHeading = "Uw offerte staat klaar";
     quoteIntro = func(name, nr, work) = (if (name == "") "Goedendag" else "Goedendag " # name) # ", BOWACO stuurde u offerte " # nr # " voor " # work # ". U bekijkt ze, downloadt de PDF en geeft uw akkoord in de app, na het inloggen.";
     quoteOutro = "In deze mail staan bewust geen bedragen. Heeft u een vraag, neem dan contact op met BOWACO.";
+    thanksSubject = func(code) = "Prijsvraag " # code # ": bedankt voor uw offerte";
+    thanksPre = "Uw offerte werd deze keer niet gekozen.";
+    thanksHeading = "Bedankt voor uw offerte";
+    thanksIntro = func(name, code, title) = (if (name == "") "Goedendag" else "Goedendag " # name) # ", bedankt voor uw offerte op prijsvraag " # code # " (" # title # "). Deze keer werd uw offerte niet gekozen. We vragen u graag opnieuw bij een volgende werf.";
+    thanksOutro = "In deze mail staan bewust geen bedragen.";
     button = "Open de app";
     footer = func(c) = "Deze mail werd automatisch verstuurd door de BOWACO-app. Antwoorden op deze mail komen niet aan: bel je werfleider" # (if (c.size() > 0) " of mail naar " # c else "") # ". Je logt zelf in; deze mail bevat nooit een toegangscode.";
     stop = "Geen mails meer van de planning? Laat het BOWACO weten.";
@@ -122,6 +133,11 @@ module {
     quoteHeading = "Votre offre est disponible";
     quoteIntro = func(name, nr, work) = (if (name == "") "Bonjour" else "Bonjour " # name) # ", BOWACO vous a envoyé l'offre " # nr # " pour " # work # ". Vous pouvez la consulter, télécharger le PDF et donner votre accord dans l'application, après connexion.";
     quoteOutro = "Cet e-mail ne contient volontairement aucun montant. Pour toute question, contactez BOWACO.";
+    thanksSubject = func(code) = "Demande de prix " # code # " : merci pour votre offre";
+    thanksPre = "Votre offre n'a pas été retenue cette fois.";
+    thanksHeading = "Merci pour votre offre";
+    thanksIntro = func(name, code, title) = (if (name == "") "Bonjour" else "Bonjour " # name) # ", merci pour votre offre pour la demande de prix " # code # " (" # title # "). Cette fois, votre offre n'a pas été retenue. Nous vous consulterons volontiers pour un prochain chantier.";
+    thanksOutro = "Cet e-mail ne contient volontairement aucun montant.";
     button = "Ouvrir l'app";
     footer = func(c) = "Cet e-mail a été envoyé automatiquement par l'app BOWACO. Les réponses à cet e-mail n'arrivent pas : appelez votre chef de chantier" # (if (c.size() > 0) " ou écrivez à " # c else "") # ". Vous vous connectez vous-même ; cet e-mail ne contient jamais de code d'accès.";
     stop = "Vous ne souhaitez plus recevoir ces e-mails de planning ? Faites-le savoir à BOWACO.";
@@ -159,6 +175,11 @@ module {
     quoteHeading = "Your quote is ready";
     quoteIntro = func(name, nr, work) = (if (name == "") "Hello" else "Hello " # name) # ", BOWACO sent you quote " # nr # " for " # work # ". You can view it, download the PDF and give your approval in the app after signing in.";
     quoteOutro = "This e-mail deliberately contains no amounts. If you have a question, please contact BOWACO.";
+    thanksSubject = func(code) = "Request for quotation " # code # ": thank you for your quote";
+    thanksPre = "Your quote was not selected this time.";
+    thanksHeading = "Thank you for your quote";
+    thanksIntro = func(name, code, title) = (if (name == "") "Hello" else "Hello " # name) # ", thank you for your quote for request " # code # " (" # title # "). This time your quote was not selected. We will gladly ask you again for a next site.";
+    thanksOutro = "This e-mail deliberately contains no amounts.";
     button = "Open the app";
     footer = func(c) = "This e-mail was sent automatically by the BOWACO app. Replies to this e-mail do not arrive: call your site manager" # (if (c.size() > 0) " or write to " # c else "") # ". You sign in yourself; this e-mail never contains an access code.";
     stop = "No more schedule e-mails? Let BOWACO know.";

@@ -419,6 +419,15 @@ const table = {
   declineMyTender: [["oa"], () => [invOpen.ref, "x".repeat(1001)]],
   readTenderFile: [["oa"], () => [invOpen.ref, 1n]],
   addMyTenderFile: [["oa"], () => [invOpen.ref, "", "application/pdf", 0n, blob]],
+  // 2c.3: OA-offertes ontvangen, vergelijken, kiezen, overnemen (R36, R38: admin en calculator; bedragen enkel via update-calls met
+  // auditregel). De invoer is telkens ongeldig (geen wijziging); de instellingen lezen alle interne rollen, bewaren enkel de beheerder.
+  tenderSettings: [INTERNAL, () => []],
+  saveTenderSettings: [ADMIN, () => [{ deadlineDays: 0n, remindDays: 0n, thanksMode: "fax", deviationBp: 0n }]],
+  listOaQuotes: [["admin", "calculator"], () => [B]],
+  registerOaQuote: [["admin", "calculator"], () => [{ inviteId: [], workId: B, orgId: X, source: { hand: null }, sheetKey: "", number: "", quoteDay: 0n, validUntil: [], discountBp: [], reverse: true, prices: { total: 0n }, remark: "", note: "", file: [] }, 0n]],
+  compareTender: [["admin", "calculator"], () => [tOpen.id]],
+  saveTenderChoices: [["admin", "calculator"], () => [tOpen.id, []]],
+  applyTenderChoices: [["admin", "calculator"], () => [tOpen.id, X]],
   setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],

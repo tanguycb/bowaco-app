@@ -74,6 +74,9 @@ module {
     // de werfleider van die werf enkel firma's, status en deadline: tenderScope); #editTenders = maken, versturen, verlengen,
     // afsluiten, OA-offertes lezen (admin, calculator); #ownTenders = een OA: "Mijn prijsvragen" (enkel zijn eigen firma, inviteScope).
     #readTenders; #editTenders; #ownTenders;
+    // 2c.3 (R36, R38): OA-offertes registreren (Excel, met de hand, los), vergelijken, kiezen en overnemen = #editTenders én
+    // #readCosts (admin, calculator; overnemen ook #editQuote), enkel via update-calls met auditregel "bekeek:oa-offerte:<id>";
+    // de instellingen van de prijsvragen = #manageSettings. De werfleider ziet na het afsluiten enkel wie gekozen is (#readTenders).
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };

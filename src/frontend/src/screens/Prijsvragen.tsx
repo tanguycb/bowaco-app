@@ -19,7 +19,7 @@ import { totals, type Included } from "../tender/calc.ts";
 import "../app/prijsvraag.css";
 
 const P = t.prijsvragen;
-const unitOf = (u: string) => (u === "m2" ? "m²" : u === "m3" ? "m³" : u);
+export const unitOf = (u: string) => (u === "m2" ? "m²" : u === "m3" ? "m³" : u);
 const statusKey = (s: TenderStatus) => s.__kind__;
 const isOpen = (s: TenderStatus) => s.__kind__ === "open";
 const answered = (st: TenderInviteStatus) => st === TenderInviteStatus.received || st === TenderInviteStatus.declined;
@@ -35,7 +35,7 @@ export function tenderStand(s: TenderStatusView, today: bigint): "open" | "choos
 }
 const standTag = (k: string) => (k === "choose" ? "a-tag--warn" : k === "open" ? "a-tag--accent" : k === "cancelled" ? "a-tag--bad" : "");
 
-function download(data: Uint8Array | Blob, name: string, type: string) {
+export function download(data: Uint8Array | Blob, name: string, type: string) {
   const blob = data instanceof Blob ? data : new Blob([data as BlobPart], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -332,7 +332,7 @@ function QuoteLinesTable({ lines, chapterOf }: { lines: OaQuoteFull["lines"]; ch
   );
 }
 
-function QuoteSheet({ id, onClose }: { id: bigint; onClose: () => void }) {
+export function QuoteSheet({ id, onClose }: { id: bigint; onClose: () => void }) {
   const { actor, isFetching } = useBackend();
   // Bedragen: update-call met auditregel (R38); enkel in het geheugen van dit paneel.
   const q = useQuery({ queryKey: ["oaQuote", String(id)], queryFn: async () => unwrap(await actor!.readOaQuote(id)), enabled: !!actor && !isFetching, staleTime: 0, gcTime: 0, refetchOnWindowFocus: false });

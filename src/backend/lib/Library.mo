@@ -288,8 +288,13 @@ module {
     by.values().toArray().sort(func(a : LibCost, b : LibCost) : Order.Order = if (newer(a, b)) #less else if (newer(b, a)) #greater else #equal);
   };
 
-  // De geldende aankoopprijs: de jongste van de standaard-OA van de post als die er is, anders de jongste van allemaal.
-  public func currentCost(it : LibItem, cs : [LibCost]) : ?LibCost {
+  // 2c.3 (⚖5): een prijs uit een OA-offerte die niet gekozen werd, is prijsgeheugen, nooit de geldende prijs.
+  public func notChosen(c : LibCost) : Bool { c.extra.any(func((k, v) : (Text, Text)) : Bool = k == "keuze" and v == "niet gekozen") };
+
+  // De geldende aankoopprijs: de jongste van de standaard-OA van de post als die er is, anders de jongste van allemaal
+  // (nooit een "niet gekozen" prijs van een prijsvraag).
+  public func currentCost(it : LibItem, all : [LibCost]) : ?LibCost {
+    let cs = all.filter(func(c : LibCost) : Bool = not notChosen(c));
     switch (it.orgId) {
       case (?o) { switch (latest(cs.filter(func c = c.orgId == ?o))) { case (?c) return ?c; case null {} } };
       case null {};
