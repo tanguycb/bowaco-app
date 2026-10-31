@@ -11,7 +11,7 @@ import { unzip, ZipError } from "./zip.ts";
 export const MAX_BYTES = 5 * 1024 * 1024;
 export const MAX_ROWS = 2000;
 
-export type ReadItem = { id: bigint; chapter: string; title: string; unit: string; unitName?: string; qtyMilli: bigint };
+export type ReadItem = { id: bigint; pos: number; chapter: string; title: string; unit: string; unitName?: string; qtyMilli: bigint };
 export type ReadInvite = { id: bigint; orgName: string; sheetKey: string };
 export type ReadContext = { tenderId: bigint; code: string; items: ReadItem[]; invites: ReadInvite[]; expectInviteId?: bigint | null };
 
@@ -118,14 +118,17 @@ export async function readWorkbook(bytes: Uint8Array): Promise<Workbook> {
 }
 
 // ── Waarden ───────────────────────────────────────────────────────────────
-/** Een getal zoals mensen het tikken: "1.234,56" · "1234,56" · "1234.56" · "€ 12" · "12 €" → duizendsten; ongeldig = undefined. */
-export function parseMilli(raw: string): bigint | undefined {
+/** Een getal zoals mensen het tikken: "1.234,56" · "1234,56" · "1234.56" · "€ 12" · "12 €" → duizendsten; ongeldig = undefined.
+ *  `text`: de waarde stond als TEKST in de cel (niet als getal van Excel). Dan is "1.234" of "12.500" een duizendtal (Belgische
+ *  schrijfwijze), zoals "1.234,56"; in een getalcel is de punt altijd het decimaalteken van Excel zelf. */
+export function parseMilli(raw: string, text = false): bigint | undefined {
   let s = raw.replace(/[€\s ]/g, "").replace(/EUR$/i, "");
   if (s === "") return undefined;
   let neg = false;
   if (s.startsWith("-")) { neg = true; s = s.slice(1); }
   let norm: string;
-  if (/^\d+(\.\d+)?(e[+-]?\d+)?$/i.test(s)) norm = s; // 1234.56 (en de notatie van Excel zelf)
+  if (text && /^\d{1,3}(\.\d{3})+$/.test(s)) norm = s.replace(/\./g, ""); // "1.234" als tekst = duizendtal
+  else if (/^\d+(\.\d+)?(e[+-]?\d+)?$/i.test(s)) norm = s; // 1234.56 (en de notatie van Excel zelf)
   else if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) norm = s.replace(/\./g, "").replace(",", "."); // 1.234,56
   else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) norm = s.replace(/,/g, ""); // 1,234.56
   else if (/^\d+,\d+$/.test(s)) norm = s.replace(",", "."); // 1234,56
@@ -174,10 +177,11 @@ export async function readTenderSheet(bytes: Uint8Array, name: string, ctx: Read
   if (!meta) return fail("Deze Excel komt niet uit de app (het verborgen tabblad ontbreekt). Voer de prijzen met de hand in naast de PDF.");
   const mv = (r: number) => textOf(meta.cells.get(`B${r}`)).trim();
   if (mv(1) !== FORM_ID) return fail(`Onbekende vorm van de Excel (${mv(1) || "leeg"}). Voer de prijzen met de hand in naast de PDF.`);
+  // De sleutel van de firma (12 tekens) is de enige herkenning: hij hoort bij precies één uitnodiging van DEZE prijsvraag.
   const key = mv(2);
-  const inv = ctx.invites.find((i) => i.sheetKey === key);
-  if (mv(3) !== ctx.tenderId.toString() || !inv) return fail(`Deze Excel hoort bij een andere prijsvraag dan ${ctx.code}.`);
-  if (mv(4) !== inv.id.toString()) return fail("Het verborgen tabblad is gewijzigd (uitnodiging klopt niet met de sleutel).");
+  const inv = /^[0-9A-Z]{12}$/.test(key) ? ctx.invites.find((i) => i.sheetKey === key) : undefined;
+  if (!inv) return fail(`Deze Excel hoort bij een andere prijsvraag dan ${ctx.code}.`);
+  if (mv(3) !== String(ctx.items.length)) return fail("Het verborgen tabblad is gewijzigd (het aantal posten klopt niet met de prijsvraag).");
   if (ctx.expectInviteId != null && inv.id !== ctx.expectInviteId) {
     const want = ctx.invites.find((i) => i.id === ctx.expectInviteId);
     return fail(`Deze Excel hoort bij ${inv.orgName}, niet bij ${want?.orgName ?? "deze firma"}.`);
@@ -189,24 +193,23 @@ export async function readTenderSheet(bytes: Uint8Array, name: string, ctx: Read
   if (tab.maxRow > MAX_ROWS || (own?.maxRow ?? 0) > MAX_ROWS) return fail(`Meer dan ${MAX_ROWS} regels: dit is geen prijsvraag-Excel van de app.`);
   const headRow = tab.rows.find((r) => norm(textOf(tab.cells.get(`A${r}`))) === "sleutel");
   if (headRow === undefined) return fail("De kopregel met \"Sleutel\" in kolom A ontbreekt.");
-  const items = new Map(ctx.items.map((x) => [x.id.toString(), x]));
+  const items = new Map(ctx.items.map((x) => [String(x.pos), x]));
   const seen = new Map<string, number>();
   const lines: ReadLine[] = [];
   const flags: string[] = [];
-  const keyRe = new RegExp(`^PV(\\d+)\\.(\\d+)\\.([0-9A-Z]{3})$`);
+  const keyRe = /^P(\d+)\.([0-9A-Z]{3})$/;
   for (const r of tab.rows) {
     if (r <= headRow) continue;
     const k = textOf(tab.cells.get(`A${r}`)).trim();
     if (!k) continue;
-    if (/^PV\d+\.(H\d+|T)$/.test(k)) continue; // subtotaal en totaal
+    if (/^(H\d+|T)$/.test(k)) continue; // subtotaal en totaal
     const m = k.match(keyRe);
     if (!m) return fail(`Rij ${r}: onbekende sleutel "${k.slice(0, 30)}". Voer de prijzen met de hand in naast de PDF.`);
-    if (m[1] !== ctx.tenderId.toString()) return fail(`Rij ${r}: deze regel hoort bij een andere prijsvraag.`);
-    const it = items.get(m[2]);
+    const it = items.get(m[1]);
     if (!it) return fail(`Rij ${r}: onbekende post in de sleutel "${k}".`);
-    if (checkChars(inv.sheetKey, it.id) !== m[3]) return fail(`Rij ${r}: de sleutel "${k}" is gewijzigd (controleteken klopt niet).`);
-    if (seen.has(m[2])) return fail(`Rij ${r}: de post staat twee keer in de Excel (ook op rij ${seen.get(m[2])}).`);
-    seen.set(m[2], r);
+    if (checkChars(inv.sheetKey, it.pos) !== m[2]) return fail(`Rij ${r}: de sleutel "${k}" is gewijzigd (controleteken klopt niet).`);
+    if (seen.has(m[1])) return fail(`Rij ${r}: de post staat twee keer in de Excel (ook op rij ${seen.get(m[1])}).`);
+    seen.set(m[1], r);
     const cell = (c: string) => tab.cells.get(`${c}${r}`);
     const lineFlags: LineFlag[] = [];
     let error: string | null = null;
@@ -217,7 +220,7 @@ export async function readTenderSheet(bytes: Uint8Array, name: string, ctx: Read
     let qty = it.qtyMilli;
     const qc = cell("G");
     if (qc && qc.value !== null && qc.value.trim() !== "") {
-      const q = parseMilli(qc.value);
+      const q = parseMilli(qc.value, qc.type !== "n");
       if (q === undefined) error = "tekst in de VH";
       else if (q !== it.qtyMilli) { qty = q; changed.push("vh"); lineFlags.push("vh"); }
     }
@@ -228,7 +231,7 @@ export async function readTenderSheet(bytes: Uint8Array, name: string, ctx: Read
     else if (pc && pc.value !== null && pc.value.trim() !== "") {
       if (pc.type === "e") error = "foutwaarde in de prijscel";
       else {
-        const p = parseMilli(pc.value);
+        const p = parseMilli(pc.value, pc.type !== "n");
         if (p === undefined || p < 0n) error = `tekst in een prijscel ("${pc.value.slice(0, 20)}")`;
         else unitCents = milliToCents(p);
       }
@@ -243,11 +246,11 @@ export async function readTenderSheet(bytes: Uint8Array, name: string, ctx: Read
     if ("alt" in included) lineFlags.push("alternatief");
     if (unitCents === null && !("no" in included)) lineFlags.push("geen-prijs");
     if (unitCents === 0n) lineFlags.push("prijs-0");
-    lines.push({ itemId: it.id, row: r, description: it.title, unit: unit || it.unit, qtyMilli: qty, unitCents: error ? null : unitCents, amountCents: error ? null : lineAmount(unitCents, qty, included), included, remark, changed, flags: lineFlags, error });
+    lines.push({ itemId: it.id, row: r, description: it.title, unit: (unit || it.unit).slice(0, 40), qtyMilli: qty, unitCents: error ? null : unitCents, amountCents: error ? null : lineAmount(unitCents, qty, included), included: "alt" in included ? { alt: included.alt.slice(0, 500) } : included, remark: remark.slice(0, 500), changed, flags: lineFlags, error });
   }
   // Posten die ontbreken (regel gewist).
   for (const it of ctx.items) {
-    if (!seen.has(it.id.toString())) lines.push({ itemId: it.id, row: 0, description: it.title, unit: it.unit, qtyMilli: it.qtyMilli, unitCents: null, amountCents: null, included: { yes: null }, remark: "", changed: [], flags: ["ontbreekt"], error: null });
+    if (!seen.has(String(it.pos))) lines.push({ itemId: it.id, row: 0, description: it.title, unit: it.unit, qtyMilli: it.qtyMilli, unitCents: null, amountCents: null, included: { yes: null }, remark: "", changed: [], flags: ["ontbreekt"], error: null });
   }
   // 3. Eigen posten.
   if (own) {
@@ -258,18 +261,18 @@ export async function readTenderSheet(bytes: Uint8Array, name: string, ctx: Read
       if (!desc) continue;
       let error: string | null = null;
       const qv = textOf(g("C")).trim();
-      const q = qv === "" ? 1000n : parseMilli(qv);
+      const q = qv === "" ? 1000n : parseMilli(qv, g("C")?.type !== "n");
       if (q === undefined || q < 0n) error = "tekst in de hoeveelheid";
       const pv = g("D");
       let unitCents: bigint | null = null;
       if (pv && pv.formula && (pv.value === null || pv.value === "")) error = error ?? "formule zonder waarde";
       else if (pv && pv.value !== null && pv.value.trim() !== "") {
-        const p = parseMilli(pv.value);
+        const p = parseMilli(pv.value, pv.type !== "n");
         if (p === undefined || p < 0n) error = error ?? "tekst in een prijscel";
         else unitCents = milliToCents(p);
       }
       const qty = q === undefined || q < 0n ? 0n : q;
-      lines.push({ itemId: null, row: r, description: desc.slice(0, 160), unit: textOf(g("B")).trim().slice(0, 40), qtyMilli: qty, unitCents: error ? null : unitCents, amountCents: error ? null : lineAmount(unitCents, qty, { yes: null }), included: { yes: null }, remark: textOf(g("E")).trim(), changed: [], flags: ["eigen", ...(unitCents === null ? (["geen-prijs"] as LineFlag[]) : [])], error });
+      lines.push({ itemId: null, row: r, description: desc.slice(0, 160), unit: textOf(g("B")).trim().slice(0, 40), qtyMilli: qty, unitCents: error ? null : unitCents, amountCents: error ? null : lineAmount(unitCents, qty, { yes: null }), included: { yes: null }, remark: textOf(g("E")).trim().slice(0, 500), changed: [], flags: ["eigen", ...(unitCents === null ? (["geen-prijs"] as LineFlag[]) : [])], error });
     }
   }
   // 4. De kop (vaste namen; een verschoven rij maakt niets uit).
@@ -277,7 +280,7 @@ export async function readTenderSheet(bytes: Uint8Array, name: string, ctx: Read
   let discountBp: bigint | null = null;
   if (kc && kc.value !== null && kc.value.trim() !== "") {
     const raw = kc.value.replace("%", "").trim();
-    const d = parseMilli(raw);
+    const d = parseMilli(raw, kc.type !== "n");
     if (d === undefined || d < 0n) flags.push("korting onleesbaar");
     else {
       // Een cel met %-opmaak bewaart 0,05 voor 5 %; een getypt getal 5.

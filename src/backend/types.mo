@@ -1806,6 +1806,7 @@ module {
     channels : [Text]; // "pdf" · "excel" · "app" · "mail"
     accessCodeId : ?Nat; // de uitnodiging (toegangscode) van de contactpersoon, rol onderaannemer, zonder werf
     sheetKey : Text; // 12 tekens per firma: herkent de teruggestuurde Excel (index sheetKeys)
+    ref : Text; // ondoorzichtige verwijzing (16 tekens) waarmee de OA zijn uitnodiging aanspreekt: nooit een volgnummer (R37)
     createdAt : Int;
     createdBy : PersonId;
     extra : Extra;
@@ -1885,6 +1886,7 @@ module {
     invitesByOrg : Map.Map<Nat, [Nat]>;
     oaQuotesByWork : Map.Map<Nat, [Nat]>;
     sheetKeys : Map.Map<Text, Nat>; // sleutel van de Excel → uitnodiging
+    invitesByRef : Map.Map<Text, Nat>; // verwijzing van de OA → uitnodiging
   };
 
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.

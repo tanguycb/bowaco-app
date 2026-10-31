@@ -2688,7 +2688,6 @@ export const nl = {
     contactNone: "Geen contactpersoon met de rol onderaannemer bij deze firma. Een beheerder of werfleider voegt er een toe bij Firma's & contacten.",
     contactPick: "Kies de contactpersoon",
     ownDeadlineLabel: "Eigen deadline voor deze firma",
-    ownDeadlineReset: "Terug naar de deadline van de prijsvraag",
     declined: "Geen interesse",
     declinedReason: "Reden (niet verplicht)",
     declinedConfirm: (f: string) => `${f} heeft geen interesse?`,

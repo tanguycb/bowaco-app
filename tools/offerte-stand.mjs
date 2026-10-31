@@ -98,7 +98,7 @@ if (typeof who.admin.listTenders === "function") {
   }
   const mine = await res(who.oa.listMyTenders());
   stand.mijnPrijsvragen.lijst = mine;
-  if (mine.ok) for (const b of mine.ok) stand.mijnPrijsvragen[String(b.inviteId)] = await res(who.oa.readMyTender(b.inviteId));
+  if (mine.ok) for (const b of mine.ok) stand.mijnPrijsvragen[b.ref] = await res(who.oa.readMyTender(b.ref));
 }
 const ex = await who.admin.exportIntern();
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;

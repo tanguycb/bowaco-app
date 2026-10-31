@@ -6,6 +6,7 @@
 // · `MyTenderView` (de OA, enkel zijn eigen uitnodiging, R37): posten zonder prijs, werfadres volgens addressMode, contact van
 //   BOWACO, deadline, bijlagen, zijn eigen status en uitkomst. Nooit de klant, een andere firma of hun aantal, een prijs van BOWACO.
 //   Zijn eigen ontwerp en zijn eigen ingediende prijzen enkel via `readMyTenderAnswer` (update-call met auditregel).
+import Storage "mo:caffeineai-object-storage/Storage";
 import Types "../types";
 
 module {
@@ -43,6 +44,7 @@ module {
 
   public type TenderItemView = {
     id : Nat;
+    pos : Nat; // positie binnen de prijsvraag (1, 2 …): zo spreken de OA en de Excel een post aan
     root : Nat;
     lineId : Nat;
     chapter : Text;
@@ -97,6 +99,7 @@ module {
     accessState : Text; // "" (geen code) · "open" · "gebruikt" · "ingetrokken" · "verlopen"
     linked : Bool; // de contactpersoon heeft al een actieve login: geen code nodig
     sheetKey : Text;
+    ref : Text;
     oaQuotes : [OaQuoteBrief];
     createdAt : Int;
   };
@@ -172,10 +175,12 @@ module {
   public type TenderAccessResult = { code : ?Text; expiresAt : ?Int; alreadyLinked : Bool; personName : Text };
 
   // ── De OA (zijn eigen uitnodiging) ───────────────────────────────────────
-  public type MyTenderItem = { id : Nat; chapter : Text; subgroup : Text; code : Text; title : Text; text : Text; unit : Text; qtyMilli : Int; form : Types.ContractForm; order : Nat };
+  // Nergens een globaal id of volgnummer (R37 "ook niet hoeveel"): de uitnodiging heet `ref` (willekeurig), een post `pos`
+  // (positie binnen de prijsvraag), een bijlage `pos`, een ingediende offerte haar versienummer bij deze uitnodiging.
+  public type MyTenderItem = { pos : Nat; chapter : Text; subgroup : Text; code : Text; title : Text; text : Text; unit : Text; qtyMilli : Int; form : Types.ContractForm };
   public type MyTenderAddress = { street : Text; number : Text; zip : Text; city : Text }; // straat en nummer leeg bij "enkel de gemeente"
   public type MyTenderBrief = {
-    inviteId : Nat;
+    ref : Text;
     code : Text;
     title : Text;
     place : Text;
@@ -187,9 +192,11 @@ module {
     canAnswer : Bool; // nu indienen kan (open en vóór de deadline)
     versions : Nat; // zijn ingediende versies
   };
-  public type MyTenderFile = { id : Nat; name : Text; size : Nat };
+  public type MyTenderAttachment = { pos : Nat; name : Text; mime : Text; size : Nat };
+  public type MyTenderFile = { name : Text; size : Nat };
+  public type MyTenderFileOpen = { name : Text; mime : Text; size : Nat; blob : Storage.ExternalBlob };
   public type MyTenderView = {
-    inviteId : Nat;
+    ref : Text;
     code : Text;
     title : Text;
     orgName : Text; // zijn eigen firma
@@ -201,7 +208,7 @@ module {
     outcome : Types.TenderOutcome;
     open : Bool;
     canAnswer : Bool;
-    files : [TenderFileView];
+    files : [MyTenderAttachment];
     items : [MyTenderItem];
     versions : Nat;
     hasDraft : Bool;
@@ -209,22 +216,40 @@ module {
   };
 
   // Met bedragen (update-calls met auditregel).
-  public type OaLineInput = { itemId : ?Nat; description : Text; unit : Text; qtyMilli : Int; unitCents : ?Int; included : Types.OaIncluded; remark : Text };
+  public type OaLineInput = { pos : ?Nat; description : Text; unit : Text; qtyMilli : Int; unitCents : ?Int; included : Types.OaIncluded; remark : Text };
   public type OaDraftInput = { number : Text; quoteDay : ?Day; validUntil : ?Day; discountBp : ?Nat; reverse : Bool; lines : [OaLineInput]; remark : Text };
+  public type MyOaLine = { pos : ?Nat; description : Text; unit : Text; qtyMilli : Int; unitCents : ?Int; amountCents : ?Int; included : Types.OaIncluded; remark : Text; changed : [Text] };
   public type OaDraftView = {
     number : Text;
     quoteDay : ?Day;
     validUntil : ?Day;
     discountBp : ?Nat;
     reverse : Bool;
-    lines : [Types.OaQuoteLine];
-    fileId : ?Nat;
+    lines : [MyOaLine];
     file : ?MyTenderFile;
     remark : Text;
     updatedAt : Int;
     netCents : Int;
   };
-  public type OaQuoteFull = { quote : OaQuoteBrief; netCents : Int; discountBp : ?Nat; lines : [Types.OaQuoteLine]; chapterTotals : [(Text, Int)]; remark : Text; file : ?MyTenderFile };
-  public type MyTenderAnswer = { draft : ?OaDraftView; versions : [OaQuoteFull]; calcVersion : Nat };
-  public type MyTenderSaved = { netCents : Int; oaQuoteId : ?Nat; version : ?Nat };
+  public type MyOaQuoteView = {
+    version : Nat;
+    current : Bool;
+    number : Text;
+    quoteDay : Day;
+    validUntil : ?Day;
+    source : Types.OaQuoteSource;
+    status : Types.OaQuoteStatus;
+    vatRegime : Types.OaVatRegime;
+    createdAt : Int;
+    netCents : Int;
+    discountBp : ?Nat;
+    lines : [MyOaLine];
+    chapterTotals : [(Text, Int)];
+    remark : Text;
+    file : ?MyTenderFile;
+  };
+  // Kantoor (readOaQuote): met de interne verwijzingen.
+  public type OaQuoteFull = { quote : OaQuoteBrief; netCents : Int; discountBp : ?Nat; lines : [Types.OaQuoteLine]; chapterTotals : [(Text, Int)]; remark : Text; file : ?MyTenderFile; fileId : ?Nat };
+  public type MyTenderAnswer = { draft : ?OaDraftView; versions : [MyOaQuoteView]; calcVersion : Nat };
+  public type MyTenderSaved = { netCents : Int; version : ?Nat };
 };

@@ -346,6 +346,7 @@ module {
   public let maxTenderNote : Nat = 4_000;
   public let maxTenderRemindDays : Nat = 30;
   public let maxTenderList : Nat = 400;
+  public let maxOaQuoteVersions : Nat = 20; // indieningen per gevraagde firma
   // Herkomst van een aankoopprijs in een offertelijn (sleutel, naam).
   public func quoteCostSources() : [(Text, Text)] {
     [("bibliotheek", "Uit de postenbibliotheek"), ("oa-offerte", "Offerte van de OA"), ("eigen", "Eigen raming"), ("handmatig", "Met de hand"), ("vorige-versie", "Uit de vorige versie")];

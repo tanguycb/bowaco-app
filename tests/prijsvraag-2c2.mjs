@@ -80,6 +80,9 @@ const rejects = async (p) => { try { await p; return false; } catch { return tru
 const host = process.env.ICP_HOST || "";
 const local = host.includes("localhost") || host.includes("127.0.0.1");
 const opt = (v) => (v === null || v === undefined ? [] : [v]);
+// R37 "ook niet hoeveel": in wat de OA krijgt, staat geen enkel globaal id of volgnummer van de app.
+const ID_KEYS = /^(id|inviteId|tenderId|itemId|fileId|oaQuoteId|orgId|workId|personId|lineId|root|supersedes|accessCodeId|sheetKey)$/;
+const idKeys = (x, out = new Set()) => { if (Array.isArray(x)) x.forEach((y) => idKeys(y, out)); else if (x && typeof x === "object" && !(x instanceof Uint8Array)) for (const [k, v] of Object.entries(x)) { if (ID_KEYS.test(k)) out.add(k); idKeys(v, out); } return [...out]; };
 
 const [admin, calc, wl, oaDak, oaTegels, arch, klant, vc] = await Promise.all(["proef-admin", "proef-calculator", "proef-werfleider", "proef-oa2", "proef-oa", "proef-architect", "proef-klant", "proef-vc"].map((n) => backend(n, cid)));
 const vreemd = await freshBackend(cid);
@@ -218,7 +221,7 @@ const accB = ok(await calc.tenderAccess(invB.id, 0n));
 ok(await oaB.redeemCode(accB.code[0]));
 const invC = ok(await admin.inviteExistingPerson({ personId: FIEN, workIds: [], validDays: 1n, tag: "proef 2c2" }));
 ok(await oaC.redeemCode(invC.code));
-check("(B6) vóór Markeer als verstuurd ziet de OA niets (klaar = niet verstuurd)", (await oaA.listMyTenders()).length === 0 && (await denied(oaA.readMyTender(invA.id))));
+check("(B6) vóór Markeer als verstuurd ziet de OA niets (klaar = niet verstuurd)", (await oaA.listMyTenders()).length === 0 && (await denied(oaA.readMyTender(invA.ref))));
 ok(await calc.updateTenderInvite(invA.id, { markSent: ["pdf", "excel", "app"] }));
 v1 = ok(await calc.readTender(T1));
 const iA = v1.invites.find((i) => i.id === invA.id);
@@ -226,99 +229,133 @@ check("(B6) Markeer als verstuurd: gevraagd, met datum en kanalen; kanaal 'fax' 
 
 // B7. Wat de OA ziet: enkel zijn uitnodiging, het adres volgens de keuze, nooit de klant of een andere firma.
 const mineA = await oaA.listMyTenders();
-const myA = ok(await oaA.readMyTender(invA.id));
-check("(B7) Mijn prijsvragen: enkel de eigen (verstuurde) prijsvraag", mineA.length === 1 && mineA[0].inviteId === invA.id && mineA[0].canAnswer && mineA[0].items === 4n);
+const myA = ok(await oaA.readMyTender(invA.ref));
+check("(B7) Mijn prijsvragen: enkel de eigen (verstuurde) prijsvraag", mineA.length === 1 && mineA[0].ref === invA.ref && /^[0-9A-Z]{16}$/.test(invA.ref) && mineA[0].canAnswer && mineA[0].items === 4n);
 check("(B7) adres: enkel de gemeente (gekozen): geen straat en nummer", myA.address.street === "" && myA.address.number === "" && myA.address.city === "Hoeveldam" && myA.address.zip === "9991" && mineA[0].place === "9991 Hoeveldam");
-check("(B7) contact van BOWACO (de calculator), bericht, deadline, bijlage (enkel het plan), posten zonder id van de offerte", myA.contact.name.length > 0 && myA.noteForOa.includes("Plaatsbezoek") && myA.files.length === 1 && myA.files[0].id === plan && myA.items.length === 4 && !("lineId" in myA.items[0]) && !("root" in myA.items[0]));
+check("(B7) contact van BOWACO (de calculator), bericht, deadline, bijlage (enkel het plan), posten zonder id van de offerte", myA.contact.name.length > 0 && myA.noteForOa.includes("Plaatsbezoek") && myA.files.length === 1 && myA.files[0].name === "plan gelijkvloers (proef).pdf" && myA.items.length === 4 && !("lineId" in myA.items[0]) && !("root" in myA.items[0]));
 const txtA = S(myA) + S(mineA);
 check("(B7) nooit de naam van de klant, een andere firma, de interne notitie of het aantal gevraagde firma's", !txtA.includes("Kievit") && !txtA.includes("Merel") && !txtA.includes("intern: niet voor de OA") && !("invites" in myA) && !txtA.includes("sheetKey"));
+check("(B7) M2: in de lijst en de prijsvraag van de OA staat geen enkel id of volgnummer (enkel de willekeurige verwijzing en posities)", idKeys([mineA, myA]).length === 0 && myA.items.map((x) => x.pos).join() === "1,2,3,4" && myA.files[0].pos === 1n, idKeys([mineA, myA]).join());
 check("(B7) OA B (gevraagd, nog niet verstuurd) ziet niets; OA C (niet gevraagd) ziet niets; Proef Dak (andere firma) niets", (await oaB.listMyTenders()).length === 0 && (await oaC.listMyTenders()).length === 0 && (await oaDak.listMyTenders()).every((x) => x.inviteId !== invA.id));
 ok(await calc.updateTenderInvite(invB.id, { markSent: ["pdf"] }));
-check("(B7) OA B ziet enkel zijn eigen uitnodiging, niet die van A (lezen, antwoord, bijlage, bewaren: geweigerd)", (await oaB.listMyTenders()).length === 1 && (await denied(oaB.readMyTender(invA.id))) && (await denied(oaB.readMyTenderAnswer(invA.id))) && (await denied(oaB.readTenderFile(invA.id, plan))) && (await denied(oaB.saveMyTender(invA.id, { number: "", quoteDay: [], validUntil: [], discountBp: [], reverse: true, lines: [], remark: "" }, false, 0n))));
-check("(B7) OA C (niet gevraagd): elke functie van een uitnodiging geweigerd (geen id-orakel)", (await denied(oaC.readMyTender(invA.id))) && (await denied(oaC.readMyTender(999_999n))) && (await denied(oaC.readTenderFile(invA.id, plan))));
+check("(B7) OA B ziet enkel zijn eigen uitnodiging, niet die van A (lezen, antwoord, bijlage, bewaren: geweigerd)", (await oaB.listMyTenders()).length === 1 && (await denied(oaB.readMyTender(invA.ref))) && (await denied(oaB.readMyTenderAnswer(invA.ref))) && (await denied(oaB.readTenderFile(invA.ref, 1n))) && (await denied(oaB.saveMyTender(invA.ref, { number: "", quoteDay: [], validUntil: [], discountBp: [], reverse: true, lines: [], remark: "" }, false, 0n))));
+check("(B7) OA C (niet gevraagd): elke functie van een uitnodiging geweigerd (geen id-orakel)", (await denied(oaC.readMyTender(invA.ref))) && (await denied(oaC.readMyTender("ZZZZZZZZZZZZZZZZ"))) && (await denied(oaC.readTenderFile(invA.ref, 1n))));
 check("(B7) werfleider, architect, klant, VC en kantoor: Mijn prijsvragen geweigerd", (await Promise.all([wl, arch, klant, vc, calc].map((x) => denied(x.listMyTenders())))).every(Boolean));
 
 // B8. Bijlagen (R39).
-const fA = ok(await oaA.readTenderFile(invA.id, plan));
-check("(B8) de OA leest het plan van de prijsvraag (met opslagverwijzing; auditregel)", fA.id === plan && fA.blob.length === 1 && (await admin.auditLog(0n, 40n)).some((e) => e.action === "bekeek:prijsvraag-bijlage"));
-check("(B8) een bestand van de werf dat niet aan de prijsvraag hangt, of het vertrouwelijke contract: geweigerd", (await denied(oaA.readTenderFile(invA.id, other))) && (await denied(oaA.readTenderFile(invA.id, secret))));
+const fA = ok(await oaA.readTenderFile(invA.ref, 1n));
+check("(B8) de OA leest het plan van de prijsvraag (met opslagverwijzing; auditregel), zonder werf, persoon of id van het bestand", fA.name === "plan gelijkvloers (proef).pdf" && idKeys(fA).length === 0 && !("workId" in fA) && !("personId" in fA) && fA.blob.length > 0 && (await admin.auditLog(0n, 40n)).some((e) => e.action === "bekeek:prijsvraag-bijlage"));
+check("(B8) een bestand van de werf dat niet aan de prijsvraag hangt, of het vertrouwelijke contract: geweigerd", (await denied(oaA.readTenderFile(invA.ref, 2n))) && (await denied(oaA.readTenderFile(invA.ref, 0n))));
 check("(B8) de OA ziet de bestanden van de werf niet (geen lid)", await denied(oaA.listFiles([W1])));
 
 // B9. Ontwerp: enkel zijn firma; kantoor ziet het niet.
 const it = myA.items;
-const lineIn = (x, unitCents, included = { yes: null }, remark = "") => ({ itemId: [x.id], description: "", unit: "", qtyMilli: 0n, unitCents: opt(unitCents), included, remark });
-const draftA = { number: "PROEF-R-1", quoteDay: [], validUntil: [], discountBp: [500n], reverse: true, remark: "verzonnen", lines: [lineIn(it[0], 1234n), lineIn(it[1], 4550n), lineIn(it[2], null, { no: null }), lineIn(it[3], 700n, { alt: "PE-leiding 20 mm" }), { itemId: [], description: "Proef aarding meten", unit: "pst", qtyMilli: 1000n, unitCents: [15_000n], included: { yes: null }, remark: "" }] };
-const sv = ok(await oaA.saveMyTender(invA.id, draftA, false, 0n));
+const lineIn = (x, unitCents, included = { yes: null }, remark = "") => ({ pos: [x.pos], description: "", unit: "", qtyMilli: 0n, unitCents: opt(unitCents), included, remark });
+const draftA = { number: "PROEF-R-1", quoteDay: [], validUntil: [], discountBp: [500n], reverse: true, remark: "verzonnen", lines: [lineIn(it[0], 1234n), lineIn(it[1], 4550n), lineIn(it[2], null, { no: null }), lineIn(it[3], 700n, { alt: "PE-leiding 20 mm" }), { pos: [], description: "Proef aarding meten", unit: "pst", qtyMilli: 1000n, unitCents: [15_000n], included: { yes: null }, remark: "" }] };
+const sv = ok(await oaA.saveMyTender(invA.ref, draftA, false, 0n));
 const expect = totals([{ itemId: 1n, qtyMilli: 12_000n, unitCents: 1234n, included: Y }, { itemId: 2n, qtyMilli: 8_000n, unitCents: 4550n, included: Y }, { itemId: 3n, qtyMilli: 2_000n, unitCents: null, included: { no: null } }, { itemId: 4n, qtyMilli: 15_250n, unitCents: 700n, included: { alt: "x" } }, { itemId: null, qtyMilli: 1000n, unitCents: 15_000n, included: Y }], 500n, () => "h");
-check("(B9) ontwerp bewaard: de server rekent hetzelfde als de browser (tender/calc.ts)", sv.netCents === expect.net && sv.oaQuoteId.length === 0, `${sv.netCents} / ${expect.net}`);
-const ansA = ok(await oaA.readMyTenderAnswer(invA.id));
+check("(B9) ontwerp bewaard: de server rekent hetzelfde als de browser (tender/calc.ts)", sv.netCents === expect.net && sv.version.length === 0, `${sv.netCents} / ${expect.net}`);
+const ansA = ok(await oaA.readMyTenderAnswer(invA.ref));
 check("(B9) de OA leest zijn ontwerp terug (VH en eenheid van BOWACO, bedrag per regel gerekend)", ansA.draft.length === 1 && ansA.draft[0].lines.length === 5 && ansA.draft[0].lines[0].qtyMilli === 12_000n && ansA.draft[0].lines[0].amountCents[0] === 14_808n && ansA.draft[0].lines[2].amountCents.length === 0);
-check("(B9) kantoor ziet het ontwerp niet: geen OA-offerte, geen weg naar het ontwerp (R38)", ok(await calc.readTender(T1)).invites.find((i) => i.id === invA.id).oaQuotes.length === 0 && (await denied(calc.readMyTenderAnswer(invA.id))));
-check("(B9) OA B ziet het ontwerp van A niet (zijn eigen antwoord is leeg)", ok(await oaB.readMyTenderAnswer(invB.id)).draft.length === 0);
-check("(B9) ongeldig: een post van een andere prijsvraag, een post twee keer, een negatieve prijs, een eigen post zonder omschrijving", /hoort niet bij de prijsvraag/.test(errOf(await oaA.saveMyTender(invA.id, { ...draftA, lines: [{ ...lineIn(it[0], 1n), itemId: [ok(await calc.readTender(TW2)).items[0].id] }] }, false, 0n))) && /twee keer/.test(errOf(await oaA.saveMyTender(invA.id, { ...draftA, lines: [lineIn(it[0], 1n), lineIn(it[0], 2n)] }, false, 0n))) && /0 tot/.test(errOf(await oaA.saveMyTender(invA.id, { ...draftA, lines: [lineIn(it[0], -1n)] }, false, 0n))) && /omschrijving/.test(errOf(await oaA.saveMyTender(invA.id, { ...draftA, lines: [{ itemId: [], description: " ", unit: "", qtyMilli: 1000n, unitCents: [1n], included: { yes: null }, remark: "" }] }, false, 0n))));
-check("(B9) meer dan 100 eigen posten, korting boven 50 %: geweigerd", /eigen posten|Te veel regels/.test(errOf(await oaA.saveMyTender(invA.id, { ...draftA, lines: Array.from({ length: 101 }, (_, i) => ({ itemId: [], description: `p${i}`, unit: "", qtyMilli: 1000n, unitCents: [1n], included: { yes: null }, remark: "" })) }, false, 0n))) && /Korting/.test(errOf(await oaA.saveMyTender(invA.id, { ...draftA, discountBp: [6000n] }, false, 0n))));
+check("(B9) kantoor ziet het ontwerp niet: geen OA-offerte, geen weg naar het ontwerp (R38)", ok(await calc.readTender(T1)).invites.find((i) => i.id === invA.id).oaQuotes.length === 0 && (await denied(calc.readMyTenderAnswer(invA.ref))));
+check("(B9) OA B ziet het ontwerp van A niet (zijn eigen antwoord is leeg)", ok(await oaB.readMyTenderAnswer(invB.ref)).draft.length === 0);
+check("(B9) ongeldig: een post van een andere prijsvraag, een post twee keer, een negatieve prijs, een eigen post zonder omschrijving", /hoort niet bij de prijsvraag/.test(errOf(await oaA.saveMyTender(invA.ref, { ...draftA, lines: [{ ...lineIn(it[0], 1n), pos: [99n] }] }, false, 0n))) && /twee keer/.test(errOf(await oaA.saveMyTender(invA.ref, { ...draftA, lines: [lineIn(it[0], 1n), lineIn(it[0], 2n)] }, false, 0n))) && /0 tot/.test(errOf(await oaA.saveMyTender(invA.ref, { ...draftA, lines: [lineIn(it[0], -1n)] }, false, 0n))) && /omschrijving/.test(errOf(await oaA.saveMyTender(invA.ref, { ...draftA, lines: [{ pos: [], description: " ", unit: "", qtyMilli: 1000n, unitCents: [1n], included: { yes: null }, remark: "" }] }, false, 0n))));
+check("(B9) M3: een omschrijving van een eigen post boven 160 tekens, een opmerking boven 500 tekens: geweigerd", /160/.test(errOf(await oaA.saveMyTender(invA.ref, { ...draftA, lines: [{ pos: [], description: "x".repeat(161), unit: "", qtyMilli: 1000n, unitCents: [1n], included: { yes: null }, remark: "" }] }, false, 0n))) && /500/.test(errOf(await oaA.saveMyTender(invA.ref, { ...draftA, lines: [lineIn(it[0], 1n, { yes: null }, "x".repeat(501))] }, false, 0n))));
+check("(B9) meer dan 100 eigen posten, korting boven 50 %: geweigerd", /eigen posten|Te veel regels/.test(errOf(await oaA.saveMyTender(invA.ref, { ...draftA, lines: Array.from({ length: 101 }, (_, i) => ({ pos: [], description: `p${i}`, unit: "", qtyMilli: 1000n, unitCents: [1n], included: { yes: null }, remark: "" })) }, false, 0n))) && /Korting/.test(errOf(await oaA.saveMyTender(invA.ref, { ...draftA, discountBp: [6000n] }, false, 0n))));
 
 // B10. Eigen PDF opladen (R39): vertrouwelijk aan de werf; de OA ziet naam en grootte, nooit de verwijzing.
 const blobA = new TextEncoder().encode("!caf!sha256:" + "5".repeat(64));
 check("(B10) de opslagpoort: een OA met een open uitnodiging (zonder werf) krijgt een uploadcertificaat; OA C (niets open) niet", !(await rejects(oaA._immutableObjectStorageCreateCertificate("sha256:" + "5".repeat(64)))) && (await rejects(oaC._immutableObjectStorageCreateCertificate("sha256:" + "6".repeat(64)))));
-check("(B10) enkel een PDF; een foto geweigerd", /Enkel een PDF/.test(errOf(await oaA.addMyTenderFile(invA.id, "foto.jpg", "image/jpeg", 100n, blobA))));
-const upA = ok(await oaA.addMyTenderFile(invA.id, "offerte Reiger (proef).pdf", "application/pdf", 2048n, blobA));
-const ans2 = ok(await oaA.readMyTenderAnswer(invA.id));
-check("(B10) opgeladen: in zijn ontwerp met naam en grootte, zonder opslagverwijzing", ans2.draft[0].fileId[0] === upA && ans2.draft[0].file[0].name === "offerte Reiger (proef).pdf" && ans2.draft[0].file[0].size === 2048n && !("blob" in ans2.draft[0].file[0]));
+check("(B10) enkel een PDF; een foto geweigerd", /Enkel een PDF/.test(errOf(await oaA.addMyTenderFile(invA.ref, "foto.jpg", "image/jpeg", 100n, blobA))));
+const upA = ok(await oaA.addMyTenderFile(invA.ref, "offerte Reiger (proef).pdf", "application/pdf", 2048n, blobA));
+const ans2 = ok(await oaA.readMyTenderAnswer(invA.ref));
+check("(B10) opgeladen: in zijn ontwerp met naam en grootte, zonder opslagverwijzing", upA.name === "offerte Reiger (proef).pdf" && ans2.draft[0].file[0].name === "offerte Reiger (proef).pdf" && ans2.draft[0].file[0].size === 2048n && !("blob" in ans2.draft[0].file[0]));
 const exC = ok(await admin.exportChunk("confidentialFiles", 0n, 2000n)).files ?? [];
-check("(B10) het bestand is vertrouwelijk aan de werf; het staat niet tussen de losse bestanden (ook niet bij kantoor)", exC.some((f) => f.id === upA && f.confidential && f.workId[0] === W1) && !(await calc.listFiles([W1])).some((f) => f.id === upA) && !(await wl.listFiles([W1])).some((f) => f.id === upA));
-const upA2 = ok(await oaA.addMyTenderFile(invA.id, "offerte Reiger v2 (proef).pdf", "application/pdf", 3000n, blobA));
-check("(B10) een tweede PDF vervangt de eerste in het ontwerp; het bestand van een OA-offerte archiveer je niet via de losse bestanden", ok(await oaA.readMyTenderAnswer(invA.id)).draft[0].fileId[0] === upA2 && /OA-offerte/.test(errOf(await admin.archiveFile(upA2))));
+check("(B10) het bestand is vertrouwelijk aan de werf; het staat niet tussen de losse bestanden (ook niet bij kantoor)", exC.some((f) => f.name === "offerte Reiger (proef).pdf" && f.confidential && f.workId[0] === W1) && !(await calc.listFiles([W1])).some((f) => f.name === "offerte Reiger (proef).pdf") && !(await wl.listFiles([W1])).some((f) => f.name === "offerte Reiger (proef).pdf"));
+const upA2 = ok(await oaA.addMyTenderFile(invA.ref, "offerte Reiger v2 (proef).pdf", "application/pdf", 3000n, blobA));
+const upA2Id = (ok(await admin.exportChunk("confidentialFiles", 0n, 5000n)).files ?? []).find((f) => f.name === "offerte Reiger v2 (proef).pdf" && f.workId[0] === W1).id;
+check("(B10) M1 (R38): kantoor leest de PDF in het ontwerp NIET (calculator en beheerder: zelfde antwoord als een onbekend bestand)", errOf(await calc.readConfidentialFile(upA2Id)) === "Onbekend bestand" && errOf(await admin.readConfidentialFile(upA2Id)) === errOf(await calc.readConfidentialFile(999_999_999n)));
+check("(B10) een tweede PDF vervangt de eerste in het ontwerp; het bestand van een OA-offerte archiveer je niet via de losse bestanden", ok(await oaA.readMyTenderAnswer(invA.ref)).draft[0].file[0].name === upA2.name && /OA-offerte/.test(errOf(await admin.archiveFile(upA2Id))));
 
 // B11. Indienen: de server rekent na; kantoor ziet de offerte; een tweede indiening = versie 2.
-check("(B11) indienen met een ander totaal dan de server: geweigerd, niets ingediend", /totaal klopt niet/.test(errOf(await oaA.saveMyTender(invA.id, draftA, true, sv.netCents + 1n))) && ok(await calc.readTender(T1)).invites.find((i) => i.id === invA.id).oaQuotes.length === 0);
-const sub1 = ok(await oaA.saveMyTender(invA.id, draftA, true, sv.netCents));
+check("(B11) indienen met een ander totaal dan de server: geweigerd, niets ingediend", /totaal klopt niet/.test(errOf(await oaA.saveMyTender(invA.ref, draftA, true, sv.netCents + 1n))) && ok(await calc.readTender(T1)).invites.find((i) => i.id === invA.id).oaQuotes.length === 0);
+const sub1 = ok(await oaA.saveMyTender(invA.ref, draftA, true, sv.netCents));
 v1 = ok(await calc.readTender(T1));
 const iA1 = v1.invites.find((i) => i.id === invA.id);
-check("(B11) ingediend: versie 1, bron app, ontvangen, met de PDF; het ontwerp is weg", sub1.version[0] === 1n && "received" in iA1.status && iA1.answeredAt.length === 1 && iA1.oaQuotes.length === 1 && "app" in iA1.oaQuotes[0].source && iA1.oaQuotes[0].fileId[0] === upA2 && ok(await oaA.readMyTenderAnswer(invA.id)).draft.length === 0);
+check("(B11) ingediend: versie 1, bron app, ontvangen, met de PDF; het ontwerp is weg", sub1.version[0] === 1n && "received" in iA1.status && iA1.answeredAt.length === 1 && iA1.oaQuotes.length === 1 && "app" in iA1.oaQuotes[0].source && iA1.oaQuotes[0].fileId[0] === upA2Id && isOk(await calc.readConfidentialFile(upA2Id)) && ok(await oaA.readMyTenderAnswer(invA.ref)).draft.length === 0);
 check("(B11) de calculator krijgt een melding (zonder bedrag)", (await calc.myNotifications(true)).some((n) => n.kind === "prijsvraag-ingediend" && n.text.includes("Reiger") && !/€|\d+,\d\d/.test(n.text)));
-const full1 = ok(await calc.readOaQuote(sub1.oaQuoteId[0]));
-check("(B11) kantoor leest de bedragen (update-call, auditregel bekeek:oa-offerte): netto, korting, regels, totalen per hoofdstuk", full1.netCents === expect.net && full1.discountBp[0] === 500n && full1.lines.length === 5 && S(full1.chapterTotals.map((x) => x[0])) === S(["05 Proef elektriciteit", "06 Proef sanitair", "Eigen posten"]) && "reverse" in full1.quote.vatRegime && (await admin.auditLog(0n, 30n)).some((e) => e.action === `bekeek:oa-offerte:${sub1.oaQuoteId[0]}` && !/\d{3,}/.test(e.detail.replace(/v\d+/, ""))));
-check("(B11) de bedragen: werfleider, OA zelf (via kantoorfunctie), architect, klant geweigerd", (await Promise.all([wl, oaA, arch, klant].map((x) => denied(x.readOaQuote(sub1.oaQuoteId[0]))))).every(Boolean));
-const sub2 = ok(await oaA.saveMyTender(invA.id, { ...draftA, lines: draftA.lines.slice(0, 2) }, true, totals([{ itemId: 1n, qtyMilli: 12_000n, unitCents: 1234n, included: Y }, { itemId: 2n, qtyMilli: 8_000n, unitCents: 4550n, included: Y }], 500n, () => "").net));
+const oq1 = iA1.oaQuotes[0].id;
+const full1 = ok(await calc.readOaQuote(oq1));
+check("(B11) kantoor leest de bedragen (update-call, auditregel bekeek:oa-offerte): netto, korting, regels, totalen per hoofdstuk", full1.netCents === expect.net && full1.discountBp[0] === 500n && full1.lines.length === 5 && S(full1.chapterTotals.map((x) => x[0])) === S(["05 Proef elektriciteit", "06 Proef sanitair", "Eigen posten"]) && "reverse" in full1.quote.vatRegime && (await admin.auditLog(0n, 30n)).some((e) => e.action === `bekeek:oa-offerte:${oq1}` && !/\d{3,}/.test(e.detail.replace(/v\d+/, ""))));
+check("(B11) de bedragen: werfleider, OA zelf (via kantoorfunctie), architect, klant geweigerd", (await Promise.all([wl, oaA, arch, klant].map((x) => denied(x.readOaQuote(oq1))))).every(Boolean));
+const sub2 = ok(await oaA.saveMyTender(invA.ref, { ...draftA, lines: draftA.lines.slice(0, 2) }, true, totals([{ itemId: 1n, qtyMilli: 12_000n, unitCents: 1234n, included: Y }, { itemId: 2n, qtyMilli: 8_000n, unitCents: 4550n, included: Y }], 500n, () => "").net));
 const qs = ok(await calc.readTender(T1)).invites.find((i) => i.id === invA.id).oaQuotes;
-check("(B11) opnieuw indienen = versie 2 die versie 1 vervangt (versie 1 blijft in de historiek)", sub2.version[0] === 2n && qs.length === 2 && qs[1].supersedes[0] === sub1.oaQuoteId[0] && qs[1].current && !qs[0].current);
-check("(B11) de OA ziet zijn eigen ingediende versies met zijn prijzen", ok(await oaA.readMyTenderAnswer(invA.id)).versions.length === 2 && ok(await oaA.readMyTender(invA.id)).versions === 2n);
+check("(B11) opnieuw indienen = versie 2 die versie 1 vervangt (versie 1 blijft in de historiek)", sub2.version[0] === 2n && qs.length === 2 && qs[1].supersedes[0] === oq1 && qs[1].current && !qs[0].current);
+check("(B11) de OA ziet zijn eigen ingediende versies met zijn prijzen", ok(await oaA.readMyTenderAnswer(invA.ref)).versions.length === 2 && ok(await oaA.readMyTender(invA.ref)).versions === 2n);
+
+check("(B11) M2: zijn antwoord (ontwerp en versies) draagt geen id: posten als positie, versies als nummer", idKeys(ok(await oaA.readMyTenderAnswer(invA.ref))).length === 0 && ok(await oaA.readMyTenderAnswer(invA.ref)).versions.map((x) => x.version).join() === "1,2" && ok(await oaA.readMyTenderAnswer(invA.ref)).versions[0].lines[0].pos[0] === 1n, idKeys(ok(await oaA.readMyTenderAnswer(invA.ref))).join());
+{
+  // M3: hoogstens 20 indieningen per firma.
+  const small = { ...draftA, discountBp: [], lines: draftA.lines.slice(0, 1) };
+  const net = totals([{ itemId: 1n, qtyMilli: 12_000n, unitCents: 1234n, included: Y }], null, () => "").net;
+  for (let v = 3; v <= 20; v++) ok(await oaA.saveMyTender(invA.ref, small, true, net));
+  check("(B11) M3: hoogstens 20 versies per firma; de 21ste geweigerd (L6: versienummer = hoogste + 1)", /Hoogstens 20 ingediende versies/.test(errOf(await oaA.saveMyTender(invA.ref, small, true, net))) && ok(await oaA.readMyTender(invA.ref)).versions === 20n);
+}
 
 // B12. Geen interesse, eigen deadline, verlengen.
-ok(await oaB.declineMyTender(invB.id, "geen tijd (verzonnen)"));
+ok(await oaB.declineMyTender(invB.ref, "geen tijd (verzonnen)"));
 check("(B12) OA B: geen interesse → kantoor ziet de stand en de reden, en krijgt een melding", "declined" in ok(await calc.readTender(T1)).invites.find((i) => i.id === invB.id).status && (await calc.myNotifications(true)).some((n) => n.kind === "prijsvraag-geen-interesse"));
-check("(B12) wie al indiende, kan geen 'geen interesse' meer zeggen", /al een offerte/.test(errOf(await oaA.declineMyTender(invA.id, ""))));
+check("(B12) wie al indiende, kan geen 'geen interesse' meer zeggen", /al een offerte/.test(errOf(await oaA.declineMyTender(invA.ref, ""))));
 const own = sug.deadlineDay + 7n;
 ok(await calc.updateTenderInvite(invB.id, { extend: [own] }));
-check("(B12) eigen deadline voor één firma: de OA ziet ze; de andere firma niet", ok(await oaB.readMyTender(invB.id)).deadlineDay === own && ok(await oaA.readMyTender(invA.id)).deadlineDay === sug.deadlineDay);
+check("(B12) eigen deadline voor één firma: de OA ziet ze; de andere firma niet", ok(await oaB.readMyTender(invB.ref)).deadlineDay === own && ok(await oaA.readMyTender(invA.ref)).deadlineDay === sug.deadlineDay);
 const rev = ok(await calc.readTender(T1)).rev;
 check("(B12) verlengen met een oude stand: geweigerd (iemand anders wijzigde)", /laad opnieuw/.test(errOf(await calc.updateTender(T1, rev + 5n, { extend: sug.deadlineDay + 2n }))));
+check("(B12) L3: vervroegen geweigerd (prijsvraag en eigen deadline)", /latere datum/.test(errOf(await calc.updateTender(T1, rev, { extend: sug.deadlineDay - 1n }))) && /later vallen/.test(errOf(await calc.updateTenderInvite(invB.id, { extend: [own - 1n] }))) && /minder tijd/.test(errOf(await calc.updateTenderInvite(invB.id, { extend: [] }))));
 ok(await calc.updateTender(T1, rev, { extend: sug.deadlineDay + 2n }));
-check("(B12) verlengd: de deadline van de prijsvraag schuift (de eigen deadline van B blijft)", ok(await oaA.readMyTender(invA.id)).deadlineDay === sug.deadlineDay + 2n && ok(await oaB.readMyTender(invB.id)).deadlineDay === own);
+check("(B12) verlengd: de deadline van de prijsvraag schuift (de eigen deadline van B blijft)", ok(await oaA.readMyTender(invA.ref)).deadlineDay === sug.deadlineDay + 2n && ok(await oaB.readMyTender(invB.ref)).deadlineDay === own);
 
 // B13. Firma erbij, annuleren, afsluiten, 90 dagen.
 const addC = ok(await calc.addTenderFirm(T1, { orgId: FUUT, contactPersonId: [] }));
-check("(B13) firma erbij terwijl de prijsvraag loopt (dezelfde controlecode); dezelfde firma nog eens: geweigerd", ok(await calc.readTender(T1)).invites.length === 3 && ok(await calc.readTender(T1)).sentHash === v1.sentHash && /al gevraagd/.test(errOf(await calc.addTenderFirm(T1, { orgId: FUUT, contactPersonId: [] }))));
+ok(await calc.updateTenderInvite(addC, { declined: "telefonisch, vóór het versturen" }));
+check("(B13) L1: 'geen interesse' door kantoor vóór het versturen maakt niets zichtbaar voor de OA", !(await oaC.listMyTenders()).some((x) => x.code === v1.code));
+{
+  // Keuze 5 en L4: de calculator maakt een code enkel voor iemand zonder werf; een ander contact trekt de open code in.
+  const LID = await orgOf(`Proef Lid 2c2 ${suffix}`);
+  const pLid = await personOf(LID, `Proef Lid ${suffix}`);
+  const pVrij = await personOf(LID, `Proef Vrij ${suffix}`);
+  ok(await admin.addMembership(W2, [pLid], [], { onderaannemer: null }, []));
+  const invL = ok(await calc.addTenderFirm(T1, { orgId: LID, contactPersonId: [pLid] }));
+  check("(B13) keuze 5: toegang voor iemand die al lid is van een werf: geweigerd met de weg 'Toegang geven'", /al lid van een werf.*Toegang geven/.test(errOf(await calc.tenderAccess(invL, 0n))));
+  ok(await calc.updateTenderInvite(invL, { contact: [pVrij] }));
+  const accV = ok(await calc.tenderAccess(invL, 0n));
+  const withCode = ok(await calc.readTender(T1)).invites.find((i) => i.id === invL);
+  ok(await calc.updateTenderInvite(invL, { contact: [pLid] }));
+  const after = ok(await calc.readTender(T1)).invites.find((i) => i.id === invL);
+  const stray = await freshBackend(cid);
+  check("(B13) L4: een ander contact kiezen trekt de open code in (verwijzing leeg, code onbruikbaar)", withCode.accessCodeId.length === 1 && after.accessCodeId.length === 0 && "err" in (await stray.redeemCode(accV.code[0])));
+}
+check("(B13) firma erbij terwijl de prijsvraag loopt (dezelfde controlecode); dezelfde firma nog eens: geweigerd", ok(await calc.readTender(T1)).invites.length === 4 && ok(await calc.readTender(T1)).sentHash === v1.sentHash && /al gevraagd/.test(errOf(await calc.addTenderFirm(T1, { orgId: FUUT, contactPersonId: [] }))));
 ok(await calc.updateTenderInvite(addC, { markSent: ["mail"] }));
-check("(B13) OA C ziet nu de prijsvraag aan zijn firma", (await oaC.listMyTenders()).some((x) => x.inviteId === addC));
+const refC = ok(await calc.readTender(T1)).invites.find((i) => i.id === addC).ref;
+check("(B13) OA C ziet nu de prijsvraag aan zijn firma", (await oaC.listMyTenders()).some((x) => x.ref === refC));
 const b1 = ok(await calc.readTender(T1b));
 ok(await calc.updateTenderInvite(b1.invites[0].id, { markSent: ["pdf"] }));
-check("(B13) annuleren vraagt een reden; daarna ziet de OA niets meer", /reden/.test(errOf(await calc.updateTender(T1b, b1.rev, { cancel: "x" }))) && isOk(await calc.updateTender(T1b, b1.rev, { cancel: "proef: niet meer nodig" })) && !(await oaC.listMyTenders()).some((x) => x.inviteId === b1.invites[0].id) && (await denied(oaC.readMyTender(b1.invites[0].id))));
+check("(B13) annuleren vraagt een reden; daarna ziet de OA niets meer", /reden/.test(errOf(await calc.updateTender(T1b, b1.rev, { cancel: "x" }))) && isOk(await calc.updateTender(T1b, b1.rev, { cancel: "proef: niet meer nodig" })) && !(await oaC.listMyTenders()).some((x) => x.ref === b1.invites[0].ref) && (await denied(oaC.readMyTender(b1.invites[0].ref))));
 check("(B13) een geannuleerde prijsvraag: niets meer te wijzigen", /geannuleerd/.test(errOf(await calc.updateTenderInvite(b1.invites[0].id, { markSent: ["pdf"] }))));
 const rv = ok(await calc.readTender(T1)).rev;
 check("(B13) afsluiten met een firma die niet gevraagd is: geweigerd", /niet gevraagd/.test(errOf(await calc.updateTender(T1, rv, { close: [999_999n] }))));
-ok(await calc.updateTender(T1, rv, { close: [invA.id] }));
+ok(await calc.updateTender(T1, rv, { close: [invA.id, invA.id] })); // L5: dubbel = één keer
 const closed = ok(await calc.readTender(T1));
 check("(B13) afgesloten: Reiger gekozen, de anderen bedankt", "closed" in closed.status && "chosen" in closed.invites.find((i) => i.id === invA.id).outcome && "thanked" in closed.invites.find((i) => i.id === invB.id).outcome);
-const afterA = ok(await oaA.readMyTender(invA.id));
-const afterB = ok(await oaB.readMyTender(invB.id));
-check("(B13) na het afsluiten: elke OA ziet enkel zijn eigen uitkomst, alleen lezen (niet meer indienen of opladen)", "chosen" in afterA.outcome && "thanked" in afterB.outcome && !afterA.canAnswer && !afterA.open && /enkel lezen/.test(errOf(await oaA.saveMyTender(invA.id, draftA, false, 0n))) && /enkel lezen/.test(errOf(await oaA.addMyTenderFile(invA.id, "x.pdf", "application/pdf", 10n, blobA))) && !S(afterB).includes("Reiger"));
+const afterA = ok(await oaA.readMyTender(invA.ref));
+const afterB = ok(await oaB.readMyTender(invB.ref));
+check("(B13) na het afsluiten: elke OA ziet enkel zijn eigen uitkomst, alleen lezen (niet meer indienen of opladen)", "chosen" in afterA.outcome && "thanked" in afterB.outcome && !afterA.canAnswer && !afterA.open && /enkel lezen/.test(errOf(await oaA.saveMyTender(invA.ref, draftA, false, 0n))) && /enkel lezen/.test(errOf(await oaA.addMyTenderFile(invA.ref, "x.pdf", "application/pdf", 10n, blobA))) && !S(afterB).includes("Reiger"));
 check("(B13) wie niet gekozen is, ziet niet wie wel (geen naam, geen prijs)", !S(afterB).includes("Reiger") && !S(await oaB.listMyTenders()).includes("Reiger"));
 
 // B14. Export: het domein zit in de bewaarkopie (intern zonder bedragen, vertrouwelijk apart).
 const exI = await admin.exportIntern();
-check("(B14) export intern: prijsvragen, posten, firma's en OA-offertes, zonder bedragen", exI.tenders.some((x) => x.id === T1) && exI.tenderItems.length >= 4 && exI.tenderInvites.some((x) => x.id === invA.id) && exI.oaQuotes.some((x) => x.id === sub1.oaQuoteId[0]) && !S(exI.oaQuotes).includes("netCents"));
+check("(B14) export intern: prijsvragen, posten, firma's en OA-offertes, zonder bedragen", exI.tenders.some((x) => x.id === T1) && exI.tenderItems.length >= 4 && exI.tenderInvites.some((x) => x.id === invA.id) && exI.oaQuotes.some((x) => x.id === oq1) && !S(exI.oaQuotes).includes("netCents"));
 check("(B14) export vertrouwelijk: bedragen en ontwerpen; enkel de beheerder (calculator en werfleider geweigerd)", isOk(await admin.exportChunk("oaQuoteAmounts", 0n, 50n)) && isOk(await admin.exportChunk("oaQuoteDrafts", 0n, 50n)) && (await Promise.all([calc, wl].map((x) => denied(x.exportChunk("oaQuoteAmounts", 0n, 5n))))).every(Boolean));
 
 // B15. De klokjob: herinnering (één keer) en "geen antwoord" na de deadline; 90 dagen na afsluiten niets meer. Enkel lokaal.
@@ -354,24 +391,29 @@ if (local && !process.env.ZONDER_KLOK) {
     // Een prijsvraag met deadline over 10 werkdagen en een herinnering 3 werkdagen vooraf; Merel gevraagd vandaag.
     const sg = ok(await calc.tenderSuggestions(R1.version.id, [items1[0].id]));
     const T3 = ok(await calc.createTender(base({ title: "Proef klok", lineIds: [items1[0].id], firms: [{ orgId: MEREL, contactPersonId: [] }], deadlineDay: sg.deadlineDay })));
+    // L2: een firma die pas na de herinneringsdag gevraagd wordt (herinnering 30 werkdagen vooraf), krijgt geen herinnering.
+    const T4 = ok(await calc.createTender(base({ title: "Proef klok laat gevraagd", lineIds: [items1[0].id], firms: [{ orgId: MEREL, contactPersonId: [] }], deadlineDay: sg.deadlineDay, remindDays: 30n })));
+    ok(await calc.updateTenderInvite(ok(await calc.readTender(T4)).invites[0].id, { markSent: ["pdf"] }));
     const inv3 = ok(await calc.readTender(T3)).invites[0].id;
+    const ref3 = ok(await calc.readTender(T3)).invites[0].ref;
     ok(await calc.updateTenderInvite(inv3, { markSent: ["pdf"] }));
     const days = Number(sg.deadlineDay - ok(await calc.readTender(T3)).invites[0].askedDay[0]);
     // Naar 1 dag vóór de deadline: de herinnering is dan zeker gevallen (3 werkdagen vooraf), de deadline nog niet.
     await advance(BigInt(days - 1) * DAY);
     const rem = await waitFor(async () => "reminded" in ok(await calc.readTender(T3)).invites[0].status);
     check("(B15) klokjob: op de dag van de herinnering → herinnerd, met een melding 'Herinner …' aan de calculator", rem && (await calc.myNotifications(true)).some((n) => n.kind === "prijsvraag-herinner" && n.text.includes("Merel")));
+    check("(B15) L2: wie na de herinneringsdag gevraagd werd, krijgt geen herinnering", "asked" in ok(await calc.readTender(T4)).invites[0].status);
     const n1 = (await calc.myNotifications(true)).filter((n) => n.kind === "prijsvraag-herinner" && n.text.includes("Proef klok")).length;
     await advance(30n * 60n * 1_000_000_000n);
     check("(B15) de herinnering valt één keer per firma (een volgende ronde herinnert niet opnieuw)", (await calc.myNotifications(true)).filter((n) => n.kind === "prijsvraag-herinner" && n.text.includes("Proef klok")).length === n1);
     await advance(2n * DAY);
     const none = await waitFor(async () => "noAnswer" in ok(await calc.readTender(T3)).invites[0].status);
-    check("(B15) na de deadline zonder antwoord → geen antwoord, met een melding; de OA kan niet meer indienen", none && (await calc.myNotifications(true)).some((n) => n.kind === "prijsvraag-geen-antwoord" && n.text.includes("Proef klok")) && !ok(await oaB.readMyTender(inv3)).canAnswer);
+    check("(B15) na de deadline zonder antwoord → geen antwoord, met een melding; de OA kan niet meer indienen", none && (await calc.myNotifications(true)).some((n) => n.kind === "prijsvraag-geen-antwoord" && n.text.includes("Proef klok")) && !ok(await oaB.readMyTender(ref3)).canAnswer);
     const rv3 = ok(await calc.readTender(T3)).rev;
     ok(await calc.updateTender(T3, rv3, { extend: ok(await calc.tenderSuggestions(R1.version.id, [])).deadlineDay }));
-    check("(B15) verlengen na 'geen antwoord': de firma mag weer antwoorden (stand terug naar herinnerd)", "reminded" in ok(await calc.readTender(T3)).invites[0].status && ok(await oaB.readMyTender(inv3)).canAnswer);
+    check("(B15) verlengen na 'geen antwoord': de firma mag weer antwoorden (stand terug naar herinnerd)", "reminded" in ok(await calc.readTender(T3)).invites[0].status && ok(await oaB.readMyTender(ref3)).canAnswer);
     // 90 dagen na het afsluiten van T1: de OA ziet niets meer.
-    check("(B15) kort na het afsluiten ziet de OA zijn uitkomst nog", (await oaA.listMyTenders()).some((x) => x.inviteId === invA.id));
+    check("(B15) kort na het afsluiten ziet de OA zijn uitkomst nog", (await oaA.listMyTenders()).some((x) => x.ref === invA.ref));
     // 91 dagen kosten de canister op het eigen net veel cycles (opslag): eerst bijvullen, anders bevriest hij (IC0207).
     // (Via PocketIC zelf: de icp-cli weigert na het verzetten van de klok, zijn aanvraag "verloopt" dan in het verleden.)
     const topUp = async () => {
@@ -383,7 +425,7 @@ if (local && !process.env.ZONDER_KLOK) {
     await topUp();
     await advance(91n * DAY);
     await topUp();
-    check("(B15) 90 dagen na het afsluiten: niets meer (lijst, lezen, bijlage)", !(await oaA.listMyTenders()).some((x) => x.inviteId === invA.id) && (await denied(oaA.readMyTender(invA.id))) && (await denied(oaA.readTenderFile(invA.id, plan))));
+    check("(B15) 90 dagen na het afsluiten: niets meer (lijst, lezen, bijlage)", !(await oaA.listMyTenders()).some((x) => x.ref === invA.ref) && (await denied(oaA.readMyTender(invA.ref))) && (await denied(oaA.readTenderFile(invA.ref, 1n))));
   }
 } else console.log("· (B15) klokproef enkel op het eigen net (lokaal)");
 

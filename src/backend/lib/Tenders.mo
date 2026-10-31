@@ -178,8 +178,8 @@ module {
     };
   };
 
-  public func itemView(x : Types.TenderItem) : TV.TenderItemView {
-    { id = x.id; root = x.root; lineId = x.lineId; chapter = x.chapter; subgroup = x.subgroup; code = x.code; title = x.title; text = x.text; unit = x.unit; qtyMilli = x.qtyMilli; form = x.form; order = x.order; key = x.key };
+  public func itemView(x : Types.TenderItem, pos : Nat) : TV.TenderItemView {
+    { id = x.id; pos; root = x.root; lineId = x.lineId; chapter = x.chapter; subgroup = x.subgroup; code = x.code; title = x.title; text = x.text; unit = x.unit; qtyMilli = x.qtyMilli; form = x.form; order = x.order; key = x.key };
   };
 
   public func fileView(c : Ctx, id : Nat) : ?TV.TenderFileView {
@@ -244,6 +244,7 @@ module {
       accessState = accessState(c, i.accessCodeId);
       linked = switch (i.contactPersonId) { case (?p) Access.hasActiveLink(c.access, p); case null false };
       sheetKey = i.sheetKey;
+      ref = i.ref;
       oaQuotes = oaQuotesOfInvite(ts, i, t.workId).map(func(q : Types.OaQuote) : TV.OaQuoteBrief = oaQuoteBrief(c, ts, q));
       createdAt = i.createdAt;
     };
@@ -275,7 +276,7 @@ module {
       sentHash = t.sentHash;
       rev = t.rev;
       contact = contactOf(c, t);
-      items = itemsOf(ts, t.id).map(itemView);
+      items = do { let xs = itemsOf(ts, t.id); Array.tabulate<TV.TenderItemView>(xs.size(), func(k : Nat) : TV.TenderItemView = itemView(xs[k], k + 1)) };
       invites = invitesOf(ts, t.id).map(func(i : Types.TenderInvite) : TV.TenderInviteView = inviteView(c, ts, t, i));
       createdAt = t.createdAt;
       createdByName = Access.personName(c.access, t.createdBy);
@@ -284,8 +285,27 @@ module {
   };
 
   // ── De OA: enkel zijn eigen uitnodiging ──────────────────────────────────
-  public func myItem(x : Types.TenderItem) : TV.MyTenderItem {
-    { id = x.id; chapter = x.chapter; subgroup = x.subgroup; code = x.code; title = x.title; text = x.text; unit = x.unit; qtyMilli = x.qtyMilli; form = x.form; order = x.order };
+  public func myItem(x : Types.TenderItem, pos : Nat) : TV.MyTenderItem {
+    { pos; chapter = x.chapter; subgroup = x.subgroup; code = x.code; title = x.title; text = x.text; unit = x.unit; qtyMilli = x.qtyMilli; form = x.form };
+  };
+
+  // De bijlagen zoals de OA ze ziet: positie, naam, soort, grootte (geen id van het bestand).
+  public func myAttachments(c : Ctx, t : Types.Tender) : [TV.MyTenderAttachment] {
+    var out : [TV.MyTenderAttachment] = [];
+    for ((k, id) in t.fileIds.enumerate()) {
+      switch (fileView(c, id)) { case (?f) { out := out.concat([{ pos = k + 1; name = f.name; mime = f.mime; size = f.size }]) }; case null {} };
+    };
+    out;
+  };
+
+  // De post op positie `pos` (1, 2 …) van een prijsvraag, en omgekeerd.
+  public func itemAt(ts : TS, tenderId : Nat, pos : Nat) : ?Types.TenderItem {
+    let xs = itemsOf(ts, tenderId);
+    if (pos == 0 or pos > xs.size()) null else ?xs[pos - 1];
+  };
+  public func posOf(ts : TS, tenderId : Nat, itemId : Nat) : ?Nat {
+    for ((k, x) in itemsOf(ts, tenderId).enumerate()) { if (x.id == itemId) { return ?(k + 1) } };
+    null;
   };
 
   func addressFor(c : Ctx, t : Types.Tender) : TV.MyTenderAddress {
@@ -294,7 +314,7 @@ module {
 
   public func myBrief(c : Ctx, ts : TS, t : Types.Tender, i : Types.TenderInvite, canAnswer : Bool) : TV.MyTenderBrief {
     {
-      inviteId = i.id;
+      ref = i.ref;
       code = t.code;
       title = t.title;
       place = placeText(addressFor(c, t));
@@ -310,7 +330,7 @@ module {
 
   public func myView(c : Ctx, ts : TS, t : Types.Tender, i : Types.TenderInvite, canAnswer : Bool) : TV.MyTenderView {
     {
-      inviteId = i.id;
+      ref = i.ref;
       code = t.code;
       title = t.title;
       orgName = orgName(c, i.orgId);
@@ -322,8 +342,8 @@ module {
       outcome = i.outcome;
       open = t.status == #open;
       canAnswer;
-      files = t.fileIds.filterMap(func(id : Nat) : ?TV.TenderFileView = fileView(c, id));
-      items = itemsOf(ts, t.id).map(myItem);
+      files = myAttachments(c, t);
+      items = do { let xs = itemsOf(ts, t.id); Array.tabulate<TV.MyTenderItem>(xs.size(), func(k : Nat) : TV.MyTenderItem = myItem(xs[k], k + 1)) };
       versions = oaQuotesOfInvite(ts, i, t.workId).filter(func(q : Types.OaQuote) : Bool = q.source == #app).size();
       hasDraft = ts.drafts.containsKey(i.id);
       sentHash = t.sentHash;
@@ -331,7 +351,7 @@ module {
   };
 
   public func myFile(c : Ctx, id : ?Nat) : ?TV.MyTenderFile {
-    switch id { case (?x) { switch (c.files.files.get(x)) { case (?f) { if (f.archivedAt == null) ?{ id = f.id; name = f.name; size = f.size } else null }; case null null } }; case null null };
+    switch id { case (?x) { switch (c.files.files.get(x)) { case (?f) { if (f.archivedAt == null) ?{ name = f.name; size = f.size } else null }; case null null } }; case null null };
   };
 
   // ── Met bedragen (enkel voor update-calls met een auditregel) ────────────
@@ -349,18 +369,55 @@ module {
       chapterTotals = switch a { case (?x) x.chapterTotals; case null [] };
       remark = switch a { case (?x) x.remark; case null "" };
       file = myFile(c, q.fileId);
+      fileId = q.fileId;
     };
   };
 
-  public func draftView(c : Ctx, ts : TS, d : Types.OaQuoteDraft) : TV.OaDraftView {
+  // Een regel zoals de OA ze ziet: de positie van de post in plaats van het interne id.
+  public func myLine(ts : TS, tenderId : Nat, l : Types.OaQuoteLine) : TV.MyOaLine {
+    {
+      pos = switch (l.itemId) { case (?id) posOf(ts, tenderId, id); case null null };
+      description = l.description;
+      unit = l.unit;
+      qtyMilli = l.qtyMilli;
+      unitCents = l.unitCents;
+      amountCents = l.amountCents;
+      included = l.included;
+      remark = l.remark;
+      changed = l.changed;
+    };
+  };
+
+  // Een ingediende versie zoals de OA ze ziet (zonder id's).
+  public func myQuote(c : Ctx, ts : TS, tenderId : Nat, q : Types.OaQuote, current : Bool) : TV.MyOaQuoteView {
+    let a = amountsOf(ts, q.id);
+    {
+      version = q.version;
+      current;
+      number = q.number;
+      quoteDay = q.quoteDay;
+      validUntil = q.validUntil;
+      source = q.source;
+      status = q.status;
+      vatRegime = q.vatRegime;
+      createdAt = q.createdAt;
+      netCents = switch a { case (?x) x.netCents; case null 0 };
+      discountBp = switch a { case (?x) x.discountBp; case null null };
+      lines = switch a { case (?x) x.lines.map(func(l : Types.OaQuoteLine) : TV.MyOaLine = myLine(ts, tenderId, l)); case null [] };
+      chapterTotals = switch a { case (?x) x.chapterTotals; case null [] };
+      remark = switch a { case (?x) x.remark; case null "" };
+      file = myFile(c, q.fileId);
+    };
+  };
+
+  public func draftView(c : Ctx, ts : TS, tenderId : Nat, d : Types.OaQuoteDraft) : TV.OaDraftView {
     {
       number = d.number;
       quoteDay = d.quoteDay;
       validUntil = d.validUntil;
       discountBp = d.discountBp;
       reverse = d.reverse;
-      lines = d.lines;
-      fileId = d.fileId;
+      lines = d.lines.map(func(l : Types.OaQuoteLine) : TV.MyOaLine = myLine(ts, tenderId, l));
       file = myFile(c, d.fileId);
       remark = d.remark;
       updatedAt = d.updatedAt;
@@ -394,12 +451,14 @@ module {
     ts.invitesByOrg.clear();
     ts.oaQuotesByWork.clear();
     ts.sheetKeys.clear();
+    ts.invitesByRef.clear();
     for (t in ts.tenders.values()) { addIndex(ts.byWork, t.workId, t.id) };
     for (x in ts.items.values()) { addIndex(ts.itemsByTender, x.tenderId, x.id) };
     for (i in ts.invites.values()) {
       addIndex(ts.invitesByTender, i.tenderId, i.id);
       addIndex(ts.invitesByOrg, i.orgId, i.id);
       if (i.sheetKey != "") { ts.sheetKeys.add(i.sheetKey, i.id) };
+      if (i.ref != "") { ts.invitesByRef.add(i.ref, i.id) };
     };
     for (q in ts.oaQuotes.values()) { addIndex(ts.oaQuotesByWork, q.workId, q.id) };
   };
@@ -415,6 +474,28 @@ module {
       tries += 1;
     };
     "";
+  };
+
+  // De verwijzing van de OA (16 tekens, Crockford base32 uit raw_rand): willekeurig, uniek, nooit een volgnummer (R37).
+  public func newRef(ts : TS, entropy : Blob, salt : Nat) : Text {
+    var n = salt;
+    var tries = 0;
+    while (tries < 20) {
+      let k = Codes.fromEntropy(Sha256.fromBlob(#sha256, ("bowaco-oa-ref-v1|" # n.toText() # "|" # Codes.hex(entropy)).encodeUtf8()), 16);
+      if (k != "" and not ts.invitesByRef.containsKey(k)) { return k };
+      n += 1_000;
+      tries += 1;
+    };
+    "";
+  };
+
+  // De bestanden die enkel in een ontwerp van een OA zitten (nog niet ingediend): kantoor leest ze niet (R38).
+  public func draftOnlyFiles(ts : TS) : Map.Map<Nat, Bool> {
+    let sent = Map.empty<Nat, Bool>();
+    for (q in ts.oaQuotes.values()) { switch (q.fileId) { case (?f) sent.add(f, true); case null {} } };
+    let m = Map.empty<Nat, Bool>();
+    for (c in ts.drafts.values()) { switch (plain(c)) { case (?d) { switch (d.fileId) { case (?f) { if (not sent.containsKey(f)) m.add(f, true) }; case null {} } }; case null {} } };
+    m;
   };
 
   // ── Klokjob (Post.tick, elke 10 min): herinnering en "geen antwoord", één keer per uitnodiging ──
@@ -446,7 +527,9 @@ module {
             n += 1;
           } else if (i.status == #asked and i.remindedDay == null and t.remindDays > 0) {
             let rd = Plan.addWorkdays(cal, dl, -t.remindDays);
-            if (today >= rd and today <= dl) {
+            // Enkel wie vóór de herinneringsdag gevraagd werd (wie laat gevraagd werd, krijgt meteen na het vragen geen herinnering).
+            let askedBefore = switch (i.askedDay) { case (?a) a < rd; case null false };
+            if (askedBefore and today >= rd and today <= dl) {
               ts.invites.add(i.id, { i with status = #reminded; remindedDay = ?today });
               notifyOffice(c, audit, ctr, t, "prijsvraag-herinner", "Herinner " # firm # ": " # t.code # " · " # t.title # ", deadline " # Plan.fmtDay(dl));
               Access.audit(audit, Principal.anonymous(), null, ?t.workId, "prijsvraag-herinnering", t.code # " " # firm);
@@ -459,22 +542,24 @@ module {
     n;
   };
 
-  // De lijnen van een ontwerp of indiening van de OA nakijken en vullen (bedrag uit de regel, post van BOWACO = haar VH en eenheid).
-  public func answerLines(ts : TS, tenderId : Nat, input : [TV.OaLineInput], maxOwn : Nat, maxText : Nat, maxCents : Int, maxQty : Int) : { #ok : [Types.OaQuoteLine]; #err : Text } {
+  // De regels van een ontwerp of indiening van de OA nakijken en vullen (post op positie = de VH en eenheid van BOWACO; bedrag
+  // uit de regel). Grenzen zoals het inlezen van de Excel: omschrijving 160 tekens, eenheid 40, opmerking 500.
+  public func answerLines(ts : TS, tenderId : Nat, input : [TV.OaLineInput], maxOwn : Nat, maxCents : Int, maxQty : Int) : { #ok : [Types.OaQuoteLine]; #err : Text } {
     let seen = Map.empty<Nat, Bool>();
     var own = 0;
     var out : [Types.OaQuoteLine] = [];
     for (l in input.values()) {
-      if (l.description.size() > maxText or l.remark.size() > maxText or l.unit.size() > 40) { return #err("Tekst te lang") };
-      switch (l.included) { case (#alt a) { if (a.size() > maxText) { return #err("Tekst te lang") } }; case _ {} };
+      if (l.description.size() > 160) { return #err("Omschrijving: hoogstens 160 tekens") };
+      if (l.unit.size() > 40) { return #err("Eenheid: hoogstens 40 tekens") };
+      if (l.remark.size() > 500) { return #err("Opmerking: hoogstens 500 tekens per regel") };
+      switch (l.included) { case (#alt a) { if (a.size() > 500) { return #err("Alternatief: hoogstens 500 tekens") } }; case _ {} };
       switch (l.unitCents) { case (?u) { if (u < 0 or u > maxCents) { return #err("Eenheidsprijs: 0 tot € 1 miljard") } }; case null {} };
-      switch (l.itemId) {
-        case (?id) {
-          let x = ts.items.get(id) ?? return #err("Deze post hoort niet bij de prijsvraag");
-          if (x.tenderId != tenderId) { return #err("Deze post hoort niet bij de prijsvraag") };
-          if (seen.containsKey(id)) { return #err("Een post staat twee keer in het antwoord") };
-          seen.add(id, true);
-          out := out.concat([{ itemId = ?id; description = x.title; unit = x.unit; qtyMilli = x.qtyMilli; unitCents = l.unitCents; amountCents = TenderCalc.lineAmount(l.unitCents, x.qtyMilli, l.included); included = l.included; remark = l.remark.trim(#char ' '); changed = [] }]);
+      switch (l.pos) {
+        case (?p) {
+          let x = itemAt(ts, tenderId, p) ?? return #err("Deze post hoort niet bij de prijsvraag");
+          if (seen.containsKey(p)) { return #err("Een post staat twee keer in het antwoord") };
+          seen.add(p, true);
+          out := out.concat([{ itemId = ?x.id; description = x.title; unit = x.unit; qtyMilli = x.qtyMilli; unitCents = l.unitCents; amountCents = TenderCalc.lineAmount(l.unitCents, x.qtyMilli, l.included); included = l.included; remark = l.remark.trim(#char ' '); changed = [] }]);
         };
         case null {
           own += 1;

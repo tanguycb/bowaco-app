@@ -141,9 +141,9 @@ function TenderDetail({ id }: { id: bigint; go: (to: string) => void }) {
   };
   const excel = (inv: TenderInviteView) => {
     const bytes = makeSheet({
-      tenderId: v.id, inviteId: inv.id, sheetKey: inv.sheetKey, sentHash: v.sentHash, code: v.code, title: v.title, firm: inv.orgName, place: place.join(", "),
+      sheetKey: inv.sheetKey, sentHash: v.sentHash, code: v.code, title: v.title, firm: inv.orgName, place: place.join(", "),
       deadline: fmtDayNum(inv.deadlineDay), contact: [v.contact.name, v.contact.phone, v.contact.email].filter(Boolean).join(" · "),
-      items: v.items.map((x) => ({ id: x.id, chapter: x.chapter, subgroup: x.subgroup, code: x.code, title: x.title, text: x.text, unit: unitOf(x.unit), qtyMilli: x.qtyMilli })),
+      items: v.items.map((x) => ({ pos: Number(x.pos), chapter: x.chapter, subgroup: x.subgroup, code: x.code, title: x.title, text: x.text, unit: unitOf(x.unit), qtyMilli: x.qtyMilli })),
     });
     download(bytes, sheetFileName({ code: v.code, title: v.title, firm: inv.orgName }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     mark(inv, "excel");
@@ -296,7 +296,6 @@ function MoreSheet({ inv, onDone, onClose }: { inv: TenderInviteView; onDone: ()
       </label>
       <div className="a-row">
         <Button busy={run.isPending} disabled={!own} onClick={() => run.mutate({ __kind__: "extend", extend: inputToDay(own) ?? null })}>{t.common.save}</Button>
-        {inv.ownDeadline !== undefined && <Button variant="quiet" onClick={() => run.mutate({ __kind__: "extend", extend: null })}>{P.ownDeadlineReset}</Button>}
       </div>
       {inv.status !== TenderInviteStatus.received && inv.status !== TenderInviteStatus.declined && (
         <>
@@ -351,7 +350,7 @@ function QuoteSheet({ id, onClose }: { id: bigint; onClose: () => void }) {
             <dt>{P.reverse}</dt><dd>{v.quote.vatRegime.__kind__ === "reverse" ? t.common.yes : P.vatNormal(fmtBp(v.quote.vatRegime.normal))}</dd>
             {v.discountBp !== undefined && <><dt>{P.discount}</dt><dd>{fmtBp(v.discountBp)}</dd></>}
             <dt>{P.net}</dt><dd className="bw-mono"><b>{fmtEuro(v.netCents)}</b></dd>
-            {v.file && <><dt>{P.ownPdf}</dt><dd>{v.file.name} <OpenConfidential fileId={v.file.id} /></dd></>}
+            {v.file && v.fileId !== undefined && <><dt>{P.ownPdf}</dt><dd>{v.file.name} <OpenConfidential fileId={v.fileId} /></dd></>}
           </dl>
           {v.remark && <p>{v.remark}</p>}
           <QuoteLinesTable lines={v.lines} />
@@ -569,8 +568,8 @@ export function MyTenderList({ go, embedded }: { go: (to: string) => void; embed
   const list = (
     <ul className="a-list" data-testid="pv-mine">
       {rows.map((b) => (
-        <li key={String(b.inviteId)}>
-          <button type="button" className="a-list__btn" onClick={() => go(`prijsvragen/${b.inviteId}`)}>
+        <li key={b.ref}>
+          <button type="button" className="a-list__btn" onClick={() => go(`prijsvragen/${b.ref}`)}>
             <span className="a-list__main"><b>{b.code} · {b.title}</b><span className="bw-muted">{b.place} · {P.items(Number(b.items))} · {P.before(fmtDayNum(b.deadlineDay))}</span></span>
             {b.outcome.__kind__ !== "open" ? <span className={`a-tag ${b.outcome.__kind__ === "chosen" ? "a-tag--ok" : ""}`}>{P.outcome[b.outcome.__kind__]}</span> : <span className={`a-tag ${mineTag(b.status)}`}>{P.stateMine[b.status]}</span>}
             <Icon name="next" size={18} />
@@ -591,7 +590,7 @@ export function MyTenderList({ go, embedded }: { go: (to: string) => void; embed
 }
 
 export function MyTendersPage({ go, route }: { go: (to: string) => void; route: string[] }) {
-  if (route[1] && /^\d+$/.test(route[1])) return <MyTender key={route[1]} inviteId={BigInt(route[1])} go={go} />;
+  if (route[1] && /^[0-9A-Z]{16}$/.test(route[1])) return <MyTender key={route[1]} tref={route[1]} go={go} />;
   return <MyTenderList go={go} />;
 }
 
@@ -609,20 +608,20 @@ const parseQtyMilli = (s: string): bigint | null => {
   return BigInt(i) * 1000n + BigInt((d + "000").slice(0, 3));
 };
 
-function MyTender({ inviteId, go }: { inviteId: bigint; go: (to: string) => void }) {
+function MyTender({ tref, go }: { tref: string; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
   const on = !!actor && !isFetching;
   // Niet verversen bij terugkeren naar het venster: dat zou wat de OA aan het invullen is, overschrijven.
-  const view = useQuery({ queryKey: ["myTender", String(inviteId)], queryFn: async () => unwrap(await actor!.readMyTender(inviteId)), enabled: on, refetchOnWindowFocus: false });
+  const view = useQuery({ queryKey: ["myTender", tref], queryFn: async () => unwrap(await actor!.readMyTender(tref)), enabled: on, refetchOnWindowFocus: false });
   // Zijn eigen ontwerp en ingediende prijzen: update-call met auditregel; enkel in het geheugen van deze pagina.
-  const ans = useQuery({ queryKey: ["myTenderAnswer", String(inviteId)], queryFn: async () => unwrap(await actor!.readMyTenderAnswer(inviteId)), enabled: on, staleTime: 0, gcTime: 0, refetchOnWindowFocus: false });
+  const ans = useQuery({ queryKey: ["myTenderAnswer", tref], queryFn: async () => unwrap(await actor!.readMyTenderAnswer(tref)), enabled: on, staleTime: 0, gcTime: 0, refetchOnWindowFocus: false });
   const v = view.data;
   if (!v) return <Page label={P.mineFrom} title={P.mine} actions={<Button icon="back" onClick={() => go("prijsvragen")}>{P.backToList}</Button>}><Loading q={view} /></Page>;
   return (
     <Page label={P.mineFrom} title={`${v.code} · ${v.title}`} actions={<Button icon="back" onClick={() => go("prijsvragen")}>{P.backToList}</Button>}>
-      <MyTenderBody v={v} ans={ans.data} loading={ans.isLoading} onChange={() => { void qc.invalidateQueries({ queryKey: ["myTender", String(inviteId)] }); void qc.invalidateQueries({ queryKey: ["myTenderAnswer", String(inviteId)] }); void qc.invalidateQueries({ queryKey: ["myTenders"] }); }} toast={toast} />
+      <MyTenderBody v={v} ans={ans.data} loading={ans.isLoading} onChange={() => { void qc.invalidateQueries({ queryKey: ["myTender", tref] }); void qc.invalidateQueries({ queryKey: ["myTenderAnswer", tref] }); void qc.invalidateQueries({ queryKey: ["myTenders"] }); }} toast={toast} />
     </Page>
   );
 }
@@ -642,10 +641,10 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
     const last = ans.versions.length ? ans.versions[ans.versions.length - 1] : undefined;
     const src = ans.draft ?? last;
     const r: Record<string, Row> = {};
-    for (const it of v.items) r[String(it.id)] = { price: "", incl: "yes", remark: "" };
+    for (const it of v.items) r[String(it.pos)] = { price: "", incl: "yes", remark: "" };
     const ownRows: Own[] = [];
     for (const l of src?.lines ?? []) {
-      if (l.itemId !== undefined) r[String(l.itemId)] = { price: euroIn(l.unitCents), incl: l.included.__kind__, remark: l.included.__kind__ === "alt" ? l.included.alt || l.remark : l.remark };
+      if (l.pos !== undefined) r[String(l.pos)] = { price: euroIn(l.unitCents), incl: l.included.__kind__, remark: l.included.__kind__ === "alt" ? l.included.alt || l.remark : l.remark };
       else ownRows.push({ desc: l.description, unit: l.unit, qty: fmtQty(l.qtyMilli), price: euroIn(l.unitCents), remark: l.remark });
     }
     setRows(r);
@@ -653,25 +652,25 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
     const d = ans.draft;
     const q = last;
     setHead({
-      number: d?.number ?? q?.quote.number ?? "",
-      day: dayToInput(d?.quoteDay ?? q?.quote.quoteDay),
-      valid: dayToInput(d?.validUntil ?? q?.quote.validUntil),
+      number: d?.number ?? q?.number ?? "",
+      day: dayToInput(d?.quoteDay ?? q?.quoteDay),
+      valid: dayToInput(d?.validUntil ?? q?.validUntil),
       discount: (d?.discountBp ?? q?.discountBp) !== undefined ? String(Number(d?.discountBp ?? q?.discountBp) / 100).replace(".", ",") : "",
-      reverse: d ? d.reverse : q ? q.quote.vatRegime.__kind__ === "reverse" : true,
+      reverse: d ? d.reverse : q ? q.vatRegime.__kind__ === "reverse" : true,
       remark: d?.remark ?? q?.remark ?? "",
     });
     setEditing(!!ans.draft || ans.versions.length === 0);
   }, [ans]); // eslint-disable-line react-hooks/exhaustive-deps
   const canEdit = v.canAnswer && editing;
   // Invoer → regels (dezelfde rekenregels als de server, tender/calc.ts).
-  const build = (): { lines: { itemId: bigint | null; qtyMilli: bigint; unitCents: bigint | null; included: Included; desc: string; unit: string; remark: string; inclTs: OaIncluded }[]; error: string | null; discountBp: bigint | null } => {
+  const build = (): { lines: { pos: bigint | null; itemId: bigint | null; qtyMilli: bigint; unitCents: bigint | null; included: Included; desc: string; unit: string; remark: string; inclTs: OaIncluded }[]; error: string | null; discountBp: bigint | null } => {
     const lines = [];
     for (const it of v.items) {
-      const r = rows[String(it.id)] ?? { price: "", incl: "yes" as const, remark: "" };
+      const r = rows[String(it.pos)] ?? { price: "", incl: "yes" as const, remark: "" };
       const p = r.price.trim() === "" ? undefined : parseEuro(r.price);
       if (p === null) return { lines: [], error: P.badPrice(it.code || it.title), discountBp: null };
       if (p === undefined && r.incl === "yes" && r.remark.trim() === "") continue; // niets ingevuld
-      lines.push({ itemId: it.id, qtyMilli: it.qtyMilli, unitCents: p ?? null, included: inclOf(r), desc: it.title, unit: it.unit, remark: r.remark, inclTs: inclTs(r) });
+      lines.push({ pos: it.pos, itemId: it.pos, qtyMilli: it.qtyMilli, unitCents: p ?? null, included: inclOf(r), desc: it.title, unit: it.unit, remark: r.remark, inclTs: inclTs(r) });
     }
     for (const o of own) {
       if (o.desc.trim() === "") continue;
@@ -679,7 +678,7 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
       if (p === null) return { lines: [], error: P.badPrice(o.desc), discountBp: null };
       const q = parseQtyMilli(o.qty);
       if (q === null) return { lines: [], error: P.badQty(o.desc), discountBp: null };
-      lines.push({ itemId: null, qtyMilli: q, unitCents: p ?? null, included: { yes: null } as Included, desc: o.desc, unit: o.unit, remark: o.remark, inclTs: { __kind__: "yes", yes: null } as OaIncluded });
+      lines.push({ pos: null, itemId: null, qtyMilli: q, unitCents: p ?? null, included: { yes: null } as Included, desc: o.desc, unit: o.unit, remark: o.remark, inclTs: { __kind__: "yes", yes: null } as OaIncluded });
     }
     let discountBp: bigint | null = null;
     if (head.discount.trim() !== "") {
@@ -690,22 +689,22 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
     return { lines, error: null, discountBp };
   };
   const b = build();
-  const chapterOf = (id: bigint) => v.items.find((x) => x.id === id)?.chapter ?? "";
+  const chapterOf = (pos: bigint) => v.items.find((x) => x.pos === pos)?.chapter ?? "";
   const tot = b.error ? null : totals(b.lines, b.discountBp, chapterOf);
   const priced = b.lines.filter((l) => l.itemId !== null && l.unitCents !== null).length;
   const save = useMutation({
     mutationFn: async (submit: boolean) => {
       if (b.error || !tot) throw new Error(b.error ?? t.common.error);
-      return unwrap(await actor!.saveMyTender(v.inviteId, {
+      return unwrap(await actor!.saveMyTender(v.ref, {
         number: head.number, quoteDay: inputToDay(head.day), validUntil: inputToDay(head.valid), discountBp: b.discountBp ?? undefined, reverse: head.reverse, remark: head.remark,
-        lines: b.lines.map((l) => ({ itemId: l.itemId ?? undefined, description: l.desc, unit: l.unit, qtyMilli: l.qtyMilli, unitCents: l.unitCents ?? undefined, included: l.inclTs, remark: l.remark })),
+        lines: b.lines.map((l) => ({ pos: l.pos ?? undefined, description: l.desc, unit: l.unit, qtyMilli: l.qtyMilli, unitCents: l.unitCents ?? undefined, included: l.inclTs, remark: l.remark })),
       }, submit, tot.net));
     },
     onSuccess: (r) => { setConfirm(null); toast.show({ kind: "ok", text: r.version !== undefined ? P.submitted(Number(r.version)) : P.savedDraft }); onChange(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   const decline = useMutation({
-    mutationFn: async () => unwrap(await actor!.declineMyTender(v.inviteId, reason)),
+    mutationFn: async () => unwrap(await actor!.declineMyTender(v.ref, reason)),
     onSuccess: () => { setConfirm(null); toast.show({ kind: "ok", text: P.done }); onChange(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
@@ -714,18 +713,18 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
       const bytes = new Uint8Array(await file.arrayBuffer());
       setProgress(0);
       const blob = ExternalBlob.fromBytes(bytes, "application/pdf", file.name).withUploadProgress(setProgress);
-      return unwrap(await actor!.addMyTenderFile(v.inviteId, file.name, "application/pdf", BigInt(bytes.length), blob));
+      return unwrap(await actor!.addMyTenderFile(v.ref, file.name, "application/pdf", BigInt(bytes.length), blob));
     },
     onSuccess: () => { toast.show({ kind: "ok", text: t.common.saved }); onChange(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
     onSettled: () => setProgress(null),
   });
   const openFile = useMutation({
-    mutationFn: async (fileId: bigint) => { const f = unwrap(await actor!.readTenderFile(v.inviteId, fileId)); const u = f.blob?.getDirectURL(); if (!u) throw new Error(t.common.error); return u; },
+    mutationFn: async (pos: bigint) => { const f = unwrap(await actor!.readTenderFile(v.ref, pos)); const u = f.blob.getDirectURL(); if (!u) throw new Error(t.common.error); return u; },
     onSuccess: (u) => window.open(u, "_blank", "noopener"),
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
-  const setRow = (id: bigint, x: Partial<Row>) => setRows((r) => ({ ...r, [String(id)]: { ...(r[String(id)] ?? { price: "", incl: "yes", remark: "" }), ...x } }));
+  const setRow = (pos: bigint, x: Partial<Row>) => setRows((r) => ({ ...r, [String(pos)]: { ...(r[String(pos)] ?? { price: "", incl: "yes", remark: "" }), ...x } }));
   const addr = [v.address.street, v.address.number].filter(Boolean).join(" ") + (v.address.city ? `${v.address.street ? ", " : ""}${v.address.zip} ${v.address.city}` : "");
   const draftFile = ans?.draft?.file;
   return (
@@ -737,7 +736,7 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
       <dl className="pv-kv">
         <dt>{P.contactBowaco}</dt><dd>{[v.contact.name, v.contact.phone, v.contact.email].filter(Boolean).join(" · ")}</dd>
         {v.noteForOa && <><dt>{P.mineMessage}</dt><dd>{v.noteForOa}</dd></>}
-        {v.files.length > 0 && <><dt>{P.mineFiles}</dt><dd>{v.files.map((f) => <Button key={String(f.id)} variant="quiet" busy={openFile.isPending && openFile.variables === f.id} onClick={() => openFile.mutate(f.id)} data-testid="pv-file">{f.name}</Button>)}</dd></>}
+        {v.files.length > 0 && <><dt>{P.mineFiles}</dt><dd>{v.files.map((f) => <Button key={String(f.pos)} variant="quiet" busy={openFile.isPending && openFile.variables === f.pos} onClick={() => openFile.mutate(f.pos)} data-testid="pv-file">{f.name}</Button>)}</dd></>}
       </dl>
       {loading && <p className="bw-muted">{t.common.loading}</p>}
       <section className="a-section">
@@ -747,26 +746,26 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
             <thead><tr><th>{P.colNr}</th><th>{P.colPost}</th><th className="bw-right">{P.colQty}</th><th>{P.colPrice}</th><th className="bw-right">{P.colTotal}</th><th>{P.colIncluded}</th><th>{P.colRemark}</th></tr></thead>
             <tbody>
               {v.items.map((it, k) => {
-                const r = rows[String(it.id)] ?? { price: "", incl: "yes" as const, remark: "" };
+                const r = rows[String(it.pos)] ?? { price: "", incl: "yes" as const, remark: "" };
                 const p = r.price.trim() === "" ? undefined : parseEuro(r.price);
-                const amount = p ? totals([{ itemId: it.id, qtyMilli: it.qtyMilli, unitCents: p, included: inclOf(r) }], null, () => "").gross : null;
+                const amount = p ? totals([{ itemId: it.pos, qtyMilli: it.qtyMilli, unitCents: p, included: inclOf(r) }], null, () => "").gross : null;
                 const newCh = k === 0 || v.items[k - 1].chapter !== it.chapter;
                 const newSub = it.subgroup && (k === 0 || v.items[k - 1].subgroup !== it.subgroup || newCh);
                 return [
                   newCh ? <tr key={`c${k}`} className="pv-chrow"><td colSpan={7}><b>{it.chapter}</b></td></tr> : null,
                   newSub ? <tr key={`s${k}`} className="pv-subrow"><td colSpan={7}><i>{it.subgroup}</i></td></tr> : null,
-                  <tr key={String(it.id)} data-testid="pv-fill-row">
+                  <tr key={String(it.pos)} data-testid="pv-fill-row">
                     <td data-label={P.colNr} className="bw-mono">{it.code}</td>
                     <td data-label={P.colPost}><b>{it.title}</b>{it.text && <span className="bw-muted vs-sub pv-text">{it.text}</span>}</td>
                     <td data-label={P.colQty} className="bw-right bw-mono">{fmtQty(it.qtyMilli)} {unitOf(it.unit)}</td>
-                    <td data-label={P.colPrice}>{canEdit ? <input className="bw-input pv-in" inputMode="decimal" placeholder="0,00" value={r.price} onChange={(e) => setRow(it.id, { price: e.target.value })} aria-label={`${P.colPrice} ${it.code || it.title}`} data-testid="pv-price" /> : <span className="bw-mono">{r.price ? `€ ${r.price}` : "–"}</span>}</td>
+                    <td data-label={P.colPrice}>{canEdit ? <input className="bw-input pv-in" inputMode="decimal" placeholder="0,00" value={r.price} onChange={(e) => setRow(it.pos, { price: e.target.value })} aria-label={`${P.colPrice} ${it.code || it.title}`} data-testid="pv-price" /> : <span className="bw-mono">{r.price ? `€ ${r.price}` : "–"}</span>}</td>
                     <td data-label={P.colTotal} className="bw-right bw-mono">{amount !== null && p ? fmtEuro(amount) : "–"}</td>
                     <td data-label={P.colIncluded}>{canEdit ? (
-                      <select className="bw-input pv-in" value={r.incl} onChange={(e) => setRow(it.id, { incl: e.target.value as Row["incl"] })} aria-label={`${P.colIncluded} ${it.code || it.title}`}>
+                      <select className="bw-input pv-in" value={r.incl} onChange={(e) => setRow(it.pos, { incl: e.target.value as Row["incl"] })} aria-label={`${P.colIncluded} ${it.code || it.title}`}>
                         <option value="yes">{P.included.yes}</option><option value="no">{P.included.no}</option><option value="alt">{P.included.alt}</option>
                       </select>
                     ) : P.included[r.incl]}</td>
-                    <td data-label={P.colRemark}>{canEdit ? <input className="bw-input pv-in" value={r.remark} placeholder={r.incl === "alt" ? P.altWhat : ""} onChange={(e) => setRow(it.id, { remark: e.target.value })} aria-label={`${P.colRemark} ${it.code || it.title}`} /> : r.remark}</td>
+                    <td data-label={P.colRemark}>{canEdit ? <input className="bw-input pv-in" value={r.remark} placeholder={r.incl === "alt" ? P.altWhat : ""} onChange={(e) => setRow(it.pos, { remark: e.target.value })} aria-label={`${P.colRemark} ${it.code || it.title}`} /> : r.remark}</td>
                   </tr>,
                 ];
               })}
@@ -825,7 +824,7 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
           <h2 className="bw-h2">{P.yourVersions}</h2>
           <ul className="a-list">
             {[...ans.versions].reverse().map((x) => (
-              <li key={String(x.quote.id)}><span className="a-list__main"><b>{P.version(Number(x.quote.version))}{x.quote.number ? ` · ${x.quote.number}` : ""}</b><span className="bw-muted">{fmtTime(x.quote.createdAt)} · {P.source[x.quote.source] ?? x.quote.source}</span></span><span className="bw-mono">{fmtEuro(x.netCents)}</span></li>
+              <li key={String(x.version)}><span className="a-list__main"><b>{P.version(Number(x.version))}{x.number ? ` · ${x.number}` : ""}</b><span className="bw-muted">{fmtTime(x.createdAt)} · {P.source[x.source] ?? x.source}</span></span><span className="bw-mono">{fmtEuro(x.netCents)}</span></li>
             ))}
           </ul>
         </section>

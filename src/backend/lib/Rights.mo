@@ -347,8 +347,7 @@ module {
     #none;
   };
 
-  // R37: een OA leest een uitnodiging enkel als ze aan ZIJN firma gericht is, verstuurd is (gevraagd, herinnerd, ontvangen, geen
-  // interesse, geen antwoord: nooit "klaar"), de prijsvraag open is of hoogstens 90 dagen afgesloten, en de werf bestaat.
+  // R37: een OA leest een uitnodiging enkel als ze aan ZIJN firma gericht is, verstuurd is (kantoor markeerde ze als verstuurd), de prijsvraag open is of hoogstens 90 dagen afgesloten, en de werf bestaat.
   // Geannuleerd = niets. #own = lezen; of hij nog mag indienen, zegt mayAnswerInvite.
   public type InviteScope = { #own; #none };
 
@@ -357,7 +356,8 @@ module {
   public func inviteScope(ctx : Ctx, p : Person, t : Types.Tender, i : Types.TenderInvite, now : Int) : InviteScope {
     if (p.archivedAt != null or not has(p, #onderaannemer) or p.orgId != ?i.orgId or i.tenderId != t.id) { return #none };
     if (not workExists(ctx, t.workId)) { return #none };
-    if (i.status == #ready) { return #none };
+    // Verstuurd = kantoor markeerde ze als verstuurd (askedDay); "geen interesse" of een contact vóór het versturen maakt niets zichtbaar.
+    if (i.askedDay == null) { return #none };
     switch (t.status) {
       case (#open) #own;
       case (#closed c) { if (now - c.at <= tenderClosedDays() * 86_400_000_000_000) #own else #none };

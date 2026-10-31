@@ -16,16 +16,16 @@ const dec = new TextDecoder();
 
 // ── Een verzonnen prijsvraag ─────────────────────────────────────────────
 const items = [
-  { id: 41n, chapter: "5 Elektriciteit", subgroup: "Gelijkvloers", code: "5.01", title: "Stopcontact dubbel", text: "Inbouw, wit, met aarding.", unit: "st", qtyMilli: 12_000n },
-  { id: 42n, chapter: "5 Elektriciteit", subgroup: "Gelijkvloers", code: "5.02", title: "Lichtpunt", text: "Plafond, met dubbelpolige schakelaar.", unit: "st", qtyMilli: 8_000n },
-  { id: 43n, chapter: "5 Elektriciteit", subgroup: "Verdiep +1", code: "5.03", title: "=SOM(A1:A9) kabelgoot", text: "+ montage; @ werk\nTweede regel", unit: "lm", qtyMilli: 22_500n },
-  { id: 44n, chapter: "6 Sanitair", subgroup: "", code: "6.01", title: "Aansluiting wastafel", text: "Koud en warm water, afvoer.", unit: "st", qtyMilli: 2_000n },
-  { id: 45n, chapter: "6 Sanitair", subgroup: "", code: "6.02", title: "Leiding PE", text: "", unit: "lm", qtyMilli: 15_250n },
+  { id: 41n, pos: 1, chapter: "5 Elektriciteit", subgroup: "Gelijkvloers", code: "5.01", title: "Stopcontact dubbel", text: "Inbouw, wit, met aarding.", unit: "st", qtyMilli: 12_000n },
+  { id: 42n, pos: 2, chapter: "5 Elektriciteit", subgroup: "Gelijkvloers", code: "5.02", title: "Lichtpunt", text: "Plafond, met dubbelpolige schakelaar.", unit: "st", qtyMilli: 8_000n },
+  { id: 43n, pos: 3, chapter: "5 Elektriciteit", subgroup: "Verdiep +1", code: "5.03", title: "=SOM(A1:A9) kabelgoot", text: "+ montage; @ werk\nTweede regel", unit: "lm", qtyMilli: 22_500n },
+  { id: 44n, pos: 4, chapter: "6 Sanitair", subgroup: "", code: "6.01", title: "Aansluiting wastafel", text: "Koud en warm water, afvoer.", unit: "st", qtyMilli: 2_000n },
+  { id: 45n, pos: 5, chapter: "6 Sanitair", subgroup: "", code: "6.02", title: "Leiding PE", text: "", unit: "lm", qtyMilli: 15_250n },
 ];
 const invites = [{ id: 7n, orgName: "Elektro Reiger bv", sheetKey: "K7Q2M4XDB9TA" }, { id: 8n, orgName: "Elektro Merel bv", sheetKey: "M4XD9TAK7Q2B" }];
-const base = { tenderId: 17n, sentHash: "a".repeat(64), code: "PV 2026/412-1", title: "Elektriciteit & sanitair", place: "Proefstraat 12, 9999 Hoeveldam", deadline: "24.10.2026", contact: "Lien · 0470 00 00 00 · offertes@proef.invalid", items };
-const forInvite = (i) => makeSheet({ ...base, inviteId: i.id, sheetKey: i.sheetKey, firm: i.orgName });
-const ctx = { tenderId: 17n, code: base.code, items: items.map((x) => ({ id: x.id, chapter: x.chapter, title: x.title, unit: x.unit, qtyMilli: x.qtyMilli })), invites };
+const base = { sentHash: "a".repeat(64), code: "PV 2026/412-1", title: "Elektriciteit & sanitair", place: "Proefstraat 12, 9999 Hoeveldam", deadline: "24.10.2026", contact: "Lien · 0470 00 00 00 · offertes@proef.invalid", items };
+const forInvite = (i) => makeSheet({ ...base, sheetKey: i.sheetKey, firm: i.orgName });
+const ctx = { tenderId: 17n, code: base.code, items: items.map((x) => ({ id: x.id, pos: x.pos, chapter: x.chapter, title: x.title, unit: x.unit, qtyMilli: x.qtyMilli })), invites };
 const NAME = sheetFileName({ code: base.code, title: base.title, firm: invites[0].orgName });
 
 // ── De vorm ──────────────────────────────────────────────────────────────
@@ -39,11 +39,12 @@ check("vier tabbladen: Lees mij · Prijsvraag · Eigen posten · _bowaco (zeer v
 check("vaste namen BW_NUMMER, BW_DATUM, BW_GELDIG, BW_KORTING, BW_VERLEGD, BW_TOTAAL", ["BW_NUMMER", "BW_DATUM", "BW_GELDIG", "BW_KORTING", "BW_VERLEGD", "BW_TOTAAL"].every((n) => wb.includes(`<definedName name="${n}">`)));
 check("kolom A (sleutel) verborgen; blad beveiligd zonder wachtwoord", /<col min="1" max="1" width="18" customWidth="1" hidden="1"\/>/.test(tab) && /<sheetProtection sheet="1"/.test(tab) && !/password/i.test(tab));
 check("keuzelijst ja · nee · alternatief in kolom J", /<dataValidation type="list"[^>]*sqref="J11:J\d+"><formula1>"ja,nee,alternatief"<\/formula1>/.test(tab));
-check("enkel H, J, K en de kop zijn open (gele stijl met locked=0)", (st.match(/<protection locked="0"\/>/g) ?? []).length === 3 && /<c r="H13" s="6"\/>/.test(tab));
-check("sleutel per post met het controleteken van DEZE firma (verschilt per firma)", tab.includes(itemKey(17n, 42n, invites[0].sheetKey)) && checkChars(invites[0].sheetKey, 42n) !== checkChars(invites[1].sheetKey, 42n));
-check("geen formule-injectie: tekst die met = + @ begint krijgt quotePrefix (stijl 12/13), nooit een <f>", /quotePrefix="1"/.test(st) && /<c r="D\d+" s="13" t="inlineStr"><is><t xml:space="preserve">=SOM\(A1:A9\) kabelgoot/.test(tab) && !/<f>SOM/.test(tab));
+check("enkel H, J, K en de kop zijn open (gele stijl met locked=0)", (st.match(/<protection locked="0"\/>/g) ?? []).length === 6 && /<c r="H13" s="6"\/>/.test(tab));
+check("sleutel per post met het controleteken van DEZE firma (verschilt per firma)", tab.includes(itemKey(2, invites[0].sheetKey)) && checkChars(invites[0].sheetKey, 2) !== checkChars(invites[1].sheetKey, 2));
+check("geen formule-injectie: tekst die met = + - @ of een tab begint, krijgt een stijl met quotePrefix (elke tekststijl heeft zo een tweeling), nooit een <f>", (() => { const m = tab.match(/<c r="D\d+" s="(\d+)" t="inlineStr"><is><t xml:space="preserve">=SOM\(A1:A9\) kabelgoot/); const xfs = [...st.matchAll(/<xf [^>]*>/g)].map((x) => x[0]).slice(1); return !!m && /quotePrefix="1"/.test(xfs[Number(m[1])]) && !/quotePrefix/.test(xfs[0]) && xfs.length === 32 && !/<f>SOM/.test(tab); })());
 const meta = dec.decode(files.get("xl/worksheets/sheet4.xml"));
-check("_bowaco: vorm prijsvraag-1, sleutel, prijsvraag, uitnodiging, aantal posten, controlecode", meta.includes(">prijsvraag-1<") && meta.includes(invites[0].sheetKey) && /<c r="B3" s="0"><v>17<\/v>/.test(meta) && /<c r="B4" s="0"><v>7<\/v>/.test(meta) && /<c r="B5" s="0"><v>5<\/v>/.test(meta) && meta.includes("a".repeat(64)));
+check("_bowaco: vorm prijsvraag-1, sleutel van de firma, aantal posten, controlecode; GEEN id of volgnummer van de app (R37)", meta.includes(">prijsvraag-1<") && meta.includes(invites[0].sheetKey) && /<c r="B3" s="0"><v>5<\/v>/.test(meta) && meta.includes("a".repeat(64)) && !/B5|B6/.test(meta) && !/>(prijsvraag|uitnodiging)</.test(meta));
+check("sleutels in kolom A: P<positie>.<teken>, H<n> en T; nergens een id (PV17, 41 …)", /P1\.[0-9A-Z]{3}</.test(tab) && />H1</.test(tab) && />T</.test(tab) && !/PV\d/.test(tab));
 check("tekst met & < > en een nieuwe regel blijft geldige XML", tab.includes("Elektriciteit &amp; sanitair") && tab.includes("Tweede regel"));
 
 // ── Invullen zoals Excel het bewaart ─────────────────────────────────────
@@ -94,7 +95,7 @@ async function fill(bytes, edit) {
   return zipDeflate([...out.entries()].map(([name, data]) => ({ name, data })));
 }
 const rowOfKey = (tabXml, key) => { const m = tabXml.match(new RegExp(`<c r="A(\\d+)" s="\\d+" t="inlineStr"><is><t xml:space="preserve">${key.replace(/\./g, "\\.")}</t>`)); return m ? Number(m[1]) : null; };
-const R = Object.fromEntries(items.map((x) => [String(x.id), rowOfKey(tab, itemKey(17n, x.id, invites[0].sheetKey))]));
+const R = Object.fromEntries(items.map((x) => [String(x.id), rowOfKey(tab, itemKey(x.pos, invites[0].sheetKey))]));
 check("de rijen van de posten gevonden (5)", Object.values(R).every((r) => r !== null), JSON.stringify(R));
 
 // De prijzen van de OA: 41 → 12,34 · 42 → 1.234,5 als tekst · 43 niet inbegrepen · 44 alternatief · 45 → 7
@@ -138,7 +139,7 @@ check("een lege Excel: alle posten zonder prijs, geen fout", blank.ok && blank.c
 const del = await fill(xlsx, (x) => x.raw((s) => s.replace(new RegExp(`<row r="${R["42"]}"[^>]*>[\\s\\S]*?</row>`), "")));
 const rd = await readTenderSheet(del, NAME, ctx);
 check("regel gewist: de post staat als 'ontbreekt' (geen fout, wel een markering)", rd.ok && rd.lines.find((l) => l.itemId === 42n).flags.includes("ontbreekt") && rd.counts.missing === 1);
-const chg = await fill(xlsx, (x) => x.raw((s) => s.replace(itemKey(17n, 43n, invites[0].sheetKey), `PV17.43.${checkChars(invites[0].sheetKey, 43n) === "AAA" ? "BBB" : "AAA"}`)));
+const chg = await fill(xlsx, (x) => x.raw((s) => s.replace(itemKey(3, invites[0].sheetKey), `P3.${checkChars(invites[0].sheetKey, 3) === "AAA" ? "BBB" : "AAA"}`)));
 const rc = await readTenderSheet(chg, NAME, ctx);
 check("sleutel gewijzigd (controleteken): geweigerd met uitleg", !rc.ok && /gewijzigd \(controleteken/.test(rc.error), rc.ok ? "" : rc.error);
 const vh = await fill(xlsx, (x) => { x.set(`G${R["41"]}`, "14"); x.setText(`F${R["45"]}`, "m"); x.set(`H${R["41"]}`, "10"); });
@@ -153,7 +154,7 @@ check("formule zonder bewaarde waarde: leeg + markering (nooit uitgevoerd)", rf.
 const other = await fill(forInvite(invites[1]), () => {});
 const ro = await readTenderSheet(other, NAME, { ...ctx, expectInviteId: 7n });
 check("Excel van een andere firma: geweigerd ('hoort bij Elektro Merel bv, niet bij Elektro Reiger bv')", !ro.ok && ro.error === "Deze Excel hoort bij Elektro Merel bv, niet bij Elektro Reiger bv.", ro.ok ? "" : ro.error);
-const rx = await readTenderSheet(other, NAME, { ...ctx, tenderId: 18n, code: "PV 2026/412-2" });
+const rx = await readTenderSheet(other, NAME, { ...ctx, code: "PV 2026/412-2", invites: [{ id: 9n, orgName: "Elektro Merel bv", sheetKey: "QQQQQQQQQQQQ" }] });
 check("Excel van een andere prijsvraag: geweigerd", !rx.ok && /andere prijsvraag/.test(rx.error));
 const ole = new Uint8Array(2048); ole.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
 const rold = await readTenderSheet(ole, "prijsvraag.xls", ctx);
@@ -161,10 +162,10 @@ check("een oud .xls: geweigerd met de weg 'met de hand naast de PDF'", !rold.ok 
 const many = await fill(xlsx, (x) => x.raw((s) => s.replace("</sheetData>", `<row r="2001"><c r="B2001" t="inlineStr"><is><t>x</t></is></c></row></sheetData>`)));
 const rm = await readTenderSheet(many, NAME, ctx);
 check("2.001 regels: geweigerd", !rm.ok && /Meer dan 2000 regels/.test(rm.error), rm.ok ? "" : rm.error);
-const dup = await fill(xlsx, (x) => x.raw((s) => s.replace(new RegExp(`(<row r="${R["45"]}"[^>]*>)<c r="A${R["45"]}" s="15" t="inlineStr"><is><t xml:space="preserve">[^<]*`), `$1<c r="A${R["45"]}" s="15" t="inlineStr"><is><t xml:space="preserve">${itemKey(17n, 44n, invites[0].sheetKey)}`)));
+const dup = await fill(xlsx, (x) => x.raw((s) => s.replace(new RegExp(`(<row r="${R["45"]}"[^>]*>)<c r="A${R["45"]}" s="13" t="inlineStr"><is><t xml:space="preserve">[^<]*`), `$1<c r="A${R["45"]}" s="13" t="inlineStr"><is><t xml:space="preserve">${itemKey(4, invites[0].sheetKey)}`)));
 const rdup = await readTenderSheet(dup, NAME, ctx);
 check("dubbele sleutel: geweigerd", !rdup.ok && /twee keer/.test(rdup.error), rdup.ok ? "" : rdup.error);
-const unk = await fill(xlsx, (x) => x.raw((s) => s.replace(itemKey(17n, 45n, invites[0].sheetKey), "PV17.99.ABC")));
+const unk = await fill(xlsx, (x) => x.raw((s) => s.replace(itemKey(5, invites[0].sheetKey), "P99.ABC")));
 const ru = await readTenderSheet(unk, NAME, ctx);
 check("onbekende post in de sleutel: geweigerd", !ru.ok && /onbekende post/.test(ru.error));
 const nometa = await fill(xlsx, (x) => {});
@@ -182,6 +183,18 @@ check("totaal van de OA (BW_TOTAAL) ≠ som van de regels: markering", rtot.ok &
 const tp = await fill(xlsx, (x) => { x.set(`H${R["41"]}`, "12.34"); x.setText(`H${R["42"]}`, "1.234,5"); });
 const rtp = await readTenderSheet(tp, NAME, ctx);
 check("prijs als tekst ('1.234,5'): toch gelezen (1.234,50); Excel telde ze niet mee in zijn totaal → markering", rtp.ok && rtp.lines.find((l) => l.itemId === 42n).unitCents === 123_450n && rtp.flags.some((f) => f.includes("totaal")), rtp.ok ? rtp.flags.join("; ") : rtp.error);
+
+const th = await fill(xlsx, (x) => { x.setText(`H${R["41"]}`, "1.234"); x.set(`H${R["42"]}`, "1.234"); });
+const rth = await readTenderSheet(th, NAME, ctx);
+check("'1.234' als tekst = duizendtal (€ 1.234,00); als getal van Excel = 1,234 (€ 1,23)", rth.ok && rth.lines.find((l) => l.itemId === 41n).unitCents === 123_400n && rth.lines.find((l) => l.itemId === 42n).unitCents === 123n);
+const k1 = await readTenderSheet(await fill(xlsx, (x) => x.setText("H8", "0,5")), NAME, ctx);
+const k2 = await readTenderSheet(await fill(xlsx, (x) => x.set("H8", "0.5")), NAME, ctx);
+check("korting: '0,5' als tekst = 0,5 %; het getal 0,5 = 50 % (cel met %-opmaak) met markering 'korting nakijken'", k1.ok && k1.header.discountBp === 50n && !k1.flags.some((f) => f.includes("korting")) && k2.ok && k2.header.discountBp === 5000n && k2.flags.some((f) => f.includes("korting nakijken")));
+const meta3 = await fill(xlsx, (x) => {});
+const f3 = await unzip(meta3);
+const badMeta = await zipDeflate([...f3.entries()].map(([name, data]) => ({ name, data: name === "xl/worksheets/sheet4.xml" ? dec.decode(data).replace(/<v>5<\/v>/, "<v>6</v>") : data })));
+const rbm = await readTenderSheet(badMeta, NAME, ctx);
+check("het verborgen tabblad gewijzigd (aantal posten): geweigerd", !rbm.ok && /verborgen tabblad is gewijzigd/.test(rbm.error), rbm.ok ? "" : rbm.error);
 
 // Getallen verdraagzaam lezen.
 check("getallen: 1.234,56 · 1234,56 · 1234.56 · € 12 · 1,234.5 · 12 € → duizendsten; 'abc' en '1,2,3' ongeldig", parseMilli("1.234,56") === 1_234_560n && parseMilli("1234,56") === 1_234_560n && parseMilli("1234.56") === 1_234_560n && parseMilli("€ 12") === 12_000n && parseMilli("1,234.5") === 1_234_500n && parseMilli("12 €") === 12_000n && parseMilli("abc") === undefined && parseMilli("1,2,3") === undefined);

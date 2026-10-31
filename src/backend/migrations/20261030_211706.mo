@@ -74,6 +74,7 @@ module {
     channels : [Text];
     accessCodeId : ?Nat;
     sheetKey : Text;
+    ref : Text;
     createdAt : Int;
     createdBy : PersonId;
     extra : Extra;
@@ -142,6 +143,7 @@ module {
     invitesByOrg : Map.Map<Nat, [Nat]>;
     oaQuotesByWork : Map.Map<Nat, [Nat]>;
     sheetKeys : Map.Map<Text, Nat>;
+    invitesByRef : Map.Map<Text, Nat>;
   };
 
   type OldActor = {};
@@ -163,6 +165,7 @@ module {
         invitesByOrg = Map.empty();
         oaQuotesByWork = Map.empty();
         sheetKeys = Map.empty();
+        invitesByRef = Map.empty();
       };
     };
   };

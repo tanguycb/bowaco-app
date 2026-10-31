@@ -3422,6 +3422,7 @@ type TenderInvite__340364377 =
     orgId : OrgId__17031398;
     outcome : TenderOutcome__164466503;
     ownDeadline : ?Day__162369424;
+    ref : Text;
     remindedDay : ?Day__162369424;
     sheetKey : Text;
     status : TenderInviteStatus__462318866;
@@ -3442,6 +3443,7 @@ type TenderInvite__534496098 =
     orgId : OrgId__1068690298;
     outcome : TenderOutcome__511047346;
     ownDeadline : ?Day__23369103;
+    ref : Text;
     remindedDay : ?Day__23369103;
     sheetKey : Text;
     status : TenderInviteStatus__582714065;
@@ -3496,6 +3498,7 @@ type TenderState__988369423 =
       Map__230067015<Nat, Confidential__887711100<OaQuoteDraft__1054670036>>;
     invites : Map__230067015<Nat, TenderInvite__534496098>;
     invitesByOrg : Map__230067015<Nat, [Nat]>;
+    invitesByRef : Map__230067015<Text, Nat>;
     invitesByTender : Map__230067015<Nat, [Nat]>;
     items : Map__230067015<Nat, TenderItem__714478104>;
     itemsByTender : Map__230067015<Nat, [Nat]>;
@@ -4210,6 +4213,7 @@ actor  {
         Map__230067015<Nat, Confidential__546665525<OaQuoteDraft__197544433>>;
       invites : Map__230067015<Nat, TenderInvite__340364377>;
       invitesByOrg : Map__230067015<Nat, [Nat]>;
+      invitesByRef : Map__230067015<Text, Nat>;
       invitesByTender : Map__230067015<Nat, [Nat]>;
       items : Map__230067015<Nat, TenderItem__113722343>;
       itemsByTender : Map__230067015<Nat, [Nat]>;

@@ -55,8 +55,10 @@ mixin (
   func tnNewest(a : Types.Tender, b : Types.Tender) : Order.Order { Nat.compare(b.id, a.id) };
 
   // Een uitnodiging die de beller (een OA) mag lezen; anders null. Onbekend en niet van jou geven hetzelfde antwoord (geen id-orakel).
-  func tnOwn(p : Types.Person, inviteId : Nat) : ?(Types.Tender, Types.TenderInvite) {
-    let i = tenders.invites.get(inviteId) ?? return null;
+  // De OA spreekt zijn uitnodiging aan met haar willekeurige verwijzing (R37: nergens een volgnummer).
+  func tnOwn(p : Types.Person, ref : Text) : ?(Types.Tender, Types.TenderInvite) {
+    let iid = tenders.invitesByRef.get(ref) ?? return null;
+    let i = tenders.invites.get(iid) ?? return null;
     let t = tenders.tenders.get(i.tenderId) ?? return null;
     if (Rights.inviteScope({ works; settings }, p, t, i, Time.now()) != #own) { return null };
     ?(t, i);
@@ -79,6 +81,7 @@ mixin (
   func tnNewInvite(t : Types.Tender, f : TV.TenderFirmInput, by : Nat, entropy : Blob) : Types.TenderInvite {
     let id = Ids.next(ctr, "tenderInvite");
     let key = Tenders.sheetKey(tenders, entropy, id);
+    let ref = Tenders.newRef(tenders, entropy, id);
     // Zonder gekozen contact: de persoon van de firma die al toegang heeft, anders de eerste (later te wijzigen).
     let contact = switch (f.contactPersonId) {
       case (?x) ?x;
@@ -87,11 +90,12 @@ mixin (
         switch (cs.find(func(c : TV.TenderPersonRef) : Bool = c.linked)) { case (?c) ?c.id; case null { if (cs.size() > 0) ?cs[0].id else null } };
       };
     };
-    let i : Types.TenderInvite = { id; tenderId = t.id; orgId = f.orgId; contactPersonId = contact; status = #ready; outcome = #open; askedDay = null; remindedDay = null; ownDeadline = null; answeredAt = null; declineReason = ""; channels = []; accessCodeId = null; sheetKey = key; createdAt = Time.now(); createdBy = by; extra = [] };
+    let i : Types.TenderInvite = { id; tenderId = t.id; orgId = f.orgId; contactPersonId = contact; status = #ready; outcome = #open; askedDay = null; remindedDay = null; ownDeadline = null; answeredAt = null; declineReason = ""; channels = []; accessCodeId = null; sheetKey = key; ref; createdAt = Time.now(); createdBy = by; extra = [] };
     tenders.invites.add(id, i);
     Tenders.addIndex(tenders.invitesByTender, t.id, id);
     Tenders.addIndex(tenders.invitesByOrg, f.orgId, id);
     if (key != "") { tenders.sheetKeys.add(key, id) };
+    if (ref != "") { tenders.invitesByRef.add(ref, id) };
     i;
   };
 
@@ -318,6 +322,7 @@ mixin (
       case (#extend day) {
         if (t.status != #open) { return #err("De prijsvraag is " # Tenders.statusText(t.status)) };
         if (day < today or day > today + 365) { return #err("Deadline: vandaag of later, binnen een jaar") };
+        if (day < t.deadlineDay) { return #err("Verlengen kan enkel naar een latere datum (de firma's rekenen op " # Plan.fmtDay(t.deadlineDay) # ")") };
         tenders.tenders.add(t.id, { next with deadlineDay = day });
         // Wie "geen antwoord" had, mag weer antwoorden als de nieuwe deadline nog komt.
         for (i in Tenders.invitesOf(tenders, t.id).values()) {
@@ -334,8 +339,10 @@ mixin (
         tenders.tenders.add(t.id, { next with status = #cancelled({ at = now; by = p.id; reason = r }) });
         Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-geannuleerd", t.code # ": " # r);
       };
-      case (#close chosen) {
+      case (#close chosen0) {
         if (t.status != #open) { return #err("De prijsvraag is " # Tenders.statusText(t.status)) };
+        var chosen : [Nat] = [];
+        for (c in chosen0.values()) { if (chosen.find(func(x : Nat) : Bool = x == c) == null) { chosen := chosen.concat([c]) } };
         let invs = Tenders.invitesOf(tenders, t.id);
         for (c in chosen.values()) { if (invs.find(func(i : Types.TenderInvite) : Bool = i.id == c) == null) { return #err("Deze firma is niet gevraagd in deze prijsvraag") } };
         for (i in invs.values()) {
@@ -368,12 +375,18 @@ mixin (
         if (chs.size() == 0 or chs.size() > 4 or not chs.all(Tenders.channelOk)) { return #err("Kies hoe je het verstuurde: pdf, excel, app of mail") };
         var all = i.channels;
         for (c in chs.values()) { if (all.find(func(x : Text) : Bool = x == c) == null) { all := all.concat([c]) } };
-        let first = i.status == #ready;
-        tenders.invites.add(i.id, { i with channels = all; status = if first #asked else i.status; askedDay = if first ?today else i.askedDay });
+        // Verstuurd = askedDay (ook na een "geen interesse" die kantoor al vóór het versturen noteerde); de stand gaat enkel van klaar naar gevraagd.
+        tenders.invites.add(i.id, { i with channels = all; status = if (i.status == #ready) #asked else i.status; askedDay = if (i.askedDay == null) ?today else i.askedDay });
         Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-verstuurd", t.code # ": " # firm # " (" # Text.join(chs.values(), ", ") # ")");
       };
       case (#extend d) {
-        switch d { case (?x) { if (x < today or x > today + 365) { return #err("Deadline: vandaag of later, binnen een jaar") } }; case null {} };
+        switch d {
+          case (?x) {
+            if (x < today or x > today + 365) { return #err("Deadline: vandaag of later, binnen een jaar") };
+            if (x < Tenders.deadlineOf(t, i)) { return #err("Een eigen deadline kan enkel later vallen (de firma rekent op " # Plan.fmtDay(Tenders.deadlineOf(t, i)) # ")") };
+          };
+          case null { if (Tenders.deadlineOf(t, i) > t.deadlineDay) { return #err("Terug naar de deadline van de prijsvraag zou de firma minder tijd geven") } };
+        };
         let ni = { i with ownDeadline = d };
         let back = i.status == #noAnswer and Tenders.deadlineOf(t, ni) >= today;
         tenders.invites.add(i.id, { ni with status = if back { if (i.remindedDay != null) #reminded else #asked } else i.status });
@@ -387,7 +400,12 @@ mixin (
       };
       case (#contact pid) {
         switch pid { case (?x) { if (not Tenders.validContact(tnCtx(), i.orgId, x)) { return #err("De contactpersoon hoort niet bij die firma (of heeft geen rol onderaannemer)") } }; case null {} };
-        tenders.invites.add(i.id, { i with contactPersonId = pid });
+        // Een open code van de vorige contactpersoon vervalt (ze is voor een andere persoon gemaakt).
+        switch (i.accessCodeId) {
+          case (?old) { switch (access.invites.get(old)) { case (?inv) { if (inv.state == #open) { inv.state := #revoked({ by = p.id; at = Time.now() }) } }; case null {} } };
+          case null {};
+        };
+        tenders.invites.add(i.id, { i with contactPersonId = pid; accessCodeId = null });
         Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-contact", t.code # ": " # firm);
       };
     };
@@ -413,6 +431,10 @@ mixin (
       tenders.invites.add(i.id, { i with channels = addApp(i.channels) });
       Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-toegang", t.code # ": " # who.name # " heeft al toegang");
       return #ok({ code = null; expiresAt = null; alreadyLinked = true; personName = who.name });
+    };
+    // Een code van de prijsvraag is altijd ZONDER werf; wie al lid is van een werf, krijgt toegang via Toegang geven (R15).
+    if (works.memberships.values().any(func(m : Types.Membership) : Bool = m.endedAt == null and (m.personId == ?pid or (m.personId == null and m.orgId != null and m.orgId == who.orgId)))) {
+      return #err("Deze persoon is al lid van een werf: geef toegang via Toegang geven (beheerder of werfleider)");
     };
     switch (i.accessCodeId) {
       case (?old) { switch (access.invites.get(old)) { case (?inv) { if (inv.state == #open) { inv.state := #revoked({ by = p.id; at = Time.now() }) } }; case null {} } };
@@ -458,39 +480,41 @@ mixin (
         case null {};
       };
     };
-    out.sort(func(a : TV.MyTenderBrief, b : TV.MyTenderBrief) : Order.Order = Nat.compare(b.inviteId, a.inviteId));
+    out.sort(func(a : TV.MyTenderBrief, b : TV.MyTenderBrief) : Order.Order = Nat.compare(b.deadlineDay, a.deadlineDay));
   };
 
-  public query ({ caller }) func readMyTender(inviteId : Nat) : async Result.Result<TV.MyTenderView, Text> {
+  public query ({ caller }) func readMyTender(ref : Text) : async Result.Result<TV.MyTenderView, Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #ownTenders, null);
-    let (t, i) = tnOwn(p, inviteId) ?? return #err("Geen toegang");
+    let (t, i) = tnOwn(p, ref) ?? return #err("Geen toegang");
     #ok(Tenders.myView(tnCtx(), tenders, t, i, Rights.mayAnswerInvite({ works; settings }, p, t, i, Time.now(), tnToday())));
   };
 
   // Zijn eigen ontwerp en zijn eigen ingediende versies met zijn prijzen (update-call met auditregel, R38: kantoor leest het ontwerp nooit).
-  public shared ({ caller }) func readMyTenderAnswer(inviteId : Nat) : async Result.Result<TV.MyTenderAnswer, Text> {
+  public shared ({ caller }) func readMyTenderAnswer(ref : Text) : async Result.Result<TV.MyTenderAnswer, Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #ownTenders, null);
-    let (t, i) = tnOwn(p, inviteId) ?? return #err("Geen toegang");
+    let (t, i) = tnOwn(p, ref) ?? return #err("Geen toegang");
     Access.audit(audit, caller, ?p.id, null, "bekeek:prijsvraag-eigen-antwoord", t.code);
     let c = tnCtx();
+    let qs = Tenders.oaQuotesOfInvite(tenders, i, t.workId);
     #ok({
-      draft = switch (Tenders.draftOf(tenders, i.id)) { case (?d) ?Tenders.draftView(c, tenders, d); case null null };
-      versions = Tenders.oaQuotesOfInvite(tenders, i, t.workId).map(func(q : Types.OaQuote) : TV.OaQuoteFull = Tenders.fullQuote(c, tenders, q));
+      draft = switch (Tenders.draftOf(tenders, i.id)) { case (?d) ?Tenders.draftView(c, tenders, t.id, d); case null null };
+      versions = Array.tabulate<TV.MyOaQuoteView>(qs.size(), func(k : Nat) : TV.MyOaQuoteView = Tenders.myQuote(c, tenders, t.id, qs[k], k + 1 == qs.size()));
       calcVersion = TenderCalc.version;
     });
   };
 
   // Bewaren (ontwerp, enkel zijn firma) of indienen (kantoor ziet het; tot de deadline opnieuw = een nieuwe versie). Bij indienen
   // rekent de server na: een ander totaal dan wat de browser toonde = niets bewaard (G4).
-  public shared ({ caller }) func saveMyTender(inviteId : Nat, d : TV.OaDraftInput, submit : Bool, expectNetCents : Int) : async Result.Result<TV.MyTenderSaved, Text> {
+  public shared ({ caller }) func saveMyTender(ref : Text, d : TV.OaDraftInput, submit : Bool, expectNetCents : Int) : async Result.Result<TV.MyTenderSaved, Text> {
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #ownTenders, null);
-    let (t, i) = tnOwn(p, inviteId) ?? return #err("Geen toegang");
+    let (t, i) = tnOwn(p, ref) ?? return #err("Geen toegang");
     let today = tnToday();
     if (not Rights.mayAnswerInvite(ctx, p, t, i, Time.now(), today)) { return #err("De deadline is voorbij of de prijsvraag is afgesloten: enkel lezen") };
+    switch (i.status) { case (#asked or #reminded or #received or #declined) {}; case _ { return #err("De deadline is voorbij of de prijsvraag is afgesloten: enkel lezen") } };
     if (d.number.size() > 40) { return #err("Offertenummer: hoogstens 40 tekens") };
     if (d.remark.size() > Config.maxNote) { return #err("Opmerking te lang") };
     switch (d.discountBp) { case (?bp) { if (bp > 5_000) { return #err("Korting: 0 tot 50 %") } }; case null {} };
@@ -498,19 +522,22 @@ mixin (
     switch (d.validUntil) { case (?x) { if (x > today + 730) { return #err("Geldig tot: hoogstens twee jaar") } }; case null {} };
     let nItems = Tenders.ids(tenders.itemsByTender, t.id).size();
     if (d.lines.size() > nItems + Config.maxTenderOwnLines) { return #err("Te veel regels") };
-    let lines = switch (Tenders.answerLines(tenders, t.id, d.lines, Config.maxTenderOwnLines, Config.maxLibText, Config.maxAmountCents, Config.maxQuoteQtyMilli)) { case (#ok x) x; case (#err e) return #err(e) };
+    let lines = switch (Tenders.answerLines(tenders, t.id, d.lines, Config.maxTenderOwnLines, Config.maxAmountCents, Config.maxQuoteQtyMilli)) { case (#ok x) x; case (#err e) return #err(e) };
     let tot = TenderCalc.totals(lines, d.discountBp, Tenders.chapterFn(tenders));
     let now = Time.now();
     let prevFile = switch (Tenders.draftOf(tenders, i.id)) { case (?x) x.fileId; case null null };
     if (not submit) {
       tenders.drafts.add(i.id, #plain({ inviteId = i.id; number = d.number.trim(#char ' '); quoteDay = d.quoteDay; validUntil = d.validUntil; discountBp = d.discountBp; reverse = d.reverse; lines; fileId = prevFile; remark = d.remark.trim(#char ' '); updatedAt = now; updatedBy = p.id; extra = [] }));
       Access.audit(audit, caller, ?p.id, null, "prijsvraag-ontwerp-bewaard", t.code # " (" # lines.size().toText() # " regels)");
-      return #ok({ netCents = tot.net; oaQuoteId = null; version = null });
+      return #ok({ netCents = tot.net; version = null });
     };
     if (tot.net != expectNetCents) { return #err("Het totaal klopt niet met wat de server rekent: laad opnieuw (niets ingediend)") };
     if (lines.size() == 0) { return #err("Vul minstens één post in") };
     let prev = Tenders.oaQuotesOfInvite(tenders, i, t.workId);
-    let version = prev.size() + 1;
+    if (prev.size() >= Config.maxOaQuoteVersions) { return #err("Hoogstens " # Config.maxOaQuoteVersions.toText() # " ingediende versies: neem contact op met BOWACO") };
+    var maxV = 0;
+    for (x in prev.values()) { if (x.version > maxV) { maxV := x.version } };
+    let version = maxV + 1;
     let id = Ids.next(ctr, "oaQuote");
     let q : Types.OaQuote = { id; workId = t.workId; orgId = i.orgId; tenderId = ?t.id; inviteId = ?i.id; number = d.number.trim(#char ' '); quoteDay = switch (d.quoteDay) { case (?x) x; case null today }; validUntil = d.validUntil; fileId = prevFile; source = #app; version; supersedes = if (prev.size() == 0) null else ?prev[prev.size() - 1].id; status = #received; vatRegime = if (d.reverse) #reverse else #normal(2_100); note = ""; createdAt = now; createdBy = p.id; extra = [] };
     tenders.oaQuotes.add(id, q);
@@ -521,15 +548,15 @@ mixin (
     let firm = Tenders.orgName(tnCtx(), i.orgId);
     Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-ingediend", t.code # ": " # firm # " versie " # version.toText() # " (" # lines.size().toText() # " regels)");
     tnNotifyOffice(t, "prijsvraag-ingediend", firm # " diende een offerte in op " # t.code # " · " # t.title # (if (version > 1) " (versie " # version.toText() # ")" else ""));
-    #ok({ netCents = tot.net; oaQuoteId = ?id; version = ?version });
+    #ok({ netCents = tot.net; version = ?version });
   };
 
   // "Geen interesse" van de OA zelf (zolang hij nog niets indiende).
-  public shared ({ caller }) func declineMyTender(inviteId : Nat, reason : Text) : async Result.Result<(), Text> {
+  public shared ({ caller }) func declineMyTender(ref : Text, reason : Text) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #ownTenders, null);
-    let (t, i) = tnOwn(p, inviteId) ?? return #err("Geen toegang");
+    let (t, i) = tnOwn(p, ref) ?? return #err("Geen toegang");
     if (not Rights.mayAnswerInvite(ctx, p, t, i, Time.now(), tnToday())) { return #err("De deadline is voorbij of de prijsvraag is afgesloten: enkel lezen") };
     if (i.status == #received) { return #err("U diende al een offerte in") };
     if (reason.size() > Config.maxNote) { return #err("Reden te lang") };
@@ -540,24 +567,25 @@ mixin (
     #ok;
   };
 
-  // R39: een bijlage van de prijsvraag lezen (nooit een vertrouwelijk bestand, nooit een bestand dat er niet aan hangt).
-  public shared ({ caller }) func readTenderFile(inviteId : Nat, fileId : Nat) : async Result.Result<Views.FileView, Text> {
+  // R39: een bijlage van de prijsvraag lezen (op haar positie; nooit een vertrouwelijk bestand, nooit een bestand dat er niet aan
+  // hangt). De OA krijgt naam, soort, grootte en de verwijzing naar de opslag, niets over de werf of wie het oplaadde.
+  public shared ({ caller }) func readTenderFile(ref : Text, pos : Nat) : async Result.Result<TV.MyTenderFileOpen, Text> {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #ownTenders, null);
-    let (t, _) = tnOwn(p, inviteId) ?? return #err("Geen toegang");
-    if (t.fileIds.find(func(x : Nat) : Bool = x == fileId) == null) { return #err("Geen toegang") };
-    let f = files.files.get(fileId) ?? return #err("Geen toegang");
+    let (t, _) = tnOwn(p, ref) ?? return #err("Geen toegang");
+    if (pos == 0 or pos > t.fileIds.size()) { return #err("Geen toegang") };
+    let f = files.files.get(t.fileIds[pos - 1]) ?? return #err("Geen toegang");
     if (f.confidential or f.archivedAt != null) { return #err("Geen toegang") };
-    Access.audit(audit, caller, ?p.id, null, "bekeek:prijsvraag-bijlage", t.code # " #" # fileId.toText());
-    #ok(Dossier.fileView(f));
+    Access.audit(audit, caller, ?p.id, null, "bekeek:prijsvraag-bijlage", t.code # " #" # f.id.toText());
+    #ok({ name = f.name; mime = f.mime; size = f.size; blob = f.blob });
   };
 
   // R39: zijn eigen offerte als PDF opladen (vertrouwelijk aan de werf; hij ziet daarna naam en grootte, nooit de opslag-URL).
-  public shared ({ caller }) func addMyTenderFile(inviteId : Nat, name : Text, mime : Text, size : Nat, blob : Storage.ExternalBlob) : async Result.Result<Nat, Text> {
+  public shared ({ caller }) func addMyTenderFile(ref : Text, name : Text, mime : Text, size : Nat, blob : Storage.ExternalBlob) : async Result.Result<TV.MyTenderFile, Text> {
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #ownTenders, null);
-    let (t, i) = tnOwn(p, inviteId) ?? return #err("Geen toegang");
+    let (t, i) = tnOwn(p, ref) ?? return #err("Geen toegang");
     if (not Rights.mayAnswerInvite(ctx, p, t, i, Time.now(), tnToday())) { return #err("De deadline is voorbij of de prijsvraag is afgesloten: enkel lezen") };
     let n = Access.cleanText(name, 200) ?? return #err("Bestandsnaam: 1 tot 200 tekens");
     if (mime != "application/pdf") { return #err("Enkel een PDF") };
@@ -588,6 +616,6 @@ mixin (
     };
     tenders.drafts.add(i.id, #plain(d));
     Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-bestand-opgeladen", t.code # ": " # n # " (" # size.toText() # " B, vertrouwelijk)");
-    #ok(fid);
+    #ok({ name = n; size });
   };
 };

@@ -86,6 +86,8 @@ mixin (
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #readCosts, null);
     let f = files.files.get(id) ?? return #err("Onbekend bestand");
+    // 2c.2 (R38): de eigen PDF in het ONTWERP van een OA leest kantoor niet, tot hij indient (zelfde antwoord als een onbekend id).
+    if (Tenders.draftOnlyFiles(tenders).containsKey(id)) { return #err("Onbekend bestand") };
     Access.audit(audit, caller, ?p.id, f.workId, "bekeek:bestand-vertrouwelijk", "#" # id.toText());
     #ok({ Dossier.fileView(f) with blob = ?f.blob });
   };

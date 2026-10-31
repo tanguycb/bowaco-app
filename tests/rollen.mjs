@@ -2005,19 +2005,25 @@ await sec("── 2c.2 prijsvragen: caps en poorten per rol (de rest staat in te
   ok1b(await admin.updateTender(t2, 0n, { cancel: "proef rollentest" }));
   check("werfleider ziet de prijsvragen van de werf (firma's, stand, deadline), niet de prijsvraag zelf", (await wl.listTenders([B])).length >= 2 && (await denied(wl.readTender(t1.ok))));
   check("architect, OA, klant en veiligheid zien de prijsvragen van de werf niet", (await Promise.all([arch, oa2, klant, vc].map((x) => denied(x.listTenders([B]))))).every(Boolean));
-  check("OA: klaar (nog niet verstuurd) = niets in Mijn prijsvragen", (await oa2.listMyTenders()).length === 0 && (await denied(oa2.readMyTender(inv1.id))));
+  check("OA: klaar (nog niet verstuurd) = niets in Mijn prijsvragen", (await oa2.listMyTenders()).length === 0 && (await denied(oa2.readMyTender(inv1.ref))));
   ok1b(await calc.updateTenderInvite(inv1.id, { markSent: ["pdf", "excel"] }));
   const mine = await oa2.listMyTenders();
-  check("na Markeer als verstuurd: de OA ziet zijn prijsvraag (en niet de geannuleerde)", mine.length === 1 && mine[0].inviteId === inv1.id && mine[0].canAnswer);
-  check("een OA van een andere firma ziet ze niet (lijst leeg, lezen geweigerd)", (await oa.listMyTenders()).length === 0 && (await denied(oa.readMyTender(inv1.id))) && (await denied(oa.readMyTenderAnswer(inv1.id))));
-  const my = ok1b(await oa2.readMyTender(inv1.id));
-  const line = { itemId: [my.items[0].id], description: "", unit: "", qtyMilli: 0n, unitCents: [1234n], included: { yes: null }, remark: "" };
+  check("na Markeer als verstuurd: de OA ziet zijn prijsvraag (en niet de geannuleerde)", mine.length === 1 && mine[0].ref === inv1.ref && /^[0-9A-Z]{16}$/.test(inv1.ref) && mine[0].canAnswer);
+  check("een OA van een andere firma ziet ze niet (lijst leeg, lezen geweigerd)", (await oa.listMyTenders()).length === 0 && (await denied(oa.readMyTender(inv1.ref))) && (await denied(oa.readMyTenderAnswer(inv1.ref))));
+  const my = ok1b(await oa2.readMyTender(inv1.ref));
+  const line = { pos: [my.items[0].pos], description: "", unit: "", qtyMilli: 0n, unitCents: [1234n], included: { yes: null }, remark: "" };
   const draft = { number: "PROEF-1", quoteDay: [], validUntil: [], discountBp: [], reverse: true, lines: [line], remark: "" };
-  const saved = ok1b(await oa2.saveMyTender(inv1.id, draft, false, 0n));
-  check("OA bewaart een ontwerp (enkel zijn firma); kantoor ziet nog geen offerte", saved.oaQuoteId.length === 0 && ok1b(await calc.readTender(t1.ok)).invites[0].oaQuotes.length === 0);
-  const sub = ok1b(await oa2.saveMyTender(inv1.id, draft, true, saved.netCents));
-  check("OA dient in (versie 1); kantoor leest de bedragen (update-call, auditregel); werfleider en OA niet", sub.version[0] === 1n && isOk(await calc.readOaQuote(sub.oaQuoteId[0])) && (await denied(wl.readOaQuote(sub.oaQuoteId[0]))) && (await denied(oa2.readOaQuote(sub.oaQuoteId[0]))) && (await admin.auditLog(0n, 30n)).some((e) => e.action === `bekeek:oa-offerte:${sub.oaQuoteId[0]}`));
-  check("bijlage: de OA leest het plan van de prijsvraag; een bestand dat er niet aan hangt niet; een andere OA niet", isOk(await oa2.readTenderFile(inv1.id, plan.ok)) && (await denied(oa2.readTenderFile(inv1.id, fA.ok))) && (await denied(oa.readTenderFile(inv1.id, plan.ok))));
+  const saved = ok1b(await oa2.saveMyTender(inv1.ref, draft, false, 0n));
+  check("OA bewaart een ontwerp (enkel zijn firma); kantoor ziet nog geen offerte", saved.version.length === 0 && ok1b(await calc.readTender(t1.ok)).invites[0].oaQuotes.length === 0);
+  // M1 (R38): de eigen PDF in het ontwerp leest kantoor niet (zelfde antwoord als een onbekend bestand).
+  ok1b(await oa2.addMyTenderFile(inv1.ref, "offerte Dak (proef).pdf", "application/pdf", 900n, blob("8")));
+  const draftFile = (await admin.exportChunk("confidentialFiles", 0n, 5000n)).ok.files.find((f) => f.name === "offerte Dak (proef).pdf").id;
+  check("ontwerp-PDF van de OA: calculator en beheerder krijgen 'Onbekend bestand' (zoals een onbestaand id)", errOf(await calc.readConfidentialFile(draftFile)) === "Onbekend bestand" && errOf(await admin.readConfidentialFile(draftFile)) === errOf(await calc.readConfidentialFile(999_999n)));
+  const sub = ok1b(await oa2.saveMyTender(inv1.ref, draft, true, saved.netCents));
+  check("na het indienen leest kantoor de PDF wel (bij de OA-offerte)", isOk(await calc.readConfidentialFile(draftFile)));
+  const oqId = ok1b(await calc.readTender(t1.ok)).invites[0].oaQuotes[0].id;
+  check("OA dient in (versie 1); kantoor leest de bedragen (update-call, auditregel); werfleider en OA niet", sub.version[0] === 1n && isOk(await calc.readOaQuote(oqId)) && (await denied(wl.readOaQuote(oqId))) && (await denied(oa2.readOaQuote(oqId))) && (await admin.auditLog(0n, 30n)).some((e) => e.action === `bekeek:oa-offerte:${oqId}`));
+  check("bijlage: de OA leest het plan van de prijsvraag; een bestand dat er niet aan hangt niet; een andere OA niet", isOk(await oa2.readTenderFile(inv1.ref, 1n)) && (await denied(oa2.readTenderFile(inv1.ref, 2n))) && (await denied(oa.readTenderFile(inv1.ref, 1n))));
   check("prijsvragen maken en beheren: architect, klant, VC, OA geweigerd (verlengen, firma erbij, toegang, verstuurd)", (await Promise.all([arch, klant, vc, oa2, wl].flatMap((x) => [denied(x.updateTender(t1.ok, 0n, { extend: sug.deadlineDay + 30n })), denied(x.updateTenderInvite(inv1.id, { markSent: ["pdf"] })), denied(x.tenderAccess(inv1.id, 0n)), denied(x.addTenderFirm(t1.ok, { orgId: orgX.ok.id, contactPersonId: [] }))]))).every(Boolean));
 }
 
