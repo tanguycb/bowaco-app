@@ -9,6 +9,7 @@ import { Button, Choice, Icon, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, optText, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page, useWorks, WorkPhase } from "./common";
+import { TarievenAttesten } from "./Attesten";
 import { Field } from "./Werven";
 import { PersonSheet } from "./Team";
 import { NieuwMetToegang, ToegangGeven, useLoginState } from "./Toegang";
@@ -122,6 +123,7 @@ function FirmaFiche({ id, caps, trades, onClose, onCreated, go }: { id: bigint |
         <>
           <Contacten org={org} v={v} persons={persons.data ?? []} caps={caps} />
           <Werven orgId={org.id} go={go} />
+          <TarievenAttesten orgId={org.id} caps={caps} isOa={org.kind === OrgKind.subcontractor || org.kind === OrgKind.supplier} />
         </>
       ) : (
         <p className="bw-muted">{A.saveFirst}</p>

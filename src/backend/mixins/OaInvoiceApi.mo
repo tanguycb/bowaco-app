@@ -28,6 +28,8 @@ import Dossier "../lib/Dossier";
 import Ids "../lib/Ids";
 import Plan "../lib/Plan";
 import OaInvoice "../lib/OaInvoice";
+import OaDeals "../lib/OaDeals";
+import Progress "../lib/Progress";
 import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
 import Wadm "../lib/Wadm";
@@ -45,6 +47,7 @@ mixin (
   surveys : Types.SurveyState,
   wadm : Types.WadmState,
   oaInvoices : Types.OaInvoiceState,
+  oaDeals : Types.OaDealState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -235,7 +238,7 @@ mixin (
     oaInvoices.invoices.add(id, { i with status = #approved; decision = ?{ at = now; by = p.id; approved = true; reason = why; withholding = ?w; flags = k.flagCount }; rev = i.rev + 1; updatedAt = now; updatedBy = p.id });
     // 2.12 (M6): de motivering van een uitzondering hoort in de auditlog (het is de enige grond om zonder raadpleging goed te keuren).
     let wText = switch w { case (#check c) "inhoudingsplicht " # Wadm.resultWord(c.result) # " (" # c.reference # ")"; case (#exception e) "uitzondering op de inhoudingsplicht: " # Text.fromIter(e.chars().take(120)) };
-    Access.audit(audit, caller, ?p.id, ?i.workId, "oa-factuur-goedgekeurd", oiOrgName(i.orgId) # " " # i.number # ": " # wText # (if (k.flagCount > 0) ", " # k.flagCount.toText() # " markering(en), reden: " # why else ""));
+    Access.audit(audit, caller, ?p.id, ?i.workId, "oa-factuur-goedgekeurd", oiOrgName(i.orgId) # " " # i.number # ": " # wText # (if (k.flagCount > 0) ", " # k.flagCount.toText() # " markering(en), reden: " # why else "") # (if (OaDeals.attestWarnings(oaDeals, settings, org, i.orgId, Dossier.today()).size() > 0) ", attesten niet in orde" else ""));
     switch w { case (#check c) { if (c.result != #clear) { Access.notifyAdmins(access, audit, ctr, "inhoudingsplicht", oiOrgName(i.orgId) # " " # i.number # ": goedgekeurd met inhoudingsplicht (" # Wadm.resultWord(c.result) # "): bij de betaling inhouden") } }; case _ {} };
     #ok;
   };
@@ -274,7 +277,7 @@ mixin (
   };
 
   // ── Hulp ───────────────────────────────────────────────────────────────
-  func oiCtx() : OaInvoice.Ctx { { settings; access; org; works; plan; reports; qs = quotes; starts = workStarts; ss = surveys; oi = oaInvoices } };
+  func oiCtx() : OaInvoice.Ctx { { settings; access; org; works; plan; reports; qs = quotes; starts = workStarts; ss = surveys; oi = oaInvoices; deals = oaDeals } };
   func oiOrgName(o : Nat) : Text { switch (org.orgs.get(o)) { case (?x) x.name; case null "#" # o.toText() } };
   func oiWorkName(w : Nat) : Text { switch (works.works.get(w)) { case (?x) x.name; case null "" } };
   func oiAmounts(i : Types.OaInvoice) : Types.OaInvoiceAmounts {
@@ -364,6 +367,11 @@ mixin (
       canEdit = i.status == #registered;
       canDecide = open;
       disputeNotice = OaInvoice.disputeNotice(settings);
+      attestWarnings = OaDeals.attestWarnings(oaDeals, settings, org, i.orgId, today);
+      dealRate = switch (OaDeals.dealRegieAt(oaDeals, i.workId, i.orgId, OaInvoice.rateDay(i))) {
+        case (?(c, from)) "Regie volgens de afspraak op deze werf: " # Progress.euro(c) # " per uur sinds " # Plan.fmtDay(from) # " (geldig op " # Plan.fmtDay(OaInvoice.rateDay(i)) # ")";
+        case null "";
+      };
     };
   };
 };

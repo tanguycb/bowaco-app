@@ -326,6 +326,8 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
             <div><dt>{v.vatRegime.__kind__ === "reverse" ? T.regimes.reverse : T.vatAt(String(Number(v.vatRegime.normal) / 100))}</dt><dd className="bw-mono">{fmtEuro(v.vatCents)}{v.expectedVatCents !== undefined && v.expectedVatCents !== v.vatCents ? ` (${T.expected} ${fmtEuro(v.expectedVatCents)})` : ""}</dd></div>
             <div className="vs-dl__big"><dt>{T.total}</dt><dd className="bw-mono">{fmtEuro(v.totalCents)}</dd></div>
           </dl>
+          {v.dealRate && <p className="bw-muted" data-testid="oi-deal-rate">{v.dealRate}</p>}
+          {v.attestWarnings.length > 0 && <div className="a-alert" data-testid="oi-attests"><strong>{t.afspraken.warnings}: </strong>{v.attestWarnings.join(" · ")}</div>}
           {v.headerFlags.length > 0 && <ul className="vs-findings" data-testid="oi-header-flags">{v.headerFlags.map((f) => <li key={f.key}><span className="a-tag a-tag--warn">{T.flagTag}</span> {T.flags[f.key] ?? f.text}</li>)}</ul>}
           <p className="bw-muted">{T.hoursAll(fmtQty(v.hoursAll.validMilli), fmtQty(v.hoursAll.disputedMilli))}</p>
           {v.previous.length > 0 && (

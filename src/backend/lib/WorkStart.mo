@@ -286,6 +286,13 @@ module {
         else if (l.qtyMilli == 0 and not chosen) { skipped.add(note(l, "pro memorie (hoeveelheid 0)")) }
         else {
           let item : ?Types.LibItem = switch (l.libItemId) { case (?id) c.library.items.get(id); case null null };
+          // 2c.4: de uitvoerder = de firma van de aankoopprijs van de lijn (de gekozen OA, 2c.3) als dat een actieve onderaannemer
+          // is; anders de standaard-OA of leverancier van de bibliotheekpost (zoals in 2.8).
+          let lineOrg : ?Nat = switch (c.quotes.prices.get(l.id)) {
+            case (?pr) { switch (pr.orgId) { case (?o) { switch (c.org.orgs.get(o)) { case (?x) { if (x.kind == #subcontractor and x.archivedAt == null) ?o else null }; case null null } }; case null null } };
+            case null null;
+          };
+          let execOrg : ?Nat = switch lineOrg { case (?o) ?o; case null { switch item { case (?it) it.orgId; case null null } } };
           let lws = words(l.title);
           let chws = words(switch (chTitle.get(l.chapterId)) { case (?x) x; case null "" });
           // De stap: gekozen > bibliotheek > titel > hoofdstuk > vakgebied (enkel als één stap dat vakgebied heeft) > geen.
@@ -345,10 +352,10 @@ module {
           switch item {
             case (?it) {
               switch (it.trade) { case (?tr) { a.trades.add(tr, (switch (a.trades.get(tr)) { case (?n) n; case null 0 }) + weight) }; case null {} };
-              switch (it.orgId) { case (?o) { a.orgs.add(o, (switch (a.orgs.get(o)) { case (?n) n; case null 0 }) + weight) }; case null {} };
             };
             case null {};
           };
+          switch execOrg { case (?o) { a.orgs.add(o, (switch (a.orgs.get(o)) { case (?n) n; case null 0 }) + weight) }; case null {} };
           outLines.add({
             lineId = l.id;
             code = l.code;
@@ -360,7 +367,7 @@ module {
             group = gkey;
             how;
             days;
-            orgName = switch item { case (?it) orgName(c.org, it.orgId); case null "" };
+            orgName = orgName(c.org, execOrg);
             tradeName = switch item { case (?it) tradeName(c.settings, it.trade); case null "" };
           });
         };

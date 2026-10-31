@@ -30,7 +30,8 @@ export type Header = { title: string; vatBp: bigint; clientOrgId: bigint | null;
 export type Pick = { classId: bigint | null; marginBp: bigint };
 type SubgroupData = { chapter: string; title: string; order: bigint };
 export type Subgroup = SubgroupData & { key: string; id: bigint | null; removed: boolean; base: (SubgroupData & { removed: boolean }) | null };
-export type RegieTerms = { orgId: bigint | null; cost: bigint; sell: bigint };
+/** 2c.4: follow = het uurloon volgt het geldende regietarief van de OA (firmafiche → Tarieven & attesten). */
+export type RegieTerms = { orgId: bigint | null; cost: bigint; sell: bigint; follow?: boolean };
 export type Form = {
   hideZeroLines: boolean;
   regieText: boolean;
@@ -500,7 +501,7 @@ export type FormSave = {
     subgroupOps: { id: bigint | null; ref: string; chapterId: bigint; title: string; order: bigint; remove: boolean }[];
     lineOps: { lineId: bigint; subgroup: { id: bigint } | { ref: string } | null; showToClient: boolean | null }[];
     chapterMargins: { id: bigint; classId: bigint | null; marginBp: bigint }[];
-    regie: { orgId: bigint | null; costCents: bigint; sellCents: bigint | null } | null;
+    regie: { orgId: bigint | null; costCents: bigint; sellCents: bigint | null; followRate: boolean } | null;
     discount: Discount;
     discountText: string;
   };
@@ -527,7 +528,7 @@ export function formSave(m: Model): FormSave | null {
   const f = m.form;
   const t = totals(m);
   return {
-    input: { hideZeroLines: f.hideZeroLines, regieText: f.regieText, textBlockKeys: [...f.textBlockKeys], subgroupOps, lineOps, chapterMargins, regie: f.regie ? { orgId: f.regie.orgId, costCents: f.regie.cost, sellCents: f.regie.sell } : null, discount: f.discount, discountText: f.discountText },
+    input: { hideZeroLines: f.hideZeroLines, regieText: f.regieText, textBlockKeys: [...f.textBlockKeys], subgroupOps, lineOps, chapterMargins, regie: f.regie ? { orgId: f.regie.orgId, costCents: f.regie.cost, sellCents: f.regie.sell, followRate: !!f.regie.follow } : null, discount: f.discount, discountText: f.discountText },
     expect: { subtotal: t.subtotal, discount: t.discount, total: t.total },
   };
 }

@@ -511,6 +511,25 @@ module {
   // het project, in te vullen vóór de eerste echte weekmail (docs/postbode-installatie.md). Elke andere canister (een
   // nieuwe draftcanister, een herstel op een ander project) blijft in de testmodus, wat de beheerder ook instelt. Een
   // draftcanister hierboven is nooit live, ook niet als ze ooit in deze lijst zou staan.
+
+  // ── Afspraken met de gekozen OA (2c.4; VOORLOPIG: AC-15, AC-16, AC-17) ──
+  // Voorschot standaard 0 %, hoogstens 20 % (contract art. 2); betaling 30 dagen einde maand (D4). Attesten: BA, tienjarige,
+  // personeelsverzekering (AC-17), melding 30 dagen vóór het vervallen, één keer.
+  public let dealMaxAdvanceBp : Nat = 2_000;
+  public let dealPaymentDays : Nat = 30;
+  public let dealEndOfMonth : Bool = true;
+  public let dealNoticeDays : Nat = 30;
+  public let maxContractVersions : Nat = 999; // sleutel frozen = afspraak × 1000 + versie
+  public let maxRatesPerOrg : Nat = 300;
+  public let maxRatesPerDeal : Nat = 100;
+  public let maxOrgDocs : Nat = 200;
+  public let maxContractText : Nat = 40_000;
+  public func orgDocKinds() : [(Text, Text)] {
+    [("ba", "Verzekering BA (burgerlijke aansprakelijkheid)"), ("tienjarige", "Tienjarige aansprakelijkheid"), ("personeel", "Personeelsverzekering (arbeidsongevallen)")];
+  };
+  public func rateSources() : [(Text, Text)] {
+    [("offerte", "Offerte"), ("prijslijst", "Prijslijst"), ("mail", "Mail"), ("factuur", "Factuur"), ("andere", "Andere")];
+  };
   public func mailLiveBackends() : [Text] { [] };
   // Enkel voor de testbouw van tests/lokaal.sh (die zet dit op true, zoals de testhash): dan telt elke canister als live,
   // zodat de rollentest het pad "testmodus uit → echte adressen" kan bewijzen. tools/meetlat.mjs weigert een upload met true.

@@ -8,7 +8,7 @@ import { OrgKind, QuoteKind, type OrgView, type QuoteRead, type TextBlockPlace, 
 import { Button, Choice, Info, Sheet, useToast } from "../design";
 import * as M from "../quote/model.ts";
 import { t } from "../texts/nl";
-import { errText, fmtBp, fmtEuro, parseEuro, parsePct, unwrap, useBackend } from "../util";
+import { errText, fmtBp, fmtDayNum, fmtEuro, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
 
 const V = t.vorm;
@@ -16,6 +16,29 @@ const eurIn = (c: bigint) => (Number(c) / 100).toFixed(2).replace(".", ",");
 const pctIn = (bp: bigint) => (Number(bp) / 100).toLocaleString("nl-BE");
 
 type Classes = NonNullable<QuoteRead["terms"]>["classes"];
+
+/** 2c.4: het uurloon volgt het regietarief van de OA dat vandaag geldt (firmafiche → Tarieven & attesten; update-call met auditregel). */
+function FollowRate({ orgId, follow, editable, onFollow }: { orgId: bigint; follow: boolean; editable: boolean; onFollow: (cents: bigint | null) => void }) {
+  const { actor } = useBackend();
+  const [msg, setMsg] = useState("");
+  const pick = async (on: boolean) => {
+    if (!on) { onFollow(null); return; }
+    try {
+      const today = todayDay();
+      const rs = unwrap(await actor!.listOaRates(orgId)).filter((r) => r.kind === "regie" && r.archivedAt === undefined && r.validFrom <= today).sort((a, b) => Number(a.validFrom - b.validFrom) || Number(a.id - b.id));
+      const r = rs[rs.length - 1];
+      if (!r) { setMsg(t.afspraken.followNone); return; }
+      setMsg(t.afspraken.followNow(fmtEuro(r.cents), fmtDayNum(r.validFrom)));
+      onFollow(r.cents);
+    } catch (e) { setMsg(errText(e)); }
+  };
+  return (
+    <>
+      <label className="a-check"><input type="checkbox" disabled={!editable} checked={follow} onChange={(e) => void pick(e.target.checked)} /> {t.afspraken.followRate}</label>
+      {msg && <p className="bw-muted q-small">{msg}</p>}
+    </>
+  );
+}
 
 /** Het paneel naast de editor: regietarief, korting, wat de klant ziet en de tekstblokken. */
 export function FormPanel({ m, editable, orgs, edit }: { m: M.Model; editable: boolean; orgs: OrgView[]; edit: (f: (m: M.Model) => void) => void }) {
@@ -33,14 +56,15 @@ export function FormPanel({ m, editable, orgs, edit }: { m: M.Model; editable: b
       ) : (
         <div className="a-form">
           <label className="bw-field"><span className="bw-label">{V.regieOa}</span>
-            <select className="bw-input" disabled={!editable} value={f.regie.orgId !== null ? String(f.regie.orgId) : ""} onChange={(e) => setForm({ regie: { ...f.regie!, orgId: e.target.value ? BigInt(e.target.value) : null } })}>
+            <select className="bw-input" disabled={!editable} value={f.regie.orgId !== null ? String(f.regie.orgId) : ""} onChange={(e) => setForm({ regie: { ...f.regie!, orgId: e.target.value ? BigInt(e.target.value) : null, follow: false } })}>
               <option value="">{V.regieNoOa}</option>
               {oas.map((x) => <option key={String(x.id)} value={String(x.id)}>{x.name}</option>)}
             </select>
           </label>
+          {f.regie.orgId !== null && <FollowRate orgId={f.regie.orgId} follow={!!f.regie.follow} editable={editable} onFollow={(c) => setForm({ regie: c === null ? { ...f.regie!, follow: false } : { ...f.regie!, cost: c, sell: M.regieSell(c), follow: true } })} />}
           <div className="a-grid2">
             <label className="bw-field"><span className="bw-label">{V.regieCost}</span>
-              <EuroField disabled={!editable} value={f.regie.cost} testid="regie-cost" onCommit={(c) => setForm({ regie: { ...f.regie!, cost: c, sell: M.regieSell(c) } })} />
+              <EuroField disabled={!editable || !!f.regie.follow} value={f.regie.cost} testid="regie-cost" onCommit={(c) => setForm({ regie: { ...f.regie!, cost: c, sell: M.regieSell(c), follow: false } })} />
             </label>
             <label className="bw-field"><span className="bw-label">{V.regieSell}</span>
               <EuroField disabled={!editable} value={f.regie.sell} testid="regie-sell" onCommit={(c) => setForm({ regie: { ...f.regie!, sell: c } })} />

@@ -19,6 +19,7 @@ import { PlanningPage, PlanSummary, useMedia } from "./Planning";
 import { Field, Files, NewWork } from "./Werven";
 import { IssueList, ReportsSection, SummaryRow, ReportSheet } from "./Verslagen";
 import { WieWerktMee } from "./Toegang";
+import { Afspraken } from "./Afspraken";
 import { WorkPermits } from "./Vergunningen";
 import { WorkAdmin } from "./Werfadministratie";
 import { PendingStarts } from "./WerfStart";
@@ -235,7 +236,7 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
         </div>
       );
     case "wie":
-      return <WieWerktMee w={w} caps={caps} />;
+      return <><WieWerktMee w={w} caps={caps} /><Afspraken w={w} caps={caps} /></>;
   }
 }
 

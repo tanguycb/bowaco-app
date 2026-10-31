@@ -15,12 +15,14 @@ import Config "../lib/Config";
 import Rights "../lib/Rights";
 import Post "../lib/Post";
 import Tenders "../lib/Tenders";
+import OaDeals "../lib/OaDeals";
 
 mixin (
   settings : Types.SettingsState,
   access : Types.AccessState,
   works : Types.WorksState,
   tenders : Types.TenderState,
+  oaDeals : Types.OaDealState,
 ) {
   transient let _immutableObjectStorageState : Storage.State = Storage.new();
   transient var _gatewayRefreshedAt : Int = 0;
@@ -69,8 +71,9 @@ mixin (
   public shared ({ caller }) func _immutableObjectStorageCreateCertificate(blobHash : Text) : async _ImmutableObjectStorageCreateCertificateResult {
     let p = Access.requireActive(access, caller);
     // 2c.2 (R39): ook een OA met een open uitnodiging (zijn eigen offerte-PDF), zonder lid te zijn van een werf.
+    // 2c.4 (R40): ook een OA wiens firma een afspraak heeft (hij laadt zijn attesten op).
     let ctx = { works; settings };
-    if (not Rights.may(ctx, p, #upload, null) and not Rights.mayUpload(ctx, p, Tenders.hasOpenInvite(ctx, tenders, p, Time.now(), Post.local(Time.now()).day))) { Runtime.trap("Geen toegang") };
+    if (not Rights.may(ctx, p, #upload, null) and not Rights.mayUpload(ctx, p, Tenders.hasOpenInvite(ctx, tenders, p, Time.now(), Post.local(Time.now()).day) or (Rights.may(ctx, p, #ownDeals, null) and OaDeals.hasDeal(oaDeals, p.orgId)))) { Runtime.trap("Geen toegang") };
     if (blobHash.size() > 100) { Runtime.trap("Het bestand is beschadigd; probeer opnieuw") };
     { method = "upload"; blob_hash = blobHash };
   };

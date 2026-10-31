@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Alles lokaal op het EIGEN testnet (tests/net, poort 8041; raakt het gedeelde :8000 nooit):
-# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → offerte 2c.1 → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → OA-offertes 2c.3 → prijsvraag 2c.2 (verzet de klok: als laatste) → gateway.
+# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → offerte 2c.1 → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → OA-offertes 2c.3 → afspraken 2c.4 → prijsvraag 2c.2 (verzet de klok: als laatste) → gateway.
 #   zsh tests/lokaal.sh            (start het net als het nog niet draait)
 set -e
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -106,5 +106,8 @@ node tests/prijsvraag-excel.mjs
 # 2c.3: OA-offertes ontvangen en vergelijken (Excel heen en terug via de canister, met de hand, los, vergelijking browser = server,
 # kiezen, overnemen in de offerte en de bibliotheek (idempotent), tweede indiening, afsluiten met het bericht). Vóór de klokproef.
 node tests/oaofferte-2c3.mjs "$cid"
+# 2c.4: afspraken met de gekozen OA (tarief met datum, regietarief van de offerte volgt de OA, werfstart → afspraak, werf houdt
+# haar tarief, nieuw tarief op de werf vanaf een dag, controle OA-factuur, contract onder controlecode, Mijn contracten, attesten).
+node tests/afspraak-2c4.mjs "$cid"
 node tests/prijsvraag-2c2.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

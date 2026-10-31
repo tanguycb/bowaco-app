@@ -29,7 +29,7 @@ module {
   public type MarginLinkView = { key : Text; classId : Nat; className : Text; marginBp : Nat };
   public type QuoteMarginView = { id : Nat; classId : ?Nat; className : Text; marginBp : Nat; fixed : Bool }; // fixed = in de versie vastgelegd
   public type QuoteLineBaseView = { lineId : Nat; marginBp : Nat; source : Text }; // "leverancier" · "hoofdstuk" · "standaard" · "eigen" · "regie"
-  public type QuoteRegieView = { orgId : ?Nat; orgName : Text; costCents : Int; sellCents : Int };
+  public type QuoteRegieView = { orgId : ?Nat; orgName : Text; costCents : Int; sellCents : Int; fromRateId : ?Nat }; // 2c.4: het tarief van de OA dat het volgt
   public type QuoteMarginTermsView = {
     chapterMargins : [QuoteMarginView]; // id = hoofdstuk van de versie
     orgMargins : [QuoteMarginView]; // id = firma
@@ -54,7 +54,8 @@ module {
   public type SubgroupOp = { id : ?Nat; ref : Text; chapterId : Nat; title : Text; order : Nat; remove : Bool };
   public type LineFormOp = { lineId : Nat; subgroup : ?SubgroupRef; showToClient : ?Bool };
   public type MarginPickInput = { id : Nat; classId : ?Nat; marginBp : Nat };
-  public type RegieInput = { orgId : ?Nat; costCents : Int; sellCents : ?Int };
+  // 2c.4: followRate = het uurloon volgt het geldende regietarief van de OA (firmafiche); costCents moet er dan aan gelijk zijn.
+  public type RegieInput = { orgId : ?Nat; costCents : Int; sellCents : ?Int; followRate : Bool };
   public type QuoteFormInput = {
     hideZeroLines : Bool;
     regieText : Bool;

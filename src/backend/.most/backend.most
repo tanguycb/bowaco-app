@@ -82,6 +82,140 @@ type Address__963656299 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__997510852 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
+type AgreedRate__282079898 =
+  {
+    cents : Int;
+    fromRateId : ?Nat;
+    kind : RateKind__429914699;
+    note : Text;
+    unit : Text;
+    validFrom : Day__162369424
+  };
+type AgreedRate__94159640 =
+  {
+    cents : Int;
+    fromRateId : ?Nat;
+    kind : RateKind__943651480;
+    note : Text;
+    unit : Text;
+    validFrom : Day__779309904
+  };
+type AgreementFrozen__45416438 =
+  {
+    advanceBp : Nat;
+    advanceCents : ?Int;
+    agreementId : Nat;
+    at : Int;
+    by : PersonId__905878204;
+    contractVersion : Nat;
+    extra : Extra__276464624;
+    fields : [(Text, Text)];
+    hash : Text;
+    posts : [FrozenPost__1003738919];
+    rates : [AgreedRate__94159640];
+    signed : ?SignedProof__564117653;
+    templateVersion : Nat;
+    text : Text;
+    title : Text;
+    totalCents : ?Int
+  };
+type AgreementFrozen__873770672 =
+  {
+    advanceBp : Nat;
+    advanceCents : ?Int;
+    agreementId : Nat;
+    at : Int;
+    by : PersonId__967516914;
+    contractVersion : Nat;
+    extra : Extra__945213800;
+    fields : [(Text, Text)];
+    hash : Text;
+    posts : [FrozenPost__688533546];
+    rates : [AgreedRate__282079898];
+    signed : ?SignedProof__346016744;
+    templateVersion : Nat;
+    text : Text;
+    title : Text;
+    totalCents : ?Int
+  };
+type AgreementStatus__435016816 =
+  {
+    #draft;
+    #ended : {at : Int; by : PersonId__905878204; reason : Text};
+    #signed;
+    #toSign
+  };
+type AgreementStatus__493857892 =
+  {
+    #draft;
+    #ended : {at : Int; by : PersonId__967516914; reason : Text};
+    #signed;
+    #toSign
+  };
+type AgreementTerms__80975566 =
+  {
+    advanceCents : ?Int;
+    agreementId : Nat;
+    amountCents : ?Int;
+    extra : Extra__276464624;
+    prices : [(Nat, Int)];
+    rates : [AgreedRate__94159640]
+  };
+type AgreementTerms__829413990 =
+  {
+    advanceCents : ?Int;
+    agreementId : Nat;
+    amountCents : ?Int;
+    extra : Extra__945213800;
+    prices : [(Nat, Int)];
+    rates : [AgreedRate__282079898]
+  };
+type Agreement__1003758038 =
+  {
+    advanceBp : Nat;
+    contractHash : Text;
+    contractVersion : Nat;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    endOfMonth : Bool;
+    extra : Extra__945213800;
+    id : Nat;
+    oaQuoteIds : [Nat];
+    orgId : OrgId__17031398;
+    paymentDays : Nat;
+    rev : Nat;
+    roots : [Nat];
+    signedFileId : ?Nat;
+    startDay : ?Day__162369424;
+    status : AgreementStatus__493857892;
+    templateVersion : ?Nat;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    workId : WorkId__929594816
+  };
+type Agreement__991936866 =
+  {
+    advanceBp : Nat;
+    contractHash : Text;
+    contractVersion : Nat;
+    createdAt : Int;
+    createdBy : PersonId__905878204;
+    endOfMonth : Bool;
+    extra : Extra__276464624;
+    id : Nat;
+    oaQuoteIds : [Nat];
+    orgId : OrgId__762183877;
+    paymentDays : Nat;
+    rev : Nat;
+    roots : [Nat];
+    signedFileId : ?Nat;
+    startDay : ?Day__779309904;
+    status : AgreementStatus__435016816;
+    templateVersion : ?Nat;
+    updatedAt : Int;
+    updatedBy : PersonId__905878204;
+    workId : WorkId__654334923
+  };
 type Appointment__3400962 =
   {
     archivedAt : ?Int;
@@ -303,6 +437,7 @@ type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
 type Confidential__675319516<T> = {#plain : T; #sealed : Sealed__1041298352};
 type Confidential__757977450<T> = {#plain : T; #sealed : Sealed__325177826};
 type Confidential__861245145<T> = {#plain : T; #sealed : Sealed__703332956};
+type Confidential__866879126<T> = {#plain : T; #sealed : Sealed__729729536};
 type Confidential__886369716<T> = {#plain : T; #sealed : Sealed__566922365};
 type Confidential__887711100<T> = {#plain : T; #sealed : Sealed__380469911};
 type Confidential__96824572<T> = {#plain : T; #sealed : Sealed__29180127};
@@ -401,6 +536,7 @@ type Day__432051804 = Nat;
 type Day__543083322 = Nat;
 type Day__672613163 = Nat;
 type Day__728056481 = Nat;
+type Day__779309904 = Nat;
 type Day__786034210 = Nat;
 type Day__821488089 = Nat;
 type Day__884237654 = Nat;
@@ -472,6 +608,8 @@ type Dependency__365828021 =
   };
 type DocStatus__203023376 =
   {#approved; #expired; #missing; #notApplicable; #received; #requested};
+type DocStatus__553401442 =
+  {#approved; #expired; #missing; #notApplicable; #received; #requested};
 type DocStatus__971696289 =
   {#approved; #expired; #missing; #notApplicable; #received; #requested};
 type Document__483994843 =
@@ -526,6 +664,7 @@ type DossierState__7485337 =
 type Extra__1018104949 = [(Text, Text)];
 type Extra__262828561 = [(Text, Text)];
 type Extra__268650993 = [(Text, Text)];
+type Extra__276464624 = [(Text, Text)];
 type Extra__365037972 = [(Text, Text)];
 type Extra__417870522 = [(Text, Text)];
 type Extra__459120016 = [(Text, Text)];
@@ -572,6 +711,10 @@ type FileRef__388390992 =
     workId : ?WorkId__929594816
   };
 type FileState__715278299 = {files : Map__230067015<Nat, FileRef__312567383>};
+type FrozenPost__1003738919 =
+  {qtyMilli : Int; root : Nat; title : Text; unit : Text; unitCents : ?Int};
+type FrozenPost__688533546 =
+  {qtyMilli : Int; root : Nat; title : Text; unit : Text; unitCents : ?Int};
 type Grant__318217616 =
   {
     #confirmHours;
@@ -1322,6 +1465,7 @@ type NewActor__398557116 = {imp : ImportState__440367384};
 type NewActor__410098017 = {library : LibraryState__89257550};
 type NewActor__431720327 = {tenders : TenderState__988369423};
 type NewActor__473839593 = {wadm : WadmState__864899804};
+type NewActor__477761715 = {oaDeals : OaDealState__105177660};
 type NewActor__502640867 = {oaInvoices : OaInvoiceState__866295989};
 type NewActor__542837279 = {reports : ReportState__211051397};
 type NewActor__914032600 = {oa : OaState__978871092};
@@ -1386,6 +1530,48 @@ type Notification__821136752 =
     ref : ?(Text, Nat);
     text : Text;
     workId : ?WorkId__111716167
+  };
+type OaContractTemplate__557665840 =
+  {
+    archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    id : Nat;
+    note : Text;
+    provisional : Bool;
+    text : Text;
+    title : Text;
+    version : Nat
+  };
+type OaContractTemplate__563174998 =
+  {
+    archivedAt : ?Int;
+    createdAt : Int;
+    createdBy : PersonId__905878204;
+    extra : Extra__276464624;
+    id : Nat;
+    note : Text;
+    provisional : Bool;
+    text : Text;
+    title : Text;
+    version : Nat
+  };
+type OaDealState__105177660 =
+  {
+    agreementKeys : Map__230067015<Text, Nat>;
+    agreements : Map__230067015<Nat, Agreement__991936866>;
+    agreementsByWork : Map__230067015<Nat, [Nat]>;
+    docsByOrg : Map__230067015<Nat, [Nat]>;
+    frozen :
+      Map__230067015<Nat, Confidential__866879126<AgreementFrozen__45416438>>;
+    notices : Map__230067015<Text, Int>;
+    orgDocs : Map__230067015<Nat, OrgDoc__631745222>;
+    rates : Map__230067015<Nat, Confidential__866879126<OaRate__333584044>>;
+    ratesByOrg : Map__230067015<Nat, [Nat]>;
+    templates : Map__230067015<Nat, OaContractTemplate__563174998>;
+    terms :
+      Map__230067015<Nat, Confidential__866879126<AgreementTerms__80975566>>
   };
 type OaIncluded__281997571 = {#alt : Text; #no; #yes};
 type OaIncluded__60770566 = {#alt : Text; #no; #yes};
@@ -1628,6 +1814,42 @@ type OaQuote__898917628 =
     version : Nat;
     workId : WorkId__929594816
   };
+type OaRate__333584044 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    cents : Int;
+    createdAt : Int;
+    createdBy : PersonId__905878204;
+    extra : Extra__276464624;
+    fileId : ?Nat;
+    id : Nat;
+    kind : RateKind__943651480;
+    note : Text;
+    orgId : OrgId__762183877;
+    ref : Text;
+    source : Text;
+    unit : Text;
+    validFrom : Day__779309904
+  };
+type OaRate__729299425 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    cents : Int;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    fileId : ?Nat;
+    id : Nat;
+    kind : RateKind__429914699;
+    note : Text;
+    orgId : OrgId__17031398;
+    ref : Text;
+    source : Text;
+    unit : Text;
+    validFrom : Day__162369424
+  };
 type OaState__978871092 =
   {
     orgContacts : Map__230067015<OrgId__98679714, OrgContact__467829229>;
@@ -1681,6 +1903,7 @@ type OldActor__74197155 = {};
 type OldActor__804964816 = {};
 type OldActor__853471898 = {};
 type OldActor__885308482 = {};
+type OldActor__932069066 = {};
 type OldOrgKind__251334601 =
   {
     #architect;
@@ -1779,6 +2002,44 @@ type OrgContact__539818738 =
     updatedBy : PersonId__967516914;
     website : ?Text
   };
+type OrgDoc__631745222 =
+  {
+    archivedAt : ?Int;
+    checkedAt : ?Int;
+    checkedBy : ?PersonId__905878204;
+    createdAt : Int;
+    createdBy : PersonId__905878204;
+    deliveredBy : ?PersonId__905878204;
+    extra : Extra__276464624;
+    fileId : ?Nat;
+    id : Nat;
+    kind : Text;
+    note : Text;
+    orgId : OrgId__762183877;
+    status : DocStatus__553401442;
+    title : Text;
+    validFrom : ?Day__779309904;
+    validUntil : ?Day__779309904
+  };
+type OrgDoc__896525046 =
+  {
+    archivedAt : ?Int;
+    checkedAt : ?Int;
+    checkedBy : ?PersonId__967516914;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    deliveredBy : ?PersonId__967516914;
+    extra : Extra__945213800;
+    fileId : ?Nat;
+    id : Nat;
+    kind : Text;
+    note : Text;
+    orgId : OrgId__17031398;
+    status : DocStatus__203023376;
+    title : Text;
+    validFrom : ?Day__162369424;
+    validUntil : ?Day__162369424
+  };
 type OrgId__1000487066 = Nat;
 type OrgId__1068690298 = Nat;
 type OrgId__137103020 = Nat;
@@ -1793,6 +2054,7 @@ type OrgId__464191747 = Nat;
 type OrgId__579572044 = Nat;
 type OrgId__740456021 = Nat;
 type OrgId__747960356 = Nat;
+type OrgId__762183877 = Nat;
 type OrgId__837673520 = Nat;
 type OrgId__874222008 = Nat;
 type OrgId__875663865 = Nat;
@@ -2031,6 +2293,7 @@ type PersonId__801913222 = Nat;
 type PersonId__820620982 = Nat;
 type PersonId__858692293 = Nat;
 type PersonId__880469992 = Nat;
+type PersonId__905878204 = Nat;
 type PersonId__940766018 = Nat;
 type PersonId__967516914 = Nat;
 type Person__726696944 =
@@ -3003,6 +3266,28 @@ type QuotesState__146412283 =
     versionConf : Map__230067015<Nat, QuoteVersionConf__779854103>;
     versions : Map__230067015<Nat, QuoteVersion__901844953>
   };
+type RateKind__429914699 =
+  {
+    #containerTon;
+    #crewHour;
+    #dieselKm;
+    #kmLevy;
+    #machineDay;
+    #other : Text;
+    #regiePerson;
+    #transportHour
+  };
+type RateKind__943651480 =
+  {
+    #containerTon;
+    #crewHour;
+    #dieselKm;
+    #kmLevy;
+    #machineDay;
+    #other : Text;
+    #regiePerson;
+    #transportHour
+  };
 type ReportBlocks__303830175 =
   {
     attendances : [Nat];
@@ -3149,6 +3434,7 @@ type Sealed__56403581 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__566922365 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__69262316 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__703332956 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__729729536 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__901946251 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__938300689 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type SettingsState__180579617 =
@@ -3159,6 +3445,10 @@ type SettingsState__180579617 =
     values : Map__230067015<Text, Text>;
     var werfleiderZietAlles : Bool
   };
+type SignedProof__346016744 =
+  {at : Int; by : PersonId__967516914; fileId : Nat; note : Text};
+type SignedProof__564117653 =
+  {at : Int; by : PersonId__905878204; fileId : Nat; note : Text};
 type SurveyOpRecord__392605083 =
   {
     at : Int;
@@ -3832,6 +4122,7 @@ type WorkId__448300686 = Nat;
 type WorkId__547794872 = Nat;
 type WorkId__564296267 = Nat;
 type WorkId__642659770 = Nat;
+type WorkId__654334923 = Nat;
 type WorkId__72456761 = Nat;
 type WorkId__815998652 = Nat;
 type WorkId__838834227 = Nat;
@@ -3995,7 +4286,8 @@ type WorksState__605582232 =
   "20261026_140000" : OldActor__161490713 -> NewActor__502640867;
   "20261026_180000" : (old : OldActor__18648432) -> NewActor__237472822;
   "20261030_120000" : OldActor__74197155 -> NewActor__993246018;
-  "20261030_211706" : OldActor__885308482 -> NewActor__431720327
+  "20261030_211706" : OldActor__885308482 -> NewActor__431720327;
+  "20261031_110947" : OldActor__932069066 -> NewActor__477761715
 }
 actor  {
   stable access :
@@ -4057,6 +4349,24 @@ actor  {
       orgContacts : Map__230067015<OrgId__17031398, OrgContact__539818738>;
       personContacts :
         Map__230067015<PersonId__967516914, PersonContact__279373132>
+    };
+  stable oaDeals :
+    {
+      agreementKeys : Map__230067015<Text, Nat>;
+      agreements : Map__230067015<Nat, Agreement__1003758038>;
+      agreementsByWork : Map__230067015<Nat, [Nat]>;
+      docsByOrg : Map__230067015<Nat, [Nat]>;
+      frozen :
+        Map__230067015<Nat,
+                        Confidential__546665525<AgreementFrozen__873770672>>;
+      notices : Map__230067015<Text, Int>;
+      orgDocs : Map__230067015<Nat, OrgDoc__896525046>;
+      rates : Map__230067015<Nat, Confidential__546665525<OaRate__729299425>>;
+      ratesByOrg : Map__230067015<Nat, [Nat]>;
+      templates : Map__230067015<Nat, OaContractTemplate__557665840>;
+      terms :
+        Map__230067015<Nat,
+                        Confidential__546665525<AgreementTerms__829413990>>
     };
   stable oaInvoices :
     {

@@ -2049,6 +2049,28 @@ await sec("── 2c.3 OA-offertes: vergelijken, kiezen, overnemen per rol (de r
   check("instellingen prijsvragen: interne rollen lezen; enkel de beheerder bewaart; OA en klant niets", s0.thanksMode === "melding" && (await denied(calc.saveTenderSettings(s0))) && (await denied(wl.saveTenderSettings(s0))) && isOk(await admin.saveTenderSettings(s0)) && (await denied(oa2.tenderSettings())) && (await denied(klant.tenderSettings())));
 }
 
+await sec("── 2c.4 afspraken met de gekozen OA per rol (R40; de rest staat in tests/afspraak-2c4.mjs)");
+{
+  const day = BigInt(Math.floor(Date.now() / 86_400_000));
+  const others = [["werfleider", wl], ["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon]];
+  const rateIn = { orgId: orgX.ok.id, kind: "regie", unit: "uur", cents: 4200n, validFrom: day - 30n, source: "prijslijst", ref: "proef rollen", fileId: [], note: "" };
+  for (const [n, x] of others) check(`${n}: tarieven van een OA lezen en zetten geweigerd`, (await denied(x.listOaRates(orgX.ok.id))) && (await denied(x.saveOaRate(rateIn))));
+  check("calculator zet een tarief met datum; admin en calculator lezen het (update-call, auditregel)", isOk(await calc.saveOaRate(rateIn)) && isOk(await admin.listOaRates(orgX.ok.id)) && (await admin.auditLog(0n, 20n)).some((e) => e.action === "bekeek:tarieven"));
+  const cd = await calc.createDeal(B, orgX.ok.id);
+  check("calculator maakt een afspraak met de hand op werf B (of ze bestond al)", isOk(cd) || /al een afspraak/.test(errOf(cd)), errOf(cd));
+  const ds = await wl.listDeals(B);
+  const d = ds.find((x) => x.orgId === orgX.ok.id);
+  check("werfleider van werf B ziet de afspraak (status, attesten), zonder bedrag", !!d && !/cents/i.test(JSON.stringify(ds, (_, y) => (typeof y === "bigint" ? y.toString() : y))));
+  for (const [n, x] of others.filter(([n]) => n !== "werfleider")) check(`${n}: geen afspraken van de werf`, await denied(x.listDeals(B)));
+  for (const [n, x] of others) check(`${n}: geen afspraak met bedragen, geen contract maken, geen tarief op de werf`, (await denied(x.readDeal(d.id))) && (await denied(x.makeOaContract(d.id, d.rev))) && (await denied(x.addDealRate(d.id, { kind: "regie", unit: "uur", cents: 1n, validFrom: day, fromRateId: [], note: "" }, d.rev))));
+  check("calculator leest de afspraak met bedragen (update-call)", isOk(await calc.readDeal(d.id)));
+  check("attesten op de firmafiche: interne rollen lezen; OA, klant, architect niet", (await wl.listOrgDocs(orgX.ok.id)).kinds.length >= 3 && (await denied(oa2.listOrgDocs(orgX.ok.id))) && (await denied(klant.listOrgDocs(orgX.ok.id))) && (await denied(arch.listOrgDocs(orgX.ok.id))));
+  check("Mijn contracten en Mijn attesten: de OA wel (eigen firma); werfleider, klant, architect niet", Array.isArray(await oa2.listMyContracts()) && (await oa2.listMyAttests()).kinds.length >= 3 && (await denied(wl.listMyContracts())) && (await denied(klant.listMyAttests())) && (await denied(arch.listMyContracts())));
+  check("het contractsjabloon: enkel de beheerder bewaart een nieuwe versie; kantoor leest", (await denied(calc.saveContractTemplate("Proef", "x".repeat(30), true, ""))) && (await calc.listContractTemplates()).length >= 1 && (await denied(wl.listContractTemplates())));
+  const me = async (x) => (await x.me()).caps[0];
+  check("caps: kantoor deals, de werfleider niet; de OA myDeals", (await me(calc)).deals && !(await me(wl)).deals && (await me(oa2)).myDeals && !(await me(klant)).myDeals);
+}
+
 await sec("── afzetten (R16, T7)");
 const oaId = (await oa.me()).person[0].id;
 const invOa3 = await invite(admin, "Nog een code voor OA", roles("onderaannemer"));

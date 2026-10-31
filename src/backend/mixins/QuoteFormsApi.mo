@@ -22,6 +22,8 @@ import Access "../lib/Access";
 import Config "../lib/Config";
 import Ids "../lib/Ids";
 import Library "../lib/Library";
+import OaDeals "../lib/OaDeals";
+import Post "../lib/Post";
 import QuoteCalc "../lib/QuoteCalc";
 import QuoteForms "../lib/QuoteForms";
 import Quotes "../lib/Quotes";
@@ -35,6 +37,7 @@ mixin (
   library : Types.LibraryState,
   quotes : Types.QuotesState,
   quoteForms : Types.QuoteFormState,
+  oaDeals : Types.OaDealState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -287,7 +290,14 @@ mixin (
         };
         let sell = switch (g.sellCents) { case (?x) x; case null QuoteForms.regieSell(g.costCents) };
         if (sell < 0 or sell > Config.maxAmountCents) { return #err("Regietarief: € 0 tot € 1 miljard") };
-        ?{ orgId = g.orgId; costCents = g.costCents; sellCents = sell; fromRateId = null };
+        // 2c.4: het regietarief van de offerte volgt het tarief van de OA dat vandaag geldt (firmafiche → Tarieven & attesten).
+        let fromRateId : ?Nat = if (g.followRate) {
+          let o = g.orgId ?? return #err("Regie: kies de onderaannemer wiens tarief de offerte volgt");
+          let r = OaDeals.rateAt(oaDeals, o, #regiePerson, Post.local(Time.now()).day) ?? return #err("Deze firma heeft nog geen regietarief (firmafiche → Tarieven & attesten)");
+          if (r.cents != g.costCents) { return #err("Het regietarief van de firma is intussen gewijzigd: vernieuw") };
+          ?r.id;
+        } else null;
+        ?{ orgId = g.orgId; costCents = g.costCents; sellCents = sell; fromRateId };
       };
       case null null;
     };

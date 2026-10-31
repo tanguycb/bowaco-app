@@ -16,6 +16,7 @@ import Ids "../lib/Ids";
 import Rights "../lib/Rights";
 import Dossier "../lib/Dossier";
 import Tenders "../lib/Tenders";
+import OaDeals "../lib/OaDeals";
 
 mixin (
   settings : Types.SettingsState,
@@ -27,6 +28,7 @@ mixin (
   permits : Types.PermitState,
   surveys : Types.SurveyState,
   tenders : Types.TenderState,
+  oaDeals : Types.OaDealState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -103,6 +105,7 @@ mixin (
     if (reports.fileOwners.containsKey(id)) { return #err("Dit bestand hoort bij een werfverslag: haal het daar weg") };
     if (surveys.fileOwners.containsKey(id)) { return #err("Dit bestand hoort bij een opmeting: haal het daar weg") };
     if (Tenders.ownedFiles(tenders).containsKey(id)) { return #err("Dit bestand hoort bij een OA-offerte") };
+    if (OaDeals.ownedFiles(oaDeals).containsKey(id)) { return #err("Dit bestand hoort bij een tarief, contract of attest") };
     f.archivedAt := ?Time.now();
     Access.audit(audit, caller, ?p.id, f.workId, "bestand-gearchiveerd", f.name # " #" # id.toText());
     #ok;

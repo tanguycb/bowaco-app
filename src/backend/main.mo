@@ -41,6 +41,8 @@ import ReviewApi "mixins/ReviewApi";
 import QuoteFormsApi "mixins/QuoteFormsApi";
 import TendersApi "mixins/TendersApi";
 import OaQuotesApi "mixins/OaQuotesApi";
+import OaDealsApi "mixins/OaDealsApi";
+import OaDeals "lib/OaDeals";
 import Post "lib/Post";
 import Mail "lib/Mail";
 import Principal "mo:core/Principal";
@@ -70,6 +72,7 @@ persistent actor Self {
   let progress : Types.ProgressState; // 2.10: vorderingsstaten (ontwerp → verzonden onder een hash, creditnota, klantakkoord)
   let oaInvoices : Types.OaInvoiceState; // 2.11: facturen van onderaannemers (intern) + bedragen en regels (vertrouwelijk)
   let quoteForms : Types.QuoteFormState; // 2c.1: offertesoort, subgroepen, tekstblokken (intern) + klassen, marges, regie, korting (vertrouwelijk)
+  let oaDeals : Types.OaDealState; // 2c.4: tarieven met datum, afspraken per werf en firma, contractsjablonen en -versies, attesten (bedragen vertrouwelijk)
   let tenders : Types.TenderState; // 2c.2: prijsvragen, posten, gevraagde firma's, OA-offertes (intern) + bedragen, ontwerpen van de OA, keuzes (vertrouwelijk)
   let robot : Types.RobotState;
   let audit : Types.AuditState;
@@ -82,12 +85,12 @@ persistent actor Self {
   // 1b.5: enkel de livecanister (Config.mailLiveBackends) kan echte mail sturen; elders blijft de testmodus aan.
   func isLive() : Bool { Mail.isLive(Principal.fromActor(Self)) };
 
-  include StorageGate(settings, access, works, tenders);
+  include StorageGate(settings, access, works, tenders, oaDeals);
   include AccessApi(settings, access, works, robot, audit, ctr, org);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
-  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, robot, audit, ctr);
-  include FilesApi(settings, access, works, files, dossier, reports, permits, surveys, tenders, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, robot, audit, ctr);
+  include FilesApi(settings, access, works, files, dossier, reports, permits, surveys, tenders, oaDeals, audit, ctr);
   include DossierApi(settings, access, org, works, files, dossier, plan, wadm, audit, ctr);
   include OaApi(settings, access, org, works, oa, audit, ctr);
   include PlanApi(settings, access, org, works, plan, audit, ctr);
@@ -98,7 +101,7 @@ persistent actor Self {
   include DashboardApi(settings, access, org, works, plan, reports, permits);
   include TicketsApi(settings, access, works, robot, audit, ctr);
   // 1.9: herstel uit een export op een LEGE canister met de opstartcode (M9, T16).
-  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, robot, audit, ctr);
+  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, robot, audit, ctr);
   // 1b.1: vergunningenregister (R13), kennisbank per gemeente.
   include PermitsApi(settings, access, works, files, plan, permits, audit, ctr);
   // 1b.2: boete-opzoeking op de ritten van het werfverslag (R14) met de vergunningen van die dag.
@@ -115,7 +118,7 @@ persistent actor Self {
   include QuoteDocsApi(settings, access, works, dossier, files, quotes, quoteDocs, post, audit, ctr);
   include QuoteClientApi(settings, access, org, works, quotes, quoteDocs, quoteForms, audit, ctr);
   // 2.8: een aanvaarde offerte → voorstel "Werf starten" (werf, taken uit de posten, vergunningsvoorstellen, 30bis).
-  include WorkStartApi(settings, access, org, works, dossier, files, plan, permits, wadm, library, quotes, quoteDocs, workStarts, audit, ctr);
+  include WorkStartApi(settings, access, org, works, dossier, files, plan, permits, wadm, library, quotes, quoteDocs, workStarts, quoteForms, tenders, oaDeals, audit, ctr);
 
   // 2.9: opmeting ter plaatse (hoeveelheid per post, foto of schets, verschil met de VH; offline via de wachtrij van 1.6).
   include MeasureApi(settings, access, org, works, files, plan, library, quotes, workStarts, surveys, audit, ctr);
@@ -124,7 +127,7 @@ persistent actor Self {
   include ProgressApi(settings, access, org, works, dossier, plan, reports, quotes, quoteForms, workStarts, surveys, progress, audit, ctr);
 
   // 2.11: OA-facturen registreren en controleren (afspraken, regie-uren, opmeting, al gefactureerd; inhoudingsplicht bij goedkeuring).
-  include OaInvoiceApi(settings, access, org, works, files, plan, reports, quotes, workStarts, surveys, wadm, oaInvoices, audit, ctr);
+  include OaInvoiceApi(settings, access, org, works, files, plan, reports, quotes, workStarts, surveys, wadm, oaInvoices, oaDeals, audit, ctr);
 
   // 2b.3: de stand van de werf (stappenbalk en volgende stap); enkel lezen, de fase rekent de browser.
   include StageApi(settings, access, works, plan, reports, quotes, workStarts, surveys, progress);
@@ -136,13 +139,17 @@ persistent actor Self {
   include ReviewApi(settings, access, works, audit);
 
   // 2c.1: de offerte zoals Alexis ze maakt (margeklassen, tekstblokken, schadedossier, subgroepen, regietarief, korting).
-  include QuoteFormsApi(settings, access, org, works, library, quotes, quoteForms, audit, ctr);
+  include QuoteFormsApi(settings, access, org, works, library, quotes, quoteForms, oaDeals, audit, ctr);
 
   // 2c.2: prijsvraag naar onderaannemers (posten kopiëren, firma's, deadline, PDF + Excel in de browser, toegang voor de OA zonder
   // werf, Mijn prijsvragen van de OA, eigen PDF opladen); herinnering en "geen antwoord" in Post.tick.
   include TendersApi(settings, access, org, oa, works, files, plan, library, quotes, quoteForms, tenders, post, audit, ctr);
 
   include OaQuotesApi(settings, access, org, oa, works, files, library, quotes, tenders, audit, ctr);
+
+  // 2c.4: afspraken met de gekozen OA (tarieven met datum, afspraak per werf, contract uit het sjabloon, attesten; meldingen in de
+  // uurlijkse ronde hieronder).
+  include OaDealsApi(settings, access, org, oa, works, files, plan, quotes, workStarts, tenders, oaDeals, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).
@@ -158,6 +165,7 @@ persistent actor Self {
       if (Time.now() - permitScanAt >= Config.permitScanEvery) {
         permitScanAt := Time.now();
         ignore Permits.scan({ settings; access; works; plan; ps = permits; audit; ctr });
+        ignore OaDeals.scan(oaDeals, settings, access, org, audit, ctr, Post.local(Time.now()).day);
       };
     },
   );

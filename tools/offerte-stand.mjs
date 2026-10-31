@@ -1,4 +1,4 @@
-// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2), OA-offertes, keuzes en hun prijzen in de bibliotheek (2c.3) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
+// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2), OA-offertes, keuzes en hun prijzen in de bibliotheek (2c.3), OA-facturen en afspraken met de OA (2c.4) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
 //   node tools/offerte-stand.mjs <canister> <uit.json>           met de .did van DEZE map (oude kopie of nieuwe code)
 //   node tools/offerte-stand.mjs vergelijk <voor.json> <na.json>   elk veld van "voor" moet in "na" gelijk zijn (nieuwe velden
 //                                                                   en nieuwe offertes tellen niet); geeft de verschillen
@@ -124,6 +124,46 @@ if (typeof who.admin.compareTender === "function") {
   stand.keuzes = Object.fromEntries((await chunk("tenderChoices")).map(([k, v]) => [String(k), v]));
   stand.oaPrijzen = Object.fromEntries((await chunk("libCosts")).filter((c) => c.source === "oa-offerte").map((c) => [String(c.id), c]));
   stand.prijsvraagInstellingen = await res(who.admin.tenderSettings());
+}
+const chunkOf = async (kind) => { const out = []; for (let from = 0n; ; from += 500n) { const r = await res(who.admin.exportChunk(kind, from, 500n)); const xs = r.ok ? Object.values(r.ok)[0] : []; out.push(...xs); if (xs.length < 500) return out; } };
+// 2c.4 (ook voor oudere code): de OA-facturen met hun controle (de afgesproken prijs per regel en de markeringen). Een nieuwe
+// afspraak op een werf mag de controle van een bestaande factuur op een andere werf nooit veranderen.
+if (typeof who.admin.readOaInvoice === "function") {
+  stand.oaFacturen = {};
+  for (const i of (await res(who.admin.listOaInvoices([], []))).ok ?? []) {
+    const r = await res(who.admin.readOaInvoice(i.id));
+    stand.oaFacturen[String(i.id)] = r.ok ? { brief: r.ok.brief, lines: r.ok.lines, headerFlags: r.ok.headerFlags, flagCount: r.ok.flagCount, decision: r.ok.decision } : r;
+  }
+}
+// 2c.4: de afspraken met de gekozen OA (enkel als de code ze kent): per werf de stand (kantoor en werfleider) en de afspraak met
+// bedragen (update-call met auditregel), wie wat mag lezen, per firma de tarieven en attesten, Mijn contracten/attesten van de OA,
+// de vastgelegde contractversies en het sjabloon.
+if (typeof who.admin.listDeals === "function") {
+  stand.afspraken = {};
+  stand.afspraakRechten = {};
+  for (const w of await who.admin.listWorks()) {
+    const l = await res(who.admin.listDeals(w.id));
+    if (!l.ok || l.ok.length === 0) continue;
+    stand.afspraken[`werf-${w.id}`] = { kantoor: l.ok, werfleider: await res(who.werfleider.listDeals(w.id)) };
+    for (const d of l.ok) {
+      stand.afspraken[String(d.id)] = await res(who.admin.readDeal(d.id));
+      const per = {};
+      for (const rol of ["calculator", "werfleider", "architect", "oa", "klant", "vc"]) per[rol] = { lijst: allowed(await res(who[rol].listDeals(w.id))), bedragen: allowed(await res(who[rol].readDeal(d.id))) };
+      stand.afspraakRechten[String(d.id)] = per;
+    }
+  }
+  stand.tarieven = {};
+  stand.attesten = {};
+  for (const o of await who.admin.listOrgs(true)) {
+    const r = await res(who.admin.listOaRates(o.id));
+    if (r.ok && r.ok.length) stand.tarieven[String(o.id)] = r.ok;
+    const a = await res(who.admin.listOrgDocs(o.id));
+    if (a.ok && a.ok.docs.length) stand.attesten[String(o.id)] = a.ok;
+  }
+  stand.mijnContracten = await res(who.oa.listMyContracts());
+  stand.mijnAttesten = await res(who.oa.listMyAttests());
+  stand.contracten = Object.fromEntries((await chunkOf("agreementFrozen")).map(([k, v]) => [String(k), v]));
+  stand.contractSjablonen = await res(who.admin.listContractTemplates());
 }
 const ex = await who.admin.exportIntern();
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;

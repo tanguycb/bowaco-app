@@ -1889,6 +1889,136 @@ module {
     invitesByRef : Map.Map<Text, Nat>; // verwijzing van de OA → uitnodiging
   };
 
+  // ── Afspraken met de gekozen OA (stap 2c.4, ontwerp 2c §4.4, §9 migratie 3) ──
+  // Eigen domein `oaDeals` (nieuw stabiel veld, deelvorm, OldActor = {}). Een TARIEF van een firma met datum (prijslijst, offerte,
+  // mail, factuur) is vertrouwelijk. Een AFSPRAAK = één firma op één werf (sleutel "<werf>:<firma>"): intern zonder bedragen (wie,
+  // welke posten, startdag, contractstatus); de prijzen per post, de tarieven met datum op die werf en het voorschot zijn
+  // VERTROUWELIJK (AgreementTerms). Een afspraak neemt de tarieven die golden op haar startdag en HOUDT ze (⚖9); kantoor zet op
+  // een lopende werf een nieuw tarief vanaf een datum. Het contract komt uit het sjabloon (versies, zoals de voorwaarden) en ligt
+  // per contractversie vast onder een controlecode (AgreementFrozen, vertrouwelijk); een aanhangsel = een nieuwe versie. Attesten
+  // horen bij een firma (niet bij een werf), met geldig-tot; de OA laadt ze op, kantoor keurt (⚖11). Volledig vanaf het begin (D1a).
+  public type RateKind = { #regiePerson; #crewHour; #transportHour; #dieselKm; #kmLevy; #containerTon; #machineDay; #other : Text };
+
+  // klasse: vertrouwelijk. Een tarief van een firma vanaf een datum. Append-only: een fout wordt gearchiveerd met een reden.
+  public type OaRate = {
+    id : Nat;
+    orgId : OrgId;
+    kind : RateKind;
+    unit : Text; // "uur", "km", "ton", "dag"
+    cents : Int;
+    validFrom : Day;
+    source : Text; // "offerte" · "prijslijst" · "mail" · "factuur" · "andere"
+    ref : Text;
+    fileId : ?Nat; // vertrouwelijk bestand
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    archiveReason : Text;
+    extra : Extra;
+  };
+
+  public type AgreementStatus = { #draft; #toSign; #signed; #ended : { at : Int; by : PersonId; reason : Text } };
+
+  // klasse: intern (zonder bedragen). De afspraak met één firma op één werf.
+  public type Agreement = {
+    id : Nat;
+    workId : WorkId;
+    orgId : OrgId;
+    oaQuoteIds : [Nat]; // de OA-offertes waaruit de prijzen komen (2c.3)
+    roots : [Nat]; // de posten (oorsprong in de eerste versie)
+    startDay : ?Day; // de dag waarop de tarieven genomen werden
+    status : AgreementStatus;
+    advanceBp : Nat; // voorschot in basispunten (max. 20 %)
+    paymentDays : Nat;
+    endOfMonth : Bool;
+    templateVersion : ?Nat; // het sjabloon van de laatste contractversie
+    contractHash : Text; // controlecode van de laatste contractversie ("" = nog geen)
+    contractVersion : Nat; // 0 = nog geen contract, 1, 2 = aanhangsel …
+    signedFileId : ?Nat;
+    rev : Nat;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. Een tarief op deze werf vanaf een datum (uit de tarieven van de firma, de offerte of met de hand).
+  public type AgreedRate = { kind : RateKind; unit : Text; cents : Int; validFrom : Day; fromRateId : ?Nat; note : Text };
+  // klasse: vertrouwelijk. Prijs per post (sleutel = oorsprong), tarieven met datum op deze werf, totaal en voorschot.
+  public type AgreementTerms = { agreementId : Nat; prices : [(Nat, Int)]; rates : [AgreedRate]; amountCents : ?Int; advanceCents : ?Int; extra : Extra };
+
+  // klasse: intern. Het sjabloon van de overeenkomst onderaanneming (versies, zoals QuoteTerms; 0 = de ingebouwde tekst).
+  public type OaContractTemplate = {
+    id : Nat;
+    version : Nat;
+    title : Text;
+    text : Text;
+    provisional : Bool;
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. Wat in een contractversie vastligt (onder de controlecode), en het getekende bewijs.
+  public type FrozenPost = { root : Nat; title : Text; unit : Text; qtyMilli : Int; unitCents : ?Int };
+  public type SignedProof = { at : Int; by : PersonId; fileId : Nat; note : Text };
+  public type AgreementFrozen = {
+    agreementId : Nat;
+    contractVersion : Nat;
+    templateVersion : Nat;
+    title : Text;
+    text : Text;
+    fields : [(Text, Text)];
+    posts : [FrozenPost];
+    rates : [AgreedRate];
+    totalCents : ?Int;
+    advanceBp : Nat;
+    advanceCents : ?Int;
+    hash : Text;
+    at : Int;
+    by : PersonId;
+    signed : ?SignedProof;
+    extra : Extra;
+  };
+
+  // klasse: intern. Een attest van een firma (soort uit lookups "orgDoc:<sleutel>" of Config.orgDocKinds), met geldig-tot.
+  public type OrgDoc = {
+    id : Nat;
+    orgId : OrgId;
+    kind : Text;
+    title : Text;
+    fileId : ?Nat;
+    validFrom : ?Day;
+    validUntil : ?Day;
+    status : DocStatus; // #received = opgeladen, te keuren · #approved = goedgekeurd · #expired = afgekeurd/vervangen
+    deliveredBy : ?PersonId;
+    checkedBy : ?PersonId;
+    checkedAt : ?Int;
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+
+  public type OaDealState = {
+    rates : Map.Map<Nat, Confidential<OaRate>>; // vertrouwelijk
+    ratesByOrg : Map.Map<Nat, [Nat]>; // index
+    agreements : Map.Map<Nat, Agreement>;
+    agreementKeys : Map.Map<Text, Nat>; // "<werf>:<firma>" → afspraak (index)
+    agreementsByWork : Map.Map<Nat, [Nat]>; // index
+    terms : Map.Map<Nat, Confidential<AgreementTerms>>; // vertrouwelijk; sleutel = afspraak
+    frozen : Map.Map<Nat, Confidential<AgreementFrozen>>; // vertrouwelijk; sleutel = afspraak × 1000 + versie
+    templates : Map.Map<Nat, OaContractTemplate>;
+    orgDocs : Map.Map<Nat, OrgDoc>;
+    docsByOrg : Map.Map<Nat, [Nat]>; // index
+    notices : Map.Map<Text, Int>; // verstuurde meldingen over attesten ("<attest>:30" · "<attest>:vervallen"), één keer
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

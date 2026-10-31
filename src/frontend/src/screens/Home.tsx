@@ -8,6 +8,7 @@ import { HoursPanel, MijnWerven } from "./Extern";
 import { BoardAttention } from "./Weekbord";
 import type { Caps } from "../backend";
 import { MyTenderList } from "./Prijsvragen";
+import { MijnAttesten, MijnContracten } from "./Attesten";
 
 const TITLE: Record<string, string> = { vandaag: t.home.vandaag, week: t.home.week, offertes: t.home.offertes, werven: t.home.werven };
 
@@ -16,6 +17,8 @@ export function Home({ kind, go, caps }: { kind: string; go: (to: string) => voi
   return (
     <Page title={TITLE[kind] ?? t.home.werven}>
       {kind === "week" && caps?.myTenders && <MyTenderList go={go} embedded />}
+      {kind === "week" && caps?.myDeals && <MijnContracten />}
+      {kind === "week" && caps?.myDeals && <MijnAttesten />}
       {kind === "week" && <MijnTaken go={go} />}
       {kind === "week" && <HoursPanel compact />}
       {kind === "week" && caps?.measureRead && <div><Button icon="ruler" onClick={() => go("opmeting")}>{t.opmeting.title}</Button></div>}

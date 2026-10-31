@@ -71,6 +71,8 @@ module {
     myOaInvoices : Bool; // 2.11: de OA ziet de status van zijn eigen facturen (instelbaar)
     tenders : Bool; // 2c.2: prijsvragen maken en opvolgen (admin, calculator)
     myTenders : Bool; // 2c.2: een OA met een firma: Mijn prijsvragen (enkel de uitnodigingen aan zijn firma)
+    deals : Bool; // 2c.4: afspraken, tarieven en contracten van OA's maken (admin, calculator)
+    myDeals : Bool; // 2c.4: een OA met een firma: Mijn contracten en Mijn attesten
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
 
@@ -887,6 +889,10 @@ module {
     tenderItems : [Types.TenderItem];
     tenderInvites : [Types.TenderInvite];
     oaQuotes : [Types.OaQuote];
+    agreements : [Types.Agreement]; // 2c.4 (intern: zonder bedragen)
+    oaContractTemplates : [Types.OaContractTemplate];
+    orgDocs : [Types.OrgDoc];
+    dealNotices : [(Text, Int)];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -1002,6 +1008,13 @@ module {
     #oaQuoteAmounts : [(Nat, Types.Confidential<Types.OaQuoteAmounts>)]; // 2c.2 (vertrouwelijk)
     #oaQuoteDrafts : [(Nat, Types.Confidential<Types.OaQuoteDraft>)];
     #tenderChoices : [(Nat, Types.Confidential<Types.TenderChoice>)];
+    #agreements : [Types.Agreement]; // 2c.4 (intern)
+    #oaContractTemplates : [Types.OaContractTemplate];
+    #orgDocs : [Types.OrgDoc];
+    #dealNotices : [(Text, Int)];
+    #oaRates : [(Nat, Types.Confidential<Types.OaRate>)]; // 2c.4 (vertrouwelijk)
+    #agreementTerms : [(Nat, Types.Confidential<Types.AgreementTerms>)];
+    #agreementFrozen : [(Nat, Types.Confidential<Types.AgreementFrozen>)];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -1031,6 +1044,9 @@ module {
     oaQuoteAmounts : [(Nat, Types.Confidential<Types.OaQuoteAmounts>)]; // 2c.2: bedragen van de OA-offertes, ontwerpen van de OA, keuzes (2c.3)
     oaQuoteDrafts : [(Nat, Types.Confidential<Types.OaQuoteDraft>)];
     tenderChoices : [(Nat, Types.Confidential<Types.TenderChoice>)];
+    oaRates : [(Nat, Types.Confidential<Types.OaRate>)]; // 2c.4: tarieven van OA's, prijzen en tarieven per afspraak, contractversies
+    agreementTerms : [(Nat, Types.Confidential<Types.AgreementTerms>)];
+    agreementFrozen : [(Nat, Types.Confidential<Types.AgreementFrozen>)];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────

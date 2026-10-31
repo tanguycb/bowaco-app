@@ -23,6 +23,9 @@ import Access "../lib/Access";
 import Config "../lib/Config";
 import Dossier "../lib/Dossier";
 import Ids "../lib/Ids";
+import OaDeals "../lib/OaDeals";
+import Post "../lib/Post";
+import QuoteForms "../lib/QuoteForms";
 import Permits "../lib/Permits";
 import Plan "../lib/Plan";
 import QuoteDocs "../lib/QuoteDocs";
@@ -44,6 +47,9 @@ mixin (
   quotes : Types.QuotesState,
   quoteDocs : Types.QuoteDocsState,
   workStarts : Types.WorkStartState,
+  quoteForms : Types.QuoteFormState,
+  tenders : Types.TenderState,
+  oaDeals : Types.OaDealState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -134,7 +140,8 @@ mixin (
     };
     let pr = WorkStart.propose(c, q, v, t, i);
     let existingTasks : [Types.Task] = switch (t.workId) { case (?w) Plan.tasksOf(plan, w); case null [] };
-    let warn = wsTargetWarnings(q, v, src, tw, leaderId).concat(pr.warnings);
+    // 2c.4: per OA van het voorstel een waarschuwing als een verplicht attest ontbreekt, nog niet goedgekeurd of vervallen is.
+    let warn = wsTargetWarnings(q, v, src, tw, leaderId).concat(pr.warnings).concat(wsDealOrgs(pr, v).flatMap(func(o : Nat) : Iter.Iter<Text> = OaDeals.attestWarnings(oaDeals, settings, org, o, Post.local(Time.now()).day).values()));
     #ok({
       base with
       done = null;
@@ -463,6 +470,14 @@ mixin (
       extra = [];
     };
     workStarts.starts.add(v.id, rec);
+    // 2c.4: per OA een afspraak voor deze werf (of de bestaande aangevuld met de nieuwe posten): zijn posten en prijzen uit de
+    // getekende offerte, zijn tarieven op de startdag (de werf houdt ze, ⚖9). Zonder bedragen in beeld of in de auditlog.
+    let regie = switch (QuoteForms.termsOf(quoteForms, v.id)) { case (?x) x.regie; case null null };
+    for (o in wsDealOrgs(pr, v).values()) {
+      let fp = OaDeals.postsFor(quotes, workStarts, tenders, workId, o);
+      let (_, created) = OaDeals.ensureForStart(oaDeals, ctr, { workId; orgId = o; roots = fp.roots; prices = fp.prices; amountCents = fp.amountCents; startDay = pr.startDay; regie; oaQuoteIds = fp.oaQuoteIds; by = p.id });
+      Access.audit(audit, caller, ?p.id, ?workId, if created "afspraak-nieuw" else "afspraak-aangevuld", wsWorkCode(workId) # " · " # WorkStart.orgName(org, ?o) # ": " # fp.roots.size().toText() # " posten (werfstart uit offerte " # tag # ")");
+    };
     Access.audit(audit, caller, ?p.id, ?workId, "werf-gestart", "offerte " # tag # " → " # wsWorkCode(workId) # (if (rec.newWork) " (nieuwe werf)" else "") # (if (pr.bases.size() > 0) " (meerwerk: enkel het verschil)" else "") # ": " # newIds.size().toText() # " taken, " # linkedIds.size().toText() # " gekoppeld, " # depIds.size().toText() # " afhankelijkheden, " # permitIds.size().toText() # " vergunningsvoorstellen, 30bis " # decl # ", start " # Plan.fmtDay(pr.startDay));
     switch leader {
       case (?l) { if (l != p.id) { Access.notify(audit, ctr, l, "werfstart", "Werf " # wsWorkCode(workId) # " gestart uit offerte " # tag # ": " # newIds.size().toText() # " taken, " # permitIds.size().toText() # " vergunningsvoorstellen.", ?workId) } };
@@ -542,6 +557,19 @@ mixin (
     ignore q;
     ignore src;
     out;
+  };
+
+  // 2c.4: de onderaannemers van een start: de uitvoerders van de taken en de firma's van de aankoopprijzen van de lijnen.
+  func wsDealOrgs(pr : WorkStart.Proposal, v : Types.QuoteVersion) : [Nat] {
+    let set = Map.empty<Nat, ()>();
+    let isOa = func(o : Nat) : Bool { switch (org.orgs.get(o)) { case (?x) x.kind == #subcontractor and x.archivedAt == null; case null false } };
+    for (g in pr.groups.values()) {
+      switch (g.orgId) { case (?o) { if (isOa(o)) { set.add(o, ()) } }; case null {} };
+      for (o in g.extraOrgs.values()) { if (isOa(o)) { set.add(o, ()) } };
+      for (lid in g.lineIds.values()) { switch (quotes.prices.get(lid)) { case (?x) { switch (x.orgId) { case (?o) { if (isOa(o)) { set.add(o, ()) } }; case null {} } }; case null {} } };
+    };
+    ignore v;
+    set.keys().toArray();
   };
 
   func wsGroupTitle(pr : WorkStart.Proposal, k : Text) : Text {

@@ -302,7 +302,7 @@ module {
       chapterMargins;
       orgMargins;
       lineBases;
-      regie = switch (r.terms) { case (?t) { switch (t.regie) { case (?g) ?{ orgId = g.orgId; orgName = orgName(org, g.orgId); costCents = g.costCents; sellCents = g.sellCents }; case null null } }; case null null };
+      regie = switch (r.terms) { case (?t) { switch (t.regie) { case (?g) ?{ orgId = g.orgId; orgName = orgName(org, g.orgId); costCents = g.costCents; sellCents = g.sellCents; fromRateId = g.fromRateId }; case null null } }; case null null };
       regieMarginBp = Config.quoteRegieMarginBp;
       discount = switch (r.terms) { case (?t) t.discount; case null null };
       discountText = switch (r.terms) { case (?t) t.discountText; case null "" };

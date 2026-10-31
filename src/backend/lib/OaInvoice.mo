@@ -20,6 +20,7 @@ import Types "../types";
 import Config "Config";
 import Library "Library";
 import Measure "Measure";
+import OaDeals "OaDeals";
 import Progress "Progress";
 import QuoteCalc "QuoteCalc";
 import Quotes "Quotes";
@@ -37,6 +38,7 @@ module {
     starts : Types.WorkStartState;
     ss : Types.SurveyState;
     oi : Types.OaInvoiceState;
+    deals : Types.OaDealState; // 2c.4: het tarief van de afspraak op deze werf en die dag
   };
 
   // ── Instellingen (settings.values, D8: geen migratie) ─────────────────────
@@ -82,6 +84,14 @@ module {
       m.add(p.root, { root = p.root; lineId = p.line.id; title = p.line.title; unit = p.line.unit; form = p.line.form; chapter = switch (p.chapter) { case (?ch) (ch.code # " " # ch.title).trim(#char ' '); case null "" }; vhMilli = p.line.qtyMilli; cost = pr.cost; costOrgId = pr.orgId });
     };
     m;
+  };
+
+  // 2c.4: de dag waarop het tarief van de werf telt: het einde van de periode van de prestaties, anders de factuurdatum.
+  public func rateDay(inv : Types.OaInvoice) : Nat { switch (inv.periodTo) { case (?d) d; case null inv.invoiceDay } };
+
+  // 2c.4: eerst het regietarief van de afspraak van deze OA op deze werf op die dag (⚖9), dan de regiepost (zoals in 2.11).
+  public func dealRegieRate(c : Ctx, inv : Types.OaInvoice) : ?Int {
+    switch (OaDeals.dealRegieAt(c.deals, inv.workId, inv.orgId, rateDay(inv))) { case (?(cents, _)) ?cents; case null null };
   };
 
   // Het afgesproken uurloon voor regie van deze OA: de aankoopprijs van een regiepost met die OA (de eerste).
@@ -198,7 +208,8 @@ module {
     let (hoursBy, hoursAll) = oaHours(c, inv.workId, inv.orgId, inv.periodFrom, inv.periodTo);
     let (prevBy, prevRegie) = billed(c.oi, inv.workId, inv.orgId, inv.id);
     let agg = Measure.aggregate(c.ss, inv.workId, null);
-    let rate = regieRate(ps, inv.orgId);
+    let dealRate = dealRegieRate(c, inv);
+    let rate = switch dealRate { case (?r) ?r; case null regieRate(ps, inv.orgId) };
     var flagCount = 0;
     let lines = Array.tabulate<LineCheck>(
       a.lines.size(),
@@ -223,6 +234,7 @@ module {
             agreedOrg := p.costOrgId == ?inv.orgId;
             switch (p.form) {
               case (#regie) {
+                switch dealRate { case (?r) { agreed := ?r; agreedOrg := true }; case null {} };
                 let h = switch (hoursBy.get(p.root)) { case (?x) x; case null zero() };
                 hours := ?h;
                 expected := ?h.valid;
@@ -241,8 +253,8 @@ module {
             hours := ?h;
             expected := ?h.valid;
             from := "regie-uren";
-            agreed := switch (post) { case (?p) p.cost; case null rate };
-            agreedOrg := switch (post) { case (?p) p.costOrgId == ?inv.orgId; case null rate != null };
+            agreed := switch (dealRate, post) { case (?r, _) ?r; case (null, ?p) p.cost; case (null, null) rate };
+            agreedOrg := switch (dealRate, post) { case (?_, _) true; case (null, ?p) p.costOrgId == ?inv.orgId; case (null, null) rate != null };
           };
           case (#other, _) { qf.add("niet-gekoppeld") };
           case (#post, null) { qf.add("onbekende-post") };

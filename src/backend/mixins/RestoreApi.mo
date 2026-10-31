@@ -30,6 +30,7 @@ import Quotes "../lib/Quotes";
 import OaInvoice "../lib/OaInvoice";
 import QuoteForms "../lib/QuoteForms";
 import Tenders "../lib/Tenders";
+import OaDeals "../lib/OaDeals";
 import Reports "../lib/Reports";
 
 mixin (
@@ -58,6 +59,7 @@ mixin (
   oaInvoices : Types.OaInvoiceState,
   quoteForms : Types.QuoteFormState,
   tenders : Types.TenderState,
+  oaDeals : Types.OaDealState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -116,7 +118,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0 and tenders.tenders.size() == 0 and tenders.oaQuotes.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0 and tenders.tenders.size() == 0 and tenders.oaQuotes.size() == 0 and oaDeals.rates.size() == 0 and oaDeals.agreements.size() == 0 and oaDeals.orgDocs.size() == 0 and oaDeals.templates.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -301,6 +303,13 @@ mixin (
       case (#oaQuoteAmounts xs) { for ((id, x) in xs.values()) { tenders.amounts.add(id, x) }; xs.size() };
       case (#oaQuoteDrafts xs) { for ((id, x) in xs.values()) { tenders.drafts.add(id, x) }; xs.size() };
       case (#tenderChoices xs) { for ((id, x) in xs.values()) { tenders.choices.add(id, x) }; xs.size() };
+      case (#agreements xs) { for (x in xs.values()) { oaDeals.agreements.add(x.id, x) }; xs.size() };
+      case (#oaContractTemplates xs) { for (x in xs.values()) { oaDeals.templates.add(x.id, x) }; xs.size() };
+      case (#orgDocs xs) { for (x in xs.values()) { oaDeals.orgDocs.add(x.id, x) }; xs.size() };
+      case (#dealNotices xs) { for ((k, x) in xs.values()) { oaDeals.notices.add(k, x) }; xs.size() };
+      case (#oaRates xs) { for ((id, x) in xs.values()) { oaDeals.rates.add(id, x) }; xs.size() };
+      case (#agreementTerms xs) { for ((id, x) in xs.values()) { oaDeals.terms.add(id, x) }; xs.size() };
+      case (#agreementFrozen xs) { for ((id, x) in xs.values()) { oaDeals.frozen.add(id, x) }; xs.size() };
     };
   };
 
@@ -488,6 +497,12 @@ mixin (
     rsAtLeast("tenderItem", rsMaxKey(tenders.items));
     rsAtLeast("tenderInvite", rsMaxKey(tenders.invites));
     rsAtLeast("oaQuote", rsMaxKey(tenders.oaQuotes));
+    // 2c.4: de indexen van de afspraken (per firma, werf:firma, per werf, attesten per firma) uit de records zelf.
+    OaDeals.rebuildIndex(oaDeals);
+    rsAtLeast("oaRate", rsMaxKey(oaDeals.rates));
+    rsAtLeast("agreement", rsMaxKey(oaDeals.agreements));
+    rsAtLeast("oaContractTemplate", rsMaxKey(oaDeals.templates));
+    rsAtLeast("orgDoc", rsMaxKey(oaDeals.orgDocs));
   };
 
   func rsSummary() : Views.RestoreSummary {

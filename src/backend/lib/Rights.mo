@@ -77,6 +77,11 @@ module {
     // 2c.3 (R36, R38): OA-offertes registreren (Excel, met de hand, los), vergelijken, kiezen en overnemen = #editTenders én
     // #readCosts (admin, calculator; overnemen ook #editQuote), enkel via update-calls met auditregel "bekeek:oa-offerte:<id>";
     // de instellingen van de prijsvragen = #manageSettings. De werfleider ziet na het afsluiten enkel wie gekozen is (#readTenders).
+    // 2c.4 (R40): afspraken met de gekozen OA. #readDeals = de afspraken van een werf zien (admin en calculator alles via dealScope,
+    // de werfleider van die werf enkel of er een afspraak is, de contractstatus en de attesten, NOOIT een bedrag); #editDeals =
+    // tarieven, afspraken, contracten, sjabloon, attesten keuren (admin, calculator; bedragen lezen enkel via update-calls met
+    // auditregel); #ownDeals = een OA met een firma: "Mijn contracten" en "Mijn attesten" (enkel zijn eigen firma).
+    #readDeals; #editDeals; #ownDeals;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -265,6 +270,10 @@ module {
       case (#readTenders) on(func w = tenderScope(ctx, p, w) != #none);
       case (#editTenders) admin or calc;
       case (#ownTenders) has(p, #onderaannemer) and p.orgId != null;
+      // 2c.4 (R40): per werf de afspraken zien (dealScope beslist wat); maken, tarieven en contracten enkel kantoor; de OA zijn eigen.
+      case (#readDeals) on(func w = dealScope(ctx, p, w) != #none);
+      case (#editDeals) admin or calc;
+      case (#ownDeals) has(p, #onderaannemer) and p.orgId != null;
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -350,6 +359,24 @@ module {
     #none;
   };
 
+  // ── Afspraken met de gekozen OA (2c.4, R40) ──────────────────────────────
+  // #full = admin en calculator: afspraken, prijzen, tarieven, voorschot, contracten (bedragen enkel via een update-call). #status =
+  // de werfleider van de werf: per OA afspraak ja/nee, contractstatus, attesten (geldig tot), nooit een bedrag. De rest: niets via de
+  // werf (een OA leest zijn eigen contracten en attesten met #ownDeals).
+  public type DealScope = { #full; #status; #none };
+
+  public func dealScope(ctx : Ctx, p : Person, w : WorkId) : DealScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (has(p, #admin) or has(p, #calculator)) { return #full };
+    if (leaderOn(ctx, p, w)) { return #status };
+    #none;
+  };
+
+  // Een OA leest een afspraak, contract of attest enkel van ZIJN firma.
+  public func ownOrg(p : Person, orgId : Types.OrgId) : Bool {
+    p.archivedAt == null and has(p, #onderaannemer) and p.orgId == ?orgId;
+  };
+
   // R37: een OA leest een uitnodiging enkel als ze aan ZIJN firma gericht is, verstuurd is (kantoor markeerde ze als verstuurd), de prijsvraag open is of hoogstens 90 dagen afgesloten, en de werf bestaat.
   // Geannuleerd = niets. #own = lezen; of hij nog mag indienen, zegt mayAnswerInvite.
   public type InviteScope = { #own; #none };
@@ -378,6 +405,7 @@ module {
   };
 
   // R39: de opslagpoort. Bovenop #upload: een OA met een open uitnodiging (hij laadt zijn eigen offerte-PDF op, ook zonder werf).
+  // 2c.4 (R40): ook een OA wiens firma een afspraak heeft (hij laadt zijn attesten op); de aanroeper geeft dat mee als openInvite.
   public func mayUpload(ctx : Ctx, p : Person, openInvite : Bool) : Bool {
     may(ctx, p, #upload, null) or (p.archivedAt == null and has(p, #onderaannemer) and p.orgId != null and openInvite);
   };
@@ -631,6 +659,8 @@ module {
       myOaInvoices = may(ctx, p, #ownOaInvoices, null);
       tenders = may(ctx, p, #editTenders, null);
       myTenders = may(ctx, p, #ownTenders, null);
+      deals = may(ctx, p, #editDeals, null);
+      myDeals = may(ctx, p, #ownDeals, null);
       home = home(p);
     };
   };

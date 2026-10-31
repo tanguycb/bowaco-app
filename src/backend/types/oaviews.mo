@@ -82,6 +82,8 @@ module {
     canEdit : Bool;
     canDecide : Bool;
     disputeNotice : Text;
+    attestWarnings : [Text]; // 2c.4: verplichte attesten van de firma die ontbreken of vervallen zijn (waarschuwing bij goedkeuren)
+    dealRate : Text; // 2c.4: het regietarief van de afspraak op deze werf op de dag van de factuur ("" = geen)
   };
   public type OaPrevious = { id : Nat; number : Text; invoiceDay : Nat; status : Types.OaInvoiceStatus; netCents : Int };
 

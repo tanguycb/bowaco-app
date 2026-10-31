@@ -85,7 +85,7 @@ function formFromRead(r: QuoteRead): M.LoadedForm | null {
     chapterMargins: (tm?.chapterMargins ?? []).map((c) => ({ id: c.id, classId: c.classId ?? null, marginBp: c.marginBp, fixed: c.fixed })),
     orgMargins: (tm?.orgMargins ?? []).map((c) => ({ id: c.id, classId: c.classId ?? null, marginBp: c.marginBp, fixed: c.fixed })),
     links: (tm?.links ?? []).map((l) => ({ key: l.key, classId: l.classId, marginBp: l.marginBp })),
-    regie: tm?.regie ? { orgId: tm.regie.orgId ?? null, cost: tm.regie.costCents, sell: tm.regie.sellCents } : null,
+    regie: tm?.regie ? { orgId: tm.regie.orgId ?? null, cost: tm.regie.costCents, sell: tm.regie.sellCents, follow: tm.regie.fromRateId !== undefined && tm.regie.fromRateId !== null } : null,
     discount: discFromTs(tm?.discount),
     discountText: tm?.discountText ?? "",
     live: r.version.editable,
@@ -354,7 +354,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
           subgroupOps: i.subgroupOps.map((g) => ({ id: g.id ?? undefined, ref: g.ref, chapterId: g.chapterId, title: g.title, order: g.order, remove: g.remove })),
           lineOps: i.lineOps.map((l) => ({ lineId: l.lineId, subgroup: l.subgroup === null ? undefined : "id" in l.subgroup ? { __kind__: "id", id: l.subgroup.id } : { __kind__: "ref", ref: l.subgroup.ref }, showToClient: l.showToClient ?? undefined })),
           chapterMargins: i.chapterMargins.map((c) => ({ id: c.id, classId: c.classId ?? undefined, marginBp: c.marginBp })),
-          regie: i.regie ? { orgId: i.regie.orgId ?? undefined, costCents: i.regie.costCents, sellCents: i.regie.sellCents ?? undefined } : undefined,
+          regie: i.regie ? { orgId: i.regie.orgId ?? undefined, costCents: i.regie.costCents, sellCents: i.regie.sellCents ?? undefined, followRate: i.regie.followRate } : undefined,
           discount: discToTs(i.discount), discountText: i.discountText,
         }, { subtotalCents: fs.expect.subtotal, discountCents: fs.expect.discount, totalCents: fs.expect.total }));
         M.applyFormSaved(model, r.rev, r.refs);
