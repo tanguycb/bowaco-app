@@ -92,8 +92,8 @@ check("werfleider: de posten zonder prijs of marge (geen 45,00 / 5625 / 25 %)", 
 check("caps: werfleider ziet geen prijskolommen, de calculator wel", !(await wl.me()).caps[0].libraryPrices && (await calc.me()).caps[0].libraryPrices);
 check("OA, architect, klant en VC: geen bibliotheek", (await Promise.all([oa2, arch, klant, vc].map((x) => rejects(x.listLibrary(filter()))))).every(Boolean));
 
-// Auditlog
+// Auditlog (de regels van de prijsvragen, 2c.2, dragen firmanamen zoals Proef Dak: die tellen hier niet)
 const log = await admin.auditLog(0n, 200n);
-check("auditlog: 'bekeek:prijzen' door de calculator, zonder bedrag", log.some((e) => e.action === "bekeek:prijzen") && !log.filter((e) => /prijs|verkoopregel/.test(e.action)).some((e) => /4500|45,00|5625|2500|Proef Dak/.test(e.detail)));
+check("auditlog: 'bekeek:prijzen' door de calculator, zonder bedrag", log.some((e) => e.action === "bekeek:prijzen") && !log.filter((e) => /prijs|verkoopregel/.test(e.action) && !/^prijsvraag/.test(e.action)).some((e) => /4500|45,00|5625|2500|Proef Dak/.test(e.detail)));
 console.log(`\n${pass} ✓  ${fail} ✗`);
 process.exit(fail ? 1 : 0);

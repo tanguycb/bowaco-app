@@ -349,6 +349,7 @@ mixin (
         for (c in chosen.values()) { if (invs.find(func(i : Types.TenderInvite) : Bool = i.id == c) == null) { return #err("Deze firma is niet gevraagd in deze prijsvraag") } };
         // 2c.3: gekozen = wat kantoor aanvinkte + de firma's van de keuzes per post; de rest bedankt, met het bericht (AC-13,
         // instelbaar) aan wie een offerte gaf; de prijzen gaan als prijsgeheugen naar de bibliotheek (⚖5).
+        if (OaQuotes.staleChoices(tenders, t) > 0) { return #err("Kies opnieuw: een keuze staat op een offerte die intussen door een nieuwe versie vervangen is (niets afgesloten)") };
         let all = OaQuotes.chosenInvites(tenders, t, chosen);
         let (nc, nt, nm) = OaQuotes.close({ settings; access; org; oa; post; audit; ctr }, tenders, t, all, p.id, now);
         let closedT = { next with status = #closed({ at = now; by = p.id }) };

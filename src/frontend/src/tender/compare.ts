@@ -37,22 +37,28 @@ function lowestIds(cand: [bigint, bigint][]): bigint[] {
   return cand.filter(([, v]) => v === m).map(([id]) => id);
 }
 
+// Lineair in posten × firma's (review L7): de cel van post xi en firma qi staat op plaats xi × nQ + qi.
 export function compare(i: CInput): CResult {
+  const nI = i.items.length;
+  const nQ = i.quotes.length;
   const chapters: string[] = [];
-  for (const x of i.items) if (!chapters.includes(x.chapter)) chapters.push(x.chapter);
+  const chSeen = new Set<string>();
+  for (const x of i.items) if (!chSeen.has(x.chapter)) { chSeen.add(x.chapter); chapters.push(x.chapter); }
   const hist = new Map(i.history.map((h) => [h.itemId, h]));
   const thr = i.thresholdBp;
+  const lineMaps = i.quotes.map((q) => { const m = new Map<bigint, CLine>(); for (const l of q.lines) if (l.itemId != null && !m.has(l.itemId)) m.set(l.itemId, l); return m; });
+  const medians = i.items.map((x) => { const h = hist.get(x.id); return h ? median(h.recent) : null; });
 
   // 1. Cellen.
   type Raw = Omit<CCell, "lowest">;
   const raw: Raw[] = [];
-  for (const x of i.items) {
-    for (const q of i.quotes) {
+  i.items.forEach((x, xi) => {
+    i.quotes.forEach((q, qi) => {
       const empty: Raw = { itemId: x.id, oaQuoteId: q.id, state: "ontbreekt", unitCents: null, amountCents: null, alt: false, vhChanged: false, unitChanged: false, devLastBp: null, devMedianBp: null, deviates: false };
       let cell: Raw;
       if (q.form !== "posten") cell = { ...empty, state: "geen-detail" };
       else {
-        const l = q.lines.find((y) => y.itemId === x.id);
+        const l = lineMaps[qi].get(x.id);
         if (!l) cell = empty;
         else {
           const vh = l.changed.includes("vh");
@@ -63,79 +69,66 @@ export function compare(i: CInput): CResult {
           else {
             const u = l.unitCents;
             let dl: bigint | null = null;
-            let dm: bigint | null = null;
             const h = hist.get(x.id);
-            if (h) {
-              const last = h.lastByOrg.find(([o]) => o === q.orgId);
-              if (last) dl = devBp(u, last[1]);
-              const m = median(h.recent);
-              if (m !== null) dm = devBp(u, m);
-            }
+            if (h) { const last = h.lastByOrg.find(([o]) => o === q.orgId); if (last) dl = devBp(u, last[1]); }
+            const m = medians[xi];
+            const dm = m !== null ? devBp(u, m) : null;
             const off = (d: bigint | null) => d !== null && abs(d) > thr;
             cell = { ...empty, state: "prijs", unitCents: u, amountCents: roundDiv(u * x.qtyMilli, 1000n), alt, vhChanged: vh, unitChanged: un, devLastBp: dl, devMedianBp: dm, deviates: off(dl) || off(dm) };
           }
         }
       }
       raw.push(cell);
-    }
-  }
+    });
+  });
+  const at = (xi: number, qi: number) => raw[xi * nQ + qi];
   const comparable = (c: Raw) => c.state === "prijs" && !c.alt && !c.unitChanged;
 
   // 2. Laagste per post.
-  const lowestOf = new Map<bigint, bigint>();
-  for (const x of i.items) {
-    const cs = raw.filter((c) => c.itemId === x.id && comparable(c));
-    if (cs.length >= 2) {
-      let m: bigint | null = null;
-      for (const c of cs) if (c.amountCents != null && (m === null || c.amountCents < m)) m = c.amountCents;
-      if (m !== null) lowestOf.set(x.id, m);
-    }
-  }
-  const cells: CCell[] = raw.map((c) => ({ ...c, lowest: comparable(c) && lowestOf.has(c.itemId) && c.amountCents === lowestOf.get(c.itemId) }));
-  const cellOf = (itemId: bigint, qid: bigint) => cells.find((c) => c.itemId === itemId && c.oaQuoteId === qid);
-  const chapterOf = new Map(i.items.map((x) => [x.id, x.chapter]));
+  const lowestOf: (bigint | null)[] = i.items.map((_, xi) => {
+    let m: bigint | null = null;
+    let n = 0;
+    for (let qi = 0; qi < nQ; qi++) { const c = at(xi, qi); if (comparable(c) && c.amountCents != null) { if (m === null || c.amountCents < m) m = c.amountCents; n++; } }
+    return n >= 2 ? m : null;
+  });
+  const cells: CCell[] = raw.map((c, k) => { const m = lowestOf[Math.floor(k / (nQ || 1))]; return { ...c, lowest: comparable(c) && m !== null && c.amountCents === m }; });
+  const itemIdx = new Map<bigint, number>();
+  i.items.forEach((x, xi) => { if (!itemIdx.has(x.id)) itemIdx.set(x.id, xi); });
+  const quoteIdx = new Map<bigint, number>();
+  i.quotes.forEach((q, qi) => { if (!quoteIdx.has(q.id)) quoteIdx.set(q.id, qi); });
 
   // 3. Totalen per firma.
-  const nItems = BigInt(i.items.length);
-  const quotes: CQuoteTotals[] = i.quotes.map((q) => {
+  const quotes: CQuoteTotals[] = i.quotes.map((q, qi) => {
     const disc = (g: bigint) => (q.discountBp == null || q.discountBp === 0n ? 0n : roundDiv(g * q.discountBp, 10_000n));
     if (q.form === "posten") {
-      const chs: [string, bigint][] = [];
+      const sums = new Map<string, bigint>();
       let priced = 0n;
-      let gross = 0n;
-      for (const ch of chapters) {
-        let sum = 0n;
-        let any = false;
-        for (const x of i.items) {
-          if (x.chapter !== ch) continue;
-          const c = cellOf(x.id, q.id);
-          if (c && c.amountCents != null) { sum += c.amountCents; any = true; priced += 1n; }
-        }
-        if (any) { chs.push([ch, sum]); gross += sum; }
-      }
+      i.items.forEach((x, xi) => { const a = at(xi, qi).amountCents; if (a != null) { sums.set(x.chapter, (sums.get(x.chapter) ?? 0n) + a); priced += 1n; } });
+      const chs = chapters.filter((ch) => sums.has(ch)).map((ch) => [ch, sums.get(ch)!] as [string, bigint]);
+      let gross = chs.reduce((s, [, v]) => s + v, 0n);
       let own = 0n;
       for (const l of q.lines) if (l.itemId == null && l.amountCents != null) own += l.amountCents;
       gross += own;
       const d = disc(gross);
-      return { oaQuoteId: q.id, chapters: chs, ownCents: own, gross, discount: d, net: gross - d, priced, items: nItems, complete: priced === nItems };
+      return { oaQuoteId: q.id, chapters: chs, ownCents: own, gross, discount: d, net: gross - d, priced, items: BigInt(nI), complete: priced === BigInt(nI) };
     }
     if (q.form === "hoofdstukken") {
       const gross = q.chapterTotals.reduce((s, [, v]) => s + v, 0n);
       const d = disc(gross);
-      const complete = chapters.every((ch) => q.chapterTotals.some(([n]) => n === ch));
-      return { oaQuoteId: q.id, chapters: q.chapterTotals, ownCents: 0n, gross, discount: d, net: gross - d, priced: 0n, items: nItems, complete };
+      const given = new Set(q.chapterTotals.map(([n]) => n));
+      return { oaQuoteId: q.id, chapters: q.chapterTotals, ownCents: 0n, gross, discount: d, net: gross - d, priced: 0n, items: BigInt(nI), complete: chapters.every((ch) => given.has(ch)) };
     }
-    return { oaQuoteId: q.id, chapters: [], ownCents: 0n, gross: q.netCents, discount: 0n, net: q.netCents, priced: 0n, items: nItems, complete: true };
+    return { oaQuoteId: q.id, chapters: [], ownCents: 0n, gross: q.netCents, discount: 0n, net: q.netCents, priced: 0n, items: BigInt(nI), complete: true };
   });
 
   // 4. Laagste per hoofdstuk en in totaal.
   const chapterRes: CChapter[] = chapters.map((ch) => {
     const cand: [bigint, bigint][] = [];
-    i.quotes.forEach((q, k) => {
-      const full = q.form === "posten"
-        ? i.items.filter((x) => x.chapter === ch).every((x) => { const c = cellOf(x.id, q.id); return !!c && c.state === "prijs" && !c.unitChanged; })
-        : q.form === "hoofdstukken" ? q.chapterTotals.some(([n]) => n === ch) : false;
-      if (full) { const v = quotes[k].chapters.find(([n]) => n === ch); if (v) cand.push([q.id, v[1]]); }
+    i.quotes.forEach((q, qi) => {
+      let full = false;
+      if (q.form === "posten") { full = true; i.items.forEach((x, xi) => { if (x.chapter === ch) { const c = at(xi, qi); if (c.state !== "prijs" || c.unitChanged) full = false; } }); }
+      else if (q.form === "hoofdstukken") full = q.chapterTotals.some(([n]) => n === ch);
+      if (full) { const v = quotes[qi].chapters.find(([n]) => n === ch); if (v) cand.push([q.id, v[1]]); }
     });
     return { chapter: ch, lowest: lowestIds(cand) };
   });
@@ -147,12 +140,14 @@ export function compare(i: CInput): CResult {
   const sums = new Map<string, bigint>();
   let total = 0n;
   for (const p of i.picks) {
-    const c = cellOf(p.itemId, p.oaQuoteId);
-    if (c && c.amountCents != null) {
+    const xi = itemIdx.get(p.itemId);
+    const qi = quoteIdx.get(p.oaQuoteId);
+    const a = xi !== undefined && qi !== undefined ? at(xi, qi).amountCents : null;
+    if (a != null && xi !== undefined) {
       chosen += 1n;
-      total += c.amountCents;
-      const ch = chapterOf.get(p.itemId) ?? "";
-      sums.set(ch, (sums.get(ch) ?? 0n) + c.amountCents);
+      total += a;
+      const ch = i.items[xi].chapter;
+      sums.set(ch, (sums.get(ch) ?? 0n) + a);
     } else stale.push(p.itemId);
   }
   const choiceChs = chapters.filter((ch) => sums.has(ch)).map((ch) => [ch, sums.get(ch)!] as [string, bigint]);

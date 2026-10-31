@@ -140,6 +140,7 @@ export const TenderApplyResult = IDL.Record({
   'skipped' : IDL.Vec(IDL.Text),
   'libCosts' : IDL.Nat,
   'lines' : IDL.Nat,
+  'changed' : IDL.Nat,
 });
 export const Result_65 = IDL.Variant({
   'ok' : TenderApplyResult,
@@ -501,15 +502,12 @@ export const TenderItemView = IDL.Record({
   'chapter' : IDL.Text,
   'lineId' : IDL.Nat,
 });
-export const OaQuoteFull = IDL.Record({
+export const OaQuoteHead = IDL.Record({
   'remark' : IDL.Text,
-  'chapterTotals' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
   'netCents' : IDL.Int,
   'file' : IDL.Opt(MyTenderFile),
   'quote' : OaQuoteBrief,
   'discountBp' : IDL.Opt(IDL.Nat),
-  'lines' : IDL.Vec(OaQuoteLine),
-  'fileId' : IDL.Opt(IDL.Nat),
 });
 export const TenderChoiceView = IDL.Record({
   'at' : IDL.Int,
@@ -544,7 +542,7 @@ export const TenderCompareView = IDL.Record({
   'input' : CmpInput,
   'items' : IDL.Vec(TenderItemView),
   'workId' : IDL.Nat,
-  'quotes' : IDL.Vec(OaQuoteFull),
+  'quotes' : IDL.Vec(OaQuoteHead),
   'choices' : IDL.Vec(TenderChoiceView),
   'drafts' : IDL.Vec(TenderDraftRef),
 });
@@ -4587,6 +4585,16 @@ export const Result_35 = IDL.Variant({
   'ok' : OaInvoiceFullView,
   'err' : IDL.Text,
 });
+export const OaQuoteFull = IDL.Record({
+  'remark' : IDL.Text,
+  'chapterTotals' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
+  'netCents' : IDL.Int,
+  'file' : IDL.Opt(MyTenderFile),
+  'quote' : OaQuoteBrief,
+  'discountBp' : IDL.Opt(IDL.Nat),
+  'lines' : IDL.Vec(OaQuoteLine),
+  'fileId' : IDL.Opt(IDL.Nat),
+});
 export const Result_34 = IDL.Variant({ 'ok' : OaQuoteFull, 'err' : IDL.Text });
 export const Result_33 = IDL.Variant({
   'ok' : ContactConfidentialView,
@@ -6548,6 +6556,7 @@ export const idlFactory = ({ IDL }) => {
     'skipped' : IDL.Vec(IDL.Text),
     'libCosts' : IDL.Nat,
     'lines' : IDL.Nat,
+    'changed' : IDL.Nat,
   });
   const Result_65 = IDL.Variant({ 'ok' : TenderApplyResult, 'err' : IDL.Text });
   const OaProofInput = IDL.Variant({
@@ -6897,15 +6906,12 @@ export const idlFactory = ({ IDL }) => {
     'chapter' : IDL.Text,
     'lineId' : IDL.Nat,
   });
-  const OaQuoteFull = IDL.Record({
+  const OaQuoteHead = IDL.Record({
     'remark' : IDL.Text,
-    'chapterTotals' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
     'netCents' : IDL.Int,
     'file' : IDL.Opt(MyTenderFile),
     'quote' : OaQuoteBrief,
     'discountBp' : IDL.Opt(IDL.Nat),
-    'lines' : IDL.Vec(OaQuoteLine),
-    'fileId' : IDL.Opt(IDL.Nat),
   });
   const TenderChoiceView = IDL.Record({
     'at' : IDL.Int,
@@ -6940,7 +6946,7 @@ export const idlFactory = ({ IDL }) => {
     'input' : CmpInput,
     'items' : IDL.Vec(TenderItemView),
     'workId' : IDL.Nat,
-    'quotes' : IDL.Vec(OaQuoteFull),
+    'quotes' : IDL.Vec(OaQuoteHead),
     'choices' : IDL.Vec(TenderChoiceView),
     'drafts' : IDL.Vec(TenderDraftRef),
   });
@@ -10937,6 +10943,16 @@ export const idlFactory = ({ IDL }) => {
     'hoursAll' : OaHoursView,
   });
   const Result_35 = IDL.Variant({ 'ok' : OaInvoiceFullView, 'err' : IDL.Text });
+  const OaQuoteFull = IDL.Record({
+    'remark' : IDL.Text,
+    'chapterTotals' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
+    'netCents' : IDL.Int,
+    'file' : IDL.Opt(MyTenderFile),
+    'quote' : OaQuoteBrief,
+    'discountBp' : IDL.Opt(IDL.Nat),
+    'lines' : IDL.Vec(OaQuoteLine),
+    'fileId' : IDL.Opt(IDL.Nat),
+  });
   const Result_34 = IDL.Variant({ 'ok' : OaQuoteFull, 'err' : IDL.Text });
   const Result_33 = IDL.Variant({
     'ok' : ContactConfidentialView,

@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { backend, freshBackend } from "../tools/lib.mjs";
+import { backend, freshBackend, nepmail } from "../tools/lib.mjs";
 import { M, saveAll, fromRead } from "./offerte-lib.mjs";
 import { totals, roundDiv } from "../src/frontend/src/tender/calc.ts";
 import { compare, median, normalize, version as cmpVersion } from "../src/frontend/src/tender/compare.ts";
@@ -105,6 +105,8 @@ const isOk = (r) => r && typeof r === "object" && "ok" in r;
 const errOf = (r) => (r && typeof r === "object" && "err" in r ? r.err : "");
 const denied = async (p) => { try { const r = await p; return !!(r && "err" in r && /^Geen toegang/.test(r.err)); } catch (e) { return /Geen toegang|trap|Reject/i.test(String(e)); } };
 const opt = (v) => (v === null || v === undefined ? [] : [v]);
+const host = process.env.ICP_HOST || "";
+const local = host.includes("localhost") || host.includes("127.0.0.1");
 const un = (a) => (Array.isArray(a) && a.length ? a[0] : null);
 // De invoer en de uitkomst van de server in de vorm van compare.ts (opties [] / [x] → null / x).
 const inFrom = (i) => ({
@@ -146,8 +148,8 @@ const today = BigInt(Math.floor(Date.now() / 86_400_000));
 const cost = (itemId, orgId, cents, ago) => calc.addLibraryCost(itemId, { orgId: opt(orgId), day: today - BigInt(ago), costCents: cents, source: "offerte", ref: "proef 2c3", note: "" });
 ok(await cost(L1, MEREL, 1000n, 30));
 ok(await cost(L1, REIGER, 1300n, 60));
-const q = ok(await calc.createQuote({ workId: W1, number: "", title: "Proef 2c3 offerte" }));
-{
+async function mkQuote(title) {
+  const q = ok(await calc.createQuote({ workId: W1, number: "", title }));
   const m = fromRead(ok(await calc.readQuoteVersion(q.versionId)));
   const c1 = M.addChapter(m, { code: "05", title: "Proef elektriciteit" });
   const c2 = M.addChapter(m, { code: "06", title: "Proef sanitair" });
@@ -157,9 +159,10 @@ const q = ok(await calc.createQuote({ workId: W1, number: "", title: "Proef 2c3 
   M.addLine(m, c2.key, { title: "Proef leiding", qtyMilli: 15_250n, unit: "lm", form: "vh", price: M.emptyPrice() });
   const r = await saveAll(calc, m);
   if (r && "err" in r) throw new Error(r.err);
+  const rd = ok(await calc.readQuoteVersion(q.versionId));
+  return { q, rd, posts: rd.lines.filter((l) => !("text" in l.kind)) };
 }
-const R1 = ok(await calc.readQuoteVersion(q.versionId));
-const posts = R1.lines.filter((l) => !("text" in l.kind));
+const { q, rd: R1, posts } = await mkQuote("Proef 2c3 offerte");
 const sug = ok(await calc.tenderSuggestions(R1.version.id, posts.map((l) => l.id)));
 const tIn = (over = {}) => ({ versionId: R1.version.id, lineIds: posts.map((l) => l.id), title: "Proef elektriciteit & sanitair 2c3", noteForOa: "", internalNote: "", deadlineDay: sug.deadlineDay, remindDays: 3n, fileIds: [], addressMode: { city: null }, firms: [REIGER, MEREL, FUUT].map((o) => ({ orgId: o, contactPersonId: [] })), ...over });
 const T1 = ok(await calc.createTender(tIn()));
@@ -244,6 +247,8 @@ const savL = ok(await calc.registerOaQuote(looseIn, 25_000n));
 const lst = await calc.listOaQuotes(W1);
 check("(B3) los geregistreerd (firma, nummer, regels); de lijst van de werf toont alle 4 OA-offertes; werfleider geweigerd", savL.netCents === 25_000n && lst.length === 4 && lst.some((x) => x.id === savL.oaQuoteId && x.tenderId.length === 0) && (await denied(wl.listOaQuotes(W1))));
 
+check("(B3) enkel een totaal mét een korting: geweigerd (het totaal is na korting)", /geen korting/.test(errOf(await calc.registerOaQuote({ ...looseIn, prices: { total: 1000n }, discountBp: [500n] }, 950n))));
+
 // B4. Vergelijken: browser = server, laagste, totalen op de VH van BOWACO, afwijkend.
 let cv = ok(await calc.compareTender(T1));
 const qid = { A: subA.oaQuoteId[0], B: savB.oaQuoteId, C: savC.oaQuoteId };
@@ -281,7 +286,11 @@ const c2 = await libCount(L2);
 const chosen = (cs) => cs.filter((c) => c.note.endsWith("· gekozen"));
 const notChosen = (cs) => cs.filter((c) => c.note.endsWith("niet gekozen"));
 check("(B6) bibliotheek: per gekozen post één LibCost (bron oa-offerte, firma, datum); de niet-gekozen firma's als prijsgeheugen 'niet gekozen'", chosen(c1).length === 1 && un(chosen(c1)[0].orgId) === REIGER && chosen(c1)[0].costCents[0] === 1234n && notChosen(c1).length === 1 && un(notChosen(c1)[0].orgId) === MEREL && chosen(c2).length === 1 && un(chosen(c2)[0].orgId) === MEREL && notChosen(c2).length === 1 && ps.lib === chosen(c1)[0].id, S(c1.map((c) => [c.note, c.costCents])));
+const rev1 = ok(await calc.readQuoteVersion(R1.version.id)).version.rev;
+const nAud = async () => (await admin.auditLog(0n, 200n)).filter((e) => e.action === "offerte-oa-overgenomen").length;
+const aud1 = await nAud();
 const ap2 = ok(await calc.applyTenderChoices(T1, R1.version.id));
+check("(B6) opnieuw overnemen zonder prijswijziging: geen nieuwe stand van de versie, geen auditregel (review L3)", ap2.changed === 0n && ap1.changed === 4n && ok(await calc.readQuoteVersion(R1.version.id)).version.rev === rev1 && (await nAud()) === aud1, `${ap2.changed} ${aud1}`);
 check("(B6) opnieuw overnemen = idempotent: zelfde prijzen, geen nieuwe LibCost", ap2.lines === 4n && S(await libCount(L1)) === S(c1) && S(await libCount(L2)) === S(c2) && S(pr(ok(await calc.readQuoteVersion(R1.version.id)), "Proef stopcontact")) === S(ps));
 const lp = ok(await calc.readLibraryPrices([L1]));
 check("(B6) een 'niet gekozen' prijs is nooit de geldende prijs van de post (standaard-OA Merel: nog altijd € 10,00, niet € 15,00)", un(lp.prices[0].cost)?.costCents[0] === 1000n, S(un(lp.prices[0].cost)));
@@ -290,6 +299,12 @@ const rdS = ok(await calc.readQuoteVersion(R1.version.id));
 const sent = await calc.sendQuoteVersion(R1.version.id, rdS.version.rev, rdS.totals.totalCents, "proef 2c3: waarschuwingen doorgezet");
 if (isOk(sent)) {
   check("(B6) een verzonden versie: overnemen geweigerd", /verandert nooit meer/.test(errOf(await calc.applyTenderChoices(T1, R1.version.id))));
+  // De klant van de werf leest de verstuurde versie: geen aankoopprijs, geen OA-firma (§10).
+  const klantW = await freshBackend(cid);
+  ok(await klantW.redeemCode(ok(await admin.invitePerson({ name: `Proef Klant ${suffix}`, roles: [{ klant: null }], orgId: [KLANTORG], shortCode: [], lang: [], phone: [], workIds: [W1], validDays: 1n, tag: "proef 2c3" })).code));
+  const rk = ok(await klantW.readMyQuote(R1.version.id));
+  const sk = S(rk);
+  check("(B6) de klant ziet na het overnemen geen aankoopprijs en geen OA-firma (Reiger, Merel, kostprijs 12,34 of 40,00)", !/Reiger|Merel|costCents|"cost"|orgId|1234|4000"|oa-offerte/.test(sk), sk.slice(0, 200));
 } else check("(B6) versie versturen voor de proef", false, errOf(sent));
 const V2 = ok(await calc.newQuoteVersion(q.quoteId, []));
 
@@ -298,11 +313,21 @@ const subA2 = ok(await oaA.saveMyTender(invA.ref, { ...draftA, lines: [lineIn(it
 cv = ok(await calc.compareTender(T1));
 subA2.oaQuoteId = [await quoteIdOf(invA, 2n)];
 check("(B7) versie 2 van Reiger vervangt versie 1 in de vergelijking; versie 1 blijft in de historiek", subA2.version[0] === 2n && cv.quotes.some((x) => x.quote.id === subA2.oaQuoteId[0]) && !cv.quotes.some((x) => x.quote.id === qid.A) && cv.history.some((x) => x.id === qid.A && !x.current) && sameCalc(cv));
+check("(B7) afsluiten geweigerd zolang er een verouderde keuze is (review L1)", /Kies opnieuw/.test(errOf(await calc.updateTender(T1, ok(await calc.readTender(T1)).rev, { close: [] }))));
 check("(B7) de keuze op versie 1 is verouderd; overnemen geweigerd tot je opnieuw kiest", cv.choices.find((c) => c.itemId === it["Proef stopcontact"].id).stale && S(cv.calc.choice.stale) === S([it["Proef stopcontact"].id]) && /Kies opnieuw/.test(errOf(await calc.applyTenderChoices(T1, V2))));
 qid.A = subA2.oaQuoteId[0];
 ok(await calc.saveTenderChoices(T1, [pick("Proef stopcontact", "A")]));
 const ap3 = ok(await calc.applyTenderChoices(T1, V2));
 const c1b = await libCount(L1);
+{
+  const m = fromRead(ok(await calc.readQuoteVersion(V2)));
+  const l = m.lines.find((x) => x.title === "Proef lichtpunt");
+  M.updateLine(m, l.key, { unit: "lm" });
+  const r = await saveAll(calc, m);
+  if (r && "err" in r) throw new Error(r.err);
+  const ap4 = ok(await calc.applyTenderChoices(T1, V2));
+  check("(B7) de post kreeg in de doelversie een andere eenheid: overslaan en melden (review M2)", ap4.lines === 3n && ap4.skipped.some((x) => x.includes("Proef lichtpunt") && x.includes("andere eenheid")), S(ap4.skipped));
+}
 check("(B7) opnieuw gekozen en overgenomen in versie 2 (zelfde post via de eerste lijn): € 11,00; in de bibliotheek nog altijd één gekozen prijs per post (de oude gearchiveerd)", ap3.lines === 4n && pr(ok(await calc.readQuoteVersion(V2)), "Proef stopcontact").cost === 1100n && chosen(c1b).length === 1 && chosen(c1b)[0].costCents[0] === 1100n && ok(await calc.readLibraryPriceHistory(L1)).costs.some((c) => c.archived && c.source === "oa-offerte" && c.costCents[0] === 1234n));
 
 // B8. Afsluiten: gekozen / bedankt met het bericht (melding), zonder prijzen of naam van de gekozen firma.
@@ -318,6 +343,7 @@ const myC = ok(await oaC.readMyTender(invC.ref));
 check("(B8) de OA ziet enkel zijn eigen uitkomst (bedankt), nooit wie gekozen werd", "thanked" in myC.outcome && !S(myC).includes("Reiger") && !S(myC).includes("Merel"));
 const stW = (await wl.listTenders([W1])).find((x) => x.id === T1);
 check("(B8) werfleider: per hoofdstuk de gekozen firma (05: Reiger en Merel; 06: Merel), geen prijs", stW.picks.length === 2 && stW.picks[0].orgNames.length === 2 && stW.picks[1].orgNames.some((n) => n.includes("Merel")) && !/Cents|€/.test(S(stW)));
+check("(B8) na het afsluiten: kiezen en overnemen geweigerd, de keuze ligt vast (review M1)", /ligt vast/.test(errOf(await calc.saveTenderChoices(T1, [pick("Proef lichtpunt", "B")]))) && /ligt vast/.test(errOf(await calc.applyTenderChoices(T1, V2))));
 check("(B8) na het afsluiten: registreren geweigerd", /afgesloten|registreren kan enkel/.test(errOf(await calc.registerOaQuote(regIn(invB), rdB.netCents))));
 // Mail-stand: een tweede prijsvraag; het bericht gaat in de wachtrij van de postbode (testmodus); "niets" = geen bericht.
 try {
@@ -339,27 +365,97 @@ try {
   check("(B8) stand niets: bedankt zonder bericht (notified = nee)", (await oaC.myNotifications(false)).filter((n) => n.kind === "prijsvraag-bedankt").length === before && !t3b.invites[0].outcome.thanked.notified);
 } finally { ok(await admin.saveTenderSettings(set0)); }
 
-// B9. Rekentest: browser = server op willekeurige prijsvragen (per post, hoofdstukken, totaal; korting, niet inbegrepen,
-// alternatief, VH en eenheid gewijzigd, ontbrekende posten).
+// B8b. Gekozen enkel via het vinkje: haar prijzen niet als "niet gekozen"; een alternatief nooit in de bibliotheek (review L1, L2).
+{
+  const T4 = ok(await calc.createTender(tIn({ title: "Proef vinkje 2c3", firms: [REIGER, MEREL].map((o) => ({ orgId: o, contactPersonId: [] })) })));
+  const t4 = ok(await calc.readTender(T4));
+  const ln = (title, cents, inc = Y) => { const x = t4.items.find((y) => y.title === title); return { itemId: [x.id], description: x.title, unit: x.unit, qtyMilli: x.qtyMilli, unitCents: [cents], included: inc, remark: "" }; };
+  for (const [org, a, b, incB] of [[REIGER, 1111n, 2222n, Y], [MEREL, 1333n, 2444n, { alt: "ander model (verzonnen)" }]]) {
+    const inv = t4.invites.find((i) => i.orgId === org);
+    const ls = [ln("Proef stopcontact", a), ln("Proef lichtpunt", b, incB)];
+    ok(await calc.registerOaQuote({ ...looseIn, inviteId: [inv.id], orgId: org, prices: { lines: ls } }, totals(ls.map((l) => ({ itemId: 1n, qtyMilli: l.qtyMilli, unitCents: l.unitCents[0], included: l.included })), null, () => "").net));
+  }
+  ok(await calc.updateTender(T4, t4.rev, { close: [t4.invites.find((i) => i.orgId === REIGER).id] }));
+  const mine4 = async (li) => (await libCount(li)).filter((c) => c.note.startsWith(t4.code + " "));
+  const m1 = await mine4(L1);
+  const m2 = await mine4(L2);
+  check("(B8b) Reiger enkel via het vinkje gekozen: geen prijs van Reiger in de bibliotheek; Merel als 'niet gekozen'", !m1.some((c) => un(c.orgId) === REIGER) && m1.some((c) => un(c.orgId) === MEREL && c.note.endsWith("niet gekozen")), S(m1.map((c) => [c.note, c.costCents])));
+  check("(B8b) een alternatief (Merel, lichtpunt) komt niet in de bibliotheek", m2.length === 0, S(m2.map((c) => c.note)));
+}
+// B8c. De tekst van de mail "bedankt" in nl, fr en en (nep-maildienst, enkel lokaal): geen bedrag, geen gekozen firma.
+const nepId = process.env.NEPMAIL;
+if (local && nepId) {
+  const nep = await nepmail(nepId);
+  const ps0 = await admin.postSettings();
+  try {
+    ok(await admin.setMailTest(true, "test@proef.invalid"));
+    ok(await admin.saveTenderSettings({ ...set0, thanksMode: "mail" }));
+    ok(await admin.setOrgMailLang(FUUT, "fr"));
+    ok(await admin.setOrgMailLang(KIEVIT, "en"));
+    const T5 = ok(await calc.createTender(tIn({ title: "Proef talen 2c3", firms: [REIGER, MEREL, FUUT, KIEVIT].map((o) => ({ orgId: o, contactPersonId: [] })) })));
+    const t5 = ok(await calc.readTender(T5));
+    for (const inv of t5.invites) ok(await calc.registerOaQuote({ ...looseIn, inviteId: [inv.id], orgId: inv.orgId, prices: { total: 12_345n } }, 12_345n));
+    const from = await nep.aantal();
+    ok(await calc.updateTender(T5, t5.rev, { close: [t5.invites.find((i) => i.orgId === REIGER).id] }));
+    for (let k = 0; k < 30; k++) { const r = ok(await admin.sendMailNow()); if (!r.busy && (await nep.mails(from)).filter((m) => m.html.includes(t5.code)).length >= 3) break; await new Promise((r2) => setTimeout(r2, 2000)); }
+    const ms = (await nep.mails(from)).filter((m) => m.html.includes(t5.code) || m.subject.includes(t5.code));
+    const subj = ms.map((m) => m.subject).join(" | ");
+    check("(B8c) drie mails 'bedankt' (Merel nl, Fuut fr, Kievit en); Reiger (gekozen) krijgt er geen", ms.length === 3 && /bedankt voor uw offerte/.test(subj) && /merci pour votre offre/.test(subj) && /thank you for your quote/.test(subj), subj);
+    check("(B8c) de mails dragen geen bedrag en niet de naam van de gekozen firma", ms.every((m) => !/€|12[.,]?345|123,45|Reiger/.test(m.html + m.subject)), ms.map((m) => m.html.length).join(","));
+  } finally {
+    ok(await admin.saveTenderSettings(set0));
+    ok(await admin.setMailTest(ps0.testMode, ps0.testAddress));
+  }
+} else console.log("· (B8c) geen nep-maildienst: mailtekst niet nagelezen");
+// B8d. Werfleider van een andere werf (werfleider ziet alles uit) en een gearchiveerde persoon (§10).
+{
+  const W2 = ok(await admin.createWork({ code: `P-OR${suffix}`, name: "Proef andere werf 2c3", address: addr, parentId: [], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 600n })).id;
+  const s0 = await admin.getSettings();
+  const setIn = (z) => ({ werfleiderZietAlles: z, inviteDays: s0.inviteDays, threshold30bisCents: s0.threshold30bisCents, thresholdCheckinatworkCents: s0.thresholdCheckinatworkCents });
+  try {
+    ok(await admin.setSettings(setIn(false)));
+    check("(B8d) werfleider van een andere werf: geen prijsvragen, geen OA-offertes, geen vergelijking", (await denied(wl.listTenders([W2]))) && (await denied(wl.listOaQuotes(W2))) && (await denied(wl.compareTender(T1))));
+  } finally { ok(await admin.setSettings(setIn(s0.werfleiderZietAlles))); }
+  const gone = await freshBackend(cid);
+  const inv = ok(await admin.invitePerson({ name: `Proef Calculator Weg ${suffix}`, roles: [{ calculator: null }], orgId: [], shortCode: [], lang: [], phone: [], workIds: [], validDays: 1n, tag: "proef 2c3" }));
+  const me = ok(await gone.redeemCode(inv.code));
+  if (!("active" in me.status)) ok(await admin.confirmLink(me.principal));
+  const me2 = await gone.me();
+  check("(B8d) een tweede calculator (bevestigd) leest de vergelijking", "active" in me2.status && isOk(await gone.compareTender(T1)), JSON.stringify(me2.status));
+  ok(await admin.archivePerson(me.person[0].id));
+  check("(B8d) gearchiveerd: vergelijken, registreren, kiezen en de lijst geweigerd", (await denied(gone.compareTender(T1))) && (await denied(gone.listOaQuotes(W1))) && (await denied(gone.registerOaQuote(looseIn, 25_000n))) && (await denied(gone.saveTenderChoices(T1, []))));
+}
+
+// B9. Rekentest (§10): browser = server op 200 willekeurige prijsvragen (per post, hoofdstukken, totaal; korting, niet inbegrepen,
+// alternatief, VH en eenheid gewijzigd, ontbrekende posten, eigen posten), met historiek in de bibliotheek (afwijkend) en een
+// willekeurige keuze; per 50 rondes een nieuwe offerte (hoogstens 60 prijsvragen per offerte). OQ_RONDES=n voor minder.
 let seed = 20261031;
-const rnd = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+// mulberry32 (gehele getallen; een LCG in Number verliest de lage bits en gaf telkens 0)
+const rnd = (n) => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) % n; };
 let rounds = 0;
 let same = 0;
-const N = Number(process.env.OQ_RONDES ?? 12);
+let withDev = 0;
+let withPick = 0;
+const N = Number(process.env.OQ_RONDES ?? 200);
+let base = null;
+const firmPool = [REIGER, MEREL, FUUT, KIEVIT];
 for (let r = 0; r < N; r++) {
-  const firms = [REIGER, MEREL, FUUT, KIEVIT].slice(0, 2 + rnd(3));
-  const T = ok(await calc.createTender(tIn({ title: `Proef reken ${r} 2c3`, lineIds: posts.slice(0, 2 + rnd(3)).map((l) => l.id), firms: firms.map((o) => ({ orgId: o, contactPersonId: [] })) })));
+  if (r % 50 === 0) base = await mkQuote(`Proef reken ${r / 50} 2c3`);
+  // Historiek: af en toe een aankoopprijs van een firma voor een van de twee bibliotheekposten (tot ruim een jaar oud).
+  if (rnd(2) === 0) ok(await cost(rnd(2) ? L1 : L2, firmPool[rnd(4)], BigInt(500 + rnd(5000)), rnd(450)));
+  const firms = firmPool.slice(0, 2 + rnd(3));
+  const T = ok(await calc.createTender({ ...tIn(), versionId: base.rd.version.id, title: `Proef reken ${r} 2c3`, lineIds: base.posts.slice(0, 2 + rnd(3)).map((l) => l.id), firms: firms.map((o) => ({ orgId: o, contactPersonId: [] })) }));
   const tr = ok(await calc.readTender(T));
   for (const inv of tr.invites) {
     const kind = rnd(6);
-    const disc = rnd(3) === 0 ? [BigInt(rnd(1500))] : [];
+    const disc = kind !== 0 && rnd(3) === 0 ? [BigInt(rnd(1500))] : [];
     let prices;
     let net;
     if (kind === 0) { const v = BigInt(rnd(5_000_000)); prices = { total: v }; net = v; }
     else if (kind === 1) {
       const chs = [...new Set(tr.items.map((x) => x.chapter))].map((c) => [c, BigInt(rnd(3_000_000))]);
       prices = { chapters: chs };
-      const g = chs.reduce((s, [, v]) => s + v, 0n);
+      const g = chs.reduce((acc, [, v]) => acc + v, 0n);
       net = g - (disc.length && disc[0] > 0n ? roundDiv(g * disc[0], 10_000n) : 0n);
     } else {
       const ls = [];
@@ -377,12 +473,47 @@ for (let r = 0; r < N; r++) {
     const res = await calc.registerOaQuote({ inviteId: [inv.id], workId: W1, orgId: inv.orgId, source: { hand: null }, sheetKey: "", number: `R${r}`, quoteDay: today - BigInt(rnd(20)), validUntil: [], discountBp: disc, reverse: true, prices, remark: "", note: "", file: [] }, net);
     if (!isOk(res)) { check(`(B9) ronde ${r}: registreren`, false, errOf(res)); }
   }
-  const v = ok(await calc.compareTender(T));
+  let v = ok(await calc.compareTender(T));
+  let good = sameCalc(v);
+  // Een willekeurige keuze op prijzen die je kunt kiezen; daarna rekent de vergelijking het keuzetotaal.
+  const can = v.calc.cells.filter((c) => c.state === "prijs" && !c.unitChanged);
+  const picks = [];
+  for (const x of tr.items) { const cs = can.filter((c) => c.itemId === x.id); if (cs.length && rnd(3) > 0) picks.push({ itemId: x.id, oaQuoteId: [cs[rnd(cs.length)].oaQuoteId], reason: "" }); }
+  if (picks.length) {
+    ok(await calc.saveTenderChoices(T, picks));
+    v = ok(await calc.compareTender(T));
+    good = good && sameCalc(v) && v.calc.choice.chosen === BigInt(picks.length);
+    withPick++;
+  }
+  if (v.calc.cells.some((c) => c.devLastBp.length || c.devMedianBp.length)) withDev++;
   rounds++;
-  if (sameCalc(v)) same++;
-  else console.log("  verschil:", S(compare(inFrom(v.input))).slice(0, 400), "\n  server:", S(resFrom(v.calc)).slice(0, 400));
+  if (good) same++;
+  else console.log("  verschil ronde", r, ":", S(compare(inFrom(v.input))).slice(0, 300), "\n  server:", S(resFrom(v.calc)).slice(0, 300));
 }
-check(`(B9) rekentest: browser = server op ${rounds} willekeurige prijsvragen`, rounds === N && same === N, `${same}/${rounds}`);
+check(`(B9) rekentest: browser = server op ${rounds} willekeurige prijsvragen (${withDev} met historiek/afwijking, ${withPick} met een keuze)`, rounds === N && same === N && (N < 20 || (withDev > N / 4 && withPick > N / 4)), `${same}/${rounds}`);
+
+// B9b. Omvang (review L7): 300 posten × 30 firma's in één vergelijking, binnen de grenzen van één oproep; browser = server.
+if (!process.env.ZONDER_GROOT) {
+  const q300 = ok(await calc.createQuote({ workId: W1, number: "", title: "Proef groot 2c3" }));
+  const m = fromRead(ok(await calc.readQuoteVersion(q300.versionId)));
+  const chs = Array.from({ length: 10 }, (_, k) => M.addChapter(m, { code: String(k + 10), title: `Proef hoofdstuk ${k + 1}` }));
+  for (let k = 0; k < 300; k++) M.addLine(m, chs[k % 10].key, { title: `Proef post ${k + 1}`, qtyMilli: BigInt(1000 + k * 37), unit: "st", form: "vh", libItemId: k === 0 ? L1 : null, libItemVersion: k === 0 ? 1n : null, price: M.emptyPrice() });
+  const rs = await saveAll(calc, m);
+  if (rs && "err" in rs) throw new Error(rs.err);
+  const rd300 = ok(await calc.readQuoteVersion(q300.versionId));
+  const big30 = [];
+  for (let k = 0; k < 30; k++) big30.push(await orgOf(`Proef Groot ${k + 1} 2c3 ${suffix}`));
+  const TB = ok(await calc.createTender({ ...tIn(), versionId: rd300.version.id, title: "Proef groot 2c3", lineIds: rd300.lines.map((l) => l.id), firms: big30.map((o) => ({ orgId: o, contactPersonId: [] })) }));
+  const tb = ok(await calc.readTender(TB));
+  for (const inv of tb.invites) {
+    const ls = tb.items.map((x) => ({ itemId: [x.id], description: x.title, unit: x.unit, qtyMilli: x.qtyMilli, unitCents: [BigInt(100 + rnd(100_000))], included: Y, remark: "" }));
+    ok(await calc.registerOaQuote({ inviteId: [inv.id], workId: W1, orgId: inv.orgId, source: { hand: null }, sheetKey: "", number: "G", quoteDay: today, validUntil: [], discountBp: [], reverse: true, prices: { lines: ls } , remark: "", note: "", file: [] }, totals(ls.map((l) => ({ itemId: 1n, qtyMilli: l.qtyMilli, unitCents: l.unitCents[0], included: Y })), null, () => "").net));
+  }
+  const t0 = Date.now();
+  const vb = await calc.compareTender(TB);
+  const ms = Date.now() - t0;
+  check("(B9b) 300 posten × 30 firma's: één vergelijking (9.000 cellen) zonder grens te raken; browser = server", isOk(vb) && vb.ok.calc.cells.length === 9000 && sameCalc(vb.ok), `${ms} ms`);
+} else console.log("· (B9b) ZONDER_GROOT: de grote vergelijking overgeslagen");
 
 // B10. .did-controle: de stand van de werfleider en de OA draagt geen bedrag; bedragen enkel via update-calls.
 {

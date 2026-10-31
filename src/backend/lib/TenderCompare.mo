@@ -13,6 +13,7 @@
 // · keuze: per gekozen post het bedrag van die firma; een keuze op een offerte die niet meer geldt of zonder prijs = "verouderd".
 import Array "mo:core/Array";
 import Int "mo:core/Int";
+import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
@@ -36,23 +37,35 @@ module {
 
   func hasChange(changed : [Text], k : Text) : Bool { changed.find(func(x : Text) : Bool = x == k) != null };
 
+  // Lineair in posten × firma's (review L7): elke cel staat op plaats (post-index × aantal firma's + firma-index); de regels van een
+  // offerte en de mediaan per post worden één keer opgezocht.
   public func compare(i : TV.CmpInput) : TV.CmpResult {
+    let nI = i.items.size();
+    let nQ = i.quotes.size();
     // Hoofdstukken in de volgorde van de posten.
-    var chapters : [Text] = [];
+    let chList = List.empty<Text>();
     let chSeen = Map.empty<Text, Bool>();
-    for (x in i.items.values()) { if (not chSeen.containsKey(x.chapter)) { chSeen.add(x.chapter, true); chapters := chapters.concat([x.chapter]) } };
+    for (x in i.items.values()) { if (not chSeen.containsKey(x.chapter)) { chSeen.add(x.chapter, true); chList.add(x.chapter) } };
+    let chapters = chList.toArray();
     let hist = Map.empty<Nat, TV.CmpHistory>();
     for (h in i.history.values()) { hist.add(h.itemId, h) };
     let thr : Int = i.thresholdBp;
+    // Per offerte de regels op post; per post de mediaan.
+    let lineMaps = i.quotes.map(func(q : TV.CmpQuote) : Map.Map<Nat, Types.OaQuoteLine> {
+      let m = Map.empty<Nat, Types.OaQuoteLine>();
+      for (l in q.lines.values()) { switch (l.itemId) { case (?id) { if (not m.containsKey(id)) { m.add(id, l) } }; case null {} } };
+      m;
+    });
+    let medians = i.items.map(func(x : TV.CmpItem) : ?Int = switch (hist.get(x.id)) { case (?h) median(h.recent); case null null });
 
     // 1. Cellen (post × firma), zonder "laagste".
     type Raw = { itemId : Nat; oaQuoteId : Nat; state : Text; unitCents : ?Int; amountCents : ?Int; alt : Bool; vhChanged : Bool; unitChanged : Bool; devLastBp : ?Int; devMedianBp : ?Int; deviates : Bool };
-    var raw : [Raw] = [];
-    for (x in i.items.values()) {
-      for (q in i.quotes.values()) {
+    let rawL = List.empty<Raw>();
+    for ((xi, x) in i.items.enumerate()) {
+      for ((qi, q) in i.quotes.enumerate()) {
         let empty : Raw = { itemId = x.id; oaQuoteId = q.id; state = "ontbreekt"; unitCents = null; amountCents = null; alt = false; vhChanged = false; unitChanged = false; devLastBp = null; devMedianBp = null; deviates = false };
         let cell : Raw = if (q.form != "posten") { { empty with state = "geen-detail" } } else {
-          switch (q.lines.find(func(l : Types.OaQuoteLine) : Bool = l.itemId == ?x.id)) {
+          switch (lineMaps[qi].get(x.id)) {
             case null empty;
             case (?l) {
               let vh = hasChange(l.changed, "vh");
@@ -63,14 +76,11 @@ module {
                 case (_, null) { { empty with state = "geen-prijs"; alt; vhChanged = vh; unitChanged = un } };
                 case (_, ?u) {
                   var dl : ?Int = null;
-                  var dm : ?Int = null;
                   switch (hist.get(x.id)) {
-                    case (?h) {
-                      switch (h.lastByOrg.find(func((o, _) : (Nat, Int)) : Bool = o == q.orgId)) { case (?(_, last)) { dl := devBp(u, last) }; case null {} };
-                      switch (median(h.recent)) { case (?m) { dm := devBp(u, m) }; case null {} };
-                    };
+                    case (?h) { switch (h.lastByOrg.find(func((o, _) : (Nat, Int)) : Bool = o == q.orgId)) { case (?(_, last)) { dl := devBp(u, last) }; case null {} } };
                     case null {};
                   };
+                  let dm : ?Int = switch (medians[xi]) { case (?m) devBp(u, m); case null null };
                   let off = func(d : ?Int) : Bool = switch d { case (?v) abs(v) > thr; case null false };
                   { empty with state = "prijs"; unitCents = ?u; amountCents = ?QuoteCalc.roundDiv(u * x.qtyMilli, 1_000); alt; vhChanged = vh; unitChanged = un; devLastBp = dl; devMedianBp = dm; deviates = off(dl) or off(dm) };
                 };
@@ -78,103 +88,100 @@ module {
             };
           };
         };
-        raw := raw.concat([cell]);
+        rawL.add(cell);
       };
     };
+    let raw = rawL.toArray();
+    let at = func(xi : Nat, qi : Nat) : Raw = raw[xi * nQ + qi];
     let comparable = func(c : Raw) : Bool = c.state == "prijs" and not c.alt and not c.unitChanged;
 
     // 2. Laagste per post (minstens twee vergelijkbare prijzen).
-    let lowestOf = Map.empty<Nat, Int>();
-    for (x in i.items.values()) {
-      let cs = raw.filter(func(c : Raw) : Bool = c.itemId == x.id and comparable(c));
-      if (cs.size() >= 2) {
-        var m : Int = 0;
-        var first = true;
-        for (c in cs.values()) { switch (c.amountCents) { case (?a) { if (first or a < m) { m := a; first := false } }; case null {} } };
-        lowestOf.add(x.id, m);
+    let lowestOf = Array.tabulate<?Int>(nI, func(xi : Nat) : ?Int {
+      var m : Int = 0;
+      var n = 0;
+      for (qi in Nat.range(0, nQ)) {
+        let c = at(xi, qi);
+        if (comparable(c)) { switch (c.amountCents) { case (?a) { if (n == 0 or a < m) { m := a }; n += 1 }; case null {} } };
       };
-    };
-    let cells = raw.map(func(c : Raw) : TV.CmpCell {
-      let low = comparable(c) and (switch (lowestOf.get(c.itemId), c.amountCents) { case (?m, ?a) a == m; case _ false });
+      if (n >= 2) ?m else null;
+    });
+    let cells = Array.tabulate<TV.CmpCell>(raw.size(), func(k : Nat) : TV.CmpCell {
+      let c = raw[k];
+      let low = comparable(c) and (switch (lowestOf[k / (if (nQ == 0) 1 else nQ)], c.amountCents) { case (?m, ?a) a == m; case _ false });
       { itemId = c.itemId; oaQuoteId = c.oaQuoteId; state = c.state; unitCents = c.unitCents; amountCents = c.amountCents; alt = c.alt; vhChanged = c.vhChanged; unitChanged = c.unitChanged; lowest = low; devLastBp = c.devLastBp; devMedianBp = c.devMedianBp; deviates = c.deviates };
     });
-    let cellOf = func(itemId : Nat, qid : Nat) : ?TV.CmpCell = cells.find(func(c : TV.CmpCell) : Bool = c.itemId == itemId and c.oaQuoteId == qid);
-    let chapterOf = Map.empty<Nat, Text>();
-    for (x in i.items.values()) { chapterOf.add(x.id, x.chapter) };
+    let itemIdx = Map.empty<Nat, Nat>();
+    for ((xi, x) in i.items.enumerate()) { if (not itemIdx.containsKey(x.id)) { itemIdx.add(x.id, xi) } };
+    let quoteIdx = Map.empty<Nat, Nat>();
+    for ((qi, q) in i.quotes.enumerate()) { if (not quoteIdx.containsKey(q.id)) { quoteIdx.add(q.id, qi) } };
 
     // 3. Totalen per firma.
-    let nItems = i.items.size();
-    let quotes = i.quotes.map(func(q : TV.CmpQuote) : TV.CmpQuoteTotals {
+    let quotes = Array.tabulate<TV.CmpQuoteTotals>(nQ, func(qi : Nat) : TV.CmpQuoteTotals {
+      let q = i.quotes[qi];
       let disc = func(g : Int) : Int = switch (q.discountBp) { case (?bp) { if (bp == 0) 0 else QuoteCalc.roundDiv(g * bp, 10_000) }; case null 0 };
       if (q.form == "posten") {
-        var chs : [(Text, Int)] = [];
+        let sums = Map.empty<Text, Int>();
         var priced = 0;
-        var gross : Int = 0;
-        for (ch in chapters.values()) {
-          var sum : Int = 0;
-          var any = false;
-          for (x in i.items.values()) {
-            if (x.chapter == ch) {
-              switch (cellOf(x.id, q.id)) { case (?c) { switch (c.amountCents) { case (?a) { sum += a; any := true; priced += 1 }; case null {} } }; case null {} };
-            };
-          };
-          if (any) { chs := chs.concat([(ch, sum)]); gross += sum };
+        for ((xi, x) in i.items.enumerate()) {
+          switch (at(xi, qi).amountCents) { case (?a) { sums.add(x.chapter, (switch (sums.get(x.chapter)) { case (?v) v; case null 0 }) + a); priced += 1 }; case null {} };
         };
+        let chs = chapters.filter(func(ch : Text) : Bool = sums.containsKey(ch)).map<Text, (Text, Int)>(func(ch : Text) : (Text, Int) = (ch, switch (sums.get(ch)) { case (?v) v; case null 0 }));
+        var gross : Int = 0;
+        for ((_, v) in chs.values()) { gross += v };
         var own : Int = 0;
         for (l in q.lines.values()) { if (l.itemId == null) { switch (l.amountCents) { case (?a) { own += a }; case null {} } } };
         gross += own;
         let d = disc(gross);
-        { oaQuoteId = q.id; chapters = chs; ownCents = own; gross; discount = d; net = gross - d; priced; items = nItems; complete = priced == nItems };
+        { oaQuoteId = q.id; chapters = chs; ownCents = own; gross; discount = d; net = gross - d; priced; items = nI; complete = priced == nI };
       } else if (q.form == "hoofdstukken") {
         var gross : Int = 0;
         for ((_, v) in q.chapterTotals.values()) { gross += v };
         let d = disc(gross);
-        let complete = chapters.all(func(ch : Text) : Bool = q.chapterTotals.find(func((n, _) : (Text, Int)) : Bool = n == ch) != null);
-        { oaQuoteId = q.id; chapters = q.chapterTotals; ownCents = 0; gross; discount = d; net = gross - d; priced = 0; items = nItems; complete };
+        let given = Map.empty<Text, Bool>();
+        for ((n, _) in q.chapterTotals.values()) { given.add(n, true) };
+        { oaQuoteId = q.id; chapters = q.chapterTotals; ownCents = 0; gross; discount = d; net = gross - d; priced = 0; items = nI; complete = chapters.all(func(ch : Text) : Bool = given.containsKey(ch)) };
       } else {
-        { oaQuoteId = q.id; chapters = []; ownCents = 0; gross = q.netCents; discount = 0; net = q.netCents; priced = 0; items = nItems; complete = true };
+        { oaQuoteId = q.id; chapters = []; ownCents = 0; gross = q.netCents; discount = 0; net = q.netCents; priced = 0; items = nI; complete = true };
       };
     });
 
     // 4. Laagste per hoofdstuk en in totaal (enkel volledige firma's, minstens twee).
     let chapterRes = chapters.map(func(ch : Text) : TV.CmpChapter {
-      var cand : [(Nat, Int)] = [];
-      for ((k, q) in i.quotes.enumerate()) {
-        let t = quotes[k];
+      let cand = List.empty<(Nat, Int)>();
+      for (qi in Nat.range(0, nQ)) {
+        let q = i.quotes[qi];
         let full = if (q.form == "posten") {
-          i.items.filter(func(x : TV.CmpItem) : Bool = x.chapter == ch).all(func(x : TV.CmpItem) : Bool = switch (cellOf(x.id, q.id)) { case (?c) c.state == "prijs" and not c.unitChanged; case null false });
+          var ok = true;
+          for ((xi, x) in i.items.enumerate()) { if (x.chapter == ch) { let c = at(xi, qi); if (c.state != "prijs" or c.unitChanged) { ok := false } } };
+          ok;
         } else if (q.form == "hoofdstukken") { q.chapterTotals.find(func((n, _) : (Text, Int)) : Bool = n == ch) != null } else false;
         if (full) {
-          switch (t.chapters.find(func((n, _) : (Text, Int)) : Bool = n == ch)) { case (?(_, v)) { cand := cand.concat([(q.id, v)]) }; case null {} };
+          switch (quotes[qi].chapters.find(func((n, _) : (Text, Int)) : Bool = n == ch)) { case (?(_, v)) { cand.add((q.id, v)) }; case null {} };
         };
       };
-      { chapter = ch; lowest = lowestIds(cand) };
+      { chapter = ch; lowest = lowestIds(cand.toArray()) };
     });
     let totCand = quotes.filter(func(t : TV.CmpQuoteTotals) : Bool = t.complete).map<TV.CmpQuoteTotals, (Nat, Int)>(func(t : TV.CmpQuoteTotals) : (Nat, Int) = (t.oaQuoteId, t.net));
 
     // 5. De keuze.
     var chosen = 0;
-    var stale : [Nat] = [];
+    let stale = List.empty<Nat>();
     let sums = Map.empty<Text, Int>();
     var total : Int = 0;
     for (p in i.picks.values()) {
-      switch (cellOf(p.itemId, p.oaQuoteId)) {
-        case (?c) {
-          switch (c.amountCents) {
-            case (?a) {
-              chosen += 1;
-              total += a;
-              let ch = switch (chapterOf.get(p.itemId)) { case (?x) x; case null "" };
-              sums.add(ch, (switch (sums.get(ch)) { case (?s) s; case null 0 }) + a);
-            };
-            case null { stale := stale.concat([p.itemId]) };
-          };
+      let amount : ?Int = switch (itemIdx.get(p.itemId), quoteIdx.get(p.oaQuoteId)) { case (?xi, ?qi) at(xi, qi).amountCents; case _ null };
+      switch amount {
+        case (?a) {
+          chosen += 1;
+          total += a;
+          let ch = switch (itemIdx.get(p.itemId)) { case (?xi) i.items[xi].chapter; case null "" };
+          sums.add(ch, (switch (sums.get(ch)) { case (?s) s; case null 0 }) + a);
         };
-        case null { stale := stale.concat([p.itemId]) };
+        case null { stale.add(p.itemId) };
       };
     };
     let choiceChs = chapters.filter(func(ch : Text) : Bool = sums.containsKey(ch)).map<Text, (Text, Int)>(func(ch : Text) : (Text, Int) = (ch, switch (sums.get(ch)) { case (?s) s; case null 0 }));
-    { version; cells; quotes; chapters = chapterRes; lowestTotal = lowestIds(totCand); choice = { chosen; stale; chapters = choiceChs; total } };
+    { version; cells; quotes; chapters = chapterRes; lowestTotal = lowestIds(totCand); choice = { chosen; stale = stale.toArray(); chapters = choiceChs; total } };
   };
 
   func lowestIds(cand : [(Nat, Int)]) : [Nat] {

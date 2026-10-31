@@ -2559,6 +2559,13 @@ export interface OaQuoteFull {
   'lines' : Array<OaQuoteLine>,
   'fileId' : [] | [bigint],
 }
+export interface OaQuoteHead {
+  'remark' : string,
+  'netCents' : bigint,
+  'file' : [] | [MyTenderFile],
+  'quote' : OaQuoteBrief,
+  'discountBp' : [] | [bigint],
+}
 export interface OaQuoteInput {
   'remark' : string,
   'reverse' : boolean,
@@ -4823,6 +4830,7 @@ export interface TenderApplyResult {
   'skipped' : Array<string>,
   'libCosts' : bigint,
   'lines' : bigint,
+  'changed' : bigint,
 }
 export interface TenderChoice {
   'at' : bigint,
@@ -4863,7 +4871,7 @@ export interface TenderCompareView {
   'input' : CmpInput,
   'items' : Array<TenderItemView>,
   'workId' : bigint,
-  'quotes' : Array<OaQuoteFull>,
+  'quotes' : Array<OaQuoteHead>,
   'choices' : Array<TenderChoiceView>,
   'drafts' : Array<TenderDraftRef>,
 }

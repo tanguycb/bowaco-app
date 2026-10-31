@@ -2041,6 +2041,9 @@ await sec("── 2c.3 OA-offertes: vergelijken, kiezen, overnemen per rol (de r
   check("calculator registreert een losse OA-offerte (enkel het totaal); de lijst van de werf toont ze, zonder bedrag", isOk(reg) && (await calc.listOaQuotes(B)).some((x) => x.id === reg.ok.oaQuoteId && x.tenderId.length === 0) && !JSON.stringify(await calc.listOaQuotes(B), (_, y) => (typeof y === "bigint" ? y.toString() : y)).includes("12345"));
   const pk = await calc.saveTenderChoices(tB.id, [{ itemId: v.items[0].id, oaQuoteId: [oq.id], reason: "" }]);
   check("calculator kiest een post (per post); de keuze staat in de vergelijking", isOk(pk) && ok1b(await calc.compareTender(tB.id)).choices.length === 1);
+  const tGone = (await calc.listTenders([B])).find((x) => x.title === "Proef prijsvraag rollentest (geannuleerd)");
+  const vGone = ok1b(await calc.readTender(tGone.id));
+  check("geannuleerde prijsvraag: kiezen en overnemen geweigerd, ook voor de calculator (de keuze ligt vast)", /ligt vast/.test(errOf(await calc.saveTenderChoices(tGone.id, [{ itemId: vGone.items[0].id, oaQuoteId: [], reason: "" }]))) && /ligt vast/.test(errOf(await calc.applyTenderChoices(tGone.id, vGone.versionId))));
   check("werfleider: zolang de prijsvraag loopt, geen gekozen firma in de stand (geen prijs)", (await wl.listTenders([B])).find((x) => x.id === tB.id).picks.length === 0);
   const s0 = await calc.tenderSettings();
   check("instellingen prijsvragen: interne rollen lezen; enkel de beheerder bewaart; OA en klant niets", s0.thanksMode === "melding" && (await denied(calc.saveTenderSettings(s0))) && (await denied(wl.saveTenderSettings(s0))) && isOk(await admin.saveTenderSettings(s0)) && (await denied(oa2.tenderSettings())) && (await denied(klant.tenderSettings())));

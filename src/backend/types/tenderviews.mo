@@ -295,6 +295,7 @@ module {
   public type CmpResult = { version : Nat; cells : [CmpCell]; quotes : [CmpQuoteTotals]; chapters : [CmpChapter]; lowestTotal : [Nat]; choice : CmpChoice };
 
   public type TenderChoiceView = { itemId : Nat; oaQuoteId : ?Nat; orgId : ?Nat; orgName : Text; unitCents : ?Int; reason : Text; appliedVersionId : ?Nat; libCostId : ?Nat; at : Int; byName : Text; stale : Bool };
+  public type OaQuoteHead = { quote : OaQuoteBrief; netCents : Int; discountBp : ?Nat; remark : Text; file : ?MyTenderFile };
   public type TenderDraftRef = { versionId : Nat; version : Nat; title : Text };
   public type TenderCompareView = {
     tenderId : Nat;
@@ -306,7 +307,7 @@ module {
     status : Types.TenderStatus;
     rev : Nat;
     items : [TenderItemView];
-    quotes : [OaQuoteFull]; // de geldende offerte per firma (een tweede indiening vervangt de eerste)
+    quotes : [OaQuoteHead]; // de geldende offerte per firma (een tweede indiening vervangt de eerste); de regels staan in input
     history : [OaQuoteBrief]; // alle OA-offertes op deze prijsvraag, ook de vervangen versies
     invites : [TenderInviteStatusView];
     input : CmpInput;
@@ -316,6 +317,6 @@ module {
     thanksMode : Text; // "melding" · "mail" · "niets" (bericht aan de niet-gekozen firma's bij het afsluiten)
   };
   public type TenderPickInput = { itemId : Nat; oaQuoteId : ?Nat; reason : Text }; // null = keuze weg
-  public type TenderApplyResult = { lines : Nat; libCosts : Nat; memory : Nat; skipped : [Text] };
+  public type TenderApplyResult = { lines : Nat; changed : Nat; libCosts : Nat; memory : Nat; skipped : [Text] }; // lines = posten met een OA-prijs; changed = waarvan nu gewijzigd
   public type TenderSettings = { deadlineDays : Nat; remindDays : Nat; thanksMode : Text; deviationBp : Nat };
 };

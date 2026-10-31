@@ -181,6 +181,26 @@ module {
     switch (l.unitCents) { case (?u) #ok(u); case null #err("Deze firma gaf geen prijs voor die post") };
   };
 
+  // Een alternatief (#alt) is geen prijs van de post van BOWACO: nooit in het prijsgeheugen (review L2).
+  public func isAlt(ts : TS, q : Types.OaQuote, itemId : Nat) : Bool {
+    switch (Tenders.amountsOf(ts, q.id)) {
+      case (?a) { switch (a.lines.find(func(x : Types.OaQuoteLine) : Bool = x.itemId == ?itemId)) { case (?l) { switch (l.included) { case (#alt _) true; case _ false } }; case null false } };
+      case null false;
+    };
+  };
+
+  // Keuzes op een offerte die intussen vervangen is (een nieuwe versie van die firma).
+  public func staleChoices(ts : TS, t : Types.Tender) : Nat {
+    choicesOf(ts, t).filter(func(c : Types.TenderChoice) : Bool = switch (c.oaQuoteId) { case (?q) not isCurrent(ts, t, q); case null false }).size();
+  };
+
+  // Een firma die enkel via het vinkje bij het afsluiten gekozen werd (geen keuze per post): haar prijzen zijn niet "niet gekozen";
+  // ze gaan niet in het prijsgeheugen (review L1; het ontwerp zegt niets over gekozen zonder keuze per post).
+  func checkboxOnly(ts : TS, t : Types.Tender, q : Types.OaQuote) : Bool {
+    let chosen = switch (q.inviteId) { case (?iid) { switch (ts.invites.get(iid)) { case (?i) i.outcome == #chosen; case null false } }; case null false };
+    chosen and choicesOf(ts, t).find(func(c : Types.TenderChoice) : Bool = c.oaQuoteId == ?q.id) == null;
+  };
+
   public func choiceView(access : Types.AccessState, org : Types.OrgState, ts : TS, t : Types.Tender, c : Types.TenderChoice) : TV.TenderChoiceView {
     let q = switch (c.oaQuoteId) { case (?id) ts.oaQuotes.get(id); case null null };
     {
@@ -218,7 +238,7 @@ module {
                 let mine = Library.costsOf(lib, li).filter(func(c : Types.LibCost) : Bool = c.archivedAt == null and fromThisTender(c, t.id) and extraOf(c.extra, "post") == x.id.toText());
                 let used = Map.empty<Nat, Bool>();
                 for (q in cur.values()) {
-                  switch (priceFor(ts, q, x.id)) {
+                  switch (if (isAlt(ts, q, x.id) or checkboxOnly(ts, t, q)) #err("") else priceFor(ts, q, x.id)) {
                     case (#ok u) {
                       let keuze = if (pick == ?q.id) "gekozen" else "niet gekozen";
                       let same = mine.find(func(c : Types.LibCost) : Bool = c.orgId == ?q.orgId and plain(c.cost) == ?u and c.day == q.quoteDay and extraOf(c.extra, "oaOfferte") == q.id.toText() and extraOf(c.extra, "keuze") == keuze);

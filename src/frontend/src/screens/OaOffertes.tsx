@@ -307,7 +307,7 @@ function HandSheet({ workId, v, inv, onClose }: { workId: bigint; v: TenderView 
       }
       const input: OaQuoteInput = {
         inviteId: inv?.id, workId, orgId: inv ? inv.orgId : BigInt(orgId), source: OaQuoteSource.hand, sheetKey: "",
-        number: no.trim(), quoteDay: inputToDay(day)!, validUntil: inputToDay(valid), discountBp: bp === null || bp === 0n ? undefined : bp, reverse: rev,
+        number: no.trim(), quoteDay: inputToDay(day)!, validUntil: inputToDay(valid), discountBp: bp === null || bp === 0n || (!loose && form === "totaal") ? undefined : bp, reverse: rev,
         prices: calc.prices, remark, note, file: f,
       };
       unwrap(await actor!.registerOaQuote(input, calc.net));
@@ -333,7 +333,7 @@ function HandSheet({ workId, v, inv, onClose }: { workId: bigint; v: TenderView 
         <Field label={O.handNo}><input className="bw-input" value={no} maxLength={40} onChange={(e) => setNo(e.target.value)} /></Field>
         <Field label={O.handDay}><input className="bw-input" type="date" value={day} onChange={(e) => setDay(e.target.value)} /></Field>
         <Field label={O.handValid}><input className="bw-input" type="date" value={valid} onChange={(e) => setValid(e.target.value)} /></Field>
-        <Field label={O.handDiscount}><input className="bw-input bw-num" inputMode="decimal" value={disc} onChange={(e) => setDisc(e.target.value)} /></Field>
+        {(loose || form !== "totaal") && <Field label={O.handDiscount}><input className="bw-input bw-num" inputMode="decimal" value={disc} onChange={(e) => setDisc(e.target.value)} /></Field>}
       </div>
       <label className="a-check"><input type="checkbox" checked={rev} onChange={(e) => setRev(e.target.checked)} /> {O.handReverse}</label>
       {!loose && form === "totaal" && <Field label={O.handTotal}><input className="bw-input bw-num" inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} data-testid="oq-hand-total" /></Field>}
@@ -417,8 +417,8 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
   const saved = init();
   const dirty = picks.size !== saved.size || [...picks.entries()].some(([k, x]) => saved.get(k) !== x) || d.choices.some((c) => (reasons[String(c.itemId)] ?? "") !== c.reason) || [...picks.keys()].some((k) => !d.choices.some((c) => String(c.itemId) === k) && (reasons[k] ?? "") !== "");
   const pickable = (c: CmpCell | undefined) => !!c && c.state === "prijs" && !c.unitChanged;
-  const pickChapter = (ch: string, qid: bigint) => setPicks((m) => { const n = new Map(m); for (const x of d.items.filter((y) => y.chapter === ch)) { if (pickable(cellOf(x.id, qid))) n.set(String(x.id), qid); } return n; });
-  const pickItem = (itemId: bigint, qid: bigint) => setPicks((m) => { const n = new Map(m); if (n.get(String(itemId)) === qid) n.delete(String(itemId)); else n.set(String(itemId), qid); return n; });
+  const pickChapter = (ch: string, qid: bigint) => d.status.__kind__ === "open" && setPicks((m) => { const n = new Map(m); for (const x of d.items.filter((y) => y.chapter === ch)) { if (pickable(cellOf(x.id, qid))) n.set(String(x.id), qid); } return n; });
+  const pickItem = (itemId: bigint, qid: bigint) => d.status.__kind__ === "open" && setPicks((m) => { const n = new Map(m); if (n.get(String(itemId)) === qid) n.delete(String(itemId)); else n.set(String(itemId), qid); return n; });
   const nonLowest = d.items.filter((x) => { const qid = picks.get(String(x.id)); if (qid === undefined) return false; const c = cellOf(x.id, qid); return !!c && !c.lowest && d.calc.cells.some((y) => y.itemId === x.id && y.lowest); });
   const firmOf = (qid: bigint) => quotes.find((x) => x.quote.id === qid)?.quote.orgName ?? "";
   const stale = d.choices.filter((c) => c.stale).length;
@@ -440,12 +440,10 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
     onSuccess: () => { toast.show({ kind: "ok", text: O.cmpClosed }); setConfirm(null); onSaved(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
-  const openClose = () => {
-    const chosenInv = new Set<string>();
-    for (const qid of picks.values()) { const iq = quotes.find((x) => x.quote.id === qid)?.quote.inviteId; if (iq !== undefined) chosenInv.add(String(iq)); }
-    setCloseSel(d.invites.filter((i) => chosenInv.has(String(i.id))).map((i) => i.id));
-    setConfirm("close");
-  };
+  // De firma's met een keuze per post zijn sowieso gekozen (de server neemt ze mee): hun vinkje staat vast.
+  const fixedInv = new Set<string>();
+  for (const qid of picks.values()) { const iq = quotes.find((x) => x.quote.id === qid)?.quote.inviteId; if (iq !== undefined) fixedInv.add(String(iq)); }
+  const openClose = () => { setCloseSel(d.invites.filter((i) => fixedInv.has(String(i.id))).map((i) => i.id)); setConfirm("close"); };
   const pdf = async () => {
     try {
       const [{ comparePdf }, { loadPdfFonts }] = await Promise.all([import("../pdf/vergelijking.ts"), import("../pdf/fonts.ts")]);
@@ -468,7 +466,7 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
           { label: O.cmpGross, values: quotes.map((_, k) => fmtEuro(tot(k).gross)), lowest: quotes.map(() => false) },
           { label: O.cmpDiscount, values: quotes.map((_, k) => fmtEuro(tot(k).discount)), lowest: quotes.map(() => false) },
           { label: O.cmpNet, values: quotes.map((_, k) => fmtEuro(tot(k).net)), lowest: quotes.map((qq) => lowT(qq.quote.id)) },
-          { label: O.cmpComplete, values: quotes.map((qq, k) => (qq.quote.source === OaQuoteSource.hand && tot(k).priced === 0n ? (tot(k).chapters.length ? O.cmpCompleteChapters : O.cmpCompleteTotal) : O.cmpCompleteN(Number(tot(k).priced), Number(tot(k).items)))), lowest: quotes.map(() => false) },
+          { label: O.cmpComplete, values: quotes.map((_, k) => (d.input.quotes[k].form === "posten" ? O.cmpCompleteN(Number(tot(k).priced), Number(tot(k).items)) : d.input.quotes[k].form === "hoofdstukken" ? O.cmpCompleteChapters : O.cmpCompleteTotal)), lowest: quotes.map(() => false) },
         ],
         choice: O.cmpChoice(Number(live.choice.chosen), d.items.length, fmtEuro(live.choice.total)),
         legend: O.cmpLegend,
@@ -497,7 +495,7 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
               <tr key={k} className="oq-sum">
                 <td colSpan={3}><b>{lab}</b></td>
                 {d.calc.quotes.map((tq, i) => {
-                  const val = k === "own" ? fmtEuro(tq.ownCents) : k === "gross" ? fmtEuro(tq.gross) : k === "discount" ? fmtEuro(tq.discount) : k === "net" ? fmtEuro(tq.net) : quotes[i].lines.length || tq.priced > 0n ? O.cmpCompleteN(Number(tq.priced), Number(tq.items)) : tq.chapters.length ? O.cmpCompleteChapters : O.cmpCompleteTotal;
+                  const val = k === "own" ? fmtEuro(tq.ownCents) : k === "gross" ? fmtEuro(tq.gross) : k === "discount" ? fmtEuro(tq.discount) : k === "net" ? fmtEuro(tq.net) : d.input.quotes[i].form === "posten" ? O.cmpCompleteN(Number(tq.priced), Number(tq.items)) : tq.chapters.length ? O.cmpCompleteChapters : O.cmpCompleteTotal;
                   return <td key={String(tq.oaQuoteId)} className={`bw-right bw-mono ${k === "net" && d.calc.lowestTotal.includes(tq.oaQuoteId) ? "oq-low" : ""}`}>{val}</td>;
                 })}
               </tr>
@@ -515,21 +513,22 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
       <div className="oq-bar">
         <span className="bw-mono" data-testid="oq-choice">{O.cmpChoice(Number(live.choice.chosen), d.items.length, fmtEuro(live.choice.total))}</span>
         {dirty && <span className="a-tag a-tag--warn">{O.cmpUnsaved}</span>}
-        <Button variant="primary" busy={save.isPending} disabled={!dirty} onClick={() => save.mutate()} data-testid="oq-save">{O.cmpSave}</Button>
-        {d.drafts.length > 0 ? (
+        {!open && <span className="bw-muted">{O.cmpFixed}</span>}
+        {open && <Button variant="primary" busy={save.isPending} disabled={!dirty} onClick={() => save.mutate()} data-testid="oq-save">{O.cmpSave}</Button>}
+        {!open ? null : d.drafts.length > 0 ? (
           <>
             <select className="bw-input pv-sm" aria-label={O.cmpApplyTo} value={target} onChange={(e) => setTarget(e.target.value)}>{d.drafts.map((x) => <option key={String(x.versionId)} value={String(x.versionId)}>{t.offertes.version(Number(x.version))}</option>)}</select>
             <Button disabled={dirty || picks.size === 0 || stale > 0} onClick={() => setConfirm("apply")} data-testid="oq-apply">{O.cmpApply}</Button>
           </>
         ) : <span className="bw-muted">{O.cmpApplyNone}</span>}
         <Button variant="quiet" onClick={() => void pdf()} data-testid="oq-pdf">{O.cmpPdf}</Button>
-        {open && <Button variant="quiet" disabled={dirty} onClick={openClose} data-testid="oq-close">{O.cmpClose}</Button>}
+        {open && <Button variant="quiet" disabled={dirty || stale > 0} onClick={openClose} data-testid="oq-close">{O.cmpClose}</Button>}
       </div>
       <Confirm open={confirm === "apply"} title={O.cmpApplyTitle} text={O.cmpApplyText(Number(d.drafts.find((x) => String(x.versionId) === target)?.version ?? 0n))} confirmLabel={O.cmpApply} busy={apply.isPending} onConfirm={() => apply.mutate()} onClose={() => setConfirm(null)} />
       {confirm === "close" && (
         <Sheet title={O.cmpCloseTitle} open onClose={() => setConfirm(null)} side footer={<><Button onClick={() => setConfirm(null)}>{t.common.cancel}</Button><Button variant="primary" busy={close.isPending} onClick={() => close.mutate()} data-testid="oq-close-ok">{O.cmpClose}</Button></>}>
           <p>{O.cmpCloseLead}</p>
-          {d.invites.map((i) => <label key={String(i.id)} className="a-check"><input type="checkbox" checked={closeSel.includes(i.id)} onChange={(e) => setCloseSel((x) => (e.target.checked ? [...x, i.id] : x.filter((y) => y !== i.id)))} /> {i.orgName} <span className="bw-muted">({P.invite[i.status]})</span></label>)}
+          {d.invites.map((i) => { const fixed = fixedInv.has(String(i.id)); return <label key={String(i.id)} className="a-check"><input type="checkbox" checked={fixed || closeSel.includes(i.id)} disabled={fixed} onChange={(e) => setCloseSel((x) => (e.target.checked ? [...x, i.id] : x.filter((y) => y !== i.id)))} /> {i.orgName} <span className="bw-muted">({P.invite[i.status]}{fixed ? ` · ${O.cmpCloseFixed}` : ""})</span></label>; })}
           <p className="a-note">{O.cmpCloseMsg[d.thanksMode] ?? d.thanksMode}</p>
         </Sheet>
       )}
@@ -560,10 +559,10 @@ function ChapterRows({ ch, d, picks, onChapter, onItem, pickable, cellOf }: { ch
           <td className="bw-mono">{x.code}</td>
           <td>{x.title}{x.subgroup ? <span className="oq-sub">{x.subgroup}</span> : null}</td>
           <td className="bw-right bw-mono">{fmtQty(x.qtyMilli)} {unitOf(x.unit)}</td>
-          {d.quotes.map((qq) => {
+          {d.quotes.map((qq, qi) => {
             const c = cellOf(x.id, qq.quote.id);
-            const tx = cellText(c, qq.lines.find((l) => l.itemId === x.id)?.unit ?? "");
-            const line = qq.lines.find((l) => l.itemId === x.id);
+            const line = d.input.quotes[qi].lines.find((l) => l.itemId === x.id);
+            const tx = cellText(c, line?.unit ?? "");
             const chosen = picks.get(String(x.id)) === qq.quote.id;
             const can = pickable(c);
             return (

@@ -187,6 +187,8 @@ mixin (
       };
       case (#total v) {
         form := "totaal";
+        // Review L6: het totaal is het bedrag na korting; een korting erbij zou dubbel tellen.
+        switch (i.discountBp) { case (?bp) { if (bp > 0) { return #err("Bij enkel een totaal geen korting: geef het totaal na korting") } }; case null {} };
         if (v < 0 or v > Config.maxAmountCents) { return #err("Totaal: 0 tot € 1 miljard") };
         net := v;
       };
@@ -248,7 +250,7 @@ mixin (
       status = t.status;
       rev = t.rev;
       items = do { let xs = Tenders.itemsOf(tenders, t.id); Array.tabulate<TV.TenderItemView>(xs.size(), func(k : Nat) : TV.TenderItemView = Tenders.itemView(xs[k], k + 1)) };
-      quotes = cur.map(func(q : Types.OaQuote) : TV.OaQuoteFull = Tenders.fullQuote(c, tenders, q));
+      quotes = cur.map(func(q : Types.OaQuote) : TV.OaQuoteHead { let f = Tenders.fullQuote(c, tenders, q); { quote = f.quote; netCents = f.netCents; discountBp = f.discountBp; remark = f.remark; file = f.file } });
       history = all.map(func(q : Types.OaQuote) : TV.OaQuoteBrief = Tenders.oaQuoteBrief(c, tenders, q));
       invites = Tenders.invitesOf(tenders, t.id).map(func(i : Types.TenderInvite) : TV.TenderInviteStatusView = Tenders.inviteStatusView(c, t, i));
       input;
@@ -264,7 +266,8 @@ mixin (
     let p = Access.requireActive(access, caller);
     oqRequire(p);
     let t = oqTender(p, tenderId) ?? return #err("Geen toegang");
-    switch (t.status) { case (#cancelled _ or #draft) { return #err("De prijsvraag is " # Tenders.statusText(t.status)) }; case _ {} };
+    // Review M1: kiezen en overnemen enkel zolang de prijsvraag loopt (na afsluiten of annuleren ligt de keuze vast).
+    if (t.status != #open) { return #err("De prijsvraag is " # Tenders.statusText(t.status) # ": de keuze ligt vast") };
     let items = Tenders.itemsOf(tenders, t.id);
     if (picks.size() == 0 or picks.size() > items.size()) { return #err("Kies 1 tot " # items.size().toText() # " posten") };
     let seen = Map.empty<Nat, Bool>();
@@ -312,7 +315,8 @@ mixin (
     Rights.require(ctx, p, #editQuote, null);
     let t = oqTender(p, tenderId) ?? return #err("Geen toegang");
     Rights.require(ctx, p, #readQuotes, ?t.workId);
-    switch (t.status) { case (#cancelled _ or #draft) { return #err("De prijsvraag is " # Tenders.statusText(t.status)) }; case _ {} };
+    // Review M1: kiezen en overnemen enkel zolang de prijsvraag loopt (na afsluiten of annuleren ligt de keuze vast).
+    if (t.status != #open) { return #err("De prijsvraag is " # Tenders.statusText(t.status) # ": de keuze ligt vast") };
     let v = quotes.versions.get(versionId) ?? return #err("Onbekende versie");
     if (v.quoteId != t.quoteId) { return #err("Deze versie hoort bij een andere offerte") };
     let q0 = quotes.quotes.get(v.quoteId) ?? return #err("Onbekende offerte");
@@ -341,6 +345,7 @@ mixin (
     // Eerst het prijsgeheugen (zo kent elke keuze haar prijs in de bibliotheek), dan de lijnen.
     let mem = OaQuotes.remember(org, library, quotes, tenders, ctr, t, p.id, now);
     var n = 0;
+    var changed = 0;
     var skipped : [Text] = [];
     for (ch in OaQuotes.choicesOf(tenders, t).values()) {
       switch (ch.oaQuoteId, tenders.items.get(ch.itemId)) {
@@ -348,12 +353,24 @@ mixin (
           let label_ = (if (x.code != "") x.code # " " else "") # x.title;
           switch (byRoot.get(x.root), tenders.oaQuotes.get(qid)) {
             case (?l, ?q) {
-              let old = quotes.prices.get(l.id);
-              let pr = Quotes.priceOf(quotes, l.id);
-              let extra = switch old { case (?o) o.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "prijsvraag"); case null [] };
-              quotes.prices.add(l.id, { lineId = l.id; versionId = v.id; cost = #plain(ch.unitCents); rule = #plain(pr.rule); reason = #plain(pr.reason); orgId = ?q.orgId; source = "oa-offerte"; libCostId = mem.chosen.get(x.id); extra = extra.concat([("prijsvraag", t.id.toText())]) });
-              switch (tenders.choices.get(x.id)) { case (?#plain(cc)) { tenders.choices.add(x.id, #plain({ cc with appliedVersionId = ?v.id })) }; case _ {} };
-              n += 1;
+              // Review M2: de post in de doelversie kan intussen een andere eenheid hebben dan in de prijsvraag.
+              if (l.unit != x.unit and not OaQuotes.sameUnit(settings, x.unit, l.unit)) {
+                skipped := skipped.concat([label_ # ": andere eenheid dan in de prijsvraag (" # l.unit # " i.p.v. " # x.unit # ")"]);
+              } else {
+                let old = quotes.prices.get(l.id);
+                let pr = Quotes.priceOf(quotes, l.id);
+                let lib = mem.chosen.get(x.id);
+                let tag = t.id.toText();
+                let had = switch old { case (?o) OaQuotes.extraOf(o.extra, "prijsvraag") == tag; case null false };
+                // Review L3: dezelfde prijs opnieuw overnemen verandert niets (geen nieuwe stand, geen auditregel).
+                if (not (had and pr.cost == ch.unitCents and pr.orgId == ?q.orgId and pr.source == "oa-offerte" and pr.libCostId == lib)) {
+                  let extra = switch old { case (?o) o.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "prijsvraag"); case null [] };
+                  quotes.prices.add(l.id, { lineId = l.id; versionId = v.id; cost = #plain(ch.unitCents); rule = #plain(pr.rule); reason = #plain(pr.reason); orgId = ?q.orgId; source = "oa-offerte"; libCostId = lib; extra = extra.concat([("prijsvraag", tag)]) });
+                  changed += 1;
+                };
+                switch (tenders.choices.get(x.id)) { case (?#plain(cc)) { if (cc.appliedVersionId != ?v.id) { tenders.choices.add(x.id, #plain({ cc with appliedVersionId = ?v.id })) } }; case _ {} };
+                n += 1;
+              };
             };
             case (null, _) { skipped := skipped.concat([label_ # ": staat niet (meer) in versie " # v.version.toText()]) };
             case (_, null) { skipped := skipped.concat([label_ # ": onbekende OA-offerte"]) };
@@ -362,10 +379,12 @@ mixin (
         case _ {};
       };
     };
-    if (n > 0) { quotes.versions.add(v.id, { v with rev = v.rev + 1; calcVersion = QuoteCalc.version; updatedAt = now; updatedBy = p.id }) };
+    if (changed > 0) { quotes.versions.add(v.id, { v with rev = v.rev + 1; calcVersion = QuoteCalc.version; updatedAt = now; updatedBy = p.id }) };
     if (mem.skipped > 0) { skipped := skipped.concat([mem.skipped.toText() # " prijzen niet in de bibliotheek (te veel prijzen voor die post)"]) };
     // Enkel aantallen, nooit een bedrag.
-    Access.audit(audit, caller, ?p.id, ?t.workId, "offerte-oa-overgenomen", q0.number # " v" # v.version.toText() # ": " # n.toText() # " posten uit " # t.code # "; bibliotheek " # mem.added.toText() # " nieuw, " # mem.kept.toText() # " ongewijzigd, " # mem.archived.toText() # " vervangen");
-    #ok({ lines = n; libCosts = mem.chosen.size(); memory = mem.added + mem.kept; skipped });
+    if (changed > 0 or mem.added > 0 or mem.archived > 0) {
+      Access.audit(audit, caller, ?p.id, ?t.workId, "offerte-oa-overgenomen", q0.number # " v" # v.version.toText() # ": " # changed.toText() # " van " # n.toText() # " posten gewijzigd uit " # t.code # "; bibliotheek " # mem.added.toText() # " nieuw, " # mem.kept.toText() # " ongewijzigd, " # mem.archived.toText() # " vervangen");
+    };
+    #ok({ lines = n; changed; libCosts = mem.chosen.size(); memory = mem.added + mem.kept; skipped });
   };
 };
