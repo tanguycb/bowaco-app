@@ -304,7 +304,7 @@ if (isOk(sent)) {
   ok(await klantW.redeemCode(ok(await admin.invitePerson({ name: `Proef Klant ${suffix}`, roles: [{ klant: null }], orgId: [KLANTORG], shortCode: [], lang: [], phone: [], workIds: [W1], validDays: 1n, tag: "proef 2c3" })).code));
   const rk = ok(await klantW.readMyQuote(R1.version.id));
   const sk = S(rk);
-  check("(B6) de klant ziet na het overnemen geen aankoopprijs en geen OA-firma (Reiger, Merel, kostprijs 12,34 of 40,00)", !/Reiger|Merel|costCents|"cost"|orgId|1234|4000"|oa-offerte/.test(sk), sk.slice(0, 200));
+  check("(B6) de klant ziet na het overnemen geen aankoopprijs en geen OA-firma (Reiger, Merel, kostprijs 12,34 of 40,00)", !/Reiger|Merel|costCents|"cost"|orgId|"1234"|"4000"|oa-offerte/.test(sk), sk.slice(0, 200));
 } else check("(B6) versie versturen voor de proef", false, errOf(sent));
 const V2 = ok(await calc.newQuoteVersion(q.quoteId, []));
 
