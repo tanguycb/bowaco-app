@@ -119,8 +119,15 @@ module {
         switch (c.qs.versions.get(vid)) {
           case (?v) {
             let nr = switch (c.qs.quotes.get(v.quoteId)) { case (?q) q.number; case null "?" };
-            if (v.status == #accepted) "meerwerkofferte " # nr # " aanvaard op " # day(Progress.dayOf(WorkStart.acceptedAt(c.qd, v)))
-            else "meerwerkofferte " # nr # " " # Quotes.statusText(v.status);
+            switch (acceptedVersionOf(c, vid)) {
+              case (?a) "meerwerkofferte " # nr # " v" # a.version.toText() # " aanvaard op " # day(Progress.dayOf(WorkStart.acceptedAt(c.qd, a)));
+              case null {
+                // De nieuwste versie zegt hoe ver ze staat (een v2 in ontwerp na een verstuurde v1).
+                let vs = Quotes.versionsOf(c.qs, v.quoteId);
+                let last = if (vs.size() > 0) vs[0] else v;
+                "meerwerkofferte " # nr # " v" # last.version.toText() # " " # Quotes.statusText(last.status);
+              };
+            };
           };
           case null "meerwerkofferte";
         };
@@ -169,17 +176,21 @@ module {
     amountCents : Int;
     passOn : Bool; // de bron zegt "doorrekenen" (2c.7); 2.11: altijd false
     source : Text; // "OA-factuur 2026-17"
+    version : Text; // de inhoud van de regel (hash): een aanpassing van kantoor geldt enkel voor deze versie (review M3)
+    pending : Bool; // de factuur is nog niet goedgekeurd: een doorgerekende kost wacht (telt niet, review L7)
   };
 
+  // Goedgekeurd = telt; geregistreerd = wacht; betwist en ingetrokken = nooit. 2c.7: een OA-factuur die een werfdeel van een
+  // aankoopfactuur (Purchase) is, komt hier NIET via de regel "andere" van 2.11 maar via de aankoopregels (anders dubbel).
   public func costItems(c : Ctx, workId : Nat) : [CostItem] {
     let out = List.empty<CostItem>();
     for (inv in OaInvoice.invoicesOf(c.oi, workId).values()) {
-      if (OaInvoice.counts(inv)) {
+      if (inv.status == #approved or inv.status == #registered) {
         switch (OaInvoice.amountsOf(c.oi, inv.id)) {
           case (?a) {
             for ((i, l) in a.lines.enumerate()) {
               if (l.kind == #other) {
-                out.add({ key = "kost:oa:" # inv.id.toText() # ":" # i.toText(); day = switch (inv.periodTo) { case (?d) d; case null inv.invoiceDay }; orgId = ?inv.orgId; kindKey = "andere"; description = l.description; qtyMilli = l.qtyMilli; unit = "st"; unitCents = l.unitCents; amountCents = l.amountCents; passOn = false; source = "OA-factuur " # inv.number });
+                out.add({ key = "kost:oa:" # inv.id.toText() # ":" # i.toText(); day = switch (inv.periodTo) { case (?d) d; case null inv.invoiceDay }; orgId = ?inv.orgId; kindKey = "andere"; description = l.description; qtyMilli = l.qtyMilli; unit = "st"; unitCents = l.unitCents; amountCents = l.amountCents; passOn = false; source = "OA-factuur " # inv.number; version = Text.fromIter(hash("bowaco-kost-v1|" # l.description # "|" # Int.toText(l.qtyMilli) # "|" # Int.toText(l.unitCents) # "|" # Int.toText(l.amountCents)).chars().take(16)); pending = inv.status != #approved });
               };
             };
           };
@@ -189,6 +200,17 @@ module {
     };
     // 2c.7: hier de aankoopregels (purchases) van deze werf toevoegen.
     out.toArray();
+  };
+
+  // Een aanpassing van kantoor op een automatische regel: enkel van DEZE werf en voor deze versie van de bron (extra "versie").
+  public func overrideVersion(o : Types.MmOverride) : Text {
+    switch (o.extra.find(func((k, _) : (Text, Text)) : Bool = k == "versie")) { case (?(_, v)) v; case null "" };
+  };
+  public func overrideFor(c : Ctx, workId : Nat, key : Text, version : Text) : ?Types.MmOverride {
+    switch (c.mm.overrides.get(key)) { case (?o) { if (o.workId == workId and overrideVersion(o) == version) ?o else null }; case null null };
+  };
+  public func staleOverride(c : Ctx, workId : Nat, key : Text, version : Text) : Bool {
+    switch (c.mm.overrides.get(key)) { case (?o) o.workId == workId and overrideVersion(o) != version; case null false };
   };
 
   // De marge van een doorgerekende kost: de klasse van de firma (2c.1, "org:<id>") > die van de kostensoort > de standaard.
@@ -202,21 +224,23 @@ module {
   };
 
   // ── Reeds gefactureerd (2c.6 sluit hier aan) ──────────────────────────────
-  // Nu: elke VERZONDEN vorderingsstaat van de werf (een creditnota telt negatief), excl. btw, met de prijsherziening; en de regels
-  // "reeds gefactureerd" die kantoor met de hand opgaf (facturen van vóór de app). 2c.6: de uitgereikte verkoopfacturen hier.
+  // Nu: elke VERZONDEN vorderingsstaat van de werf (een creditnota telt negatief), excl. btw: het bedrag van de periode (cents) en
+  // apart de prijsherziening (revisionCents; review H3: de herziening hoort niet bij de aanneemsom en mag "nog te factureren" niet
+  // verlagen); en de regels "reeds gefactureerd" die kantoor met de hand opgaf (facturen van vóór de app, zonder herziening).
+  // 2c.6: de uitgereikte verkoopfacturen hier, met dezelfde splitsing (werk · prijsherziening).
   public func invoicedOf(c : Ctx, workId : Nat) : [Types.MmInvoiced] {
     let out = List.empty<Types.MmInvoiced>();
     for (st in Progress.statementsOf(c.ps, workId).values()) {
       if (st.status == #sent) {
         switch (Progress.frozenOf(c.ps, st.id)) {
-          case (?f) out.add({ title = (if (st.kind == #credit) "creditnota " else "vorderingsstaat ") # st.code; day = f.sendDay; cents = f.totals.subtotalCents });
+          case (?f) out.add({ title = (if (st.kind == #credit) "creditnota " else "vorderingsstaat ") # st.code; day = f.sendDay; cents = f.totals.periodCents; revisionCents = f.totals.revisionCents });
           case null {};
         };
       };
     };
     for (e in entriesOf(c.mm, workId).values()) {
       if (e.kind == #invoiced and e.archivedAt == null) {
-        switch (priceOf(c.mm, e.id)) { case (?p) out.add({ title = e.description; day = switch (e.day) { case (?d) d; case null Progress.dayOf(e.createdAt) }; cents = p.unitCents }); case null {} };
+        switch (priceOf(c.mm, e.id)) { case (?p) out.add({ title = e.description; day = switch (e.day) { case (?d) d; case null Progress.dayOf(e.createdAt) }; cents = p.unitCents; revisionCents = 0 }); case null {} };
       };
     };
     out.toArray();
@@ -251,6 +275,7 @@ module {
     overridable : Bool;
     flags : [Text];
     proposedBy : ?Nat;
+    version : Text; // de versie van de bron (een kostregel: haar inhoud); een aanpassing geldt enkel voor die versie (review M3)
   };
   public type DiscRow = { entryId : Nat; chapter : Text; description : Text; pctBp : ?Nat; amountCents : Int; counted : Bool };
   public type Built = {
@@ -265,6 +290,8 @@ module {
     openSurvey : ?Nat;
     posts : [MV.MmPostRef];
     quoteRefs : [Text];
+    revisionCents : Int; // al aangerekende prijsherziening (apart, review H3)
+    bigChapters : [Text]; // hoofdstukken waar meerwerk met een akkoord mondeling/mail samen ≥ de drempel is (review M4)
   };
 
   type PostInfo = { root : Nat; chapter : Text; title : Text; unit : Text; form : Types.ContractForm; qtyMilli : Int; unitCents : ?Int; qlbl : Text };
@@ -274,14 +301,19 @@ module {
 
   // Een regel zoals de meeste: de rest van de velden op hun standaard.
   func row(key : Text, source : Text, sourceText : Text, chapter : Text, description : Text, client : Text, unit : Text, qty : Int, unitCents : Int, col : MinMeerCalc.Col) : Row {
-    { key; source; sourceText; chapter; chapterFrom = ""; day = null; description; descriptionClient = client; unit; qtyMilli = qty; unitCents; pctBp = null; col; counted = true; approval = "niet nodig"; note = ""; entryId = null; root = null; orgId = null; costCents = null; marginBp = null; excluded = false; passOn = false; inVersion = true; overridable = false; flags = []; proposedBy = null };
+    { key; source; sourceText; chapter; chapterFrom = ""; day = null; description; descriptionClient = client; unit; qtyMilli = qty; unitCents; pctBp = null; col; counted = true; approval = "niet nodig"; note = ""; entryId = null; root = null; orgId = null; costCents = null; marginBp = null; excluded = false; passOn = false; inVersion = true; overridable = false; flags = []; proposedBy = null; version = "" };
   };
 
   // Telt een regel van kantoor mee volgens haar akkoord? (een meerwerkofferte telt via haar eigen posten, zodra ze aanvaard is)
   public func approvalCounts(a : Types.MmApproval) : Bool { switch a { case (#notNeeded or #recorded _) true; case (#pending or #quote _) false } };
 
+  // Review M1: een meerwerkofferte is aanvaard als EEN versie van die offerte aanvaard is (een v2 na een verstuurde v1 telt ook).
+  public func acceptedVersionOf(c : Ctx, vid : Nat) : ?Types.QuoteVersion {
+    let v = c.qs.versions.get(vid) ?? return null;
+    Quotes.versionsOf(c.qs, v.quoteId).find(func(x : Types.QuoteVersion) : Bool = x.status == #accepted);
+  };
   public func quoteAccepted(c : Ctx, a : Types.MmApproval) : Bool {
-    switch a { case (#quote vid) { switch (c.qs.versions.get(vid)) { case (?v) v.status == #accepted; case null false } }; case _ false };
+    switch a { case (#quote vid) acceptedVersionOf(c, vid) != null; case _ false };
   };
 
   public func build(c : Ctx, workId : Nat, today : Nat) : Built {
@@ -343,12 +375,10 @@ module {
           let changed = switch base { case (?b) b.id != p.version.id; case null false };
           if (changed) {
             let u0 = switch (b0.unitCents) { case (?y) y; case null 0 };
-            if (u0 == uu) {
-              if (p.line.qtyMilli != b0.qtyMilli) {
-                rows.add({ row("versie:" # p.root.toText(), "versie", "offerte " # lbl, ch, p.line.title, p.line.title, p.line.unit, p.line.qtyMilli - b0.qtyMilli, uu, #auto) with root = ?p.root });
-              };
-            } else {
-              rows.add({ row("versie:" # p.root.toText() # ":weg", "versie", "offerte " # lbl, ch, b0.title # " (vorige prijs)", b0.title # " (vorige prijs)", b0.unit, -b0.qtyMilli, u0, #auto) with root = ?p.root });
+            // Altijd twee regels (de getekende hoeveelheid × prijs weg, de nieuwe erbij): zo is offerte + versie per post exact het
+            // bedrag van de nieuwe versie (geen afrondingsverschil), en een afrekening van die post exact 0 (review H2).
+            if (u0 != uu or p.line.qtyMilli != b0.qtyMilli) {
+              rows.add({ row("versie:" # p.root.toText() # ":weg", "versie", "offerte " # lbl, ch, b0.title # " (getekende versie)", b0.title # " (getekende versie)", b0.unit, -b0.qtyMilli, u0, #auto) with root = ?p.root });
               rows.add({ row("versie:" # p.root.toText(), "versie", "offerte " # lbl, ch, p.line.title, p.line.title, p.line.unit, p.line.qtyMilli, uu, #auto) with root = ?p.root });
             };
           };
@@ -435,9 +465,10 @@ module {
         case (#settle) {
           switch post {
             case (?x) {
+              // Review H2: de hoeveelheid en prijs van de LAATST aanvaarde versie, zodat offerte + versieregels + afrekening voor die
+              // post samen precies 0 zijn. Een post die niet meer in de aanvaarde versie staat, is al weg (versieregel): 0.
               let u = switch (x.unitCents) { case (?y) y; case null 0 };
-              let b0 = switch (e.root) { case (?r) baseInfo.get(r); case null null };
-              let q = switch b0 { case (?b) b.qtyMilli; case null x.qtyMilli };
+              let q = switch (e.root) { case (?r) { if (seenRoot.containsKey(r)) x.qtyMilli else 0 }; case null 0 };
               rows.add({ base0 with source = "afrekening"; sourceText = "raming afgerekend"; description = "Raming afgerekend: " # x.title; descriptionClient = "Raming afgerekend: " # x.title; unit = x.unit; qtyMilli = q; unitCents = u; col = #less; flags = flags.toArray() });
             };
             case null { rows.add({ base0 with counted = false; inVersion = false; flags = ["post-onbekend"] }) };
@@ -465,7 +496,7 @@ module {
           };
           if (not has) { flags.add("te-prijzen") };
           let amt = MinMeerCalc.amount({ chapter = ch; col = #extra; qtyMilli = e.qtyMilli; unitCents = u; pctBp = null; counted = true });
-          let big = has and amt >= threshold and not viaQuote;
+          let big = has and Int.abs(amt) >= threshold and not viaQuote;
           if (big) { flags.add("meerwerkofferte-nodig") };
           let srcT = if (e.kind == #regie) "regie (kantoor)" else if (e.kind == #cost) "kost (kantoor)" else srcText;
           rows.add({ base0 with source = if (e.kind == #regie) "regie" else if (e.kind == #cost) "kost" else src; sourceText = srcT; unitCents = u; col = #extra; counted = base0.counted and has and not big; approval = if big ("meerwerkofferte nodig (vanaf " # euro(threshold) # ")") else base0.approval; costCents = cost; marginBp = switch pr { case (?p) p.marginBp; case null null }; orgId = switch pr { case (?p) p.orgId; case null null }; flags = flags.toArray() });
@@ -473,14 +504,25 @@ module {
       };
     };
 
-    // 5. De regie-uren van het werfverslag, per aanwezigheidsregel (dag, firma of eigen mensen).
+    // 5. De regie-uren van het werfverslag, per aanwezigheidsregel (dag, firma of eigen mensen). Een taak hangt aan een raming als
+    // een van haar lijnen een regie-, raming- of budgetpost is (review M2). Uren zonder post tellen enkel als de werf geen raming
+    // meer open heeft (zoals 2.10: anders horen ze vermoedelijk bij die raming; "regie-zonder-post", telt niet).
+    func isRaming(f : Types.ContractForm) : Bool { f == #regie or f == #estimate or f == #budget };
     let taskRoot = Map.empty<Nat, Nat>();
     for (t in c.plan.tasks.values()) {
       if (t.workId == workId and t.archivedAt == null) {
         label find for (lid in t.quoteLineIds.values()) {
-          switch (c.qs.lines.get(lid)) { case (?l) { if (l.form == #regie) { taskRoot.add(t.id, WorkStart.root(c.qs, l.id)); break find } }; case null {} };
+          switch (c.qs.lines.get(lid)) { case (?l) { if (isRaming(l.form)) { taskRoot.add(t.id, WorkStart.root(c.qs, l.id)); break find } }; case null {} };
         };
       };
+    };
+    var openRaming = false;
+    for ((r, x) in info.entries()) { if (isRaming(x.form) and seenRoot.containsKey(r) and not settled.containsKey(r)) { openRaming := true } };
+    // Review L2: een aanpassing op een aanwezigheidsregel die later verbeterd werd (nieuwe regel), vervalt: de nieuwe regel krijgt
+    // de markering "aanpassing-vervallen" (nakijken).
+    let staleUren = Map.empty<Nat, Bool>();
+    for (a in c.reports.attendances.values()) {
+      if (a.workId == workId) { switch (a.replacedBy, c.mm.overrides.get("uren:" # a.id.toText())) { case (?b, ?o) { if (o.workId == workId) staleUren.add(b, true) }; case _ {} } };
     };
     for (a in c.reports.attendances.values()) {
       if (a.workId == workId and Progress.validAttendance(a)) {
@@ -489,36 +531,47 @@ module {
         let r = switch (a.taskId) { case (?tid) taskRoot.get(tid); case null null };
         let post = switch r { case (?x) info.get(x); case null null };
         let inRaming = switch (r, post) { case (?x, ?_) not settled.containsKey(x); case _ false };
-        let rt = rateFor(c, workId, base, switch post { case (?x) x.unitCents; case null null }, a.orgId, a.day);
+        let held = post == null and openRaming;
+        let rt = rateFor(c, workId, base, switch post { case (?x) { if (x.form == #regie) x.unitCents else null }; case null null }, a.orgId, a.day);
         let flags = List.empty<Text>();
         if (st == #disputed) { flags.add("uren-betwist") };
         if (st == #open) { flags.add("uren-open") };
         if (inRaming) { flags.add("binnen-raming") };
+        if (held) { flags.add("regie-zonder-post") };
         if (rt.sellCents == null) { flags.add("geen-regietarief") };
+        if (staleUren.containsKey(a.id)) { flags.add("aanpassing-vervallen") };
         let who = switch (a.orgId) { case (?o) orgName(c, ?o); case null { if (a.names.size() > 0) a.names else "BOWACO" } };
         let pers = a.headcount.toText() # " pers.";
         let sell = switch (rt.sellCents) { case (?s) s; case null 0 };
         let x = row("uren:" # a.id.toText(), "regie", "werfverslag", switch post { case (?p) p.chapter; case null "Regie" }, "Regie " # day(a.day) # " · " # who # " · " # pers, "Regie " # day(a.day) # " · " # pers, "u", h, sell, #extra);
-        let use = st != #disputed and not inRaming;
-        rows.add({ x with day = ?a.day; root = r; orgId = a.orgId; costCents = rt.costCents; marginBp = switch (rt.costCents) { case (?k) { if (sell > 0 and k <= sell) ?Int.abs(QuoteCalc.roundDiv((sell - k) * 10_000, sell)) else null }; case null null }; counted = use and rt.sellCents != null; inVersion = use; overridable = true; note = if inRaming "binnen de raming van de offerte (nog niet afgerekend)" else rt.source; flags = flags.toArray() });
+        let use = st != #disputed and not inRaming and not held;
+        let note = if inRaming "binnen de raming van de offerte (nog niet afgerekend)" else if held "regie zonder post: een raming van de offerte is nog niet afgerekend" else rt.source;
+        rows.add({ x with day = ?a.day; root = r; orgId = a.orgId; costCents = rt.costCents; marginBp = switch (rt.costCents) { case (?k) { if (sell > 0 and k <= sell) ?Int.abs(QuoteCalc.roundDiv((sell - k) * 10_000, sell)) else null }; case null null }; counted = use and rt.sellCents != null; inVersion = use; overridable = true; note; flags = flags.toArray() });
       };
     };
 
-    // 6. Kosten van OA's en leveranciers (costItems): doorrekenen aan kostprijs / (1 − marge).
+    // 6. Kosten van OA's en leveranciers (costItems): doorrekenen aan kostprijs / (1 − marge). Enkel een goedgekeurde factuur telt;
+    // een geregistreerde (nog niet gecontroleerde) wacht (review L7). Een aanpassing van kantoor geldt enkel voor de regel zoals ze
+    // was (versie = de inhoud van de regel, review M3); is de factuur verbeterd, dan vervalt ze ("aanpassing-vervallen", nakijken).
     for (k in costItems(c, workId).values()) {
-      let ov = c.mm.overrides.get(k.key);
-      let pass = k.passOn or (switch ov { case (?o) o.passOn; case null false });
+      let ovPass = switch (overrideFor(c, workId, k.key, k.version)) { case (?o) o.passOn; case null false };
+      let pass = k.passOn or ovPass;
       let m = costMargin(c, k.orgId, k.kindKey);
       let (q, uc) = if (k.qtyMilli == 0) (1000, k.amountCents) else (k.qtyMilli, k.unitCents);
       let x = row(k.key, "kost", k.source, "Kosten", k.kindKey # " · " # orgName(c, k.orgId) # " · " # k.description, "Kost: " # k.description, k.unit, q, sellOf(uc, m), #extra);
-      rows.add({ x with day = ?k.day; orgId = k.orgId; costCents = ?uc; marginBp = ?m; passOn = pass; counted = pass; inVersion = pass; overridable = true; flags = if pass [] else ["niet-doorgerekend"] });
+      let flags = List.empty<Text>();
+      if (not pass) { flags.add("niet-doorgerekend") };
+      if (pass and k.pending) { flags.add("factuur-niet-goedgekeurd") };
+      if (staleOverride(c, workId, k.key, k.version)) { flags.add("aanpassing-vervallen") };
+      rows.add({ x with day = ?k.day; orgId = k.orgId; costCents = ?uc; marginBp = ?m; passOn = pass; counted = pass and not k.pending; inVersion = pass; overridable = true; version = k.version; approval = if (pass and k.pending) "wacht (factuur nog niet goedgekeurd)" else "niet nodig"; flags = flags.toArray() });
     };
 
-    // 7. Wat kantoor aan een automatische regel veranderde: uitsluiten, ander hoofdstuk.
+    // 7. Wat kantoor aan een automatische regel veranderde: uitsluiten, ander hoofdstuk (enkel een aanpassing van deze werf en
+    // voor deze versie van de regel).
     let done = rows.toArray().map(
       func(x : Row) : Row {
         if (not x.overridable) { return x };
-        switch (c.mm.overrides.get(x.key)) {
+        switch (overrideFor(c, workId, x.key, x.version)) {
           case (?o) {
             let y = switch (o.chapter) { case (?ch) { { x with chapter = ch; chapterFrom = x.chapter } }; case null x };
             if (o.exclude) { { y with excluded = true; counted = false; inVersion = false; flags = y.flags.concat(["uitgesloten"]); note = "uitgesloten: " # o.reason } } else y;
@@ -531,10 +584,25 @@ module {
     // 8. Rekenen (enkel wat in een versie komt telt in de totalen).
     let invoiced = invoicedOf(c, workId);
     var inv : Int = 0;
-    for (i in invoiced.values()) { inv += i.cents };
+    var rev : Int = 0;
+    for (i in invoiced.values()) { inv += i.cents; rev += i.revisionCents };
     let vatBp = switch (c.works.works.get(workId)) { case (?w) w.vatBp; case null 2100 };
     let calcLine = func(x : Row) : MinMeerCalc.Line = { chapter = x.chapter; col = x.col; qtyMilli = x.qtyMilli; unitCents = x.unitCents; pctBp = x.pctBp; counted = x.counted };
-    let inV = done.filter(func(x : Row) : Bool = x.inVersion);
+    // Review M4: een automatische regie- of kostregel boven de drempel krijgt een melding (blokkeert niet); meerwerk met een akkoord
+    // "mondeling/mail" dat per hoofdstuk samen de drempel haalt, ook.
+    let chSum = Map.empty<Text, Int>();
+    let marked = done.map(
+      func(x : Row) : Row {
+        let o = MinMeerCalc.line(calcLine(x));
+        // Telt mee zonder meerwerkofferte = akkoord "niet nodig" of "gegeven" (wachtend en via een meerwerkofferte telt niet).
+        if (x.entryId != null and x.counted and x.col == #extra) {
+          chSum.add(x.chapter, (switch (chSum.get(x.chapter)) { case (?v) v; case null 0 }) + o.extraCents);
+        };
+        if (x.entryId == null and (x.source == "regie" or x.source == "kost") and x.counted and Int.abs(o.amountCents) >= threshold) { { x with flags = x.flags.concat(["boven-drempel"]) } } else x;
+      }
+    );
+    let bigChapters = chSum.entries().filter(func((_, v) : (Text, Int)) : Bool = v >= threshold).map(func((k, _) : (Text, Int)) : Text = if (k == "") "algemeen" else k).toArray();
+    let inV = marked.filter(func(x : Row) : Bool = x.inVersion);
     let ds = discs.toArray();
     let totals = MinMeerCalc.totals(inV.map(calcLine), ds.map(func(d : DiscRow) : MinMeerCalc.Disc = { chapter = d.chapter; pctBp = d.pctBp; amountCents = d.amountCents; counted = d.counted }), inv, vatBp);
     let postRefs = List.empty<MV.MmPostRef>();
@@ -542,8 +610,8 @@ module {
     {
       base;
       baseLabel;
-      rows = done;
-      outs = done.map(func(x : Row) : MinMeerCalc.LineOut = MinMeerCalc.line(calcLine(x)));
+      rows = marked;
+      outs = marked.map(func(x : Row) : MinMeerCalc.LineOut = MinMeerCalc.line(calcLine(x)));
       discs = ds;
       invoiced;
       totals;
@@ -551,6 +619,8 @@ module {
       openSurvey = Progress.openSurvey(c.ss, workId);
       posts = postRefs.toArray();
       quoteRefs = refs.toArray();
+      revisionCents = rev;
+      bigChapters;
     };
   };
 
@@ -566,7 +636,12 @@ module {
     add("wacht-op-meerwerkofferte", "Meerwerkoffertes die nog niet aanvaard zijn");
     add("uren-open", "Regie-uren van een OA die nog niet bevestigd zijn");
     add("uren-betwist", "Regie-uren betwist door de OA (tellen niet mee)");
-    add("binnen-raming", "Regie-uren op een regiepost van de offerte: tellen pas als de raming afgerekend is");
+    add("binnen-raming", "Regie-uren op een raming van de offerte: tellen pas als de raming afgerekend is");
+    add("regie-zonder-post", "Regie-uren zonder post terwijl een raming van de offerte nog niet afgerekend is (tellen niet)");
+    add("boven-drempel", "Automatische regie- of kostregels vanaf het drempelbedrag (enkel een melding)");
+    add("aanpassing-vervallen", "Een aanpassing van kantoor vervalt: de bron (factuur of werfverslag) is verbeterd; nakijken");
+    add("factuur-niet-goedgekeurd", "Doorgerekende kosten van een OA-factuur die nog niet goedgekeurd is (wachten)");
+    if (b.bigChapters.size() > 0) { out.add({ key = "akkoord-som-drempel"; text = "Meerwerk zonder meerwerkofferte (akkoord mondeling, per mail of niet nodig) haalt samen de drempel in: " # Text.join(b.bigChapters.values(), ", "); count = b.bigChapters.size() }) };
     add("geen-regietarief", "Regie-uren zonder regietarief (zet het regietarief van de werf)");
     add("niet-doorgerekend", "Kosten van OA's die (nog) niet doorgerekend worden");
     add("geen-prijs", "Posten van de offerte zonder verkoopprijs");
@@ -590,8 +665,8 @@ module {
     out.toArray();
   };
 
-  public func totalsOf(t : MinMeerCalc.Totals) : Types.MmTotals {
-    { offerCents = t.offerCents; lessCents = t.lessCents; extraCents = t.extraCents; balanceCents = t.balanceCents; contractCents = t.contractCents; invoicedCents = t.invoicedCents; toInvoiceCents = t.toInvoiceCents; pendingCents = t.pendingCents; vatBp = t.vatBp };
+  public func totalsOf(t : MinMeerCalc.Totals, revisionCents : Int) : Types.MmTotals {
+    { offerCents = t.offerCents; lessCents = t.lessCents; extraCents = t.extraCents; balanceCents = t.balanceCents; contractCents = t.contractCents; invoicedCents = t.invoicedCents; toInvoiceCents = t.toInvoiceCents; pendingCents = t.pendingCents; revisionCents; vatBp = t.vatBp };
   };
   public func chaptersOf(t : MinMeerCalc.Totals) : [Types.MmChapterTotal] {
     t.chapters.map(func(x : MinMeerCalc.ChapterOut) : Types.MmChapterTotal = { chapter = x.chapter; offerCents = x.offerCents; lessCents = x.lessCents; extraCents = x.extraCents; balanceCents = x.balanceCents });
@@ -600,7 +675,7 @@ module {
   public type Header = { issuer : Text; clientName : Text; workCode : Text; workName : Text; workAddress : Types.Address };
 
   public func freeze(b : Built, versionId : Nat, number : Nat, d : Nat, h : Header, note : Text) : Types.MmFrozen {
-    { versionId; number; day = d; issuer = h.issuer; clientName = h.clientName; workCode = h.workCode; workName = h.workName; workAddress = h.workAddress; quoteRefs = b.quoteRefs; lines = frozenLines(b); chapters = chaptersOf(b.totals); invoiced = b.invoiced; totals = totalsOf(b.totals); note; extra = [] };
+    { versionId; number; day = d; issuer = h.issuer; clientName = h.clientName; workCode = h.workCode; workName = h.workName; workAddress = h.workAddress; quoteRefs = b.quoteRefs; lines = frozenLines(b); chapters = chaptersOf(b.totals); invoiced = b.invoiced; totals = totalsOf(b.totals, b.revisionCents); note; extra = [] };
   };
 
   // De controlecode: alles wat vastligt, elk veld met zijn lengte ervoor (zoals de offerte en de vorderingsstaat).
@@ -614,9 +689,9 @@ module {
       out #= "L;" # f(l.chapter) # f(l.source) # f(l.key) # fo(l.day) # f(l.description) # f(l.unit) # fi(l.qtyMilli) # fi(l.unitCents) # fi(l.offerCents) # fi(l.lessCents) # fi(l.extraCents) # f(if (l.counted) "telt" else "wacht") # f(l.approval) # f(l.note);
     };
     for (x in fr.chapters.values()) { out #= "H;" # f(x.chapter) # fi(x.offerCents) # fi(x.lessCents) # fi(x.extraCents) # fi(x.balanceCents) };
-    for (x in fr.invoiced.values()) { out #= "F;" # f(x.title) # fi(x.day) # fi(x.cents) };
+    for (x in fr.invoiced.values()) { out #= "F;" # f(x.title) # fi(x.day) # fi(x.cents) # fi(x.revisionCents) };
     let t = fr.totals;
-    out # "T;" # fi(t.offerCents) # fi(t.lessCents) # fi(t.extraCents) # fi(t.balanceCents) # fi(t.contractCents) # fi(t.invoicedCents) # fi(t.toInvoiceCents) # fi(t.pendingCents) # fi(t.vatBp);
+    out # "T;" # fi(t.offerCents) # fi(t.lessCents) # fi(t.extraCents) # fi(t.balanceCents) # fi(t.contractCents) # fi(t.invoicedCents) # fi(t.toInvoiceCents) # fi(t.pendingCents) # fi(t.revisionCents) # fi(t.vatBp);
   };
 
   public func intact(mm : Types.MinMeerState, v : Types.MmVersion) : Bool {
@@ -669,7 +744,14 @@ module {
   // kortingsregels van een offerte (de korting ziet hij nooit, 2c.1).
   public func qtyRows(b : Built, me : Nat) : [MV.MmQtyRow] {
     b.rows.filter(func(r : Row) : Bool = r.source != "kost" and not Text.startsWith(r.key, #text "korting:")).map(
-      func(r : Row) : MV.MmQtyRow = { key = r.key; sourceText = r.sourceText; chapter = r.chapter; day = r.day; description = r.description; unit = r.unit; qtyMilli = r.qtyMilli; counted = r.counted; approval = r.approval; flags = r.flags; entryId = r.entryId; mine = r.proposedBy == ?me }
+      func(r : Row) : MV.MmQtyRow {
+        // Review L3: niets dat verraadt dat een regel boven een bedrag zit (drempel, meerwerkofferte nodig): neutraal "wacht op akkoord".
+        let money = func(f : Text) : Bool = f == "meerwerkofferte-nodig" or f == "boven-drempel" or f == "geen-prijs";
+        var fl = r.flags.filter(func(f : Text) : Bool = not money(f));
+        if (r.flags.find(func(f : Text) : Bool = f == "meerwerkofferte-nodig") != null and fl.find(func(f : Text) : Bool = f == "wacht-op-akkoord") == null) { fl := fl.concat(["wacht-op-akkoord"]) };
+        let appr = if (Text.startsWith(r.approval, #text "meerwerkofferte nodig")) "wacht op akkoord" else r.approval;
+        { key = r.key; sourceText = r.sourceText; chapter = r.chapter; day = r.day; description = r.description; unit = r.unit; qtyMilli = r.qtyMilli; counted = r.counted; approval = appr; flags = fl; entryId = r.entryId; mine = r.proposedBy == ?me };
+      }
     );
   };
 

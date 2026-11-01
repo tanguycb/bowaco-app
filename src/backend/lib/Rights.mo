@@ -414,7 +414,8 @@ module {
     if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
     if (has(p, #admin) or has(p, #calculator)) { return #full };
     if (leaderOn(ctx, p, w)) { return #qty };
-    if (memberAs(ctx, p, w, #klant) and (switch clientOrgId { case (?o) p.orgId == ?o; case null true })) { return #client };
+    // Review L4: zonder klant op de werf (clientOrgId leeg) ziet geen enkele klant iets (voorzichtig).
+    if (memberAs(ctx, p, w, #klant) and (switch clientOrgId { case (?o) p.orgId == ?o; case null false })) { return #client };
     if (memberAs(ctx, p, w, #architect) and grant(ctx, p, w, #readProgress)) { return #reader };
     #none;
   };

@@ -94,7 +94,8 @@ mixin (
       workId;
       scope = if (sc == #full) "full" else "qty";
       rows = MinMeer.qtyRows(b, p.id);
-      versions = MinMeer.versionsOf(minMeer, workId).map(func(v : Types.MmVersion) : MV.MmVersionBrief = MinMeer.versionBrief(mmCtx(), v));
+      // Review L3: de notitie van een versie is voor de klant en kantoor; de werfleider krijgt ze niet.
+      versions = MinMeer.versionsOf(minMeer, workId).map(func(v : Types.MmVersion) : MV.MmVersionBrief { let x = MinMeer.versionBrief(mmCtx(), v); if (sc == #full) x else { { x with note = "" } } });
       posts = b.posts;
       canPropose = Rights.may(ctx, p, #proposeMinMeer, ?workId);
     };
@@ -121,7 +122,7 @@ mixin (
       invoiced = b.invoiced;
       entries = MinMeer.entriesOf(minMeer, workId).filter(func(e : Types.MmEntry) : Bool = e.archivedAt == null).map(func(e : Types.MmEntry) : MV.MmEntryView = MinMeer.entryView(c, e));
       chapters = MinMeer.chaptersOf(b.totals);
-      totals = MinMeer.totalsOf(b.totals);
+      totals = MinMeer.totalsOf(b.totals, b.revisionCents);
       regieRates = MinMeer.ratesOf(minMeer, workId);
       regieOffer = MinMeer.offerRegie(c, b.base);
       dealRates = mmDealHints(workId);
@@ -160,7 +161,7 @@ mixin (
       };
       case null null;
     };
-    switch (mmCheckEntry(workId, i, office)) { case (?e) { return #err(e) }; case null {} };
+    switch (mmCheckEntry(workId, entryId, i, office)) { case (?e) { return #err(e) }; case null {} };
     let today = mmToday();
     // ⚖3: meerwerk vanaf de drempel vraagt een meerwerkofferte met akkoord vooraf; "niet nodig" of "mondeling" volstaat dan niet.
     switch (i.price) {
@@ -168,7 +169,7 @@ mixin (
         let unit = mmUnitOf(pr);
         if ((i.kind == #extra or i.kind == #regie or i.kind == #cost) and (i.approval == #notNeeded or (switch (i.approval) { case (#recorded _) true; case _ false }))) {
           let amt = MinMeerCalc.amount({ chapter = ""; col = #extra; qtyMilli = i.qtyMilli; unitCents = unit; pctBp = null; counted = true });
-          if (amt >= MinMeer.quoteFromCents(settings)) { return #err("Meerwerk vanaf " # Progress.euro(MinMeer.quoteFromCents(settings)) # " vraagt een meerwerkofferte met akkoord vooraf: zet het akkoord op 'wacht' en maak een meerwerkofferte") };
+          if (Int.abs(amt) >= MinMeer.quoteFromCents(settings)) { return #err("Meerwerk vanaf " # Progress.euro(MinMeer.quoteFromCents(settings)) # " vraagt een meerwerkofferte met akkoord vooraf: zet het akkoord op 'wacht' en maak een meerwerkofferte") };
         };
       };
       case null {};
@@ -228,7 +229,14 @@ mixin (
     let why = reason.trim(#char ' ');
     if (why.size() < Config.minQuoteReason or why.size() > Config.maxText) { return #err("Geef een reden (minstens " # Config.minQuoteReason.toText() # " tekens)") };
     switch (e.approval) {
-      case (#quote vid) { switch (quotes.versions.get(vid)) { case (?v) { if (v.status != #draft and v.status != #withdrawn and v.status != #rejected) { return #err("De meerwerkofferte van deze regel is " # Quotes.statusText(v.status) # ": de regel blijft") } }; case null {} } };
+      // Review M1: weg kan zolang geen versie van de meerwerkofferte verstuurd of aanvaard is (vervangen, ingetrokken, geweigerd of
+      // ontwerp: wel).
+      case (#quote vid) {
+        switch (quotes.versions.get(vid)) {
+          case (?v) { for (x in Quotes.versionsOf(quotes, v.quoteId).values()) { if (x.status == #sent or x.status == #accepted) { return #err("De meerwerkofferte van deze regel is " # Quotes.statusText(x.status) # " (v" # x.version.toText() # "): de regel blijft") } } };
+          case null {};
+        };
+      };
       case _ {};
     };
     minMeer.entries.add(entryId, { e with archivedAt = ?Time.now(); archivedBy = ?p.id; archiveReason = why; rev = e.rev + 1; updatedAt = Time.now(); updatedBy = p.id });
@@ -254,7 +262,8 @@ mixin (
     if (not i.exclude and ch == null and not i.passOn) {
       minMeer.overrides.remove(key);
     } else {
-      minMeer.overrides.add(key, { key; workId; exclude = i.exclude; chapter = ch; passOn = i.passOn; reason = why; at = Time.now(); by = p.id; extra = [] });
+      // De versie van de bron (een kostregel: haar inhoud): verandert de bron, dan vervalt de aanpassing (review M3).
+      minMeer.overrides.add(key, { key; workId; exclude = i.exclude; chapter = ch; passOn = i.passOn; reason = why; at = Time.now(); by = p.id; extra = [("versie", r.version)] });
     };
     Access.audit(audit, caller, ?p.id, ?workId, "min-meer-aanpassing", key # (if (i.exclude) " uitgesloten" else "") # (if (i.passOn) " doorgerekend" else "") # (switch ch { case (?x) " → " # x; case null "" }) # ": " # why);
     #ok;
@@ -502,13 +511,22 @@ mixin (
   // ── Hulp ───────────────────────────────────────────────────────────────
 
   // De invoer van een regel nakijken (enkel lezen); null = in orde.
-  func mmCheckEntry(workId : Nat, i : MV.MmEntryInput, office : Bool) : ?Text {
+  func mmCheckEntry(workId : Nat, self : ?Nat, i : MV.MmEntryInput, office : Bool) : ?Text {
     let d = i.description.trim(#char ' ');
     if (d.size() == 0 or d.size() > Config.maxLibTitle) { return ?("Omschrijving: 1 tot " # Config.maxLibTitle.toText() # " tekens") };
     if (i.unit.size() > Config.maxLibCode) { return ?"Eenheid te lang" };
     if (i.chapter.size() > Config.maxLibTitle) { return ?"Hoofdstuk te lang" };
     if (i.note.size() > Config.maxText) { return ?"Opmerking te lang" };
     if (Int.abs(i.qtyMilli) > 1_000_000_000_000) { return ?"Hoeveelheid te groot" };
+    // Review H1: de soort bepaalt het teken (minwerk gaat af, meerwerk komt erbij): nooit een negatieve hoeveelheid of prijs.
+    if (i.qtyMilli < 0) { return ?"Geef een positieve hoeveelheid: de soort (minwerk of meerwerk) bepaalt het teken" };
+    switch (i.price) {
+      case (?pr) {
+        let neg = (switch (pr.unitCents) { case (?u) u < 0; case null false }) or (switch (pr.costCents) { case (?k) k < 0; case null false });
+        if (neg and i.kind != #invoiced) { return ?"Geef een positieve prijs: de soort (minwerk of meerwerk) bepaalt het teken" };
+      };
+      case null {};
+    };
     switch (i.pctBp) {
       case (?b) { if (b == 0 or b > 10_000) { return ?"Percentage: meer dan 0 en hoogstens 100 %" }; if (i.kind != #less and i.kind != #discount) { return ?"Een percentage hoort bij minwerk op een post of een korting" } };
       case null {};
@@ -537,7 +555,20 @@ mixin (
         let dup = MinMeer.entriesOf(minMeer, workId).find(func(e : Types.MmEntry) : Bool = e.archivedAt == null and e.kind == #settle and e.root == i.root);
         if (dup != null) { return ?"Deze raming is al afgerekend" };
       };
-      case (#less) { if (i.pctBp != null and post == null) { return ?"Een percentage hoort bij een post van de offerte" } };
+      case (#less) {
+        if (i.pctBp != null and post == null) { return ?"Een percentage hoort bij een post van de offerte" };
+        // Review M6: samen vervalt een post hoogstens voor 100 %.
+        switch (i.pctBp) {
+          case (?b) {
+            var sum : Nat = b;
+            for (e in MinMeer.entriesOf(minMeer, workId).values()) {
+              if (e.archivedAt == null and e.kind == #less and e.root == i.root and ?e.id != self) { switch (e.pctBp) { case (?x) sum += x; case null {} } };
+            };
+            if (sum > 10_000) { return ?"Samen vervalt deze post voor meer dan 100 %" };
+          };
+          case null {};
+        };
+      };
       case (#discount) { if (i.pctBp == null and i.price == null) { return ?"Korting: een percentage of een bedrag" } };
       case (#invoiced) { if (i.price == null) { return ?"Geef het gefactureerde bedrag (excl. btw)" } };
       case (#cost) { switch (i.price) { case (?pr) { if (pr.costCents == null) { return ?"Een kost heeft een kostprijs" } }; case null { if (office) { return ?"Een kost heeft een kostprijs" } } } };

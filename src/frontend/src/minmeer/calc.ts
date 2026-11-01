@@ -3,7 +3,7 @@
 // melding) en rekent live mee wanneer kantoor een prijs invult. Zonder React en zonder backend-imports: Node draait dit bestand
 // rechtstreeks (tests/minmeer-2c5.mjs). Wijzig je een regel, verhoog dan `version` (beide).
 //   • Bedrag = hoeveelheid × eenheidsprijs (op de cent, half weg van nul); met pctBp daarvan dat deel (op de cent).
-//   • Kolom offer/less/extra/auto: minwerk altijd negatief, meerwerk altijd positief, auto volgt het teken.
+//   • Kolom offer/less/extra/auto: minwerk = −bedrag, meerwerk = +bedrag, auto volgt het teken (een regel van kantoor is nooit negatief).
 //   • Een regel die niet meetelt, telt enkel in "in afwachting".
 //   • Korting: een bedrag, of een % van het meerwerk van dat hoofdstuk ("" = van al het meerwerk); altijd minwerk.
 //   • Saldo = minwerk + meerwerk; aanneemsom + saldo = offerte + saldo; nog te factureren = dat − reeds gefactureerd.
@@ -31,8 +31,6 @@ export type MTotals = {
   vatBp: bigint;
 };
 
-const abs = (x: bigint) => (x < 0n ? -x : x);
-
 export function amount(l: MLine): bigint {
   const base = roundDiv(l.qtyMilli * l.unitCents, 1000n);
   return l.pctBp === null ? base : roundDiv(base * l.pctBp, 10_000n);
@@ -42,15 +40,15 @@ export function line(l: MLine): MOut {
   const a = amount(l);
   switch (l.col) {
     case "offer": return { amountCents: a, offerCents: a, lessCents: 0n, extraCents: 0n };
-    case "less": return { amountCents: a, offerCents: 0n, lessCents: -abs(a), extraCents: 0n };
-    case "extra": return { amountCents: a, offerCents: 0n, lessCents: 0n, extraCents: abs(a) };
+    case "less": return { amountCents: a, offerCents: 0n, lessCents: -a, extraCents: 0n };
+    case "extra": return { amountCents: a, offerCents: 0n, lessCents: 0n, extraCents: a };
     default: return a >= 0n ? { amountCents: a, offerCents: 0n, lessCents: 0n, extraCents: a } : { amountCents: a, offerCents: 0n, lessCents: a, extraCents: 0n };
   }
 }
 
 export function disc(d: MDisc, extraBase: bigint): MOut {
   const a = d.pctBp !== null ? roundDiv(extraBase * d.pctBp, 10_000n) : d.amountCents;
-  return { amountCents: a, offerCents: 0n, lessCents: -abs(a), extraCents: 0n };
+  return { amountCents: a, offerCents: 0n, lessCents: -a, extraCents: 0n };
 }
 
 export function totals(lines: MLine[], discs: MDisc[], invoicedCents: bigint, vatBp: bigint): MTotals {

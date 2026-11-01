@@ -2358,7 +2358,12 @@ export interface MmFrozen {
   'invoiced' : Array<MmInvoiced>,
   'workCode' : string,
 }
-export interface MmInvoiced { 'day' : Day, 'title' : string, 'cents' : bigint }
+export interface MmInvoiced {
+  'day' : Day,
+  'title' : string,
+  'cents' : bigint,
+  'revisionCents' : bigint,
+}
 export type MmKind = { 'cost' : null } |
   { 'less' : null } |
   { 'settle' : null } |
@@ -2489,6 +2494,7 @@ export interface MmTotals {
   'offerCents' : bigint,
   'lessCents' : bigint,
   'vatBp' : bigint,
+  'revisionCents' : bigint,
   'toInvoiceCents' : bigint,
   'invoicedCents' : bigint,
   'extraCents' : bigint,

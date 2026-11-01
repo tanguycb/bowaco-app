@@ -2644,6 +2644,7 @@ export interface MmInvoiced {
     day: Day;
     title: string;
     cents: bigint;
+    revisionCents: bigint;
 }
 export interface MmLineFrozen {
     day?: Day;
@@ -2768,6 +2769,7 @@ export interface MmTotals {
     offerCents: bigint;
     lessCents: bigint;
     vatBp: bigint;
+    revisionCents: bigint;
     toInvoiceCents: bigint;
     invoicedCents: bigint;
     extraCents: bigint;

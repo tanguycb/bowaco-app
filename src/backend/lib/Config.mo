@@ -538,9 +538,10 @@ module {
   public let maxMmEntries : Nat = 2_000; // regels per werf
   public let maxMmVersions : Nat = 200; // versies per werf
   public let maxMmRates : Nat = 50; // regietarieven per werf
-  // De kostensoorten (2c.7: dezelfde sleutels als CostKind; 2.11 kent enkel "andere").
+  // De kostensoorten (2c.7: dezelfde sleutels als CostKind; 2.11 kent enkel "andere"). Ploeguren NIET: die staan als regie in het
+  // werfverslag (anders dubbel).
   public func mmCostKinds() : [(Text, Text)] {
-    [("andere", "Andere kosten"), ("materiaal", "Materiaal"), ("container", "Container en afvoer"), ("transport", "Transport"), ("diesel", "Diesel"), ("kmheffing", "Kilometerheffing"), ("machine", "Machinehuur"), ("ploeg", "Ploeguren")];
+    [("andere", "Andere kosten"), ("materiaal", "Materiaal"), ("container", "Container en afvoer"), ("transport", "Transport"), ("diesel", "Diesel"), ("kmheffing", "Kilometerheffing"), ("machine", "Machinehuur")];
   };
   public func mailLiveBackends() : [Text] { [] };
   // Enkel voor de testbouw van tests/lokaal.sh (die zet dit op true, zoals de testhash): dan telt elke canister als live,

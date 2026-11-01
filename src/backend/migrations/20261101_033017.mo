@@ -84,9 +84,10 @@ module {
     invoicedCents : Int;
     toInvoiceCents : Int;
     pendingCents : Int;
+    revisionCents : Int;
     vatBp : Nat;
   };
-  type MmInvoiced = { title : Text; day : Day; cents : Int };
+  type MmInvoiced = { title : Text; day : Day; cents : Int; revisionCents : Int };
   type MmFrozen = {
     versionId : Nat;
     number : Nat;

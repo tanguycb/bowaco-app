@@ -2199,7 +2199,9 @@ module {
     note : Text;
   };
   public type MmChapterTotal = { chapter : Text; offerCents : Int; lessCents : Int; extraCents : Int; balanceCents : Int };
-  // offerte · minwerk (negatief) · meerwerk · saldo · aanneemsom + saldo · reeds gefactureerd · nog te factureren · in afwachting
+  // offerte · minwerk (negatief) · meerwerk · saldo · aanneemsom + saldo · reeds gefactureerd (zonder prijsherziening) · nog te
+  // factureren (aanneemsom + saldo − reeds gefactureerd) · in afwachting · prijsherziening die al aangerekend werd (apart: telt
+  // niet bij de aanneemsom en wordt niet afgetrokken van wat nog te factureren is; review H3)
   public type MmTotals = {
     offerCents : Int;
     lessCents : Int;
@@ -2209,9 +2211,11 @@ module {
     invoicedCents : Int;
     toInvoiceCents : Int;
     pendingCents : Int;
+    revisionCents : Int;
     vatBp : Nat;
   };
-  public type MmInvoiced = { title : Text; day : Day; cents : Int };
+  // cents = gefactureerd zonder prijsherziening (een vorderingsstaat: het bedrag van de periode); revisionCents = de herziening erop.
+  public type MmInvoiced = { title : Text; day : Day; cents : Int; revisionCents : Int };
   // klasse: vertrouwelijk. Wat in een versie vastligt (valt onder de controlecode).
   public type MmFrozen = {
     versionId : Nat;

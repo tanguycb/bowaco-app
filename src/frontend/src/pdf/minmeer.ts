@@ -23,8 +23,8 @@ export type MinMeerPdfData = {
   note: string;
   lines: MinMeerPdfLine[];
   chapters: { chapter: string; offerCents: bigint; lessCents: bigint; extraCents: bigint; balanceCents: bigint }[];
-  invoiced: { title: string; day: N; cents: bigint }[];
-  totals: { offerCents: bigint; lessCents: bigint; extraCents: bigint; balanceCents: bigint; contractCents: bigint; invoicedCents: bigint; toInvoiceCents: bigint; pendingCents: bigint; vatBp: bigint };
+  invoiced: { title: string; day: N; cents: bigint; revisionCents?: bigint }[];
+  totals: { offerCents: bigint; lessCents: bigint; extraCents: bigint; balanceCents: bigint; contractCents: bigint; invoicedCents: bigint; toInvoiceCents: bigint; pendingCents: bigint; revisionCents?: bigint; vatBp: bigint };
   changes: { kind: string; chapter: string; description: string; balanceDeltaCents: bigint }[];
   client: boolean; // voor de klant (de tekst onderaan)
   answer?: { ok: boolean; atDay: number; byName: string; note: string } | null;
@@ -260,6 +260,7 @@ export async function minMeerPdf(d: MinMeerPdfData, fonts: PdfFonts): Promise<Ui
   rowR("Reeds gefactureerd", eur(t.invoicedCents));
   rowR("Nog te factureren (excl. btw)", eur(t.toInvoiceCents), true);
   if (t.pendingCents !== 0n) { text(`In afwachting van een akkoord (telt niet mee): ${eur(t.pendingCents)}`, bx, yr, F.r, 8, ACCENT); yr -= 12; }
+  if (t.revisionCents && t.revisionCents !== 0n) { text(`Prijsherziening al aangerekend (apart, niet in de aanneemsom): ${eur(t.revisionCents)}`, bx, yr, F.r, 8, GRAY); yr -= 12; }
   let yl = y;
   if (d.invoiced.length) {
     label("Reeds gefactureerd", ML, yl);

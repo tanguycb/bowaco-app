@@ -234,8 +234,10 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
             ))}
           </div>
           {fcur === "min-meer" && <WorkMinMeer workId={id} caps={caps} go={go} />}
-          {fcur === "vorderingen" && <>{caps.progress && <WorkStatements workId={id} caps={caps} go={go} embedded />}{w.caps.contract && <Contract w={w} works={works.data ?? []} />}</>}
+          {fcur === "vorderingen" && caps.progress && <WorkStatements workId={id} caps={caps} go={go} embedded />}
           {fcur === "aankoop" && <>{caps.oaInvoices && <WorkOaInvoices workId={id} caps={caps} go={go} />}{caps.hourClaims && <WorkHourClaims workId={id} />}{caps.purchases && <WorkPurchases workId={id} go={go} />}</>}
+          {/* Review L6: de kaart Contract zoals vroeger in Facturatie, los van de rechten op vorderingsstaten. */}
+          {w.caps.contract && <Contract w={w} works={works.data ?? []} />}
         </div>
       );
     }

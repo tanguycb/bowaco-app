@@ -3,7 +3,8 @@
 // (tests/minmeer-2c5.mjs vergelijkt beide). Een totaal wordt nooit getypt of bewaard: het volgt uit de invoer.
 // Geld in eurocent (Int), hoeveelheden in duizendsten (Int), percentages in basispunten. Afronden: op de cent, half weg van nul.
 //   • Bedrag van een regel = hoeveelheid × eenheidsprijs (op de cent); met pctBp daarvan dat deel (op de cent): "vervalt voor 30 %".
-//   • Kolom: #offer (offerte), #less (minwerk: altijd negatief), #extra (meerwerk: altijd positief), #auto (het teken beslist).
+//   • Kolom: #offer (offerte), #less (minwerk: −bedrag), #extra (meerwerk: +bedrag), #auto (het teken beslist). Een regel van kantoor
+//     heeft nooit een negatieve hoeveelheid of prijs (de soort bepaalt het teken; geweigerd bij het bewaren).
 //   • Een regel die niet meetelt (wacht op akkoord, nog te prijzen) heeft een bedrag maar telt enkel in "in afwachting".
 //   • Korting (#discount van kantoor): een bedrag, of een % van het meerwerk van dat hoofdstuk ("" = van al het meerwerk); minwerk.
 //   • Saldo = minwerk + meerwerk; aanneemsom + saldo = offerte + saldo; nog te factureren = dat − reeds gefactureerd.
@@ -38,8 +39,6 @@ module {
     vatBp : Nat;
   };
 
-  func abs(x : Int) : Int { if (x < 0) -x else x };
-
   public func amount(l : Line) : Int {
     let base = QuoteCalc.roundDiv(l.qtyMilli * l.unitCents, 1000);
     switch (l.pctBp) { case (?p) QuoteCalc.roundDiv(base * p, 10_000); case null base };
@@ -49,8 +48,10 @@ module {
     let a = amount(l);
     switch (l.col) {
       case (#offer) { { amountCents = a; offerCents = a; lessCents = 0; extraCents = 0 } };
-      case (#less) { { amountCents = a; offerCents = 0; lessCents = -abs(a); extraCents = 0 } };
-      case (#extra) { { amountCents = a; offerCents = 0; lessCents = 0; extraCents = abs(a) } };
+      // Het teken volgt de soort (review H1): een regel van kantoor is nooit negatief (nagekeken bij het bewaren); een automatische
+      // regel met een negatief bedrag (een creditregel op een OA-factuur) blijft zo negatief en verandert nooit stil van teken.
+      case (#less) { { amountCents = a; offerCents = 0; lessCents = -a; extraCents = 0 } };
+      case (#extra) { { amountCents = a; offerCents = 0; lessCents = 0; extraCents = a } };
       case (#auto) { if (a >= 0) { { amountCents = a; offerCents = 0; lessCents = 0; extraCents = a } } else { { amountCents = a; offerCents = 0; lessCents = a; extraCents = 0 } } };
     };
   };
@@ -58,7 +59,7 @@ module {
   // De korting op het meerwerk van een hoofdstuk ("" = al het meerwerk), of een vast bedrag; altijd minwerk.
   public func disc(d : Disc, extraBase : Int) : LineOut {
     let a = switch (d.pctBp) { case (?p) QuoteCalc.roundDiv(extraBase * p, 10_000); case null d.amountCents };
-    { amountCents = a; offerCents = 0; lessCents = -abs(a); extraCents = 0 };
+    { amountCents = a; offerCents = 0; lessCents = -a; extraCents = 0 };
   };
 
   public func totals(lines : [Line], discs : [Disc], invoicedCents : Int, vatBp : Nat) : Totals {

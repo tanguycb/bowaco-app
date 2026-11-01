@@ -1649,9 +1649,9 @@ type MmFrozen__886811604 =
     workName : Text
   };
 type MmInvoiced__117996145 =
-  {cents : Int; day : Day__231055727; title : Text};
+  {cents : Int; day : Day__231055727; revisionCents : Int; title : Text};
 type MmInvoiced__671837709 =
-  {cents : Int; day : Day__162369424; title : Text};
+  {cents : Int; day : Day__162369424; revisionCents : Int; title : Text};
 type MmKind__111299908 =
   {#cost; #discount; #extra; #invoiced; #less; #regie; #settle};
 type MmKind__771399543 =
@@ -1739,6 +1739,7 @@ type MmTotals__90791772 =
     lessCents : Int;
     offerCents : Int;
     pendingCents : Int;
+    revisionCents : Int;
     toInvoiceCents : Int;
     vatBp : Nat
   };
@@ -1751,6 +1752,7 @@ type MmTotals__99543803 =
     lessCents : Int;
     offerCents : Int;
     pendingCents : Int;
+    revisionCents : Int;
     toInvoiceCents : Int;
     vatBp : Nat
   };

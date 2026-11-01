@@ -111,11 +111,12 @@ function Totals({ totals: x, invoiced }: { totals: MinMeerFullView["totals"]; in
         {row(T.totals.invoiced, x.invoicedCents)}
         {row(T.totals.toInvoice, x.toInvoiceCents, true)}
         {x.pendingCents !== 0n && <p className="bw-muted">{T.totals.pending}: {fmtEuro(x.pendingCents)}</p>}
+        {x.revisionCents !== 0n && <p className="bw-muted">{T.totals.revision}: {fmtEuro(x.revisionCents)}</p>}
       </div>
       {invoiced.length > 0 && (
         <div className="a-card" style={{ minWidth: 260 }}>
           <span className="bw-label">{T.invoicedTitle}</span>
-          {invoiced.map((i, k) => <div key={k} className="a-row a-row--between"><span>{i.title} · {fmtDayNum(i.day)}</span><span className="bw-num">{fmtEuro(i.cents)}</span></div>)}
+          {invoiced.map((i, k) => <div key={k} className="a-row a-row--between"><span>{i.title} · {fmtDayNum(i.day)}{i.revisionCents !== 0n ? ` (+ ${fmtEuro(i.revisionCents)} prijsherziening)` : ""}</span><span className="bw-num">{fmtEuro(i.cents)}</span></div>)}
         </div>
       )}
     </div>

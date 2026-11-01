@@ -2883,6 +2883,7 @@ export const MmTotals = IDL.Record({
   'offerCents' : IDL.Int,
   'lessCents' : IDL.Int,
   'vatBp' : IDL.Nat,
+  'revisionCents' : IDL.Int,
   'toInvoiceCents' : IDL.Int,
   'invoicedCents' : IDL.Int,
   'extraCents' : IDL.Int,
@@ -2894,6 +2895,7 @@ export const MmInvoiced = IDL.Record({
   'day' : Day,
   'title' : IDL.Text,
   'cents' : IDL.Int,
+  'revisionCents' : IDL.Int,
 });
 export const MmFrozen = IDL.Record({
   'day' : Day,
@@ -10626,6 +10628,7 @@ export const idlFactory = ({ IDL }) => {
     'offerCents' : IDL.Int,
     'lessCents' : IDL.Int,
     'vatBp' : IDL.Nat,
+    'revisionCents' : IDL.Int,
     'toInvoiceCents' : IDL.Int,
     'invoicedCents' : IDL.Int,
     'extraCents' : IDL.Int,
@@ -10637,6 +10640,7 @@ export const idlFactory = ({ IDL }) => {
     'day' : Day,
     'title' : IDL.Text,
     'cents' : IDL.Int,
+    'revisionCents' : IDL.Int,
   });
   const MmFrozen = IDL.Record({
     'day' : Day,

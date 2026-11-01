@@ -3203,7 +3203,7 @@ export const nl = {
     recheck: "De browser rekent een ander totaal dan de server: laad opnieuw. Blijft het, meld het aan de beheerder.",
     cols: { desc: "Omschrijving", source: "Bron", unit: "Eenh.", qty: "Aantal", unitPrice: "Prijs/eenh.", offer: "Offerte", less: "Minwerk", extra: "Meerwerk", note: "Opmerking · akkoord" },
     general: "Algemeen",
-    totals: { offer: "Offerte (aanneemsom)", less: "Totaal minwerk", extra: "Totaal meerwerk", balance: "Saldo min-meer", contract: "Aanneemsom + saldo", invoiced: "Reeds gefactureerd", toInvoice: "Nog te factureren (excl. btw)", pending: "In afwachting van een akkoord" },
+    totals: { offer: "Offerte (aanneemsom)", less: "Totaal minwerk", extra: "Totaal meerwerk", balance: "Saldo min-meer", contract: "Aanneemsom + saldo", invoiced: "Reeds gefactureerd", toInvoice: "Nog te factureren (excl. btw)", pending: "In afwachting van een akkoord", revision: "Prijsherziening al aangerekend (apart, niet in de aanneemsom)" },
     invoicedTitle: "Reeds gefactureerd",
     attention: "Vraagt aandacht",
     notCounted: "telt nog niet mee",
@@ -3212,7 +3212,7 @@ export const nl = {
     costLine: (cost: string, m: string) => `kostprijs ${cost} · marge ${m}`,
     flag: {
       "te-prijzen": "te prijzen", "meerwerkofferte-nodig": "meerwerkofferte nodig", "wacht-op-akkoord": "wacht op akkoord", "wacht-op-meerwerkofferte": "wacht op meerwerkofferte", "via-meerwerkofferte": "via meerwerkofferte",
-      "uren-open": "uren nog niet bevestigd", "uren-betwist": "uren betwist", "binnen-raming": "binnen de raming", "geen-regietarief": "geen regietarief", "niet-doorgerekend": "niet doorgerekend", uitgesloten: "uitgesloten", "geen-prijs": "geen prijs", "post-onbekend": "post onbekend",
+      "uren-open": "uren nog niet bevestigd", "uren-betwist": "uren betwist", "binnen-raming": "binnen de raming", "geen-regietarief": "geen regietarief", "niet-doorgerekend": "niet doorgerekend", uitgesloten: "uitgesloten", "geen-prijs": "geen prijs", "post-onbekend": "post onbekend", "regie-zonder-post": "regie zonder post (raming open)", "boven-drempel": "vanaf de drempel", "aanpassing-vervallen": "aanpassing vervallen: nakijken", "factuur-niet-goedgekeurd": "factuur nog niet goedgekeurd",
     } as Record<string, string>,
     add: "Regel",
     propose: "Voorstel",
