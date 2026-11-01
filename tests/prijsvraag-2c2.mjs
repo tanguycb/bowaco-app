@@ -265,7 +265,9 @@ check("(B9) meer dan 100 eigen posten, korting boven 50 %: geweigerd", /eigen po
 
 // B10. Eigen PDF opladen (R39): vertrouwelijk aan de werf; de OA ziet naam en grootte, nooit de verwijzing.
 const blobA = new TextEncoder().encode("!caf!sha256:" + "5".repeat(64));
-check("(B10) de opslagpoort: een OA met een open uitnodiging (zonder werf) krijgt een uploadcertificaat; OA C (niets open) niet", !(await rejects(oaA._immutableObjectStorageCreateCertificate("sha256:" + "5".repeat(64)))) && (await rejects(oaC._immutableObjectStorageCreateCertificate("sha256:" + "6".repeat(64)))));
+// 2c.4 (review L1): elke OA met een firma krijgt sindsdien een certificaat (hij laadt de attesten van zijn eigen firma op, R40);
+// wat hij met het bestand mag doen, beslissen de functies zelf (addMyTenderFile enkel met een open uitnodiging).
+check("(B10) de opslagpoort: een OA met een open uitnodiging (zonder werf) krijgt een uploadcertificaat; OA C (niets open, wel een firma) ook (attesten, 2c.4); een onbekende login niet", !(await rejects(oaA._immutableObjectStorageCreateCertificate("sha256:" + "5".repeat(64)))) && !(await rejects(oaC._immutableObjectStorageCreateCertificate("sha256:" + "6".repeat(64)))) && (await rejects(vreemd._immutableObjectStorageCreateCertificate("sha256:" + "7".repeat(64)))));
 check("(B10) enkel een PDF; een foto geweigerd", /Enkel een PDF/.test(errOf(await oaA.addMyTenderFile(invA.ref, "foto.jpg", "image/jpeg", 100n, blobA))));
 const upA = ok(await oaA.addMyTenderFile(invA.ref, "offerte Reiger (proef).pdf", "application/pdf", 2048n, blobA));
 const ans2 = ok(await oaA.readMyTenderAnswer(invA.ref));
