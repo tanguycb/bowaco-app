@@ -221,6 +221,7 @@ module {
     let vf = versionForm(qf, v.id);
     {
       kind = kind.0;
+      baseNumber = if (kind.0 == #extraWork) baseNumberOf(qf, v.quoteId) else "";
       insurerOrgId = kind.1;
       insurerName = orgName(org, kind.1);
       claimRef = kind.2;
@@ -241,6 +242,11 @@ module {
         }
       );
     };
+  };
+
+  // 2c.5: het nummer van de getekende offerte waarbij een meerwerkofferte hoort ("2026/412"), zoals het bij het maken vastlag.
+  public func baseNumberOf(qf : QF, quoteId : Nat) : Text {
+    switch (qf.info.get(quoteId)) { case (?i) { switch (i.extra.find(func((k, _) : (Text, Text)) : Bool = k == "bij")) { case (?(_, t)) t; case null "" } }; case null "" };
   };
 
   public func classView(c : Types.MarginClass) : FormViews.MarginClassView {

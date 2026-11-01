@@ -13,6 +13,7 @@ module {
   // Intern, zonder bedragen.
   public type QuoteFormView = {
     kind : Types.QuoteKind;
+    baseNumber : Text; // 2c.5: een meerwerkofferte: het nummer van de getekende offerte ("bij offerte 2026/412")
     insurerOrgId : ?Nat;
     insurerName : Text;
     claimRef : Text;
@@ -73,6 +74,7 @@ module {
   // ── De klant ────────────────────────────────────────────────────────────
   public type MyQuoteForm = {
     kind : Types.QuoteKind;
+    baseNumber : Text; // 2c.5: meerwerkofferte bij offerte …
     insurerName : Text;
     claimRef : Text;
     blocks : [QuoteBlockView];

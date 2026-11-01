@@ -103,6 +103,7 @@ mixin (
     };
     {
       kind;
+      baseNumber = if (kind == #extraWork) QuoteForms.baseNumberOf(quoteForms, q.id) else "";
       insurerName = Quotes.orgName(org, insurer);
       claimRef = claim;
       blocks = QuoteForms.blocksOf(quoteForms, v).map(QuoteForms.blockView);

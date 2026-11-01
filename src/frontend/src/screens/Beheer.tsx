@@ -17,6 +17,7 @@ import { WadmRules } from "./Werfadministratie";
 import { PermitKindsSettings } from "./Vergunningen";
 import { MarginClassesAdmin, TextBlocksAdmin } from "./OfferteVorm";
 import { TenderSettingsAdmin } from "./OaOffertes";
+import { MinMeerSettingsAdmin } from "./MinMeerForms";
 import { ContractSjabloon } from "./Attesten";
 import { DocKinds, ImportBatches, OaFactuurAdmin, OpmetingAdmin, QuoteDocsAdmin, QuoteNumbers, QuoteRulesAdmin, SettingsFields, Trades, VorderingAdmin, Vehicles } from "./Instellingen";
 
@@ -29,7 +30,7 @@ export function Beheer({ caps, me, route, go }: { caps: Caps; me: PersonView; ro
   switch (cur.key) {
     case "bedrijf": body = own(cur.label, <><SettingsFields show={{ wl: true }} /><CompanyCalendar /></>); break;
     case "offertes": body = own(cur.label, <><QuoteNumbers /><MarginClassesAdmin /><TextBlocksAdmin /><QuoteRulesAdmin /><QuoteDocsAdmin /><ContractSjabloon caps={caps} /></>); break;
-    case "opmeting": body = own(cur.label, <><SettingsFields show={{ thresholds: true }} /><WadmRules /><OpmetingAdmin /><VorderingAdmin /><OaFactuurAdmin /><TenderSettingsAdmin /></>); break;
+    case "opmeting": body = own(cur.label, <><SettingsFields show={{ thresholds: true }} /><WadmRules /><OpmetingAdmin /><VorderingAdmin /><OaFactuurAdmin /><TenderSettingsAdmin /><MinMeerSettingsAdmin /></>); break;
     case "planning": body = own(cur.label, <><Templates /><Trades /><ImportBatches /></>); break;
     case "documenten": body = own(cur.label, <><DocKinds />{caps.managePermitKinds && <PermitKindsSettings />}</>); break;
     case "voertuigen": body = caps.readTrips ? <BoetesPage go={go} extra={caps.manageVehicles ? <Vehicles /> : undefined} /> : own(cur.label, <Vehicles />); break;

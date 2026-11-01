@@ -2115,6 +2115,137 @@ module {
     partOf : Map.Map<Nat, Nat>; // werfdeel (OA-factuur) → aankoop (index)
   };
 
+  // ── Min-meerstaat (stap 2c.5, ontwerp 2c §4.5, §9 migratie 4; ⚖3, AC-5, AC-18, AC-19) ──
+  // Eigen domein `minMeer` (nieuw stabiel veld, deelvorm, OldActor = {}). Per werf één LEVEND overzicht van de afrekening dat de app
+  // telkens uitrekent uit wat ze al weet (getekende offerte, opmeting, werfverslag, OA-facturen, meerwerkoffertes, kantoor), met
+  // VERSIES op datum die vastliggen onder een controlecode. Hier staat enkel wat kantoor of de werfleider toevoegt (regels), wat
+  // kantoor aan een automatische regel verandert (uitsluiten, ander hoofdstuk, doorrekenen), het regietarief van de werf met datum,
+  // de versies, wat erin vastligt en het antwoord van de klant. Bedragen (prijs van een regel, regietarief, vastgelegde inhoud) zijn
+  // VERTROUWELIJK in eigen Maps (G3). Volledig vanaf het begin (D1a).
+  // minwerk · meerwerk · regie · doorgerekende kost · korting · raming afgerekend · reeds gefactureerd (vóór de app, met de hand)
+  public type MmKind = { #less; #extra; #regie; #cost; #discount; #settle; #invoiced };
+  // Het akkoord van een regel: niet nodig · wacht · meerwerkofferte (versie) · mondeling/mail/WhatsApp op een dag.
+  public type MmApproval = { #notNeeded; #pending; #quote : Nat; #recorded : { how : Text; day : Day } };
+
+  // klasse: intern (zonder bedragen). Een regel van kantoor of een voorstel van de werfleider (proposedBy). root = de post van de
+  // offerte (de lijn van de eerste versie) waarop de regel slaat; pctBp = "de post vervalt voor 30 %".
+  public type MmEntry = {
+    id : Nat;
+    workId : WorkId;
+    chapter : Text;
+    root : ?Nat;
+    kind : MmKind;
+    description : Text;
+    unit : Text;
+    qtyMilli : Int;
+    pctBp : ?Nat;
+    day : ?Day;
+    approval : MmApproval;
+    proposedBy : ?PersonId;
+    photoFileId : ?Nat;
+    note : Text; // komt in de kolom opmerking (ook voor de klant)
+    rev : Nat;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId;
+    archiveReason : Text;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. De prijs van een regel: verkoopprijs per eenheid, en waar ze vandaan komt (kostprijs en marge, firma).
+  public type MmEntryPrice = { entryId : Nat; unitCents : Int; costCents : ?Int; marginBp : ?Nat; orgId : ?OrgId; at : Int; by : PersonId };
+
+  // klasse: intern. Wat kantoor aan een AUTOMATISCHE regel verandert ("uren:<aanwezigheid>", "kost:<factuur>:<regel>",
+  // "opmeting:<post>", "offerte:<post>"): uitsluiten, naar een ander hoofdstuk, een kost doorrekenen aan de klant; altijd met reden.
+  public type MmOverride = { key : Text; workId : WorkId; exclude : Bool; chapter : ?Text; passOn : Bool; reason : Text; at : Int; by : PersonId; extra : Extra };
+
+  // klasse: vertrouwelijk. Het regietarief voor de klant op deze werf vanaf een dag (bv. € 52,50 vanaf de start, € 57,50 vanaf 01/09).
+  public type MmRegieRate = { fromDay : Day; sellCents : Int; note : Text; at : Int; by : PersonId };
+
+  // klasse: intern. Een versie op datum (nummer per werf uit settings.sequences "minmeer:<werf>").
+  public type MmVersion = {
+    id : Nat;
+    workId : WorkId;
+    number : Nat;
+    day : Day;
+    hash : Text;
+    calcVersion : Nat;
+    share : ?{ at : Int; by : PersonId };
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. Eén regel zoals ze in een versie vastligt, zoals de klant ze ziet: verkoopbedragen, nooit een
+  // kostprijs, marge of naam van een OA. counted = telt mee in de totalen (een regel die op akkoord wacht, telt niet).
+  public type MmLineFrozen = {
+    chapter : Text;
+    source : Text;
+    key : Text;
+    day : ?Day;
+    description : Text;
+    unit : Text;
+    qtyMilli : Int;
+    unitCents : Int;
+    offerCents : Int;
+    lessCents : Int;
+    extraCents : Int;
+    counted : Bool;
+    approval : Text;
+    note : Text;
+  };
+  public type MmChapterTotal = { chapter : Text; offerCents : Int; lessCents : Int; extraCents : Int; balanceCents : Int };
+  // offerte · minwerk (negatief) · meerwerk · saldo · aanneemsom + saldo · reeds gefactureerd · nog te factureren · in afwachting
+  public type MmTotals = {
+    offerCents : Int;
+    lessCents : Int;
+    extraCents : Int;
+    balanceCents : Int;
+    contractCents : Int;
+    invoicedCents : Int;
+    toInvoiceCents : Int;
+    pendingCents : Int;
+    vatBp : Nat;
+  };
+  public type MmInvoiced = { title : Text; day : Day; cents : Int };
+  // klasse: vertrouwelijk. Wat in een versie vastligt (valt onder de controlecode).
+  public type MmFrozen = {
+    versionId : Nat;
+    number : Nat;
+    day : Day;
+    issuer : Text;
+    clientName : Text;
+    workCode : Text;
+    workName : Text;
+    workAddress : Address;
+    quoteRefs : [Text];
+    lines : [MmLineFrozen];
+    chapters : [MmChapterTotal];
+    invoiced : [MmInvoiced];
+    totals : MmTotals;
+    note : Text;
+    extra : Extra;
+  };
+
+  // klasse: intern (persoonsgegevens: wie antwoordde, met welke Internet Identity). Zoals ProgressAnswer. Zie docs/privacy.md.
+  public type MmAnswer = { versionId : Nat; hash : Text; ok : Bool; note : Text; at : Int; personId : PersonId; principal : Principal; extra : Extra };
+
+  public type MinMeerState = {
+    entries : Map.Map<Nat, MmEntry>;
+    prices : Map.Map<Nat, Confidential<MmEntryPrice>>; // vertrouwelijk; sleutel = regel
+    overrides : Map.Map<Text, MmOverride>; // sleutel = de sleutel van de automatische regel
+    regieRates : Map.Map<Nat, Confidential<[MmRegieRate]>>; // vertrouwelijk; sleutel = werf
+    versions : Map.Map<Nat, MmVersion>;
+    frozen : Map.Map<Nat, Confidential<MmFrozen>>; // vertrouwelijk; sleutel = versie
+    answers : Map.Map<Nat, MmAnswer>; // sleutel = versie
+    byWork : Map.Map<Nat, [Nat]>; // werf → regels (index, herrekend bij een herstel)
+    versionsByWork : Map.Map<Nat, [Nat]>; // werf → versies (index)
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

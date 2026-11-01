@@ -366,7 +366,8 @@ module {
     let (kind, insurer, claim) = sentKind(qf, q, v);
     let vf = QuoteForms.versionForm(qf, v.id);
     let regie = switch (QuoteForms.termsOf(qf, v.id)) { case (?t) { switch (t.regie) { case (?g) ?g.sellCents; case null null } }; case null null };
-    var out = "F;" # f(QuoteForms.kindText(kind)) # fo(switch insurer { case (?x) ?x; case null null }) # f(claim) # f(if (vf.hideZeroLines) "verberg-0" else "toon-0") # f(if (vf.regieText) "regietekst" else "-") # (if (vf.regieText) fo(regie) else f("-"));
+    // 2c.5: een meerwerkofferte draagt ook het nummer van de getekende offerte (de andere soorten houden hun oude tekst, dus hun hash).
+    var out = "F;" # f(QuoteForms.kindText(kind)) # (if (kind == #extraWork) f(QuoteForms.baseNumberOf(qf, q.id)) else "") # fo(switch insurer { case (?x) ?x; case null null }) # f(claim) # f(if (vf.hideZeroLines) "verberg-0" else "toon-0") # f(if (vf.regieText) "regietekst" else "-") # (if (vf.regieText) fo(regie) else f("-"));
     for (g in QuoteForms.subgroupsOf(qf, v.id).values()) { out #= "G;" # fi(g.id) # fi(g.chapterId) # f(g.title) # fi(g.order) };
     for (l in c.lines.values()) {
       let lf = qf.lineForms.get(l.id);

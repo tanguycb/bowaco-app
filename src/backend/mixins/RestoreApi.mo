@@ -32,6 +32,7 @@ import QuoteForms "../lib/QuoteForms";
 import Tenders "../lib/Tenders";
 import OaDeals "../lib/OaDeals";
 import Purchase "../lib/Purchase";
+import MinMeer "../lib/MinMeer";
 import Reports "../lib/Reports";
 
 mixin (
@@ -62,6 +63,7 @@ mixin (
   tenders : Types.TenderState,
   oaDeals : Types.OaDealState,
   purchases : Types.PurchaseState,
+  minMeer : Types.MinMeerState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -120,7 +122,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0 and tenders.tenders.size() == 0 and tenders.oaQuotes.size() == 0 and oaDeals.rates.size() == 0 and oaDeals.agreements.size() == 0 and oaDeals.orgDocs.size() == 0 and oaDeals.templates.size() == 0 and purchases.purchases.size() == 0 and purchases.claims.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0 and tenders.tenders.size() == 0 and tenders.oaQuotes.size() == 0 and oaDeals.rates.size() == 0 and oaDeals.agreements.size() == 0 and oaDeals.orgDocs.size() == 0 and oaDeals.templates.size() == 0 and purchases.purchases.size() == 0 and purchases.claims.size() == 0 and minMeer.entries.size() == 0 and minMeer.versions.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -316,6 +318,13 @@ mixin (
       case (#hourClaims xs) { for (x in xs.values()) { purchases.claims.add(x.id, x) }; xs.size() };
       case (#purchaseAmounts xs) { for ((id, x) in xs.values()) { purchases.amounts.add(id, x) }; xs.size() };
       case (#oaAdvances xs) { for ((id, x) in xs.values()) { purchases.advances.add(id, x) }; xs.size() };
+      case (#mmEntries xs) { for (x in xs.values()) { minMeer.entries.add(x.id, x) }; xs.size() };
+      case (#mmOverrides xs) { for (x in xs.values()) { minMeer.overrides.add(x.key, x) }; xs.size() };
+      case (#mmVersions xs) { for (x in xs.values()) { minMeer.versions.add(x.id, x) }; xs.size() };
+      case (#mmAnswers xs) { for (x in xs.values()) { minMeer.answers.add(x.versionId, x) }; xs.size() };
+      case (#mmPrices xs) { for ((id, x) in xs.values()) { minMeer.prices.add(id, x) }; xs.size() };
+      case (#mmRegieRates xs) { for ((id, x) in xs.values()) { minMeer.regieRates.add(id, x) }; xs.size() };
+      case (#mmFrozen xs) { for ((id, x) in xs.values()) { minMeer.frozen.add(id, x) }; xs.size() };
     };
   };
 
@@ -516,6 +525,11 @@ mixin (
     Purchase.syncAll(purchases, oaDeals, oaInvoices);
     rsAtLeast("purchase", rsMaxKey(purchases.purchases));
     rsAtLeast("hourClaim", rsMaxKey(purchases.claims));
+    // 2c.5: de indexen van de min-meerstaat (regels en versies per werf) uit de records zelf; de nummers van de versies staan in
+    // settings.sequences ("minmeer:<werf>", "meerwerk:<offerte>") en komen met de instellingen terug.
+    MinMeer.rebuildIndex(minMeer);
+    rsAtLeast("mmEntry", rsMaxKey(minMeer.entries));
+    rsAtLeast("mmVersion", rsMaxKey(minMeer.versions));
   };
 
   func rsSummary() : Views.RestoreSummary {

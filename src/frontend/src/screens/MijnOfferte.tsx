@@ -142,6 +142,7 @@ function MyQuote({ versionId, go }: { versionId: bigint; go: (to: string) => voi
               <div><dt>{T.client}</dt><dd>{r.doc.clientName}</dd></div>
               <div><dt>{T.work}</dt><dd>{r.doc.workName}</dd></div>
               <div><dt>{T.vat}</dt><dd>{r.vatBp === 0n ? t.vorm.vatZero : fmtBp(r.vatBp)}</dd></div>
+              {f?.kind === QuoteKind.extraWork && <div><dt>{t.vorm.kinds.extraWork}</dt><dd data-testid="mq-extra">{f.baseNumber || "—"}</dd></div>}
               {f?.kind === QuoteKind.damage && <div><dt>{t.vorm.kinds.damage}</dt><dd data-testid="mq-damage">{[f.claimRef, f.insurerName].filter(Boolean).join(" · ") || "—"}</dd></div>}
               <div><dt>{T.payment}</dt><dd>{T.paymentDays(Number(r.doc.paymentDays))}</dd></div>
             </dl>

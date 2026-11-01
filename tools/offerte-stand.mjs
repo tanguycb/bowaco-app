@@ -1,4 +1,4 @@
-// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2), OA-offertes, keuzes en hun prijzen in de bibliotheek (2c.3), OA-facturen en afspraken met de OA (2c.4), aankoopfacturen, uren per dag en voorschotten (2c.7) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
+// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2), OA-offertes, keuzes en hun prijzen in de bibliotheek (2c.3), OA-facturen en afspraken met de OA (2c.4), aankoopfacturen, uren per dag en voorschotten (2c.7), de min-meerstaat (2c.5) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
 //   node tools/offerte-stand.mjs <canister> <uit.json>           met de .did van DEZE map (oude kopie of nieuwe code)
 //   node tools/offerte-stand.mjs vergelijk <voor.json> <na.json>   elk veld van "voor" moet in "na" gelijk zijn (nieuwe velden
 //                                                                   en nieuwe offertes tellen niet); geeft de verschillen
@@ -197,6 +197,32 @@ if (typeof who.admin.listPurchases === "function") {
   stand.aankoopInstellingen = await res(who.admin.purchaseSettings());
   stand.aankoopBedragen = Object.fromEntries((await chunkOf("purchaseAmounts")).map(([k, v]) => [String(k), v]));
   stand.oaVoorschotten = Object.fromEntries((await chunkOf("oaAdvances")).map(([k, v]) => [String(k), v]));
+}
+// 2c.5: de min-meerstaat (enkel als de code ze kent): per werf de levende staat met bedragen (kantoor, update-call met auditregel:
+// regels, totalen, versies), wie wat mag lezen (hoeveelheden, bedragen), elke vastgelegde versie (inhoud, controlecode, intact,
+// akkoord), wat de klant van de gedeelde versies ziet, de vertrouwelijke export (prijzen, regietarief, inhoud) en de instellingen.
+if (typeof who.admin.readMinMeer === "function") {
+  stand.minMeer = {};
+  stand.minMeerRechten = {};
+  stand.minMeerVersies = {};
+  for (const w of await who.admin.listWorks()) {
+    const r = await res(who.admin.readMinMeer(w.id));
+    if (!r.ok) { stand.minMeer[String(w.id)] = r; continue; }
+    if (r.ok.rows.length === 0 && r.ok.versions.length === 0 && r.ok.entries.length === 0) continue;
+    stand.minMeer[String(w.id)] = { rows: r.ok.rows, discs: r.ok.discs, invoiced: r.ok.invoiced, entries: r.ok.entries, totals: r.ok.totals, chapters: r.ok.chapters, regieRates: r.ok.regieRates, versions: r.ok.versions, baseQuote: r.ok.baseQuote };
+    const per = {};
+    for (const rol of ["calculator", "werfleider", "architect", "oa", "klant", "vc"]) per[rol] = { hoeveelheden: allowed(await res(who[rol].minMeerQty(w.id))), bedragen: allowed(await res(who[rol].readMinMeer(w.id))) };
+    stand.minMeerRechten[String(w.id)] = per;
+    for (const v of r.ok.versions) stand.minMeerVersies[String(v.id)] = await res(who.admin.readMinMeerVersion(v.id));
+  }
+  const mm = await res(who.klant.listMyMinMeer());
+  // Per id (een nieuwe gedeelde versie telt bij de vergelijking niet, een gewijzigde wel).
+  stand.mijnMinMeer = mm.ok ? Object.fromEntries(mm.ok.map((b) => [`lijst-${b.id}`, b])) : { lijst: mm };
+  if (mm.ok) for (const b of mm.ok) stand.mijnMinMeer[String(b.id)] = await res(who.klant.readMyMinMeer(b.id));
+  stand.minMeerPrijzen = Object.fromEntries((await chunkOf("mmPrices")).map(([k, v]) => [String(k), v]));
+  stand.minMeerTarieven = Object.fromEntries((await chunkOf("mmRegieRates")).map(([k, v]) => [String(k), v]));
+  stand.minMeerInhoud = Object.fromEntries((await chunkOf("mmFrozen")).map(([k, v]) => [String(k), v]));
+  stand.minMeerInstellingen = await res(who.admin.minMeerSettings());
 }
 const ex = await who.admin.exportIntern();
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;

@@ -555,7 +555,7 @@ mixin (
     QuoteForms.freeze(quoteForms, v, qtChLib(c), c.prices.filterMap(func(pr : Quotes.Price) : ?Nat = pr.orgId));
     if (quoteForms.versionForms.get(v.id) == null) { quoteForms.versionForms.add(v.id, QuoteForms.defaultForm(quoteForms, v.id)) };
     let fi = QuoteForms.infoOf(quoteForms, q.id);
-    quoteForms.sentExtra.add(v.id, { versionId = v.id; grossCents = c.totals.gross; discountCents = c.totals.discount; blocks = QuoteForms.blocksOf(quoteForms, v); extra = [("soort", QuoteForms.kindText(fi.kind)), ("verzekeraar", switch (fi.insurerOrgId) { case (?o) o.toText(); case null "" }), ("dossier", fi.claimRef)] });
+    quoteForms.sentExtra.add(v.id, { versionId = v.id; grossCents = c.totals.gross; discountCents = c.totals.discount; blocks = QuoteForms.blocksOf(quoteForms, v); extra = [("soort", QuoteForms.kindText(fi.kind)), ("verzekeraar", switch (fi.insurerOrgId) { case (?o) o.toText(); case null "" }), ("dossier", fi.claimRef)].concat(if (fi.kind == #extraWork) [("bij", QuoteForms.baseNumberOf(quoteForms, q.id))] else []) });
     let h = Quotes.hash(Quotes.canonical(quoteForms, q, v, c, ?info));
     quoteDocs.sendInfo.add(v.id, info);
     for (o in Quotes.versionsOf(quotes, q.id).values()) {

@@ -30,6 +30,8 @@ import { WorkHourClaims, WorkPurchases } from "./Aankoop";
 import { MyQuotes } from "./MijnOfferte";
 import { WorkTenders } from "./Prijsvragen";
 import { WorkOaQuotes } from "./OaOffertes";
+import { MyMinMeer, WorkMinMeer } from "./MinMeer";
+import { MeerwerkOffertes } from "./MinMeerForms";
 
 const F = t.fase;
 
@@ -181,7 +183,8 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
     case "offerte": {
       if (client) return <MyQuotes go={go} embedded workName={w.name} />;
       // 2c.2/2c.3: subtabbladen Versies · Prijsvragen · OA-offertes (interne rollen; de werfleider ziet enkel firma's, stand en deadline).
-      const subs = caps.readTeam ? [{ key: "versies", label: t.prijsvragen.subVersions }, { key: "prijsvragen", label: t.prijsvragen.subTenders }, { key: "oa-offertes", label: t.prijsvragen.subOaQuotes }] : [];
+      // 2c.5: + Meerwerk (de meerwerkoffertes bij de getekende offerte, ⚖3).
+      const subs = caps.readTeam ? [{ key: "versies", label: t.prijsvragen.subVersions }, { key: "prijsvragen", label: t.prijsvragen.subTenders }, { key: "oa-offertes", label: t.prijsvragen.subOaQuotes }, { key: "meerwerk", label: F.meerwerk }] : [];
       const curSub = subs.find((x) => x.key === sub)?.key ?? "versies";
       return (
         <div className="a-tabbody">
@@ -192,11 +195,15 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
               ))}
             </div>
           )}
-          {curSub === "prijsvragen" ? <WorkTenders workId={id} caps={caps} go={go} /> : curSub === "oa-offertes" ? <WorkOaQuotes workId={id} caps={caps} go={go} /> : (
+          {curSub === "prijsvragen" ? <WorkTenders workId={id} caps={caps} go={go} /> : curSub === "oa-offertes" ? <WorkOaQuotes workId={id} caps={caps} go={go} /> : curSub === "meerwerk" ? (
+            <>
+              <MeerwerkOffertes workId={id} caps={caps} go={go} />
+              {fase.index >= 2 && <Meerwerk workId={id} caps={caps} go={go} facts={facts} />}
+            </>
+          ) : (
             <>
               <PendingStarts workId={id} caps={caps} go={go} />
               <WorkQuotes workId={id} caps={caps} go={go} />
-              {fase.index >= 2 && <Meerwerk workId={id} caps={caps} go={go} facts={facts} />}
             </>
           )}
         </div>
@@ -213,17 +220,25 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
       return <ReportsSection workId={id} caps={caps} go={go} fallback={none} />;
     case "opmeting":
       return <OpmetingWerf workId={id} go={go} embedded />;
-    case "facturatie":
-      if (client) return <MyStatements go={go} embedded workName={w.name} />;
+    case "facturatie": {
+      // 2c.5: de klant ziet ook de gedeelde min-meerstaat; de architect (met de grant vorderingsstaten) enkel die.
+      if (client) return <div className="a-tabbody"><MyStatements go={go} embedded workName={w.name} />{caps.myMinMeer && <MyMinMeer workId={id} />}</div>;
+      // Subtabbladen Min-meer · Vorderingsstaten · Aankoop (ontwerp §3.1; Facturen komt met 2c.6).
+      const fsubs = [{ key: "min-meer", label: t.minmeer.sub }, ...(caps.progress ? [{ key: "vorderingen", label: t.minmeer.subProgress }] : []), ...(caps.oaInvoices || caps.purchases || caps.hourClaims ? [{ key: "aankoop", label: t.minmeer.subPurchase }] : [])];
+      const fcur = fsubs.find((x) => x.key === sub)?.key ?? "min-meer";
       return (
         <div className="a-tabbody">
-          {caps.progress && <WorkStatements workId={id} caps={caps} go={go} embedded />}
-          {caps.oaInvoices && <WorkOaInvoices workId={id} caps={caps} go={go} />}
-          {caps.hourClaims && <WorkHourClaims workId={id} />}
-          {caps.purchases && <WorkPurchases workId={id} go={go} />}
-          {w.caps.contract && <Contract w={w} works={works.data ?? []} />}
+          <div className="a-wtabs a-wtabs--sub" role="tablist" aria-label={t.minmeer.title}>
+            {fsubs.map((x) => (
+              <a key={x.key} role="tab" href={`#/werven/${id}/facturatie${x.key === "min-meer" ? "" : `/${x.key}`}`} aria-selected={fcur === x.key} className="a-wtab" onClick={(e) => { e.preventDefault(); go(`werven/${id}/facturatie${x.key === "min-meer" ? "" : `/${x.key}`}`); }} data-testid={`sub-${x.key}`}>{x.label}</a>
+            ))}
+          </div>
+          {fcur === "min-meer" && <WorkMinMeer workId={id} caps={caps} go={go} />}
+          {fcur === "vorderingen" && <>{caps.progress && <WorkStatements workId={id} caps={caps} go={go} embedded />}{w.caps.contract && <Contract w={w} works={works.data ?? []} />}</>}
+          {fcur === "aankoop" && <>{caps.oaInvoices && <WorkOaInvoices workId={id} caps={caps} go={go} />}{caps.hourClaims && <WorkHourClaims workId={id} />}{caps.purchases && <WorkPurchases workId={id} go={go} />}</>}
         </div>
       );
+    }
     case "vergunningen":
       return (
         <div className="a-tabbody">
@@ -293,7 +308,8 @@ function ExternOverzicht({ w, caps, go, client }: { w: WorkView; caps: Caps; go:
   const works = useWorks();
   return (
     <div className="a-cols">
-      <div className="a-tabbody">{client ? <PlanSummary workId={w.id} go={go} noLink /> : <PlanSummary workId={w.id} go={go} />}</div>
+      {/* 2c.5: de architect met de grant vorderingsstaten ziet de gedeelde min-meerversies hier (geen tabblad Facturatie, regel 2b.3). */}
+      <div className="a-tabbody">{client ? <PlanSummary workId={w.id} go={go} noLink /> : <PlanSummary workId={w.id} go={go} />}{!client && caps.myMinMeer && <MyMinMeer workId={w.id} hideEmpty />}</div>
       <Fiche w={w} caps={caps} go={go} works={works.data ?? []} />
     </div>
   );

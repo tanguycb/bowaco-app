@@ -87,6 +87,11 @@ module {
     // OA-factuur bevestigen (de werfleider van DIE werf, en de beheerder), zonder bedrag. De OA ziet de stand van zijn eigen facturen
     // met de bestaande schakelaar (#ownOaInvoices, R31).
     #editPurchases; #confirmHourClaims;
+    // 2c.5 (R41): de min-meerstaat. #readMinMeer = de staat van een werf zien (minMeerScope beslist wat: admin en calculator alles,
+    // de werfleider van die werf hoeveelheden en uren zonder bedrag); #editMinMeer = regels, prijzen, uitsluitingen, regietarief,
+    // versies, delen, meerwerkofferte (admin, calculator); #proposeMinMeer = een regel voorstellen zonder prijs (ook de werfleider
+    // van die werf, zoals R26); #clientMinMeer = "gedeelde versies" (de klant, de architect: per werf beslist minMeerScope).
+    #readMinMeer; #editMinMeer; #proposeMinMeer; #clientMinMeer;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -283,6 +288,11 @@ module {
       case (#editPurchases) admin or calc;
       // review L8: de werfleider die LID is van die werf (niet via "werfleider ziet alles"), en de beheerder.
       case (#confirmHourClaims) on(func w = admin or (wl and member(ctx, p, w, ?#werfleider)));
+      // 2c.5 (R41): per werf de min-meerstaat zien (minMeerScope #full of #qty); bewerken enkel kantoor; voorstellen ook de werfleider.
+      case (#readMinMeer) on(func w = (has(p, #admin) or has(p, #calculator) or leaderOn(ctx, p, w)));
+      case (#editMinMeer) admin or calc;
+      case (#proposeMinMeer) on(func w = admin or calc or leaderOn(ctx, p, w));
+      case (#clientMinMeer) has(p, #klant) or has(p, #architect);
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -390,6 +400,22 @@ module {
     if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
     if (has(p, #admin) or has(p, #calculator)) { return #full };
     if (leaderOn(ctx, p, w)) { return #hours };
+    #none;
+  };
+
+  // ── Min-meerstaat (2c.5, R41) ───────────────────────────────────────────
+  // #full = admin en calculator: alles, ook kostprijzen, marges en OA-namen (bedragen enkel via update-calls met auditregel). #qty =
+  // de werfleider van de werf: de regels in hoeveelheden en uren, voorstellen zonder prijs, NOOIT een bedrag. #client = de klant van
+  // de werf, en enkel van de firma die klant is van die werf (clientOrgId; les 2.12: een andere klant op dezelfde werf ziet niets):
+  // de GEDEELDE versies, met akkoord of opmerking. #reader = de architect met de grant vorderingsstaten: de gedeelde versies lezen.
+  public type MinMeerScope = { #full; #qty; #client; #reader; #none };
+
+  public func minMeerScope(ctx : Ctx, p : Person, w : WorkId, clientOrgId : ?Types.OrgId) : MinMeerScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (has(p, #admin) or has(p, #calculator)) { return #full };
+    if (leaderOn(ctx, p, w)) { return #qty };
+    if (memberAs(ctx, p, w, #klant) and (switch clientOrgId { case (?o) p.orgId == ?o; case null true })) { return #client };
+    if (memberAs(ctx, p, w, #architect) and grant(ctx, p, w, #readProgress)) { return #reader };
     #none;
   };
 
@@ -684,6 +710,8 @@ module {
       myDeals = may(ctx, p, #ownDeals, null);
       purchases = may(ctx, p, #editPurchases, null);
       hourClaims = p.archivedAt == null and (has(p, #admin) or has(p, #werfleider));
+      minMeer = may(ctx, p, #editMinMeer, null);
+      myMinMeer = may(ctx, p, #clientMinMeer, null);
       home = home(p);
     };
   };

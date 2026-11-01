@@ -530,6 +530,18 @@ module {
   public func rateSources() : [(Text, Text)] {
     [("offerte", "Offerte"), ("prijslijst", "Prijslijst"), ("mail", "Mail"), ("factuur", "Factuur"), ("andere", "Andere")];
   };
+  // ── Min-meerstaat (2c.5; VOORLOPIG: AC-5, AC-18, AC-19) ──
+  // Meerwerk vanaf € 1.000 (excl. btw) vraagt een meerwerkofferte met akkoord vooraf (⚖3); doorgerekende kosten aan kostprijs / 0,8
+  // (marge 20 % op de verkoopprijs); per kostensoort een andere marge (settings.values "minMeer.passOnBp.<soort>").
+  public let mmQuoteFromCentsDefault : Nat = 100_000;
+  public let mmPassOnBpDefault : Nat = 2_000;
+  public let maxMmEntries : Nat = 2_000; // regels per werf
+  public let maxMmVersions : Nat = 200; // versies per werf
+  public let maxMmRates : Nat = 50; // regietarieven per werf
+  // De kostensoorten (2c.7: dezelfde sleutels als CostKind; 2.11 kent enkel "andere").
+  public func mmCostKinds() : [(Text, Text)] {
+    [("andere", "Andere kosten"), ("materiaal", "Materiaal"), ("container", "Container en afvoer"), ("transport", "Transport"), ("diesel", "Diesel"), ("kmheffing", "Kilometerheffing"), ("machine", "Machinehuur"), ("ploeg", "Ploeguren")];
+  };
   public func mailLiveBackends() : [Text] { [] };
   // Enkel voor de testbouw van tests/lokaal.sh (die zet dit op true, zoals de testhash): dan telt elke canister als live,
   // zodat de rollentest het pad "testmodus uit → echte adressen" kan bewijzen. tools/meetlat.mjs weigert een upload met true.

@@ -43,6 +43,7 @@ function formFromRead(r: QuoteRead): PdfForm | null {
   const tm = r.terms;
   return {
     kind: f.kind as string,
+    baseNumber: f.baseNumber,
     insurer: f.insurerName,
     claimRef: f.claimRef,
     subgroups: [...f.subgroups].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0)).map((g) => ({ key: String(g.id), chapter: String(g.chapterId), title: g.title })),
@@ -125,6 +126,7 @@ export function pdfFromMine(r: MyQuoteRead): QuotePdfData {
     form: r.form
       ? {
           kind: r.form.kind as string,
+          baseNumber: r.form.baseNumber,
           insurer: r.form.insurerName,
           claimRef: r.form.claimRef,
           subgroups: [...r.form.subgroups].sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : 0)).map((g) => ({ key: String(g.id), chapter: String(g.chapterId), title: g.title })),

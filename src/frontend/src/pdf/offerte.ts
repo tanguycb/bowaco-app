@@ -25,7 +25,8 @@ export type PdfLine = {
 };
 // 2c.1: soort, subgroepen, tekstblokken, korting en regietekst (enkel een versie die met de nieuwe rekenregels rekent).
 export type PdfForm = {
-  kind: string; // "standard" · "damage" · "regie"
+  kind: string; // "standard" · "damage" · "regie" · "extraWork" (2c.5: meerwerkofferte)
+  baseNumber?: string; // 2c.5: een meerwerkofferte: het nummer van de getekende offerte
   insurer: string;
   claimRef: string;
   subgroups: { key: string; chapter: string; title: string }[]; // in hun volgorde
@@ -266,6 +267,7 @@ export async function quotePdf(d: QuotePdfData, fonts: PdfFonts): Promise<Uint8A
     d.validUntilDay !== null ? `Geldig tot: ${dayText(d.validUntilDay)}` : `Geldig: ${d.validDays} dagen na datum`,
     `Betaaltermijn: ${d.paymentDays} dagen`,
     d.vatBp === 0n ? "Btw: verlegd (0 %)" : `Btw-tarief: ${pct(d.vatBp)}`,
+    ...(d.form?.kind === "extraWork" ? [`Meerwerkofferte${d.form.baseNumber ? ` bij offerte ${d.form.baseNumber}` : ""}`] : []),
     ...(d.form?.kind === "damage" ? [`Schadedossier${d.form.claimRef ? ` ${d.form.claimRef}` : ""}`, ...(d.form.insurer ? [`Verzekeraar: ${d.form.insurer}`] : [])] : []),
   ];
   const h3 = block(2, "Offerte", facts, false);

@@ -137,7 +137,7 @@ mixin (
 
   // ── De soort van een offerte ───────────────────────────────────────────
   // Gewoon, schadedossier (verzekeraar = firma van de soort andere of klant, dossiernummer) of enkel regie. De
-  // meerwerkofferte komt met 2c.5. Een verzonden versie hield haar soort al vast (valt onder de hash).
+  // meerwerkofferte (2c.5) ontstaat enkel met makeExtraWorkQuote. Een verzonden versie hield haar soort al vast (valt onder de hash).
   public shared ({ caller }) func setQuoteInfo(quoteId : Nat, i : FormViews.QuoteInfoInput) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
@@ -145,7 +145,9 @@ mixin (
     let q = quotes.quotes.get(quoteId) ?? return #err("Onbekende offerte");
     Rights.require(ctx, p, #readQuotes, ?q.workId);
     if (q.archivedAt != null) { return #err("Deze offerte is gearchiveerd") };
-    if (i.kind == #extraWork) { return #err("De meerwerkofferte komt in een volgende stap") };
+    // 2c.5: een meerwerkofferte maakt u in de min-meerstaat (Meerwerkofferte maken); een meerwerkofferte blijft er een.
+    if (i.kind == #extraWork) { return #err("Een meerwerkofferte maakt u in Facturatie → Min-meer of Offerte → Meerwerk") };
+    if (QuoteForms.infoOf(quoteForms, quoteId).kind == #extraWork) { return #err("Een meerwerkofferte blijft een meerwerkofferte") };
     let damage = i.kind == #damage;
     switch (i.insurerOrgId) {
       case (?o) {

@@ -74,6 +74,8 @@ type Address__283196853 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__294896158 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
+type Address__648866932 =
+  {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__766490103 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__810232195 =
@@ -437,6 +439,7 @@ type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
 type Confidential__59109911<T> = {#plain : T; #sealed : Sealed__481285188};
 type Confidential__675319516<T> = {#plain : T; #sealed : Sealed__1041298352};
 type Confidential__757977450<T> = {#plain : T; #sealed : Sealed__325177826};
+type Confidential__82182318<T> = {#plain : T; #sealed : Sealed__149846506};
 type Confidential__861245145<T> = {#plain : T; #sealed : Sealed__703332956};
 type Confidential__866879126<T> = {#plain : T; #sealed : Sealed__729729536};
 type Confidential__886369716<T> = {#plain : T; #sealed : Sealed__566922365};
@@ -560,6 +563,7 @@ type DayReport__682189017 =
 type Day__1060919207 = Nat;
 type Day__162369424 = Nat;
 type Day__198685096 = Nat;
+type Day__231055727 = Nat;
 type Day__23369103 = Nat;
 type Day__253571679 = Nat;
 type Day__315760598 = Nat;
@@ -699,6 +703,7 @@ type Extra__268650993 = [(Text, Text)];
 type Extra__276464624 = [(Text, Text)];
 type Extra__365037972 = [(Text, Text)];
 type Extra__417870522 = [(Text, Text)];
+type Extra__442518337 = [(Text, Text)];
 type Extra__459120016 = [(Text, Text)];
 type Extra__482036894 = [(Text, Text)];
 type Extra__492312138 = [(Text, Text)];
@@ -1469,6 +1474,314 @@ type Membership__509533854 =
     role : Role__1042359284;
     workId : WorkId__111716167
   };
+type MinMeerState__970492890 =
+  {
+    answers : Map__230067015<Nat, MmAnswer__338767648>;
+    byWork : Map__230067015<Nat, [Nat]>;
+    entries : Map__230067015<Nat, MmEntry__874597692>;
+    frozen : Map__230067015<Nat, Confidential__82182318<MmFrozen__704980581>>;
+    overrides : Map__230067015<Text, MmOverride__1039625988>;
+    prices :
+      Map__230067015<Nat, Confidential__82182318<MmEntryPrice__1046191268>>;
+    regieRates :
+      Map__230067015<Nat, Confidential__82182318<[MmRegieRate__145602623]>>;
+    versions : Map__230067015<Nat, MmVersion__992590323>;
+    versionsByWork : Map__230067015<Nat, [Nat]>
+  };
+type MmAnswer__338767648 =
+  {
+    at : Int;
+    extra : Extra__442518337;
+    hash : Text;
+    note : Text;
+    ok : Bool;
+    personId : PersonId__778496465;
+    principal : Principal;
+    versionId : Nat
+  };
+type MmAnswer__666761432 =
+  {
+    at : Int;
+    extra : Extra__945213800;
+    hash : Text;
+    note : Text;
+    ok : Bool;
+    personId : PersonId__967516914;
+    principal : Principal;
+    versionId : Nat
+  };
+type MmApproval__310267609 =
+  {
+    #notNeeded;
+    #pending;
+    #quote : Nat;
+    #recorded : {day : Day__231055727; how : Text}
+  };
+type MmApproval__484419456 =
+  {
+    #notNeeded;
+    #pending;
+    #quote : Nat;
+    #recorded : {day : Day__162369424; how : Text}
+  };
+type MmChapterTotal__303144571 =
+  {
+    balanceCents : Int;
+    chapter : Text;
+    extraCents : Int;
+    lessCents : Int;
+    offerCents : Int
+  };
+type MmChapterTotal__339121995 =
+  {
+    balanceCents : Int;
+    chapter : Text;
+    extraCents : Int;
+    lessCents : Int;
+    offerCents : Int
+  };
+type MmEntryPrice__1046191268 =
+  {
+    at : Int;
+    by : PersonId__778496465;
+    costCents : ?Int;
+    entryId : Nat;
+    marginBp : ?Nat;
+    orgId : ?OrgId__1011315552;
+    unitCents : Int
+  };
+type MmEntryPrice__18588034 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    costCents : ?Int;
+    entryId : Nat;
+    marginBp : ?Nat;
+    orgId : ?OrgId__17031398;
+    unitCents : Int
+  };
+type MmEntry__874597692 =
+  {
+    approval : MmApproval__310267609;
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__778496465;
+    chapter : Text;
+    createdAt : Int;
+    createdBy : PersonId__778496465;
+    day : ?Day__231055727;
+    description : Text;
+    extra : Extra__442518337;
+    id : Nat;
+    kind : MmKind__771399543;
+    note : Text;
+    pctBp : ?Nat;
+    photoFileId : ?Nat;
+    proposedBy : ?PersonId__778496465;
+    qtyMilli : Int;
+    rev : Nat;
+    root : ?Nat;
+    unit : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__778496465;
+    workId : WorkId__864560573
+  };
+type MmEntry__963030073 =
+  {
+    approval : MmApproval__484419456;
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__967516914;
+    chapter : Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    day : ?Day__162369424;
+    description : Text;
+    extra : Extra__945213800;
+    id : Nat;
+    kind : MmKind__111299908;
+    note : Text;
+    pctBp : ?Nat;
+    photoFileId : ?Nat;
+    proposedBy : ?PersonId__967516914;
+    qtyMilli : Int;
+    rev : Nat;
+    root : ?Nat;
+    unit : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    workId : WorkId__929594816
+  };
+type MmFrozen__704980581 =
+  {
+    chapters : [MmChapterTotal__339121995];
+    clientName : Text;
+    day : Day__231055727;
+    extra : Extra__442518337;
+    invoiced : [MmInvoiced__117996145];
+    issuer : Text;
+    lines : [MmLineFrozen__738908413];
+    note : Text;
+    number : Nat;
+    quoteRefs : [Text];
+    totals : MmTotals__90791772;
+    versionId : Nat;
+    workAddress : Address__648866932;
+    workCode : Text;
+    workName : Text
+  };
+type MmFrozen__886811604 =
+  {
+    chapters : [MmChapterTotal__303144571];
+    clientName : Text;
+    day : Day__162369424;
+    extra : Extra__945213800;
+    invoiced : [MmInvoiced__671837709];
+    issuer : Text;
+    lines : [MmLineFrozen__408650236];
+    note : Text;
+    number : Nat;
+    quoteRefs : [Text];
+    totals : MmTotals__99543803;
+    versionId : Nat;
+    workAddress : Address__766490103;
+    workCode : Text;
+    workName : Text
+  };
+type MmInvoiced__117996145 =
+  {cents : Int; day : Day__231055727; title : Text};
+type MmInvoiced__671837709 =
+  {cents : Int; day : Day__162369424; title : Text};
+type MmKind__111299908 =
+  {#cost; #discount; #extra; #invoiced; #less; #regie; #settle};
+type MmKind__771399543 =
+  {#cost; #discount; #extra; #invoiced; #less; #regie; #settle};
+type MmLineFrozen__408650236 =
+  {
+    approval : Text;
+    chapter : Text;
+    counted : Bool;
+    day : ?Day__162369424;
+    description : Text;
+    extraCents : Int;
+    key : Text;
+    lessCents : Int;
+    note : Text;
+    offerCents : Int;
+    qtyMilli : Int;
+    source : Text;
+    unit : Text;
+    unitCents : Int
+  };
+type MmLineFrozen__738908413 =
+  {
+    approval : Text;
+    chapter : Text;
+    counted : Bool;
+    day : ?Day__231055727;
+    description : Text;
+    extraCents : Int;
+    key : Text;
+    lessCents : Int;
+    note : Text;
+    offerCents : Int;
+    qtyMilli : Int;
+    source : Text;
+    unit : Text;
+    unitCents : Int
+  };
+type MmOverride__1039625988 =
+  {
+    at : Int;
+    by : PersonId__778496465;
+    chapter : ?Text;
+    exclude : Bool;
+    extra : Extra__442518337;
+    key : Text;
+    passOn : Bool;
+    reason : Text;
+    workId : WorkId__864560573
+  };
+type MmOverride__999492959 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    chapter : ?Text;
+    exclude : Bool;
+    extra : Extra__945213800;
+    key : Text;
+    passOn : Bool;
+    reason : Text;
+    workId : WorkId__929594816
+  };
+type MmRegieRate__145602623 =
+  {
+    at : Int;
+    by : PersonId__778496465;
+    fromDay : Day__231055727;
+    note : Text;
+    sellCents : Int
+  };
+type MmRegieRate__766810556 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    fromDay : Day__162369424;
+    note : Text;
+    sellCents : Int
+  };
+type MmTotals__90791772 =
+  {
+    balanceCents : Int;
+    contractCents : Int;
+    extraCents : Int;
+    invoicedCents : Int;
+    lessCents : Int;
+    offerCents : Int;
+    pendingCents : Int;
+    toInvoiceCents : Int;
+    vatBp : Nat
+  };
+type MmTotals__99543803 =
+  {
+    balanceCents : Int;
+    contractCents : Int;
+    extraCents : Int;
+    invoicedCents : Int;
+    lessCents : Int;
+    offerCents : Int;
+    pendingCents : Int;
+    toInvoiceCents : Int;
+    vatBp : Nat
+  };
+type MmVersion__276123584 =
+  {
+    calcVersion : Nat;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    day : Day__162369424;
+    extra : Extra__945213800;
+    hash : Text;
+    id : Nat;
+    note : Text;
+    number : Nat;
+    share : ?{at : Int; by : PersonId__967516914};
+    workId : WorkId__929594816
+  };
+type MmVersion__992590323 =
+  {
+    calcVersion : Nat;
+    createdAt : Int;
+    createdBy : PersonId__778496465;
+    day : Day__231055727;
+    extra : Extra__442518337;
+    hash : Text;
+    id : Nat;
+    note : Text;
+    number : Nat;
+    share : ?{at : Int; by : PersonId__778496465};
+    workId : WorkId__864560573
+  };
 type Municipality__239731005 =
   {
     archivedAt : ?Int;
@@ -1520,6 +1833,7 @@ type NewActor__1057791986 =
 type NewActor__1073511891 = {workStarts : WorkStartState__514103986};
 type NewActor__127410502 = {post : PostState__600695864};
 type NewActor__14273466 = {board : BoardState__816524089};
+type NewActor__193100407 = {minMeer : MinMeerState__970492890};
 type NewActor__237472822 = {org : NewOrgState__665352330};
 type NewActor__266440787 = {quoteDocs : QuoteDocsState__789711068};
 type NewActor__266457383 = {surveys : SurveyState__547744904};
@@ -1966,6 +2280,7 @@ type OldActor__381654595 = {};
 type OldActor__415128861 = {};
 type OldActor__430767433 = {};
 type OldActor__485181031 = {};
+type OldActor__49271436 = {};
 type OldActor__574962007 = {};
 type OldActor__669130419 = {};
 type OldActor__673165591 = {};
@@ -2113,6 +2428,7 @@ type OrgDoc__896525046 =
     validUntil : ?Day__162369424
   };
 type OrgId__1000487066 = Nat;
+type OrgId__1011315552 = Nat;
 type OrgId__1068690298 = Nat;
 type OrgId__137103020 = Nat;
 type OrgId__168115520 = Nat;
@@ -2363,6 +2679,7 @@ type PersonId__518727946 = Nat;
 type PersonId__580701172 = Nat;
 type PersonId__597574414 = Nat;
 type PersonId__677245278 = Nat;
+type PersonId__778496465 = Nat;
 type PersonId__801913222 = Nat;
 type PersonId__820620982 = Nat;
 type PersonId__858692293 = Nat;
@@ -3652,6 +3969,7 @@ type Role__679663545 =
     #werfleider
   };
 type Sealed__1041298352 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__149846506 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__29180127 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__325177826 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__380469911 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
@@ -4354,6 +4672,7 @@ type WorkId__654334923 = Nat;
 type WorkId__72456761 = Nat;
 type WorkId__815998652 = Nat;
 type WorkId__838834227 = Nat;
+type WorkId__864560573 = Nat;
 type WorkId__872672482 = Nat;
 type WorkId__929594816 = Nat;
 type WorkId__961598709 = Nat;
@@ -4516,7 +4835,8 @@ type WorksState__605582232 =
   "20261030_120000" : OldActor__74197155 -> NewActor__993246018;
   "20261030_211706" : OldActor__885308482 -> NewActor__431720327;
   "20261031_110947" : OldActor__932069066 -> NewActor__477761715;
-  "20261101_032513" : OldActor__709840404 -> NewActor__925272246
+  "20261101_032513" : OldActor__709840404 -> NewActor__925272246;
+  "20261101_033017" : OldActor__49271436 -> NewActor__193100407
 }
 actor  {
   stable access :
@@ -4573,6 +4893,21 @@ actor  {
       sells : Map__230067015<Nat, LibSell__691683324>
     };
   stable mail : {log : Map__230067015<Nat, MailLog__213783183>};
+  stable minMeer :
+    {
+      answers : Map__230067015<Nat, MmAnswer__666761432>;
+      byWork : Map__230067015<Nat, [Nat]>;
+      entries : Map__230067015<Nat, MmEntry__963030073>;
+      frozen :
+        Map__230067015<Nat, Confidential__546665525<MmFrozen__886811604>>;
+      overrides : Map__230067015<Text, MmOverride__999492959>;
+      prices :
+        Map__230067015<Nat, Confidential__546665525<MmEntryPrice__18588034>>;
+      regieRates :
+        Map__230067015<Nat, Confidential__546665525<[MmRegieRate__766810556]>>;
+      versions : Map__230067015<Nat, MmVersion__276123584>;
+      versionsByWork : Map__230067015<Nat, [Nat]>
+    };
   stable oa :
     {
       orgContacts : Map__230067015<OrgId__17031398, OrgContact__539818738>;

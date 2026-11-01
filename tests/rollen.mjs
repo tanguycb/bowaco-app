@@ -2097,6 +2097,27 @@ await sec("── 2c.7 aankoopfacturen per rol (R44; de rest staat in tests/aank
   check("het werfdeel is een OA-factuur van 2.11 op werf A (de werfleider ziet ze zonder bedrag)", (await wl.listOaInvoices([A], [])).some((i) => i.purchaseId[0] === pid));
 }
 
+await sec("── 2c.5 min-meerstaat per rol (R41; de rest staat in tests/minmeer-2c5.mjs)");
+{
+  const others = [["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon]];
+  const entry = (o) => ({ kind: { extra: null }, chapter: "", root: [], description: "Proef voorstel rollentest 2c5", unit: "st", qtyMilli: 1000n, pctBp: [], day: [], approval: { pending: null }, photoFileId: [], note: "", price: [], ...o });
+  for (const [n, x] of others) check(`${n}: de min-meerstaat van werf B (hoeveelheden en bedragen) en een voorstel geweigerd`, (await denied(x.minMeerQty(B))) && (await denied(x.readMinMeer(B))) && (await denied(x.saveMinMeerEntry(B, [], 0n, entry({})))));
+  const q = await wl.minMeerQty(B);
+  check("werfleider van werf B: de staat in hoeveelheden en uren, zonder bedrag; hij mag voorstellen", q.canPropose && q.scope === "qty" && !/cents|cost|price|margin|amount/i.test(JSON.stringify(q, (_, y) => (typeof y === "bigint" ? y.toString() : y))));
+  check("werfleider: de staat met bedragen, een versie, een prijs of een meerwerkofferte geweigerd", (await denied(wl.readMinMeer(B))) && (await denied(wl.makeMinMeerVersion(B, "", { balanceCents: 0n, toInvoiceCents: 0n }))) && /De prijs zet kantoor/.test(errOf(await wl.saveMinMeerEntry(B, [], 0n, entry({ price: [{ unitCents: [1n], costCents: [], marginBp: [], orgId: [] }] })))) && (await denied(wl.makeExtraWorkQuote(B, [], "Proef"))));
+  const r = await wl.saveMinMeerEntry(B, [], 0n, entry({}));
+  check("werfleider stelt meerwerk voor op werf B (zonder prijs)", isOk(r), errOf(r));
+  const full = await calc.readMinMeer(B);
+  check("calculator leest de staat met bedragen (update-call, auditregel bekeek:min-meer); het voorstel staat erin, te prijzen", isOk(full) && full.ok.rows.some((x) => x.description === "Proef voorstel rollentest 2c5" && x.flags.includes("te-prijzen")) && (await admin.auditLog(0n, 20n)).some((e) => e.action === "bekeek:min-meer"));
+  if (isOk(r)) check("calculator haalt het voorstel weg (met reden)", isOk(await calc.archiveMinMeerEntry(r.ok, "proef rollentest")));
+  for (const [n, x] of [["werfleider", wl], ...others]) check(`${n}: geen versie lezen of delen, geen regietarief, geen aanpassing, geen instellingen`, (await denied(x.readMinMeerVersion(999_999n))) && (await denied(x.shareMinMeerVersion(999_999n))) && (await denied(x.saveMinMeerRegieRates(B, []))) && (await denied(x.setMinMeerOverride(B, { key: "uren:1", exclude: true, chapter: [], passOn: false, reason: "proef" }))) && (await denied(x.minMeerSettings())));
+  check("calculator: een onbekende versie geeft 'Onbekende versie' (geen toegangsfout); instellingen zetten enkel de beheerder", /Onbekende versie/.test(errOf(await calc.readMinMeerVersion(999_999n))) && (await denied(calc.saveMinMeerSettings({ quoteFromCents: 100_000n, passOnBp: 2000n, passOnByKind: [], client: "mogelijk" }))));
+  check("gedeelde versies: de klant en de architect (lijst), de werfleider, OA en VC niet", Array.isArray(await klant.listMyMinMeer()) && Array.isArray(await arch.listMyMinMeer()) && (await denied(wl.listMyMinMeer())) && (await denied(oa2.listMyMinMeer())) && (await denied(vc.listMyMinMeer())));
+  check("antwoorden op een versie: enkel de klant (onbekende versie); de architect niet", /Onbekende versie/.test(errOf(await klant.answerMyMinMeer(999_999n, "", true, ""))) && (await denied(arch.answerMyMinMeer(999_999n, "", true, ""))));
+  const me = async (x) => (await x.me()).caps[0];
+  check("caps: kantoor minMeer, de werfleider niet; de klant en de architect myMinMeer", (await me(calc)).minMeer && !(await me(wl)).minMeer && (await me(klant)).myMinMeer && (await me(arch)).myMinMeer && !(await me(oa2)).myMinMeer);
+}
+
 await sec("── afzetten (R16, T7)");
 const oaId = (await oa.me()).person[0].id;
 const invOa3 = await invite(admin, "Nog een code voor OA", roles("onderaannemer"));

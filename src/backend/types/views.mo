@@ -75,6 +75,8 @@ module {
     myDeals : Bool; // 2c.4: een OA met een firma: Mijn contracten en Mijn attesten
     purchases : Bool; // 2c.7: aankoopfacturen registreren, controleren, te betalen (admin, calculator)
     hourClaims : Bool; // 2c.7: uren van OA's bevestigen (werfleider van de werf, beheerder)
+    minMeer : Bool; // 2c.5: de min-meerstaat bewerken, versies maken en delen (admin, calculator)
+    myMinMeer : Bool; // 2c.5: gedeelde versies van de min-meerstaat (klant; architect met de grant vorderingsstaten, per werf)
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
 
@@ -897,6 +899,10 @@ module {
     dealNotices : [(Text, Int)];
     purchases : [Types.Purchase]; // 2c.7 (intern: zonder bedragen)
     hourClaims : [Types.HourClaim];
+    mmEntries : [Types.MmEntry]; // 2c.5 (intern: zonder bedragen)
+    mmOverrides : [Types.MmOverride];
+    mmVersions : [Types.MmVersion];
+    mmAnswers : [Types.MmAnswer];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -1023,6 +1029,13 @@ module {
     #hourClaims : [Types.HourClaim];
     #purchaseAmounts : [(Nat, Types.Confidential<Types.PurchaseAmounts>)]; // 2c.7 (vertrouwelijk)
     #oaAdvances : [(Nat, Types.Confidential<Types.OaAdvance>)];
+    #mmEntries : [Types.MmEntry]; // 2c.5 (intern)
+    #mmOverrides : [Types.MmOverride];
+    #mmVersions : [Types.MmVersion];
+    #mmAnswers : [Types.MmAnswer];
+    #mmPrices : [(Nat, Types.Confidential<Types.MmEntryPrice>)]; // 2c.5 (vertrouwelijk)
+    #mmRegieRates : [(Nat, Types.Confidential<[Types.MmRegieRate]>)];
+    #mmFrozen : [(Nat, Types.Confidential<Types.MmFrozen>)];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -1057,6 +1070,9 @@ module {
     agreementFrozen : [(Nat, Types.Confidential<Types.AgreementFrozen>)];
     purchaseAmounts : [(Nat, Types.Confidential<Types.PurchaseAmounts>)]; // 2c.7: regels en bedragen van de aankoopfacturen, OA-voorschotten
     oaAdvances : [(Nat, Types.Confidential<Types.OaAdvance>)];
+    mmPrices : [(Nat, Types.Confidential<Types.MmEntryPrice>)]; // 2c.5: prijzen van de regels, regietarief per werf, inhoud van de versies
+    mmRegieRates : [(Nat, Types.Confidential<[Types.MmRegieRate]>)];
+    mmFrozen : [(Nat, Types.Confidential<Types.MmFrozen>)];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────

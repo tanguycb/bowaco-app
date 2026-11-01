@@ -487,7 +487,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
                 <div><dt>{O.vat}</dt><dd>{fmtBp(header.vatBp)}{header.vatBp !== v.workVatBp && <> <span className="a-tag a-tag--warn">{O.vatWork(fmtBp(v.workVatBp))}</span></>}</dd></div>
                 <div><dt>{O.validDays}</dt><dd>{String(header.validDays)}</dd></div>
                 <div><dt>{O.standardMargin}</dt><dd>{fmtBp(header.standardMarginBp)}</dd></div>
-                {read.form && <div><dt>{t.vorm.kind}</dt><dd data-testid="quote-kind">{t.vorm.kinds[read.form.kind]}{read.form.kind === QuoteKind.damage && <> · {read.form.insurerName || t.vorm.noInsurer}{read.form.claimRef && <> · {read.form.claimRef}</>}</>}</dd></div>}
+                {read.form && <div><dt>{t.vorm.kind}</dt><dd data-testid="quote-kind">{t.vorm.kinds[read.form.kind]}{read.form.kind === QuoteKind.damage && <> · {read.form.insurerName || t.vorm.noInsurer}{read.form.claimRef && <> · {read.form.claimRef}</>}</>}{read.form.kind === QuoteKind.extraWork && read.form.baseNumber && <> · {read.form.baseNumber}</>}</dd></div>}
               </dl>
               {editable && <Button variant="quiet" icon="edit" onClick={() => setSheet({ kind: "header" })}>{O.header}</Button>}
               {editable && read.form && <Button variant="quiet" icon="edit" onClick={() => setSheet({ kind: "kind" })}>{t.vorm.kindChange}</Button>}

@@ -196,6 +196,10 @@ export function KindSheet({ read, orgs, onDone, onClose }: { read: QuoteRead; or
       setBusy(false);
     }
   };
+  // 2c.5: een meerwerkofferte blijft er een (de server weigert een andere soort).
+  if (f?.kind === QuoteKind.extraWork) {
+    return <Sheet title={V.kind} open onClose={onClose} side><div className="a-form"><p>{t.minmeer.quote.blank} · {f.baseNumber}</p></div></Sheet>;
+  }
   return (
     <Sheet title={V.kind} open onClose={onClose} side>
       <div className="a-form">
