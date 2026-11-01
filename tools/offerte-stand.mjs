@@ -257,6 +257,36 @@ if (typeof who.admin.listInsurances === "function") {
   stand.werfadminExport = {};
   for (const k of ["insurances", "siteMeetings", "handovers", "techSheets", "workSheets", "siteNotices", "insuranceConf"]) stand.werfadminExport[k] = Object.fromEntries((await chunkOf(k)).map((x, i) => [String(Array.isArray(x) ? x[0] : x.id ?? i), x]));
 }
+// 2c.6: de verkoopfacturen per werf (lijst, schema met bedragen, elke factuur met haar vastgelegde inhoud en betalingen), de rechten
+// erop, wat de klant ziet, de vertrouwelijke export en de instellingen met de tellers. Zonder de dag van vandaag (die verschuift).
+if (typeof who.admin.readSalesPlan === "function") {
+  const noToday = (x) => { if (x && x.ok && typeof x.ok === "object") { const { today: _t, ...rest } = x.ok; return { ok: rest }; } if (x && typeof x === "object" && "today" in x) { const { today: _t, ...rest } = x; return rest; } return x; };
+  stand.facturen = {};
+  stand.factuurSchema = {};
+  stand.factuurRechten = {};
+  for (const w of await who.admin.listWorks()) {
+    const list = await res(who.admin.listSales(w.id));
+    const plan = await res(who.admin.readSalesPlan(w.id));
+    if (plan.ok) stand.factuurSchema[String(w.id)] = plan;
+    for (const b of list.ok ?? []) {
+      const r = noToday(await res(who.admin.readSalesInvoice(b.id)));
+      // Een ontwerp toont hoe het er VANDAAG uit zou zien (datum, vervaldag): zonder die voorvertoning.
+      if (b.status === "ontwerp" && r.ok) delete r.ok.doc;
+      stand.facturen[String(b.id)] = { brief: b, inhoud: r };
+    }
+    if (!plan.ok && (list.ok ?? []).length === 0) continue;
+    const per = {};
+    for (const rol of ["calculator", "werfleider", "architect", "oa", "klant", "vc"]) per[rol] = { schema: allowed(await res(who[rol].readSalesPlan(w.id))), lijst: allowed(await res(who[rol].listSales(w.id))), voorschot: allowed(await res(who[rol].salesFacts(w.id))) };
+    stand.factuurRechten[String(w.id)] = per;
+  }
+  const ms = await res(who.klant.listMySales());
+  stand.mijnFacturen = ms.ok ? Object.fromEntries(ms.ok.invoices.map((r) => [String(r.id), r])) : { lijst: ms };
+  if (ms.ok) for (const r of ms.ok.invoices) stand.mijnFacturen[`inhoud-${r.id}`] = await res(who.klant.readMySalesInvoice(r.id));
+  stand.factuurInhoud = Object.fromEntries((await chunkOf("salesFrozen")).map(([k, v]) => [String(k), v]));
+  stand.factuurBetalingen = Object.fromEntries((await chunkOf("salesPayments")).map(([k, v]) => [String(k), v]));
+  stand.factuurOntwerpen = Object.fromEntries((await chunkOf("salesDrafts")).map(([k, v]) => [String(k), v]));
+  stand.factuurInstellingen = noToday(await res(who.admin.salesSettings()));
+}
 const ex = await who.admin.exportIntern();
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;
 delete stand.telling.notifications; // leesacties kunnen meldingen maken

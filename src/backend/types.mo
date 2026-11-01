@@ -2340,6 +2340,140 @@ module {
     notices : Map.Map<Text, Int>; // verstuurde meldingen (één keer per ding): sleutel → tijdstip
   };
 
+  // ── Verkoopfacturen (stap 2c.6, ontwerp 2c §4.6 en §7; ⚖1, ⚖6, ⚖7; AC-4, AC-6, AC-20, AC-21, AC-22, AC-27) ────
+  // Eigen stabiel veld `sales` (deelvorm, OldActor = {}). Het facturatieschema per werf (schijven in %, per hoofdstuk; klasse intern),
+  // de facturen en creditnota's (SalesInvoice, intern: zonder bedragen), de regels van een ontwerp (vertrouwelijk), wat bij het
+  // uitreiken vastligt onder een controlecode (SalesFrozen: de wettelijke inhoud van §7.2, vertrouwelijk), de betalingen (vertrouwelijk)
+  // en de herinneringen (intern). Een ontwerp heeft geen nummer (seq = 0, number = ""); het nummer komt bij het uitreiken uit
+  // settings.sequences ("factuur:F:<jaar>", "factuur:CN:<jaar>"; nooit size()). Een uitgereikte factuur verandert nooit: een fout = een
+  // creditnota (kind #credit, eigen reeks CN). SalesLine.kind: #work = werk (telt als "reeds gefactureerd" in de min-meerstaat),
+  // #revision = prijsherziening (apart, review H3 van 2c.5), #deduct = aftrek van wat al gefactureerd is (de slotfactuur).
+  // SalesInvoice.pay volgt de betalingen (en creditnota's); dueDay = uitreikingsdag + paymentDays. Volledig vanaf het begin (D1a).
+  public type SalesKind = { #advance; #interim; #final; #progress : Nat; #minMeer : Nat; #free; #credit : Nat };
+  public type SalesStatus = { #draft; #issued; #draftCancelled : Text };
+  public type SalesPay = { #open; #partial; #paid };
+  public type SalesVat = { #rate : Nat; #reverse; #mixed };
+  public type SalesPeppol = { #notNeeded; #ublMade : Int; #sent : { at : Int; ref : Text } };
+  public type SalesSent = { at : Int; by : PersonId; how : Text };
+  // klasse: intern (zonder bedragen).
+  public type SalesInvoice = {
+    id : Nat;
+    workId : WorkId;
+    kind : SalesKind;
+    series : Text;
+    year : Nat;
+    seq : Nat;
+    number : Text;
+    status : SalesStatus;
+    pay : SalesPay;
+    issueDay : ?Day;
+    serviceDay : ?Day;
+    serviceTo : ?Day;
+    dueDay : ?Day;
+    paymentDays : Nat;
+    clientOrgId : ?OrgId;
+    vat : SalesVat;
+    planStepKey : ?Text;
+    peppol : SalesPeppol;
+    sent : ?SalesSent;
+    title : Text;
+    hash : Text;
+    calcVersion : Nat;
+    rev : Nat;
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    issuedAt : ?Int;
+    issuedBy : ?PersonId;
+    extra : Extra;
+  };
+  public type SalesLineKind = { #work; #revision; #deduct };
+  // klasse: vertrouwelijk (bedragen).
+  public type SalesLine = {
+    kind : SalesLineKind;
+    group : Text;
+    description : Text;
+    ref : Text;
+    qtyMilli : Int;
+    unit : Text;
+    unitCents : Int;
+    amountCents : Int;
+    vatBp : Nat;
+    baseCents : ?Int;
+    pctBp : ?Nat;
+  };
+  public type SalesIssuer = { name : Text; legalForm : Text; address : Address; vat : Text; kbo : Text; rpr : Text; email : Text; phone : Text; website : Text; iban : Text; bic : Text };
+  public type SalesBuyer = { orgId : ?OrgId; name : Text; address : ?Address; vat : ?Text; kbo : ?Text; company : Bool };
+  public type SalesPrevious = { invoiceId : Nat; number : Text; day : Day; cents : Int; revisionCents : Int };
+  public type SalesVatLine = { vatBp : Nat; reverse : Bool; baseCents : Int; vatCents : Int };
+  // klasse: vertrouwelijk. Wat bij het uitreiken vastligt (valt onder de controlecode).
+  public type SalesFrozen = {
+    invoiceId : Nat;
+    number : Text;
+    kindText : Text;
+    issueDay : Day;
+    serviceDay : ?Day;
+    serviceTo : ?Day;
+    dueDay : Day;
+    paymentDays : Nat;
+    issuer : SalesIssuer;
+    buyer : SalesBuyer;
+    workCode : Text;
+    workName : Text;
+    workAddress : Address;
+    analyticCode : Text;
+    quoteRefs : [Text];
+    title : Text;
+    lines : [SalesLine];
+    previous : [SalesPrevious];
+    vatLines : [SalesVatLine];
+    netCents : Int;
+    vatCents : Int;
+    totalCents : Int;
+    mentions : [Text];
+    paymentRef : Text;
+    creditOf : ?Text;
+    creditOfDay : ?Day;
+    note : Text;
+    calcVersion : Nat;
+    extra : Extra;
+  };
+  // klasse: intern (percentages, geen bedragen). Het facturatieschema van een werf.
+  public type BillingWhen = { #beforeStart; #onDay : Day; #byHand; #final };
+  public type BillingChapterPct = { chapter : Text; pctBp : Nat };
+  public type BillingStep = { key : Text; title : Text; pctBp : Nat; when : BillingWhen; chapterPct : [BillingChapterPct]; quoteIds : [Nat] };
+  public type BillingPlan = { workId : WorkId; steps : [BillingStep]; version : Nat; updatedAt : Int; updatedBy : PersonId; extra : Extra };
+  // klasse: vertrouwelijk. Een betaling (ook deels).
+  public type SalesPayment = {
+    id : Nat;
+    invoiceId : Nat;
+    day : Day;
+    cents : Int;
+    how : Text;
+    note : Text;
+    at : Int;
+    by : PersonId;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId;
+    archiveReason : Text;
+  };
+  // klasse: intern (zonder bedragen). Een herinnering bij een vervallen factuur.
+  public type SalesReminder = { id : Nat; invoiceId : Nat; level : Nat; day : Day; mailed : Bool; jobId : ?Nat; note : Text; at : Int; by : PersonId; extra : Extra };
+  public type SalesState = {
+    invoices : Map.Map<Nat, SalesInvoice>;
+    drafts : Map.Map<Nat, Confidential<[SalesLine]>>;
+    frozen : Map.Map<Nat, Confidential<SalesFrozen>>;
+    plans : Map.Map<Nat, BillingPlan>;
+    payments : Map.Map<Nat, Confidential<SalesPayment>>;
+    reminders : Map.Map<Nat, SalesReminder>;
+    byWork : Map.Map<Nat, [Nat]>;
+    paymentsByInvoice : Map.Map<Nat, [Nat]>;
+    numbers : Map.Map<Text, Nat>;
+    lastDay : Map.Map<Text, Day>;
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

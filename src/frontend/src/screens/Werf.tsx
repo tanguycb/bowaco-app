@@ -34,6 +34,8 @@ import { WorkTenders } from "./Prijsvragen";
 import { WorkOaQuotes } from "./OaOffertes";
 import { MyMinMeer, WorkMinMeer } from "./MinMeer";
 import { MeerwerkOffertes } from "./MinMeerForms";
+import { WorkSales } from "./Facturen";
+import { MySales } from "./FacturenLijst";
 
 const F = t.fase;
 
@@ -224,9 +226,9 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
       return <OpmetingWerf workId={id} go={go} embedded />;
     case "facturatie": {
       // 2c.5: de klant ziet ook de gedeelde min-meerstaat; de architect (met de grant vorderingsstaten) enkel die.
-      if (client) return <div className="a-tabbody"><MyStatements go={go} embedded workName={w.name} />{caps.myMinMeer && <MyMinMeer workId={id} />}</div>;
-      // Subtabbladen Min-meer · Vorderingsstaten · Aankoop (ontwerp §3.1; Facturen komt met 2c.6).
-      const fsubs = [{ key: "min-meer", label: t.minmeer.sub }, ...(caps.progress ? [{ key: "vorderingen", label: t.minmeer.subProgress }] : []), ...(caps.oaInvoices || caps.purchases || caps.hourClaims ? [{ key: "aankoop", label: t.minmeer.subPurchase }] : [])];
+      if (client) return <div className="a-tabbody"><MyStatements go={go} embedded workName={w.name} />{caps.myMinMeer && <MyMinMeer workId={id} />}{caps.mySales && <MySales workId={id} />}</div>;
+      // Subtabbladen Min-meer · Facturen (2c.6) · Vorderingsstaten · Aankoop (ontwerp §3.1). De werfleider ziet in Facturen enkel "voorschot betaald".
+      const fsubs = [{ key: "min-meer", label: t.minmeer.sub }, ...(caps.sales || caps.progress ? [{ key: "facturen", label: t.sales.sub }] : []), ...(caps.progress ? [{ key: "vorderingen", label: t.minmeer.subProgress }] : []), ...(caps.oaInvoices || caps.purchases || caps.hourClaims ? [{ key: "aankoop", label: t.minmeer.subPurchase }] : [])];
       const fcur = fsubs.find((x) => x.key === sub)?.key ?? "min-meer";
       return (
         <div className="a-tabbody">
@@ -236,6 +238,7 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
             ))}
           </div>
           {fcur === "min-meer" && <WorkMinMeer workId={id} caps={caps} go={go} />}
+          {fcur === "facturen" && <WorkSales workId={id} caps={caps} />}
           {fcur === "vorderingen" && caps.progress && <WorkStatements workId={id} caps={caps} go={go} embedded />}
           {fcur === "aankoop" && <>{caps.oaInvoices && <WorkOaInvoices workId={id} caps={caps} go={go} />}{caps.hourClaims && <WorkHourClaims workId={id} />}{caps.purchases && <WorkPurchases workId={id} go={go} />}</>}
           {/* Review L6: de kaart Contract zoals vroeger in Facturatie, los van de rechten op vorderingsstaten. */}

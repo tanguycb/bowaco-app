@@ -80,6 +80,9 @@ module {
     siteAdmin : Bool; // 2c.8: werfadministratie (verzekering, vergadering, oplevering, fiches) zien: interne rollen
     editSiteAdmin : Bool; // 2c.8: de bibliotheek van technische fiches en de jaarpolis beheren (admin, calculator)
     myWorks : Bool; // 2c.8: de klant ziet het gedeelde attest en opleveringsdocument in Mijn werf
+    sales : Bool; // 2c.6: facturatieschema, facturen, betalingen, kwartaallijst (admin, calculator)
+    issueSales : Bool; // 2c.6: facturen uitreiken (admin en calculator; met "enkel de beheerder" enkel admin, ⚖6)
+    mySales : Bool; // 2c.6: Mijn facturen (klant; per werf enkel zijn uitgereikte facturen)
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
 
@@ -912,6 +915,9 @@ module {
     techSheets : [Types.TechSheet];
     workSheets : [(Nat, [Nat])];
     siteNotices : [(Text, Int)];
+    salesInvoices : [Types.SalesInvoice]; // 2c.6 (intern: zonder bedragen)
+    salesPlans : [Types.BillingPlan];
+    salesReminders : [Types.SalesReminder];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -1052,6 +1058,12 @@ module {
     #workSheets : [(Nat, [Nat])];
     #siteNotices : [(Text, Int)];
     #insuranceConf : [(Nat, Types.Confidential<Types.InsuranceConf>)]; // 2c.8 (vertrouwelijk: werfwaarde en premie)
+    #salesInvoices : [Types.SalesInvoice]; // 2c.6 (intern)
+    #salesPlans : [Types.BillingPlan];
+    #salesReminders : [Types.SalesReminder];
+    #salesDrafts : [(Nat, Types.Confidential<[Types.SalesLine]>)]; // 2c.6 (vertrouwelijk)
+    #salesFrozen : [(Nat, Types.Confidential<Types.SalesFrozen>)];
+    #salesPayments : [(Nat, Types.Confidential<Types.SalesPayment>)];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -1090,6 +1102,9 @@ module {
     mmRegieRates : [(Nat, Types.Confidential<[Types.MmRegieRate]>)];
     mmFrozen : [(Nat, Types.Confidential<Types.MmFrozen>)];
     insuranceConf : [(Nat, Types.Confidential<Types.InsuranceConf>)]; // 2c.8: werfwaarde en premie van de verzekeringen
+    salesDrafts : [(Nat, Types.Confidential<[Types.SalesLine]>)]; // 2c.6: regels van ontwerpen, vastgelegde facturen, betalingen
+    salesFrozen : [(Nat, Types.Confidential<Types.SalesFrozen>)];
+    salesPayments : [(Nat, Types.Confidential<Types.SalesPayment>)];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────

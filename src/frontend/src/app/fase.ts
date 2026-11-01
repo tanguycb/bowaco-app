@@ -96,7 +96,8 @@ export function werfTabs(caps: Caps, f: Fase, s: StageFacts): WerfTab[] {
   if (f.index < 3 && s.firstReportAt === undefined) off.verslagen = T.off.verslagen;
   if (f.index < 3) off.opmeting = T.off.opmeting;
   else if (s.acceptedAt === undefined) off.opmeting = T.off.opmetingNoQuote;
-  if (f.index < 3 && n(s.progressSent) === 0 && !s.progressDraft) off.facturatie = T.off.facturatie;
+  // 2c.6: vanaf het akkoord van de klant open (de voorschotfactuur komt vóór de start).
+  if (f.index < 3 && n(s.progressSent) === 0 && !s.progressDraft && s.acceptedAt === undefined) off.facturatie = T.off.facturatie;
 
   let keys: TabKey[];
   let labels: Record<string, string> = T.tabs;

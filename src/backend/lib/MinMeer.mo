@@ -37,6 +37,7 @@ import Purchase "Purchase";
 import QuoteCalc "QuoteCalc";
 import QuoteForms "QuoteForms";
 import Quotes "Quotes";
+import Sales "Sales";
 import WorkStart "WorkStart";
 import Sha256 "mo:sha2/Sha256";
 
@@ -58,6 +59,7 @@ module {
     oi : Types.OaInvoiceState;
     deals : Types.OaDealState;
     pu : Types.PurchaseState; // 2c.7: de aankoopfacturen (doorrekenbare kosten per werf)
+    sales : Types.SalesState; // 2c.6: de uitgereikte verkoopfacturen (reeds gefactureerd)
     mm : Types.MinMeerState;
   };
 
@@ -238,11 +240,14 @@ module {
   // Nu: elke VERZONDEN vorderingsstaat van de werf (een creditnota telt negatief), excl. btw: het bedrag van de periode (cents) en
   // apart de prijsherziening (revisionCents; review H3: de herziening hoort niet bij de aanneemsom en mag "nog te factureren" niet
   // verlagen); en de regels "reeds gefactureerd" die kantoor met de hand opgaf (facturen van vóór de app, zonder herziening).
-  // 2c.6: de uitgereikte verkoopfacturen hier, met dezelfde splitsing (werk · prijsherziening).
+  // 2c.6: de uitgereikte verkoopfacturen en creditnota's (Sales.invoicedItems), met dezelfde splitsing (werk · prijsherziening). Een
+  // vorderingsstaat waarvoor een uitgereikte factuur bestaat die niet volledig gecrediteerd is, telt enkel via die factuur (nooit
+  // dubbel: de factuur neemt periodCents als werk en de herziening apart, zoals hieronder).
   public func invoicedOf(c : Ctx, workId : Nat) : [Types.MmInvoiced] {
     let out = List.empty<Types.MmInvoiced>();
+    let (sold, covered) = Sales.invoicedItems(c.sales, workId);
     for (st in Progress.statementsOf(c.ps, workId).values()) {
-      if (st.status == #sent) {
+      if (st.status == #sent and not covered.any(func(x : Nat) : Bool = x == st.id)) {
         switch (Progress.frozenOf(c.ps, st.id)) {
           case (?f) out.add({ title = (if (st.kind == #credit) "creditnota " else "vorderingsstaat ") # st.code; day = f.sendDay; cents = f.totals.periodCents; revisionCents = f.totals.revisionCents });
           case null {};
@@ -254,6 +259,7 @@ module {
         switch (priceOf(c.mm, e.id)) { case (?p) out.add({ title = e.description; day = switch (e.day) { case (?d) d; case null Progress.dayOf(e.createdAt) }; cents = p.unitCents; revisionCents = 0 }); case null {} };
       };
     };
+    for (x in sold.values()) { out.add(x) };
     out.toArray();
   };
 

@@ -374,6 +374,8 @@ mixin (
     if (Rights.progressScope({ works; settings }, p, st.workId) != #full) { return #err("Geen toegang") };
     if (st.kind != #statement or st.status != #sent) { return #err("Enkel een verzonden vorderingsstaat kan gecrediteerd worden") };
     if (st.creditedBy != null) { return #err("Deze staat is al gecrediteerd") };
+    // 2c.6: een staat die een verkoopfactuur werd, verbeter je met een creditnota van die factuur (anders telt ze dubbel terug).
+    switch (st.billing) { case (#invoiced x) { return #err("Deze staat werd gefactureerd (" # x.ref # "): maak een creditnota van de factuur") }; case _ {} };
     switch (Progress.previous(progress, st.workId)) { case (?l) { if (l.id != st.id) { return #err("Enkel de laatste staat (" # l.code # ") kan gecrediteerd worden: crediteer eerst de latere") } }; case null {} };
     switch (Progress.draftOf(progress, st.workId)) { case (?d) { return #err("Er is een ontwerp open op deze werf (staat #" # d.id.toText() # "): verstuur of verwijder het eerst") }; case null {} };
     let why = reason.trim(#char ' ');

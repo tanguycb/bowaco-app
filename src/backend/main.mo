@@ -46,6 +46,7 @@ import PurchaseApi "mixins/PurchaseApi";
 import MinMeerApi "mixins/MinMeerApi";
 import SiteAdminApi "mixins/SiteAdminApi";
 import SiteAdmin "lib/SiteAdmin";
+import SalesApi "mixins/SalesApi";
 import OaDeals "lib/OaDeals";
 import Post "lib/Post";
 import Mail "lib/Mail";
@@ -80,6 +81,7 @@ persistent actor Self {
   let purchases : Types.PurchaseState; // 2c.7: aankoopfacturen over één of meer werven (intern) + regels en bedragen, voorschotten (vertrouwelijk), uren per dag (zonder bedrag)
   let siteAdmin : Types.SiteAdminState; // 2c.8: verzekeringen per werf, werfvergaderingen, opleveringen, technische fiches (werfwaarde en premie vertrouwelijk)
   let tenders : Types.TenderState; // 2c.2: prijsvragen, posten, gevraagde firma's, OA-offertes (intern) + bedragen, ontwerpen van de OA, keuzes (vertrouwelijk)
+  let sales : Types.SalesState; // 2c.6: verkoopfacturen per werf (schema, facturen en creditnota's, herinneringen; regels, vastgelegde inhoud en betalingen vertrouwelijk)
   let minMeer : Types.MinMeerState; // 2c.5: min-meerstaat per werf (regels, voorstellen, uitsluitingen, versies, akkoorden; prijzen, regietarief en vastgelegde inhoud vertrouwelijk)
   let robot : Types.RobotState;
   let audit : Types.AuditState;
@@ -96,7 +98,7 @@ persistent actor Self {
   include AccessApi(settings, access, works, robot, audit, ctr, org);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
-  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, robot, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, audit, ctr);
   include FilesApi(settings, access, works, files, dossier, reports, permits, surveys, tenders, oaDeals, purchases, siteAdmin, audit, ctr);
   include DossierApi(settings, access, org, works, files, dossier, plan, wadm, audit, ctr);
   include OaApi(settings, access, org, works, oa, audit, ctr);
@@ -108,7 +110,7 @@ persistent actor Self {
   include DashboardApi(settings, access, org, works, plan, reports, permits);
   include TicketsApi(settings, access, works, robot, audit, ctr);
   // 1.9: herstel uit een export op een LEGE canister met de opstartcode (M9, T16).
-  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, robot, audit, ctr);
+  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, audit, ctr);
   // 1b.1: vergunningenregister (R13), kennisbank per gemeente.
   include PermitsApi(settings, access, works, files, plan, permits, audit, ctr);
   // 1b.2: boete-opzoeking op de ritten van het werfverslag (R14) met de vergunningen van die dag.
@@ -168,7 +170,11 @@ persistent actor Self {
 
   // 2c.5: de min-meerstaat per werf (levend overzicht uit offerte, opmeting, werfverslag, OA-facturen en meerwerkoffertes; versies onder
   // een controlecode, delen met de klant) en de meerwerkofferte (een gewone offerte van de soort meerwerk bij de getekende offerte).
-  include MinMeerApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, purchases, minMeer, audit, ctr);
+  include MinMeerApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, purchases, minMeer, sales, audit, ctr);
+
+  // 2c.6: verkoopfacturen (facturatieschema in schijven, factuur uit een schijf, vorderingsstaat of min-meerversie, nummer zonder gaten
+  // bij het uitreiken, creditnota in een eigen reeks, betalingen, herinnering, kwartaallijst; de UBL maakt de browser).
+  include SalesApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, purchases, minMeer, sales, post, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

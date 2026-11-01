@@ -1,6 +1,7 @@
 // Werk van de timer (elke 10 min). Begrensd (T17): alleen de recentste records, nooit alles.
 // Tickets leven 10 min en codes hoogstens 30 dagen, dus van achter (nieuwste) naar voor lopen
 // en stoppen zodra de records ouder zijn dan dat.
+import Iter "mo:core/Iter";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
@@ -16,7 +17,10 @@ module {
     ignore Access.pruneAttempts(access, Config.attemptsPruneMax);
     // opId's van de gsm (§8.3): na 30 dagen weg, de oudste eerst, hoogstens 1.000 per keer (D2-uitzondering).
     var n = 0;
-    label ops for ((seq, opId) in reports.opOrder.entries()) {
+    // 2c.6 (herstel): eerst een momentopname van hoogstens 1.000 sleutels, dan verwijderen. Verwijderen TIJDENS het doorlopen van
+    // dezelfde Map deed de timer vallen ("Map.internalEntries(), internal kvIndex out of bounds") zodra meer dan één opId ouder was
+    // dan 30 dagen; de hele klokronde (postbode, prijsvraagherinneringen, vergunningen) werd dan telkens teruggedraaid.
+    label ops for ((seq, opId) in reports.opOrder.entries().take(1_000).toArray().values()) {
       if (n >= 1_000) { break ops };
       switch (reports.ops.get(opId)) {
         case (?o) { if (o.at >= now - Config.opKeepDays * Config.day) { break ops }; reports.ops.remove(opId) };
@@ -27,7 +31,7 @@ module {
     };
     // Idem voor de opId's van de opmeting (2.9).
     var m = 0;
-    label sops for ((seq, opId) in surveys.opOrder.entries()) {
+    label sops for ((seq, opId) in surveys.opOrder.entries().take(1_000).toArray().values()) {
       if (m >= 1_000) { break sops };
       switch (surveys.ops.get(opId)) {
         case (?o) { if (o.at >= now - Config.opKeepDays * Config.day) { break sops }; surveys.ops.remove(opId) };

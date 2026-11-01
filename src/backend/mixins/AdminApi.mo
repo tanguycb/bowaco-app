@@ -48,6 +48,7 @@ mixin (
   purchases : Types.PurchaseState,
   minMeer : Types.MinMeerState,
   siteAdmin : Types.SiteAdminState,
+  sales : Types.SalesState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -288,6 +289,9 @@ mixin (
       techSheets = siteAdmin.techSheets.values().toArray();
       workSheets = siteAdmin.workSheets.entries().toArray();
       siteNotices = siteAdmin.notices.entries().toArray();
+      salesInvoices = sales.invoices.values().toArray();
+      salesPlans = sales.plans.values().toArray();
+      salesReminders = sales.reminders.values().toArray();
     };
   };
 
@@ -299,10 +303,10 @@ mixin (
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #export, null);
-    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "marginClasses" or kind == "marginClassLinks" or kind == "quoteVersionTerms" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices" or kind == "oaRates" or kind == "agreementTerms" or kind == "agreementFrozen" or kind == "purchaseAmounts" or kind == "oaAdvances" or kind == "mmPrices" or kind == "mmRegieRates" or kind == "mmFrozen" or kind == "insuranceConf";
+    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "marginClasses" or kind == "marginClassLinks" or kind == "quoteVersionTerms" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices" or kind == "oaRates" or kind == "agreementTerms" or kind == "agreementFrozen" or kind == "purchaseAmounts" or kind == "oaAdvances" or kind == "mmPrices" or kind == "mmRegieRates" or kind == "mmFrozen" or kind == "insuranceConf" or kind == "salesDrafts" or kind == "salesFrozen" or kind == "salesPayments";
     // 2.2/2.4: de prijzen van de bibliotheek en van de offertes vragen daarbovenop #readCosts (aankoopprijzen, R20).
     // 2.12 (review L1): ook de opslag-URL's van vertrouwelijke bestanden (contracten, OA-facturen): lezen ervan vraagt #readCosts (R12).
-    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "confidentialFiles" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices" or kind == "oaRates" or kind == "agreementTerms" or kind == "agreementFrozen" or kind == "purchaseAmounts" or kind == "oaAdvances" or kind == "mmPrices" or kind == "mmRegieRates" or kind == "mmFrozen" or kind == "insuranceConf") { Rights.require(ctx, p, #readCosts, null) };
+    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "confidentialFiles" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices" or kind == "oaRates" or kind == "agreementTerms" or kind == "agreementFrozen" or kind == "purchaseAmounts" or kind == "oaAdvances" or kind == "mmPrices" or kind == "mmRegieRates" or kind == "mmFrozen" or kind == "insuranceConf" or kind == "salesDrafts" or kind == "salesFrozen" or kind == "salesPayments") { Rights.require(ctx, p, #readCosts, null) };
     if (confidentialKind) { Rights.require(ctx, p, #readConfidentialContact, null) };
     if (from == 0) { Access.audit(audit, caller, ?p.id, null, if confidentialKind "bekeek:export-vertrouwelijk-deel" else "export-deel", kind) };
     func pg<T>(xs : [T]) : [T] { Access.page(xs, from, limit) };
@@ -445,6 +449,12 @@ mixin (
       case "workSheets" ?#workSheets(pg(siteAdmin.workSheets.entries().toArray()));
       case "siteNotices" ?#siteNotices(pg(siteAdmin.notices.entries().toArray()));
       case "insuranceConf" ?#insuranceConf(pg(siteAdmin.insuranceConf.entries().toArray()));
+      case "salesInvoices" ?#salesInvoices(pg(sales.invoices.values().toArray()));
+      case "salesPlans" ?#salesPlans(pg(sales.plans.values().toArray()));
+      case "salesReminders" ?#salesReminders(pg(sales.reminders.values().toArray()));
+      case "salesDrafts" ?#salesDrafts(pg(sales.drafts.entries().toArray()));
+      case "salesFrozen" ?#salesFrozen(pg(sales.frozen.entries().toArray()));
+      case "salesPayments" ?#salesPayments(pg(sales.payments.entries().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
@@ -495,6 +505,9 @@ mixin (
       mmRegieRates = minMeer.regieRates.entries().toArray();
       mmFrozen = minMeer.frozen.entries().toArray();
       insuranceConf = siteAdmin.insuranceConf.entries().toArray();
+      salesDrafts = sales.drafts.entries().toArray();
+      salesFrozen = sales.frozen.entries().toArray();
+      salesPayments = sales.payments.entries().toArray();
     };
   };
 

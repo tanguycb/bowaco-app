@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Alles lokaal op het EIGEN testnet (tests/net, poort 8041; raakt het gedeelde :8000 nooit):
-# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → offerte 2c.1 → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → OA-offertes 2c.3 → afspraken 2c.4 → aankoop 2c.7 → min-meer 2c.5 → werfadmin 2c.8 → prijsvraag 2c.2 (verzet de klok: als laatste) → gateway.
+# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → offerte 2c.1 → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → OA-offertes 2c.3 → afspraken 2c.4 → aankoop 2c.7 → min-meer 2c.5 → werfadmin 2c.8 → facturen 2c.6 (jaarwissel) → prijsvraag 2c.2 (verzet de klok: als laatste) → gateway.
 #   zsh tests/lokaal.sh            (start het net als het nog niet draait)
 set -e
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -118,5 +118,9 @@ node tests/minmeer-2c5.mjs "$cid"
 # 2c.8: werfadministratie en oplevering (aangifte start + 15 dagen met meldingen, premie met minimum, attest voor de klant, werfvergadering en
 # oplevering met actie- en restpunten als taken, opleveringsdocument onder een controlecode, fiches, werfcode P.nnn, export). Vóór de klokproef.
 node tests/werfadmin-2c8.mjs "$cid"
+# 2c.6: verkoopfacturen (schema 50/24/26 met korting en per hoofdstuk, nummering zonder gaten §7.4, creditnota-reeks, btw 6/21/verlegd,
+# weigering bij een ontbrekende vermelding, factuur uit een vorderingsstaat en uit de min-meerstaat zonder dubbel, betalingen, rechten,
+# rekentest, UBL, kwartaallijst, herinnering). Verzet de klok van dit eigen net naar 1 januari (jaarwissel): vóór de prijsvraag-klokproef.
+node tests/factuur-2c6.mjs "$cid"
 node tests/prijsvraag-2c2.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

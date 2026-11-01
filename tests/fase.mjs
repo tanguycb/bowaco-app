@@ -104,7 +104,7 @@ const offOf = (f, s) => Object.fromEntries(F.werfTabs(CAPS.admin, f, s).filter((
 const o0 = offOf(F.werfFase({ status: "request" }), { status: "request" });
 check("in Aanvraag: Planning, Verslagen, Opmeting en Facturatie grijs met uitleg; Overzicht, Offerte, Documenten, Wie werkt mee open", Object.keys(o0).sort().join() === "facturatie,opmeting,planning,verslagen" && /Werf starten/.test(o0.planning) && /getekend/.test(o0.opmeting));
 check("planning met de hand begonnen vóór het akkoord: Planning niet meer grijs", !offOf(F.werfFase({ status: "quoting" }), { status: "quoting", tasks: 3 }).planning);
-check("in Akkoord: Planning open (Werf starten maakt ze), Verslagen/Opmeting/Facturatie nog grijs", (() => { const o = offOf(F.werfFase({ status: "quoting", quoteSentAt: 1n, acceptedAt: 2n }), { status: "quoting", acceptedAt: 2n }); return !o.planning && !!o.verslagen && !!o.opmeting && !!o.facturatie; })());
+check("in Akkoord: Planning open (Werf starten maakt ze), Facturatie open (2c.6: voorschotfactuur vóór de start), Verslagen/Opmeting nog grijs", (() => { const o = offOf(F.werfFase({ status: "quoting", quoteSentAt: 1n, acceptedAt: 2n }), { status: "quoting", acceptedAt: 2n }); return !o.planning && !!o.verslagen && !!o.opmeting && !o.facturatie; })());
 check("gestart zonder getekende offerte: Opmeting blijft grijs met de reden 'geen getekende offerte'", /geen getekende offerte/.test(offOf(F.werfFase({ status: "planned" }), { status: "planned" }).opmeting ?? ""));
 check("na de start met akkoord: geen enkel tabblad grijs", Object.keys(offOf(f4, { status: "planned", acceptedAt: 2n, firstReportAt: 4n })).length === 0);
 

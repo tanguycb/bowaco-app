@@ -492,6 +492,26 @@ const table = {
   listMyMinMeer: [["architect", "klant"], () => []],
   readMyMinMeer: [["architect", "klant"], () => [X]],
   answerMyMinMeer: [["klant"], () => [X, "", true, ""]],
+  // 2c.6 (R42, R43): verkoopfacturen. Kantoor (admin, calculator) alles; de werfleider enkel "voorschot betaald"; de klant zijn eigen
+  // uitgereikte facturen; teller en vermeldingen enkel de beheerder. Onbekende ids: een gewone fout voor wie mag (geen "Geen toegang").
+  salesSettings: [["admin", "calculator"], () => []],
+  saveSalesSettings: [ADMIN, () => [{ issuer: { name: "", legalForm: "", address: { street: "", number: "", zip: "", city: "", country: "" }, vat: "", kbo: "", rpr: "", email: "", phone: "", website: "", iban: "", bic: "" }, paymentDays: 0n, vat6Text: "", reverseText: "", paymentText: "", footerText: "", reminderText: "", reminderDays: 0n, issuerOnly: false, firstSeqF: 100n, firstSeqCN: 1n, planBp: [], peppolScheme: "" }]],
+  setSalesCounter: [ADMIN, () => ["X", 0n, 0n]],
+  readSalesPlan: [["admin", "calculator"], () => [B]],
+  saveSalesPlan: [["admin", "calculator"], () => [B, 999n, []]],
+  listSales: [["admin", "calculator"], () => [B]],
+  salesFacts: [["admin", "werfleider", "calculator"], () => [B]],
+  newSalesInvoice: [["admin", "calculator"], () => [B, { credit: { invoiceId: X, full: true } }]],
+  saveSalesDraft: [["admin", "calculator"], () => [X, 0n, { title: "", note: "", serviceDay: [], serviceTo: [], paymentDays: 0n, vat: { mixed: null }, lines: [], expectTotalCents: 0n }]],
+  cancelSalesDraft: [["admin", "calculator"], () => [X, ""]],
+  readSalesInvoice: [["admin", "calculator"], () => [X]],
+  issueSalesInvoice: [["admin", "calculator"], () => [X, 0n, 0n]],
+  markSalesSent: [["admin", "calculator"], () => [X, ""]],
+  addSalesPayment: [["admin", "calculator"], () => [X, 0n, 0n, "", ""]],
+  archiveSalesPayment: [["admin", "calculator"], () => [X, ""]],
+  salesWorklist: [["admin", "calculator"], () => []],
+  listMySales: [["klant"], () => []],
+  readMySalesInvoice: [["klant"], () => [X]],
   makeExtraWorkQuote: [["admin", "calculator"], () => [B, [], ""]],
   // 2c.8: werfadministratie en oplevering (R45, R46). Lezen: interne rollen die de werf zien; bewaren: kantoor en de werfleider van de werf;
   // werfwaarde en premie: kantoor (update-calls); de klant leest enkel zijn eigen werf (clientSiteAdmin); een onbekend id: voor iedereen "Geen toegang".

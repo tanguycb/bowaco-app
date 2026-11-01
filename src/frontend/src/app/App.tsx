@@ -38,6 +38,7 @@ import { WerfStartPage } from "../screens/WerfStart";
 import { OpmetingPage } from "../screens/Opmeting";
 import { MijnVorderingPage, VorderingenPage } from "../screens/Vorderingen";
 import { MijnFacturenPage, OaFacturenPage } from "../screens/OaFacturen";
+import { SalesWorklist } from "../screens/FacturenLijst";
 import { MyTendersPage, TendersOverview } from "../screens/Prijsvragen";
 
 /** Hash-router (PWA, geen serverroutes): #/werven/3 → ["werven", "3"]. */
@@ -225,6 +226,9 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "oa-facturen":
         if (caps.oaInvoices) return <OaFacturenPage caps={caps} go={go} route={route} />;
+        return <Home kind={caps.home} go={go} caps={caps} />;
+      case "facturen":
+        if (caps.sales) return <SalesWorklist caps={caps} go={go} />;
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "mijn-facturen":
         if (caps.myOaInvoices) return <MijnFacturenPage />;

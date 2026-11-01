@@ -2143,6 +2143,20 @@ await sec("── 2c.8 werfadministratie en oplevering per rol (R45, R46; de res
   check("caps: siteAdmin voor interne rollen, editSiteAdmin voor kantoor, myWorks voor de klant", (await caps(wl)).siteAdmin && !(await caps(wl)).editSiteAdmin && (await caps(calc)).editSiteAdmin && (await caps(klant)).myWorks);
 }
 
+await sec("── 2c.6 verkoopfacturen per rol (R42, R43; de rest staat in tests/factuur-2c6.mjs)");
+{
+  const others = [["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon]];
+  for (const [n, x] of [["werfleider", wl], ...others]) check(`${n}: het schema, de facturen van werf B, een ontwerp, de werklijst en de instellingen geweigerd`, (await denied(x.readSalesPlan(B))) && (await denied(x.listSales(B))) && (await denied(x.newSalesInvoice(B, { free: null }))) && (await denied(x.salesWorklist())) && (await denied(x.salesSettings())) && (await denied(x.issueSalesInvoice(999_999n, 0n, 0n))) && (await denied(x.addSalesPayment(999_999n, 0n, 1n, "", ""))));
+  const f = await wl.salesFacts(B);
+  check("werfleider van werf B: enkel het feit 'voorschot betaald' (geen bedrag)", typeof f.advance === "string" && !/cents|cost|price|margin|amount/i.test(JSON.stringify(f, (_, y) => (typeof y === "bigint" ? y.toString() : y))));
+  for (const [n, x] of others) check(`${n}: ook 'voorschot betaald' niet`, await denied(x.salesFacts(B)));
+  check("calculator: een onbekende factuur geeft 'Onbekende factuur' (geen toegangsfout); het schema en de lijst van werf B leesbaar", /Onbekende factuur/.test(errOf(await calc.readSalesInvoice(999_999n))) && Array.isArray(await calc.listSales(B)) && (isOk(await calc.readSalesPlan(B)) || /getekende offerte/.test(errOf(await calc.readSalesPlan(B)))));
+  check("teller en vermeldingen: enkel de beheerder (R43); de calculator niet", (await denied(calc.setSalesCounter("F", 2026n, 1n))) && /Reeks/.test(errOf(await admin.setSalesCounter("X", 2026n, 1n))));
+  check("Mijn facturen: de klant (lijst), werfleider, OA, architect en VC niet; een onbekende factuur 'Onbekende factuur'", isOk(await klant.listMySales()) && (await denied(wl.listMySales())) && (await denied(oa2.listMySales())) && (await denied(arch.listMySales())) && (await denied(vc.listMySales())) && /Onbekende factuur/.test(errOf(await klant.readMySalesInvoice(999_999n))));
+  const me = async (x) => (await x.me()).caps[0];
+  check("caps: kantoor sales en issueSales, de werfleider niet; de klant mySales", (await me(calc)).sales && (await me(calc)).issueSales && (await me(admin)).issueSales && !(await me(wl)).sales && !(await me(wl)).issueSales && (await me(klant)).mySales && !(await me(oa2)).mySales);
+}
+
 await sec("── afzetten (R16, T7)");
 const oaId = (await oa.me()).person[0].id;
 const invOa3 = await invite(admin, "Nog een code voor OA", roles("onderaannemer"));
@@ -2298,7 +2312,7 @@ await sec("── 2b.2 menu per rol: welke menu-items en welke Beheer-tabbladen 
   check("Beheer beheerder: alle 9 tabbladen", eq(tabs(caps.admin), ["bedrijf", "offertes", "opmeting", "planning", "documenten", "voertuigen", "mail", "toegang", "audit"]), tabs(caps.admin).join());
   check("Beheer werfleider: enkel voertuigen & ritten en toegang & codes", eq(tabs(caps.werfleider), ["voertuigen", "toegang"]), tabs(caps.werfleider).join());
   check("Beheer calculator, OA, architect, klant en VC: geen tabbladen", ["calculator", "oa", "architect", "klant", "vc"].every((k) => tabs(caps[k]).length === 0), ["calculator", "oa", "architect", "klant", "vc"].map((k) => tabs(caps[k]).join("-")).join(" / "));
-  check("hubs: Facturatie toont vorderingsstaten en OA-facturen enkel waar de rol ze mag", eq(nav.hubTabs("vorderingen", caps.admin).map((x) => x.key), ["vorderingen", "oa-facturen"]) && nav.hubTabs("vorderingen", caps.werfleider).length >= 1);
+  check("hubs: Facturatie toont facturen (2c.6), vorderingsstaten en OA-facturen enkel waar de rol ze mag", eq(nav.hubTabs("vorderingen", caps.admin).map((x) => x.key), ["facturen", "vorderingen", "oa-facturen"]) && !nav.hubTabs("vorderingen", caps.werfleider).some((x) => x.key === "facturen") && nav.pagesFor(caps.calculator).has("facturen") && !nav.pagesFor(caps.werfleider).has("facturen") && nav.hubTabs("vorderingen", caps.werfleider).length >= 1);
   // 2c.2: de werklijst Offertes kreeg het tabblad Prijsvragen (ontwerp 2c §3.2; geen nieuw menu-item).
   check("hub Offertes · Prijsvragen · Posten voor admin en calculator, Posten alleen voor de werfleider", eq(nav.hubTabs("offertes", caps.admin).map((x) => x.key), ["offertes", "prijsvragen", "posten"]) && eq(nav.hubTabs("offertes", caps.calculator).map((x) => x.key), ["offertes", "prijsvragen", "posten"]) && eq(nav.hubTabs("prijsvragen", caps.calculator).map((x) => x.key), ["offertes", "prijsvragen", "posten"]) && !keys(caps.werfleider).includes("offertes") && nav.hubTabs("prijsvragen", caps.oa).length === 0 && nav.pagesFor(caps.oa).has("prijsvragen") && !nav.pagesFor(caps.werfleider).has("prijsvragen"));
   check("hub Mijn werf voor de klant: voortgang · offerte · vorderingsstaten", eq(nav.hubTabs("werven", caps.klant).map((x) => x.key), ["werven", "mijn-offerte", "mijn-vordering"]) && nav.hubTabs("werven", caps.architect).length === 0);

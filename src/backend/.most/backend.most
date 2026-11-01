@@ -70,6 +70,8 @@ type AccessState__192760844 =
     persons : Map__230067015<PersonId__1007515609, Person__943967885>;
     throttle : Throttle__757556494
   };
+type Address__172055659 =
+  {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__283196853 =
   {city : Text; country : Text; number : Text; street : Text; zip : Text};
 type Address__294896158 =
@@ -359,6 +361,48 @@ type AuditState__967275995 =
     log : List__836382695<AuditEntry__309633136>;
     notifications : Map__230067015<Nat, Notification__821136752>
   };
+type BillingChapterPct__367589958 = {chapter : Text; pctBp : Nat};
+type BillingChapterPct__580820276 = {chapter : Text; pctBp : Nat};
+type BillingPlan__149926349 =
+  {
+    extra : Extra__868753233;
+    steps : [BillingStep__335220879];
+    updatedAt : Int;
+    updatedBy : PersonId__888376192;
+    version : Nat;
+    workId : WorkId__899780520
+  };
+type BillingPlan__992254662 =
+  {
+    extra : Extra__945213800;
+    steps : [BillingStep__314185834];
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    version : Nat;
+    workId : WorkId__929594816
+  };
+type BillingStep__314185834 =
+  {
+    chapterPct : [BillingChapterPct__367589958];
+    key : Text;
+    pctBp : Nat;
+    quoteIds : [Nat];
+    title : Text;
+    when : BillingWhen__53644090
+  };
+type BillingStep__335220879 =
+  {
+    chapterPct : [BillingChapterPct__580820276];
+    key : Text;
+    pctBp : Nat;
+    quoteIds : [Nat];
+    title : Text;
+    when : BillingWhen__271728174
+  };
+type BillingWhen__271728174 =
+  {#beforeStart; #byHand; #final; #onDay : Day__11500223};
+type BillingWhen__53644090 =
+  {#beforeStart; #byHand; #final; #onDay : Day__162369424};
 type BlockKind__459795237 = {#bouwverlof; #feestdag; #other; #stop; #verlof};
 type BlockKind__646733847 = {#bouwverlof; #feestdag; #other; #stop; #verlof};
 type BlockScope__237227244 =
@@ -434,6 +478,7 @@ type CodeState__574295970 =
     #used : {at : Int; by : Principal}
   };
 type Confidential__201657688<T> = {#plain : T; #sealed : Sealed__938300689};
+type Confidential__339345263<T> = {#plain : T; #sealed : Sealed__968203891};
 type Confidential__369782476<T> = {#plain : T; #sealed : Sealed__868744664};
 type Confidential__546665525<T> = {#plain : T; #sealed : Sealed__69262316};
 type Confidential__580817374<T> = {#plain : T; #sealed : Sealed__901946251};
@@ -562,6 +607,7 @@ type DayReport__682189017 =
     workId : WorkId__929594816
   };
 type Day__1060919207 = Nat;
+type Day__11500223 = Nat;
 type Day__162369424 = Nat;
 type Day__198685096 = Nat;
 type Day__231055727 = Nat;
@@ -719,6 +765,7 @@ type Extra__646433706 = [(Text, Text)];
 type Extra__708758806 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
 type Extra__758661032 = [(Text, Text)];
+type Extra__868753233 = [(Text, Text)];
 type Extra__888094855 = [(Text, Text)];
 type Extra__905353614 = [(Text, Text)];
 type Extra__911541576 = [(Text, Text)];
@@ -1987,6 +2034,7 @@ type NewActor__477761715 = {oaDeals : OaDealState__105177660};
 type NewActor__47798723 = {siteAdmin : SiteAdminState__152125603};
 type NewActor__502640867 = {oaInvoices : OaInvoiceState__866295989};
 type NewActor__542837279 = {reports : ReportState__211051397};
+type NewActor__813176251 = {sales : SalesState__788409936};
 type NewActor__914032600 = {oa : OaState__978871092};
 type NewActor__915174763 = {progress : ProgressState__159614730};
 type NewActor__918578615 = {permits : PermitState__160097102};
@@ -2426,6 +2474,7 @@ type OldActor__574962007 = {};
 type OldActor__669130419 = {};
 type OldActor__673165591 = {};
 type OldActor__675047732 = {};
+type OldActor__67970265 = {};
 type OldActor__709840404 = {};
 type OldActor__74197155 = {};
 type OldActor__804964816 = {};
@@ -2574,6 +2623,7 @@ type OrgId__1068690298 = Nat;
 type OrgId__137103020 = Nat;
 type OrgId__168115520 = Nat;
 type OrgId__17031398 = Nat;
+type OrgId__206148579 = Nat;
 type OrgId__208183745 = Nat;
 type OrgId__22524269 = Nat;
 type OrgId__232449879 = Nat;
@@ -2827,6 +2877,7 @@ type PersonId__801913222 = Nat;
 type PersonId__820620982 = Nat;
 type PersonId__858692293 = Nat;
 type PersonId__880469992 = Nat;
+type PersonId__888376192 = Nat;
 type PersonId__905878204 = Nat;
 type PersonId__940766018 = Nat;
 type PersonId__967516914 = Nat;
@@ -4111,6 +4162,336 @@ type Role__679663545 =
     #veiligheidscoordinator;
     #werfleider
   };
+type SalesBuyer__484463873 =
+  {
+    address : ?Address__766490103;
+    company : Bool;
+    kbo : ?Text;
+    name : Text;
+    orgId : ?OrgId__17031398;
+    vat : ?Text
+  };
+type SalesBuyer__569150526 =
+  {
+    address : ?Address__172055659;
+    company : Bool;
+    kbo : ?Text;
+    name : Text;
+    orgId : ?OrgId__206148579;
+    vat : ?Text
+  };
+type SalesFrozen__277626740 =
+  {
+    analyticCode : Text;
+    buyer : SalesBuyer__569150526;
+    calcVersion : Nat;
+    creditOf : ?Text;
+    creditOfDay : ?Day__11500223;
+    dueDay : Day__11500223;
+    extra : Extra__868753233;
+    invoiceId : Nat;
+    issueDay : Day__11500223;
+    issuer : SalesIssuer__938971208;
+    kindText : Text;
+    lines : [SalesLine__311436885];
+    mentions : [Text];
+    netCents : Int;
+    note : Text;
+    number : Text;
+    paymentDays : Nat;
+    paymentRef : Text;
+    previous : [SalesPrevious__526069484];
+    quoteRefs : [Text];
+    serviceDay : ?Day__11500223;
+    serviceTo : ?Day__11500223;
+    title : Text;
+    totalCents : Int;
+    vatCents : Int;
+    vatLines : [SalesVatLine__296456615];
+    workAddress : Address__172055659;
+    workCode : Text;
+    workName : Text
+  };
+type SalesFrozen__535818849 =
+  {
+    analyticCode : Text;
+    buyer : SalesBuyer__484463873;
+    calcVersion : Nat;
+    creditOf : ?Text;
+    creditOfDay : ?Day__162369424;
+    dueDay : Day__162369424;
+    extra : Extra__945213800;
+    invoiceId : Nat;
+    issueDay : Day__162369424;
+    issuer : SalesIssuer__608877740;
+    kindText : Text;
+    lines : [SalesLine__748678750];
+    mentions : [Text];
+    netCents : Int;
+    note : Text;
+    number : Text;
+    paymentDays : Nat;
+    paymentRef : Text;
+    previous : [SalesPrevious__1030327258];
+    quoteRefs : [Text];
+    serviceDay : ?Day__162369424;
+    serviceTo : ?Day__162369424;
+    title : Text;
+    totalCents : Int;
+    vatCents : Int;
+    vatLines : [SalesVatLine__746261515];
+    workAddress : Address__766490103;
+    workCode : Text;
+    workName : Text
+  };
+type SalesInvoice__922459355 =
+  {
+    calcVersion : Nat;
+    clientOrgId : ?OrgId__17031398;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    dueDay : ?Day__162369424;
+    extra : Extra__945213800;
+    hash : Text;
+    id : Nat;
+    issueDay : ?Day__162369424;
+    issuedAt : ?Int;
+    issuedBy : ?PersonId__967516914;
+    kind : SalesKind__565992492;
+    note : Text;
+    number : Text;
+    pay : SalesPay__132554684;
+    paymentDays : Nat;
+    peppol : SalesPeppol__1006943650;
+    planStepKey : ?Text;
+    rev : Nat;
+    sent : ?SalesSent__372266543;
+    seq : Nat;
+    series : Text;
+    serviceDay : ?Day__162369424;
+    serviceTo : ?Day__162369424;
+    status : SalesStatus__694958356;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    vat : SalesVat__570090900;
+    workId : WorkId__929594816;
+    year : Nat
+  };
+type SalesInvoice__990096497 =
+  {
+    calcVersion : Nat;
+    clientOrgId : ?OrgId__206148579;
+    createdAt : Int;
+    createdBy : PersonId__888376192;
+    dueDay : ?Day__11500223;
+    extra : Extra__868753233;
+    hash : Text;
+    id : Nat;
+    issueDay : ?Day__11500223;
+    issuedAt : ?Int;
+    issuedBy : ?PersonId__888376192;
+    kind : SalesKind__258969972;
+    note : Text;
+    number : Text;
+    pay : SalesPay__603285299;
+    paymentDays : Nat;
+    peppol : SalesPeppol__395137280;
+    planStepKey : ?Text;
+    rev : Nat;
+    sent : ?SalesSent__631709082;
+    seq : Nat;
+    series : Text;
+    serviceDay : ?Day__11500223;
+    serviceTo : ?Day__11500223;
+    status : SalesStatus__140965259;
+    title : Text;
+    updatedAt : Int;
+    updatedBy : PersonId__888376192;
+    vat : SalesVat__992082588;
+    workId : WorkId__899780520;
+    year : Nat
+  };
+type SalesIssuer__608877740 =
+  {
+    address : Address__766490103;
+    bic : Text;
+    email : Text;
+    iban : Text;
+    kbo : Text;
+    legalForm : Text;
+    name : Text;
+    phone : Text;
+    rpr : Text;
+    vat : Text;
+    website : Text
+  };
+type SalesIssuer__938971208 =
+  {
+    address : Address__172055659;
+    bic : Text;
+    email : Text;
+    iban : Text;
+    kbo : Text;
+    legalForm : Text;
+    name : Text;
+    phone : Text;
+    rpr : Text;
+    vat : Text;
+    website : Text
+  };
+type SalesKind__258969972 =
+  {
+    #advance;
+    #credit : Nat;
+    #final;
+    #free;
+    #interim;
+    #minMeer : Nat;
+    #progress : Nat
+  };
+type SalesKind__565992492 =
+  {
+    #advance;
+    #credit : Nat;
+    #final;
+    #free;
+    #interim;
+    #minMeer : Nat;
+    #progress : Nat
+  };
+type SalesLineKind__201327797 = {#deduct; #revision; #work};
+type SalesLineKind__930797035 = {#deduct; #revision; #work};
+type SalesLine__311436885 =
+  {
+    amountCents : Int;
+    baseCents : ?Int;
+    description : Text;
+    group : Text;
+    kind : SalesLineKind__930797035;
+    pctBp : ?Nat;
+    qtyMilli : Int;
+    ref : Text;
+    unit : Text;
+    unitCents : Int;
+    vatBp : Nat
+  };
+type SalesLine__748678750 =
+  {
+    amountCents : Int;
+    baseCents : ?Int;
+    description : Text;
+    group : Text;
+    kind : SalesLineKind__201327797;
+    pctBp : ?Nat;
+    qtyMilli : Int;
+    ref : Text;
+    unit : Text;
+    unitCents : Int;
+    vatBp : Nat
+  };
+type SalesPay__132554684 = {#open; #paid; #partial};
+type SalesPay__603285299 = {#open; #paid; #partial};
+type SalesPayment__422794259 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__967516914;
+    at : Int;
+    by : PersonId__967516914;
+    cents : Int;
+    day : Day__162369424;
+    how : Text;
+    id : Nat;
+    invoiceId : Nat;
+    note : Text
+  };
+type SalesPayment__823065688 =
+  {
+    archiveReason : Text;
+    archivedAt : ?Int;
+    archivedBy : ?PersonId__888376192;
+    at : Int;
+    by : PersonId__888376192;
+    cents : Int;
+    day : Day__11500223;
+    how : Text;
+    id : Nat;
+    invoiceId : Nat;
+    note : Text
+  };
+type SalesPeppol__1006943650 =
+  {#notNeeded; #sent : {at : Int; ref : Text}; #ublMade : Int};
+type SalesPeppol__395137280 =
+  {#notNeeded; #sent : {at : Int; ref : Text}; #ublMade : Int};
+type SalesPrevious__1030327258 =
+  {
+    cents : Int;
+    day : Day__162369424;
+    invoiceId : Nat;
+    number : Text;
+    revisionCents : Int
+  };
+type SalesPrevious__526069484 =
+  {
+    cents : Int;
+    day : Day__11500223;
+    invoiceId : Nat;
+    number : Text;
+    revisionCents : Int
+  };
+type SalesReminder__821558807 =
+  {
+    at : Int;
+    by : PersonId__967516914;
+    day : Day__162369424;
+    extra : Extra__945213800;
+    id : Nat;
+    invoiceId : Nat;
+    jobId : ?Nat;
+    level : Nat;
+    mailed : Bool;
+    note : Text
+  };
+type SalesReminder__851897008 =
+  {
+    at : Int;
+    by : PersonId__888376192;
+    day : Day__11500223;
+    extra : Extra__868753233;
+    id : Nat;
+    invoiceId : Nat;
+    jobId : ?Nat;
+    level : Nat;
+    mailed : Bool;
+    note : Text
+  };
+type SalesSent__372266543 = {at : Int; by : PersonId__967516914; how : Text};
+type SalesSent__631709082 = {at : Int; by : PersonId__888376192; how : Text};
+type SalesState__788409936 =
+  {
+    byWork : Map__230067015<Nat, [Nat]>;
+    drafts :
+      Map__230067015<Nat, Confidential__339345263<[SalesLine__311436885]>>;
+    frozen :
+      Map__230067015<Nat, Confidential__339345263<SalesFrozen__277626740>>;
+    invoices : Map__230067015<Nat, SalesInvoice__990096497>;
+    lastDay : Map__230067015<Text, Day__11500223>;
+    numbers : Map__230067015<Text, Nat>;
+    payments :
+      Map__230067015<Nat, Confidential__339345263<SalesPayment__823065688>>;
+    paymentsByInvoice : Map__230067015<Nat, [Nat]>;
+    plans : Map__230067015<Nat, BillingPlan__149926349>;
+    reminders : Map__230067015<Nat, SalesReminder__851897008>
+  };
+type SalesStatus__140965259 = {#draft; #draftCancelled : Text; #issued};
+type SalesStatus__694958356 = {#draft; #draftCancelled : Text; #issued};
+type SalesVatLine__296456615 =
+  {baseCents : Int; reverse : Bool; vatBp : Nat; vatCents : Int};
+type SalesVatLine__746261515 =
+  {baseCents : Int; reverse : Bool; vatBp : Nat; vatCents : Int};
+type SalesVat__570090900 = {#mixed; #rate : Nat; #reverse};
+type SalesVat__992082588 = {#mixed; #rate : Nat; #reverse};
 type Sealed__1041298352 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__149846506 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__29180127 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
@@ -4125,6 +4506,7 @@ type Sealed__729729536 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__868744664 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__901946251 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type Sealed__938300689 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
+type Sealed__968203891 = {alg : Text; ct : Blob; iv : Blob; keyId : Text};
 type SettingsState__180579617 =
   {
     var inviteDays : Nat;
@@ -4890,6 +5272,7 @@ type WorkId__815998652 = Nat;
 type WorkId__838834227 = Nat;
 type WorkId__864560573 = Nat;
 type WorkId__872672482 = Nat;
+type WorkId__899780520 = Nat;
 type WorkId__929594816 = Nat;
 type WorkId__961598709 = Nat;
 type WorkInfo__383931944 =
@@ -5053,7 +5436,8 @@ type WorksState__605582232 =
   "20261031_110947" : OldActor__932069066 -> NewActor__477761715;
   "20261101_032513" : OldActor__709840404 -> NewActor__925272246;
   "20261101_033017" : OldActor__49271436 -> NewActor__193100407;
-  "20261101_130000" : OldActor__390299613 -> NewActor__47798723
+  "20261101_130000" : OldActor__390299613 -> NewActor__47798723;
+  "20261101_155702" : OldActor__67970265 -> NewActor__813176251
 }
 actor  {
   stable access :
@@ -5285,6 +5669,22 @@ actor  {
       robots : Map__230067015<Principal, Robot__33868159>;
       ticketIndex : Map__230067015<Blob, Nat>;
       tickets : Map__230067015<Nat, Ticket__69601262>
+    };
+  stable sales :
+    {
+      byWork : Map__230067015<Nat, [Nat]>;
+      drafts :
+        Map__230067015<Nat, Confidential__546665525<[SalesLine__748678750]>>;
+      frozen :
+        Map__230067015<Nat, Confidential__546665525<SalesFrozen__535818849>>;
+      invoices : Map__230067015<Nat, SalesInvoice__922459355>;
+      lastDay : Map__230067015<Text, Day__162369424>;
+      numbers : Map__230067015<Text, Nat>;
+      payments :
+        Map__230067015<Nat, Confidential__546665525<SalesPayment__422794259>>;
+      paymentsByInvoice : Map__230067015<Nat, [Nat]>;
+      plans : Map__230067015<Nat, BillingPlan__992254662>;
+      reminders : Map__230067015<Nat, SalesReminder__821558807>
     };
   stable settings :
     {

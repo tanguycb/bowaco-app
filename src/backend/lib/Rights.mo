@@ -99,6 +99,12 @@ module {
     // Planningstaken (actiepunten, restpunten) maken en een vergadering of oplevering bewaren of afronden vraagt #editWork (admin, werfleider
     // van die werf), niet de calculator. #readHandoverDoc = de architect (lid van de werf) opent het AFGERONDE opleveringsdocument, zonder bedragen.
     #readSiteAdmin; #editSiteAdmin; #readHandoverDoc;
+    // 2c.6 (R42, R43): verkoopfacturen. #readSales = per werf iets van de facturen zien (salesScope beslist wat: admin en calculator
+    // alles, de werfleider van die werf ENKEL het feit "voorschot betaald", de klant van de werf en van zijn firma zijn UITGEREIKTE
+    // facturen); #editSales = schema, ontwerpen, betalingen, creditnota, herinnering, kwartaallijst (admin, calculator; bedragen enkel via
+    // update-calls met auditregel); #issueSales = uitreiken (admin en calculator, met de instelling "enkel de beheerder" ⚖6: admin);
+    // #ownSales = de klantrol: "Mijn facturen". Teller en vaste vermeldingen: #manageSettings (R43).
+    #readSales; #editSales; #issueSales; #ownSales;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -304,6 +310,11 @@ module {
       case (#readSiteAdmin) switch work { case null internal(p); case (?w) workExists(ctx, w) and internal(p) and seesWork(ctx, p, w) };
       case (#readHandoverDoc) on(func w = memberAs(ctx, p, w, #architect));
       case (#editSiteAdmin) switch work { case null admin or calc; case (?w) workExists(ctx, w) and (admin or calc or leaderOn(ctx, p, w)) };
+      // 2c.6 (R42): per werf de facturen (salesScope); maken en betalingen kantoor; uitreiken kantoor of enkel de beheerder (⚖6).
+      case (#readSales) on(func w = has(p, #admin) or has(p, #calculator) or leaderOn(ctx, p, w) or memberAs(ctx, p, w, #klant));
+      case (#editSales) admin or calc;
+      case (#issueSales) admin or (calc and ctx.settings.values.get("sales.issuerOnly") != ?"ja");
+      case (#ownSales) has(p, #klant);
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -428,6 +439,21 @@ module {
     // Review L4: zonder klant op de werf (clientOrgId leeg) ziet geen enkele klant iets (voorzichtig).
     if (memberAs(ctx, p, w, #klant) and (switch clientOrgId { case (?o) p.orgId == ?o; case null false })) { return #client };
     if (memberAs(ctx, p, w, #architect) and grant(ctx, p, w, #readProgress)) { return #reader };
+    #none;
+  };
+
+  // ── Verkoopfacturen (2c.6, R42) ──────────────────────────────────────────
+  // #full = admin en calculator: schema, ontwerpen, uitgereikte facturen, betalingen (bedragen enkel via update-calls). #fact = de
+  // werfleider van de werf: ENKEL het afgeleide feit "voorschot betaald" (nodig om te starten), nooit een bedrag. #client = de klant van
+  // de werf en van de firma die klant is van die werf (clientOrgId; zoals R41): enkel UITGEREIKTE facturen en het schema. Architect,
+  // OA, VC: niets.
+  public type SalesScope = { #full; #fact; #client; #none };
+
+  public func salesScope(ctx : Ctx, p : Person, w : WorkId, clientOrgId : ?Types.OrgId) : SalesScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (has(p, #admin) or has(p, #calculator)) { return #full };
+    if (leaderOn(ctx, p, w)) { return #fact };
+    if (memberAs(ctx, p, w, #klant) and (switch clientOrgId { case (?o) p.orgId == ?o; case null false })) { return #client };
     #none;
   };
 
@@ -727,6 +753,9 @@ module {
       siteAdmin = may(ctx, p, #readSiteAdmin, null);
       editSiteAdmin = may(ctx, p, #editSiteAdmin, null);
       myWorks = has(p, #klant);
+      sales = may(ctx, p, #editSales, null);
+      issueSales = may(ctx, p, #issueSales, null);
+      mySales = may(ctx, p, #ownSales, null);
       home = home(p);
     };
   };
