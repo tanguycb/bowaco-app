@@ -161,7 +161,7 @@ persistent actor Self {
 
   // 2c.5: de min-meerstaat per werf (levend overzicht uit offerte, opmeting, werfverslag, OA-facturen en meerwerkoffertes; versies onder
   // een controlecode, delen met de klant) en de meerwerkofferte (een gewone offerte van de soort meerwerk bij de getekende offerte).
-  include MinMeerApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, minMeer, audit, ctr);
+  include MinMeerApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, purchases, minMeer, audit, ctr);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

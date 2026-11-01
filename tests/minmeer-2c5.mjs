@@ -545,11 +545,12 @@ check("(B17) review M4: € 600 + € 500 meerwerk met akkoord per mail in 02 Ru
   check("(B17) review M1: v1 verstuurd, v2 aanvaard → de regel komt niet meer in een versie ('… v2 aanvaard op …'), de post van v2 telt € 300", !x.inVersion && /v2 aanvaard op/.test(x.approval) && post && post.counted && post.extraCents === 30_000n, S([x.approval, post?.extraCents]));
 }
 
+let W4ref = null;
 // B18. Terugval 4 (het tarief van de afspraak met de OA op die dag ÷ 0,8, 2c.4) en de marge van een firmaklasse (2c.1) op een kost.
 {
   const KRAAI = ok(await admin.createOrg({ kind: { subcontractor: null }, name: `Proef Bouw Kraai 2c5 ${suffix}`, kbo: [], vat: [], aliases: [], trades: [], address: [{ street: "Proefdreef", number: "7", zip: "9993", city: "Lindegem", country: "BE" }], notes: "Verzonnen proeffirma (2c.5)" })).id;
   ok(await calc.saveOaRate({ orgId: KRAAI, kind: "regie", unit: "uur", cents: 4600n, validFrom: cDay - 100n, source: "offerte", ref: "proef 2c5", fileId: [], note: "" }));
-  const W4 = ok(await admin.createWork({ code: `P-MP${suffix}`, name: "Proef min-meer zonder offerte 2c5", address: addr, parentId: [], clientOrgId: opt(KLANTORG), architectOrgId: [], leaderPersonId: [WLID], vatBp: 2100n })).id;
+  const W4 = W4ref = ok(await admin.createWork({ code: `P-MP${suffix}`, name: "Proef min-meer zonder offerte 2c5", address: addr, parentId: [], clientOrgId: opt(KLANTORG), architectOrgId: [], leaderPersonId: [WLID], vatBp: 2100n })).id;
   const dl = ok(await calc.createDeal(W4, KRAAI));
   const full = ok(await calc.readDeal(dl.id));
   if (!full.rates.some((r) => r.cents === 4600n)) ok(await calc.addDealRate(dl.id, { kind: "regie", unit: "uur", cents: 4600n, validFrom: cDay - 100n, fromRateId: [], note: "proef 2c5" }, full.deal.rev));
@@ -586,6 +587,32 @@ check("(B17) review M4: € 600 + € 500 meerwerk met akkoord per mail in 02 Ru
   const inv = v.invoiced.find((i) => i.title.startsWith("vorderingsstaat"));
   check("(B19) de staat heeft een prijsherziening; reeds gefactureerd = het bedrag van de periode, de herziening apart", sentS.totals.revisionCents > 0n && inv && inv.cents === sentS.totals.periodCents && inv.revisionCents === sentS.totals.revisionCents && v.totals.invoicedCents === sentS.totals.periodCents && v.totals.revisionCents === sentS.totals.revisionCents, S([sentS.totals.periodCents, sentS.totals.revisionCents, v.totals.invoicedCents]));
   check("(B19) nog te factureren = aanneemsom + saldo − het bedrag van de periode (de herziening telt er niet af)", v.totals.toInvoiceCents === v.totals.contractCents - sentS.totals.periodCents && MC.recheck(v).ok, S([v.totals.contractCents, v.totals.toInvoiceCents]));
+}
+
+// B20. Aansluiting 2c.7: een aankoopfactuur van een OA over twee werven (twee werfdelen) met doorrekenbare regels. Het goedgekeurde
+// werfdeel komt als kostregel in de min-meerstaat (sleutel "kost:<aankoop>:<lineId>", bron "aankoop:<id>", kostprijs / 0,8), het
+// geregistreerde deel wacht (telt niet); de regels "andere" van de werfdelen (2.11) komen er niet nog eens bij; geen firmanaam voor de klant.
+{
+  const MUS = ok(await admin.createOrg({ kind: { subcontractor: null }, name: `Proef Bouw Mus 2c5 ${suffix}`, kbo: [], vat: [], aliases: [], trades: [], address: [{ street: "Proefdreef", number: "8", zip: "9993", city: "Lindegem", country: "BE" }], notes: "Verzonnen proeffirma (2c.5)" })).id;
+  const Lp = (workId, kind, description, qty, unit, u) => ({ workId: [workId], kind, root: [], description, persons: [], qtyMilli: qty, unit: u, unitCents: unit, amountCents: (qty * unit + 500n) / 1000n, passOn: true, days: [], lineId: [] });
+  const lines = [Lp(W3, "container", "Proef container aankoop 2c5", 2_000n, 5_000n, "ton"), Lp(W4ref, "materiaal", "Proef materiaal aankoop 2c5", 1_000n, 3_000n, "st")];
+  const net = lines.reduce((a, l) => a + l.amountCents, 0n);
+  const PU = ok(await calc.savePurchase({ id: [], orgId: MUS, kind: { oa: null }, number: `PU-${suffix}-1`, invoiceDay: cDay, dueDay: [cDay + 30n], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], oaStatementFileId: [], oaStatementRef: "", note: "proef 2c5", netCents: net, vatCents: 0n, totalCents: net, lines, finalWorkIds: [] }, 0n));
+  const pv = ok(await calc.readPurchase(PU));
+  const part3 = un(pv.brief.works.find((x) => x.workId === W3).partId);
+  const pr3 = ok(await calc.readOaInvoice(part3));
+  ok(await calc.approveOaInvoice(part3, pr3.brief.rev, { exception: "proef 2c5: geen raadpleging nodig voor de proef" }, "proef 2c5: markeringen gezien"));
+  const v3 = ok(await calc.readMinMeer(W3));
+  const k3 = v3.rows.find((r) => r.key.startsWith(`kost:${PU}:`));
+  check("(B20) goedgekeurd werfdeel: de kostregel van de aankoop telt (2 ton × € 50 / 0,8 = € 125,00), bron aankoop:<id>, sleutel kost:<aankoop>:<lineId>", k3 && k3.counted && k3.extraCents === 12_500n && k3.sourceText === `aankoop:${PU}` && /^kost:\d+:\d+$/.test(k3.key), S(k3));
+  check("(B20) niet dubbel: geen regel uit het werfdeel zelf (2.11) naast de aankoopregel", !v3.rows.some((r) => r.key.startsWith(`kost:oa:${part3}:`)));
+  const v4 = ok(await calc.readMinMeer(W4ref));
+  const k4 = v4.rows.find((r) => r.key.startsWith(`kost:${PU}:`));
+  check("(B20) geregistreerd werfdeel (nog niet goedgekeurd): de kostregel wacht (telt niet, 'factuur nog niet goedgekeurd')", k4 && !k4.counted && k4.flags.includes("factuur-niet-goedgekeurd"), S(k4?.flags));
+  const V = ok(await calc.makeMinMeerVersion(W3, "", { balanceCents: v3.totals.balanceCents, toInvoiceCents: v3.totals.toInvoiceCents }));
+  const fr = ok(await calc.readMinMeerVersion(V)).frozen;
+  const fl = fr.lines.find((l) => l.key === k3.key);
+  check("(B20) in de versie: bron 'kost', omschrijving zonder firmanaam", fl && fl.source === "kost" && !S(fr).includes("Proef Bouw Mus"), S(fl));
 }
 
 // B16. Rekentest (§10, review M5): browser = server EN server = een eigen berekening hier (half weg van nul) op willekeurige regels:

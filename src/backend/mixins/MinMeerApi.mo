@@ -48,6 +48,7 @@ mixin (
   progress : Types.ProgressState,
   oaInvoices : Types.OaInvoiceState,
   oaDeals : Types.OaDealState,
+  purchases : Types.PurchaseState,
   minMeer : Types.MinMeerState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -590,7 +591,7 @@ mixin (
     };
     null;
   };
-  func mmCtx() : MinMeer.Ctx { { settings; access; org; works; dossier; plan; reports; qs = quotes; qf = quoteForms; qd = quoteDocs; starts = workStarts; ss = surveys; ps = progress; oi = oaInvoices; deals = oaDeals; mm = minMeer } };
+  func mmCtx() : MinMeer.Ctx { { settings; access; org; works; dossier; plan; reports; qs = quotes; qf = quoteForms; qd = quoteDocs; starts = workStarts; ss = surveys; ps = progress; oi = oaInvoices; deals = oaDeals; pu = purchases; mm = minMeer } };
   func mmToday() : Nat { Post.local(Time.now()).day };
   // Kantoor met de bedragen (R41: #editMinMeer én #readCosts).
   func mmOffice(p : Types.Person) { let ctx = { works; settings }; Rights.require(ctx, p, #editMinMeer, null); Rights.require(ctx, p, #readCosts, null) };

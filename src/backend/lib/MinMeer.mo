@@ -33,6 +33,7 @@ import OaDeals "OaDeals";
 import OaInvoice "OaInvoice";
 import Plan "Plan";
 import Progress "Progress";
+import Purchase "Purchase";
 import QuoteCalc "QuoteCalc";
 import QuoteForms "QuoteForms";
 import Quotes "Quotes";
@@ -56,6 +57,7 @@ module {
     ps : Types.ProgressState;
     oi : Types.OaInvoiceState;
     deals : Types.OaDealState;
+    pu : Types.PurchaseState; // 2c.7: de aankoopfacturen (doorrekenbare kosten per werf)
     mm : Types.MinMeerState;
   };
 
@@ -185,7 +187,8 @@ module {
   public func costItems(c : Ctx, workId : Nat) : [CostItem] {
     let out = List.empty<CostItem>();
     for (inv in OaInvoice.invoicesOf(c.oi, workId).values()) {
-      if (inv.status == #approved or inv.status == #registered) {
+      // Een werfdeel van een aankoop (2c.7) komt via de aankoopregels hieronder, niet ook nog via zijn regel "andere" (anders dubbel).
+      if ((inv.status == #approved or inv.status == #registered) and not c.pu.partOf.containsKey(inv.id)) {
         switch (OaInvoice.amountsOf(c.oi, inv.id)) {
           case (?a) {
             for ((i, l) in a.lines.enumerate()) {
@@ -198,7 +201,15 @@ module {
         };
       };
     };
-    // 2c.7: hier de aankoopregels (purchases) van deze werf toevoegen.
+    // 2c.7: de doorrekenbare regels van de aankoopfacturen (PurchaseLine.passOn; geen posten, uren of voorschotten): sleutel
+    // "kost:<aankoop>:<lineId>" (de lineId blijft bij een verbetering), bron "aankoop:<id>" (zonder firmanaam). De stand volgt het
+    // werfdeel van die werf: goedgekeurd telt, geregistreerd of in controle wacht, betwist of ingetrokken staat er niet.
+    for (k in Purchase.passOnCosts(c.pu, c.oi, workId, null, null, false).values()) {
+      // Een exacte eenheidsprijs als die bestaat; anders 1 × het bedrag (de regel rekent nooit een ander bedrag dan de factuur).
+      let exact = k.qtyMilli > 0 and (k.costCents * 1000) % k.qtyMilli == 0;
+      let kind = if (Text.startsWith(k.kindKey, #text "andere")) "andere" else k.kindKey;
+      out.add({ key = k.key; day = k.day; orgId = ?k.orgId; kindKey = kind; description = k.description; qtyMilli = if exact k.qtyMilli else 0; unit = if (k.unit == "") "st" else k.unit; unitCents = if exact (k.costCents * 1000) / k.qtyMilli else k.costCents; amountCents = k.costCents; passOn = true; source = k.source; version = Text.fromIter(hash("bowaco-kost-v1|" # k.description # "|" # Int.toText(k.qtyMilli) # "|" # k.unit # "|" # Int.toText(k.costCents)).chars().take(16)); pending = k.status != #approved });
+    };
     out.toArray();
   };
 
