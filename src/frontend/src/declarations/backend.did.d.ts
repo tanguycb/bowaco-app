@@ -428,6 +428,7 @@ export interface Caps {
   'writeReports' : boolean,
   'quotePrices' : boolean,
   'readTeam' : boolean,
+  'hourClaims' : boolean,
   'myTenders' : boolean,
   'permits' : boolean,
   'myDeals' : boolean,
@@ -436,6 +437,7 @@ export interface Caps {
   'upload' : boolean,
   'readLibrary' : boolean,
   'editQuotes' : boolean,
+  'purchases' : boolean,
   'readMunicipalities' : boolean,
   'manageOrgs' : boolean,
   'myOaInvoices' : boolean,
@@ -566,28 +568,32 @@ export type Confidential = { 'sealed' : Sealed } |
 export type Confidential_1 = { 'sealed' : Sealed } |
   { 'plain' : AgreementTerms };
 export type Confidential_10 = { 'sealed' : Sealed } |
-  { 'plain' : OaRate };
+  { 'plain' : OaQuoteDraft };
 export type Confidential_11 = { 'sealed' : Sealed } |
-  { 'plain' : [] | [bigint] };
+  { 'plain' : OaRate };
 export type Confidential_12 = { 'sealed' : Sealed } |
-  { 'plain' : ProgressFrozen };
-export type Confidential_13 = { 'sealed' : Sealed } |
-  { 'plain' : RevisionModel };
-export type Confidential_14 = { 'sealed' : Sealed } |
   { 'plain' : [] | [bigint] };
+export type Confidential_13 = { 'sealed' : Sealed } |
+  { 'plain' : ProgressFrozen };
+export type Confidential_14 = { 'sealed' : Sealed } |
+  { 'plain' : RevisionModel };
 export type Confidential_15 = { 'sealed' : Sealed } |
-  { 'plain' : [] | [LibSellRule] };
+  { 'plain' : PurchaseAmounts };
 export type Confidential_16 = { 'sealed' : Sealed } |
-  { 'plain' : bigint };
+  { 'plain' : [] | [bigint] };
 export type Confidential_17 = { 'sealed' : Sealed } |
-  { 'plain' : QuoteVersionTerms };
+  { 'plain' : [] | [LibSellRule] };
 export type Confidential_18 = { 'sealed' : Sealed } |
-  { 'plain' : TenderChoice };
+  { 'plain' : bigint };
 export type Confidential_19 = { 'sealed' : Sealed } |
-  { 'plain' : Contact };
+  { 'plain' : QuoteVersionTerms };
 export type Confidential_2 = { 'sealed' : Sealed } |
   { 'plain' : bigint };
 export type Confidential_20 = { 'sealed' : Sealed } |
+  { 'plain' : TenderChoice };
+export type Confidential_21 = { 'sealed' : Sealed } |
+  { 'plain' : Contact };
+export type Confidential_22 = { 'sealed' : Sealed } |
   { 'plain' : ContractParams };
 export type Confidential_3 = { 'sealed' : Sealed } |
   { 'plain' : string };
@@ -598,11 +604,11 @@ export type Confidential_5 = { 'sealed' : Sealed } |
 export type Confidential_6 = { 'sealed' : Sealed } |
   { 'plain' : MarginClass };
 export type Confidential_7 = { 'sealed' : Sealed } |
-  { 'plain' : OaInvoiceAmounts };
+  { 'plain' : OaAdvance };
 export type Confidential_8 = { 'sealed' : Sealed } |
-  { 'plain' : OaQuoteAmounts };
+  { 'plain' : OaInvoiceAmounts };
 export type Confidential_9 = { 'sealed' : Sealed } |
-  { 'plain' : OaQuoteDraft };
+  { 'plain' : OaQuoteAmounts };
 export type Confirmation = { 'open' : null } |
   { 'confirmed' : { 'at' : bigint, 'by' : PersonId } } |
   { 'declined' : { 'at' : bigint, 'by' : PersonId, 'reason' : string } };
@@ -699,6 +705,18 @@ export interface ContractView {
   'workId' : WorkId,
   'clientContact' : [] | [Contact],
 }
+export type CostKind = { 'advanceDeduct' : null } |
+  { 'other' : string } |
+  { 'crew' : null } |
+  { 'dieselKm' : null } |
+  { 'post' : null } |
+  { 'containerTon' : null } |
+  { 'transportHour' : null } |
+  { 'kmLevy' : null } |
+  { 'regie' : null } |
+  { 'machineHire' : null } |
+  { 'advance' : null } |
+  { 'material' : null };
 export interface DashConfirm {
   'end' : Day,
   'orgName' : string,
@@ -1040,23 +1058,25 @@ export interface ExportConfidential {
   'agreementFrozen' : Array<[bigint, Confidential]>,
   'agreementTerms' : Array<[bigint, Confidential_1]>,
   'libCosts' : Array<LibCost>,
-  'oaRates' : Array<[bigint, Confidential_10]>,
+  'oaRates' : Array<[bigint, Confidential_11]>,
   'orgs' : Array<[OrgId, ContactConfidentialView]>,
   'libSellVersions' : Array<LibSellVersion>,
-  'tenderChoices' : Array<[bigint, Confidential_18]>,
-  'oaQuoteAmounts' : Array<[bigint, Confidential_8]>,
+  'tenderChoices' : Array<[bigint, Confidential_20]>,
+  'oaAdvances' : Array<[bigint, Confidential_7]>,
+  'oaQuoteAmounts' : Array<[bigint, Confidential_9]>,
   'libSells' : Array<LibSell>,
   'quotePrices' : Array<QuoteLinePrice>,
   'workConfidentialHistory' : Array<WorkConfidentialVersion>,
   'persons' : Array<[PersonId, ContactConfidentialView]>,
   'workConfidential' : Array<WorkConfidential>,
-  'quoteVersionTerms' : Array<[bigint, Confidential_17]>,
+  'purchaseAmounts' : Array<[bigint, Confidential_15]>,
+  'quoteVersionTerms' : Array<[bigint, Confidential_19]>,
   'progressConf' : Array<ProgressConf>,
   'marginClasses' : Array<[bigint, Confidential_6]>,
-  'oaQuoteDrafts' : Array<[bigint, Confidential_9]>,
+  'oaQuoteDrafts' : Array<[bigint, Confidential_10]>,
   'quoteVersionConf' : Array<QuoteVersionConf>,
-  'progressFrozen' : Array<[bigint, Confidential_12]>,
-  'oaInvoiceAmounts' : Array<[bigint, Confidential_7]>,
+  'progressFrozen' : Array<[bigint, Confidential_13]>,
+  'oaInvoiceAmounts' : Array<[bigint, Confidential_8]>,
   'progressRevisions' : Array<ProgressRevision>,
 }
 export interface ExportIntern {
@@ -1100,6 +1120,7 @@ export interface ExportIntern {
   'surveys' : Array<Survey>,
   'libChapters' : Array<LibChapter>,
   'links' : Array<LinkView>,
+  'hourClaims' : Array<HourClaim>,
   'quoteFormInfos' : Array<QuoteFormInfo>,
   'reportKeys' : Array<[string, bigint]>,
   'municipalities' : Array<Municipality>,
@@ -1121,6 +1142,7 @@ export interface ExportIntern {
   'appointments' : Array<Appointment>,
   'materials' : Array<MaterialNote>,
   'progressInputs' : Array<[bigint, Array<ProgressInput>]>,
+  'purchases' : Array<Purchase>,
   'dependencies' : Array<Dependency>,
   'oaContractTemplates' : Array<OaContractTemplate>,
   'surveyKeys' : Array<[string, bigint]>,
@@ -1246,6 +1268,53 @@ export type Grant = { 'readReports' : null } |
 export type GuaranteeKind = { 'none' : null } |
   { 'retention' : null } |
   { 'bankGuarantee' : null };
+export interface HourClaim {
+  'id' : bigint,
+  'day' : Day,
+  'pauseMin' : bigint,
+  'review' : [] | [HourClaimReview],
+  'orgId' : OrgId,
+  'extra' : Extra,
+  'slots' : Array<TimeSlot>,
+  'persons' : bigint,
+  'workId' : WorkId,
+  'purchaseId' : bigint,
+  'hoursMilli' : bigint,
+}
+export interface HourClaimReview {
+  'at' : bigint,
+  'by' : PersonId,
+  'ok' : boolean,
+  'note' : string,
+}
+export interface HourClaimView {
+  'id' : bigint,
+  'day' : bigint,
+  'workName' : string,
+  'pauseMin' : bigint,
+  'orgName' : string,
+  'invoiceDay' : bigint,
+  'canReview' : boolean,
+  'reviewNote' : string,
+  'reviewByName' : string,
+  'reviewedAt' : [] | [bigint],
+  'slots' : Array<TimeSlot>,
+  'persons' : bigint,
+  'state' : string,
+  'number' : string,
+  'workId' : bigint,
+  'diffMilli' : bigint,
+  'hoursMilli' : bigint,
+  'reportMilli' : bigint,
+  'reportPersons' : bigint,
+  'workCode' : string,
+}
+export interface HourDayInput {
+  'day' : bigint,
+  'pauseMin' : bigint,
+  'slots' : Array<TimeSlot>,
+  'persons' : bigint,
+}
 export interface HoursConfirmation {
   'at' : bigint,
   'by' : PersonId,
@@ -2218,6 +2287,12 @@ export interface MyDayView {
   'drivers' : Array<PersonRef>,
   'works' : Array<DayWork>,
 }
+export interface MyDisputedDay {
+  'day' : bigint,
+  'note' : string,
+  'persons' : bigint,
+  'hoursMilli' : bigint,
+}
 export interface MyFileOpen {
   'blob' : ExternalBlob,
   'mime' : string,
@@ -2290,6 +2365,15 @@ export interface MyProgressRead {
   'canAnswer' : boolean,
   'periodTo' : bigint,
   'creditsCode' : string,
+}
+export interface MyPurchaseView {
+  'status' : PurchaseStatus,
+  'invoiceDay' : bigint,
+  'disputedDays' : Array<MyDisputedDay>,
+  'number' : string,
+  'works' : Array<string>,
+  'decidedAt' : [] | [bigint],
+  'reason' : string,
 }
 export interface MyQuoteAnswered {
   'at' : bigint,
@@ -2470,6 +2554,12 @@ export interface NotificationView {
   'workId' : [] | [WorkId],
   'readAt' : [] | [bigint],
 }
+export interface OaAdvance {
+  'agreementId' : bigint,
+  'cents' : bigint,
+  'deducted' : Array<[bigint, bigint]>,
+  'purchaseId' : bigint,
+}
 export interface OaContractTemplate {
   'id' : bigint,
   'title' : string,
@@ -2592,6 +2682,7 @@ export interface OaInvoiceBrief {
   'dueDay' : [] | [bigint],
   'number' : string,
   'workId' : bigint,
+  'purchaseId' : [] | [bigint],
   'decidedAt' : [] | [bigint],
   'workCode' : string,
 }
@@ -3097,6 +3188,15 @@ export interface OrgView {
   'aliases' : Array<string>,
   'archivedAt' : [] | [bigint],
 }
+export interface PayRow {
+  'discountCents' : [] | [bigint],
+  'netCents' : bigint,
+  'totalCents' : bigint,
+  'text' : string,
+  'discountBp' : [] | [bigint],
+  'brief' : PurchaseBrief,
+  'payCents' : bigint,
+}
 export interface Permit {
   'id' : bigint,
   'status' : PermitStatus,
@@ -3465,8 +3565,8 @@ export interface ProgressBrief {
 }
 export interface ProgressConf {
   'statementId' : bigint,
-  'sIndex' : Confidential_11,
-  'iIndex' : Confidential_11,
+  'sIndex' : Confidential_12,
+  'iIndex' : Confidential_12,
   'extra' : Extra,
   'reason' : Confidential_3,
 }
@@ -3695,7 +3795,7 @@ export interface ProgressQtyView {
 export interface ProgressRevision {
   'at' : bigint,
   'by' : PersonId,
-  'model' : Confidential_13,
+  'model' : Confidential_14,
   'extra' : Extra,
   'version' : bigint,
   'workId' : WorkId,
@@ -3806,6 +3906,233 @@ export interface ProposalView {
   'ticketId' : [] | [bigint],
   'personId' : [] | [PersonId],
   'workId' : [] | [WorkId],
+}
+export interface Purchase {
+  'id' : bigint,
+  'rev' : bigint,
+  'periodFrom' : [] | [Day],
+  'status' : PurchaseStatus,
+  'oaStatementFileId' : [] | [bigint],
+  'decision' : [] | [PurchaseDecision],
+  'invoiceDay' : Day,
+  'source' : string,
+  'orgId' : OrgId,
+  'kind' : PurchaseKind,
+  'note' : string,
+  'oaStatementRef' : string,
+  'createdAt' : bigint,
+  'createdBy' : PersonId,
+  'extra' : Extra,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'fileId' : [] | [bigint],
+  'discountUntil' : [] | [Day],
+  'dueDay' : [] | [Day],
+  'number' : string,
+  'paidDay' : [] | [Day],
+  'parts' : Array<bigint>,
+  'periodTo' : [] | [Day],
+  'externalRef' : string,
+  'reverseMention' : boolean,
+  'creditOf' : [] | [bigint],
+  'vatRegime' : OaVatRegime,
+}
+export interface PurchaseAdvanceView {
+  'final' : boolean,
+  'deductedCents' : bigint,
+  'advancedCents' : bigint,
+  'restCents' : bigint,
+  'allowedCents' : [] | [bigint],
+  'workId' : bigint,
+  'workCode' : string,
+}
+export interface PurchaseAmounts {
+  'netCents' : bigint,
+  'totalCents' : bigint,
+  'vatCents' : bigint,
+  'discountBp' : [] | [bigint],
+  'lines' : Array<PurchaseLine>,
+  'extra' : Extra,
+  'purchaseId' : bigint,
+}
+export interface PurchaseBrief {
+  'id' : bigint,
+  'rev' : bigint,
+  'status' : PurchaseStatus,
+  'hasFile' : boolean,
+  'orgName' : string,
+  'invoiceDay' : bigint,
+  'orgId' : bigint,
+  'kind' : PurchaseKind,
+  'openClaims' : bigint,
+  'updatedAt' : bigint,
+  'discountUntil' : [] | [bigint],
+  'lineCount' : bigint,
+  'dueDay' : [] | [bigint],
+  'number' : string,
+  'paidDay' : [] | [bigint],
+  'general' : boolean,
+  'hasStatement' : boolean,
+  'works' : Array<PurchaseWorkRef>,
+}
+export interface PurchaseCostView {
+  'day' : bigint,
+  'key' : string,
+  'status' : PurchaseStatus,
+  'qtyMilli' : bigint,
+  'orgName' : string,
+  'costCents' : bigint,
+  'kind' : string,
+  'unit' : string,
+  'description' : string,
+  'number' : string,
+  'kindName' : string,
+  'purchaseId' : bigint,
+}
+export interface PurchaseDayView {
+  'day' : bigint,
+  'pauseMin' : bigint,
+  'cents' : [] | [bigint],
+  'reviewNote' : string,
+  'claimId' : bigint,
+  'reviewByName' : string,
+  'slots' : Array<TimeSlot>,
+  'persons' : bigint,
+  'state' : string,
+  'rateCents' : [] | [bigint],
+  'diffMilli' : bigint,
+  'hoursMilli' : bigint,
+  'reportMilli' : bigint,
+  'reportPersons' : bigint,
+  'rateFrom' : [] | [bigint],
+}
+export interface PurchaseDecision {
+  'at' : bigint,
+  'by' : PersonId,
+  'flags' : bigint,
+  'approved' : boolean,
+  'reason' : string,
+}
+export interface PurchaseDecisionView {
+  'at' : bigint,
+  'flags' : bigint,
+  'byName' : string,
+  'approved' : boolean,
+  'reason' : string,
+}
+export interface PurchaseFullView {
+  'periodFrom' : [] | [bigint],
+  'headerFlags' : Array<OaFlag>,
+  'decision' : [] | [PurchaseDecisionView],
+  'discountCents' : [] | [bigint],
+  'finalWorkIds' : Array<bigint>,
+  'netCents' : bigint,
+  'advances' : Array<PurchaseAdvanceView>,
+  'statement' : [] | [FileView],
+  'file' : [] | [FileView],
+  'note' : string,
+  'oaStatementRef' : string,
+  'totalCents' : bigint,
+  'vatCents' : bigint,
+  'attestWarnings' : Array<string>,
+  'canEdit' : boolean,
+  'expectedVatCents' : [] | [bigint],
+  'discountBp' : [] | [bigint],
+  'lines' : Array<PurchaseLineView>,
+  'sumLinesCents' : bigint,
+  'canDecide' : boolean,
+  'canPay' : boolean,
+  'brief' : PurchaseBrief,
+  'periodTo' : [] | [bigint],
+  'reverseMention' : boolean,
+  'vatRegime' : OaVatRegime,
+  'flagCount' : bigint,
+}
+export interface PurchaseInput {
+  'id' : [] | [bigint],
+  'periodFrom' : [] | [bigint],
+  'oaStatementFileId' : [] | [bigint],
+  'invoiceDay' : bigint,
+  'finalWorkIds' : Array<bigint>,
+  'netCents' : bigint,
+  'orgId' : bigint,
+  'kind' : PurchaseKind,
+  'note' : string,
+  'oaStatementRef' : string,
+  'totalCents' : bigint,
+  'vatCents' : bigint,
+  'discountBp' : [] | [bigint],
+  'lines' : Array<PurchaseLineInput>,
+  'fileId' : [] | [bigint],
+  'discountUntil' : [] | [bigint],
+  'dueDay' : [] | [bigint],
+  'number' : string,
+  'periodTo' : [] | [bigint],
+  'reverseMention' : boolean,
+  'vatRegime' : OaVatRegime,
+}
+export type PurchaseKind = { 'oa' : null } |
+  { 'other' : null } |
+  { 'supplier' : null };
+export interface PurchaseLine {
+  'qtyMilli' : bigint,
+  'claimIds' : Array<bigint>,
+  'unitCents' : bigint,
+  'kind' : CostKind,
+  'root' : [] | [bigint],
+  'unit' : string,
+  'description' : string,
+  'amountCents' : bigint,
+  'persons' : [] | [bigint],
+  'workId' : [] | [WorkId],
+  'passOn' : boolean,
+}
+export interface PurchaseLineInput {
+  'qtyMilli' : bigint,
+  'days' : Array<HourDayInput>,
+  'unitCents' : bigint,
+  'kind' : string,
+  'root' : [] | [bigint],
+  'unit' : string,
+  'description' : string,
+  'amountCents' : bigint,
+  'persons' : [] | [bigint],
+  'workId' : [] | [bigint],
+  'passOn' : boolean,
+}
+export interface PurchaseLineView {
+  'qtyFlags' : Array<OaFlag>,
+  'qtyMilli' : bigint,
+  'days' : Array<PurchaseDayView>,
+  'unitCents' : bigint,
+  'kind' : string,
+  'moneyFlags' : Array<OaFlag>,
+  'root' : [] | [bigint],
+  'unit' : string,
+  'dayCents' : [] | [bigint],
+  'description' : string,
+  'amountCents' : bigint,
+  'persons' : [] | [bigint],
+  'kindName' : string,
+  'index' : bigint,
+  'postTitle' : string,
+  'workId' : [] | [bigint],
+  'agreedCents' : [] | [bigint],
+  'passOn' : boolean,
+  'workCode' : string,
+}
+export interface PurchaseSettings { 'askHours' : string, 'passOn' : boolean }
+export type PurchaseStatus = { 'disputed' : null } |
+  { 'approved' : null } |
+  { 'checking' : null } |
+  { 'withdrawn' : null } |
+  { 'registered' : null };
+export interface PurchaseWorkRef {
+  'workName' : string,
+  'partStatus' : [] | [OaInvoiceStatus],
+  'workId' : bigint,
+  'partId' : [] | [bigint],
+  'workCode' : string,
 }
 export interface Quote {
   'id' : bigint,
@@ -4098,8 +4425,8 @@ export interface QuoteLinePrice {
   'versionId' : bigint,
   'source' : string,
   'orgId' : [] | [OrgId],
-  'cost' : Confidential_14,
-  'rule' : Confidential_15,
+  'cost' : Confidential_16,
+  'rule' : Confidential_17,
   'libCostId' : [] | [bigint],
   'extra' : Extra,
   'lineId' : bigint,
@@ -4433,7 +4760,7 @@ export interface QuoteVersionBrief {
 }
 export interface QuoteVersionConf {
   'versionId' : bigint,
-  'standardMarginBp' : Confidential_16,
+  'standardMarginBp' : Confidential_18,
   'extra' : Extra,
 }
 export interface QuoteVersionForm {
@@ -4663,7 +4990,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'withholdingChecks' : Array<WithholdingCheck> } |
   { 'invites' : Array<InviteView> } |
   { 'jobs' : Array<Job> } |
-  { 'oaRates' : Array<[bigint, Confidential_10]> } |
+  { 'oaRates' : Array<[bigint, Confidential_11]> } |
   { 'orgs' : Array<OrgView> } |
   { 'importKeys' : Array<ImportKey> } |
   { 'values' : Array<[string, string]> } |
@@ -4673,15 +5000,17 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'libSellVersions' : Array<LibSellVersion> } |
   { 'calendarBlocks' : Array<CalendarBlock> } |
   { 'dealNotices' : Array<[string, bigint]> } |
-  { 'tenderChoices' : Array<[bigint, Confidential_18]> } |
+  { 'tenderChoices' : Array<[bigint, Confidential_20]> } |
   { 'hoursConfirmations' : Array<HoursConfirmation> } |
+  { 'oaAdvances' : Array<[bigint, Confidential_7]> } |
   { 'orgContacts' : Array<OrgContact> } |
   { 'surveys' : Array<Survey> } |
-  { 'oaQuoteAmounts' : Array<[bigint, Confidential_8]> } |
+  { 'oaQuoteAmounts' : Array<[bigint, Confidential_9]> } |
   { 'libSells' : Array<LibSell> } |
   { 'libChapters' : Array<LibChapter> } |
   { 'quotePrices' : Array<QuoteLinePrice> } |
   { 'links' : Array<LinkView> } |
+  { 'hourClaims' : Array<HourClaim> } |
   { 'quoteFormInfos' : Array<QuoteFormInfo> } |
   { 'reportKeys' : Array<[string, bigint]> } |
   { 'municipalities' : Array<Municipality> } |
@@ -4694,27 +5023,29 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'persons' : Array<PersonView> } |
   { 'workConfidential' : Array<WorkConfidential> } |
   { 'taskChanges' : Array<TaskChange> } |
+  { 'purchaseAmounts' : Array<[bigint, Confidential_15]> } |
   { 'settings' : SettingsView } |
   { 'quoteVersionForms' : Array<QuoteVersionForm> } |
   { 'dayReports' : Array<DayReport> } |
   { 'tenderItems' : Array<TenderItem> } |
   { 'counters' : Array<[string, bigint]> } |
   { 'quoteSentExtras' : Array<QuoteSentExtra> } |
-  { 'quoteVersionTerms' : Array<[bigint, Confidential_17]> } |
+  { 'quoteVersionTerms' : Array<[bigint, Confidential_19]> } |
   { 'oaQuotes' : Array<OaQuote> } |
   { 'appointments' : Array<Appointment> } |
   { 'materials' : Array<MaterialNote> } |
   { 'progressInputs' : Array<[bigint, Array<ProgressInput>]> } |
   { 'progressConf' : Array<ProgressConf> } |
+  { 'purchases' : Array<Purchase> } |
   { 'dependencies' : Array<Dependency> } |
   { 'oaContractTemplates' : Array<OaContractTemplate> } |
   { 'surveyKeys' : Array<[string, bigint]> } |
   { 'marginClasses' : Array<[bigint, Confidential_6]> } |
-  { 'oaQuoteDrafts' : Array<[bigint, Confidential_9]> } |
+  { 'oaQuoteDrafts' : Array<[bigint, Confidential_10]> } |
   { 'libItems' : Array<LibItem> } |
   { 'quoteSendInfos' : Array<QuoteSendInfo> } |
   { 'quoteVersionConf' : Array<QuoteVersionConf> } |
-  { 'progressFrozen' : Array<[bigint, Confidential_12]> } |
+  { 'progressFrozen' : Array<[bigint, Confidential_13]> } |
   { 'robots' : Array<RobotView> } |
   { 'permitChanges' : Array<PermitChange> } |
   { 'quoteVersions' : Array<QuoteVersion> } |
@@ -4730,7 +5061,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'orgConfidential' : Array<[OrgId, ContactConfidentialView]> } |
   { 'quotes' : Array<Quote> } |
   { 'oaInvoices' : Array<OaInvoice> } |
-  { 'oaInvoiceAmounts' : Array<[bigint, Confidential_7]> } |
+  { 'oaInvoiceAmounts' : Array<[bigint, Confidential_8]> } |
   { 'textBlocks' : Array<TextBlock> } |
   { 'measureEntries' : Array<MeasureEntry> } |
   { 'personContacts' : Array<PersonContact> } |
@@ -4806,45 +5137,45 @@ export type Result_3 = { 'ok' : PersonView } |
   { 'err' : string };
 export type Result_30 = { 'ok' : QuoteRead } |
   { 'err' : string };
-export type Result_31 = { 'ok' : ProgressFullView } |
+export type Result_31 = { 'ok' : PurchaseFullView } |
   { 'err' : string };
-export type Result_32 = { 'ok' : [] | [RevisionModel] } |
+export type Result_32 = { 'ok' : ProgressFullView } |
   { 'err' : string };
-export type Result_33 = { 'ok' : ContactConfidentialView } |
+export type Result_33 = { 'ok' : [] | [RevisionModel] } |
   { 'err' : string };
-export type Result_34 = { 'ok' : OaQuoteFull } |
+export type Result_34 = { 'ok' : ContactConfidentialView } |
   { 'err' : string };
-export type Result_35 = { 'ok' : OaInvoiceFullView } |
+export type Result_35 = { 'ok' : OaQuoteFull } |
   { 'err' : string };
-export type Result_36 = { 'ok' : OaContractView } |
+export type Result_36 = { 'ok' : OaInvoiceFullView } |
   { 'err' : string };
-export type Result_37 = { 'ok' : MyTenderAnswer } |
+export type Result_37 = { 'ok' : OaContractView } |
   { 'err' : string };
-export type Result_38 = { 'ok' : MyTenderView } |
+export type Result_38 = { 'ok' : MyTenderAnswer } |
   { 'err' : string };
-export type Result_39 = { 'ok' : MyQuoteRead } |
+export type Result_39 = { 'ok' : MyTenderView } |
   { 'err' : string };
 export type Result_4 = { 'ok' : OrgView } |
   { 'err' : string };
-export type Result_40 = { 'ok' : MyProgressRead } |
+export type Result_40 = { 'ok' : MyQuoteRead } |
   { 'err' : string };
-export type Result_41 = { 'ok' : MyFileOpen } |
+export type Result_41 = { 'ok' : MyProgressRead } |
   { 'err' : string };
-export type Result_42 = { 'ok' : MyContractView } |
+export type Result_42 = { 'ok' : MyFileOpen } |
   { 'err' : string };
-export type Result_43 = { 'ok' : LibPrices } |
+export type Result_43 = { 'ok' : MyContractView } |
   { 'err' : string };
-export type Result_44 = { 'ok' : LibPriceHistory } |
+export type Result_44 = { 'ok' : LibPrices } |
   { 'err' : string };
-export type Result_45 = { 'ok' : DealFullView } |
+export type Result_45 = { 'ok' : LibPriceHistory } |
   { 'err' : string };
-export type Result_46 = { 'ok' : Array<ContractVersionView> } |
+export type Result_46 = { 'ok' : DealFullView } |
   { 'err' : string };
-export type Result_47 = { 'ok' : ContractView } |
+export type Result_47 = { 'ok' : Array<ContractVersionView> } |
   { 'err' : string };
-export type Result_48 = { 'ok' : FileView } |
+export type Result_48 = { 'ok' : ContractView } |
   { 'err' : string };
-export type Result_49 = { 'ok' : ProgressInvoiceData } |
+export type Result_49 = { 'ok' : FileView } |
   { 'err' : string };
 export type Result_5 = {
     'ok' : {
@@ -4854,59 +5185,65 @@ export type Result_5 = {
     }
   } |
   { 'err' : string };
-export type Result_50 = { 'ok' : PlanPreview } |
+export type Result_50 = { 'ok' : Array<PurchaseCostView> } |
   { 'err' : string };
-export type Result_51 = { 'ok' : MailOut } |
+export type Result_51 = { 'ok' : ProgressInvoiceData } |
   { 'err' : string };
-export type Result_52 = { 'ok' : MailPreview } |
+export type Result_52 = { 'ok' : PlanPreview } |
   { 'err' : string };
-export type Result_53 = { 'ok' : FineResult } |
+export type Result_53 = { 'ok' : MailOut } |
   { 'err' : string };
-export type Result_54 = { 'ok' : Array<OaRateView> } |
+export type Result_54 = { 'ok' : MailPreview } |
   { 'err' : string };
-export type Result_55 = { 'ok' : MarginClassesView } |
+export type Result_55 = { 'ok' : FineResult } |
   { 'err' : string };
-export type Result_56 = { 'ok' : Array<LibItemVersionView> } |
+export type Result_56 = { 'ok' : Array<PayRow> } |
   { 'err' : string };
-export type Result_57 = { 'ok' : NewCode } |
+export type Result_57 = { 'ok' : Array<OaRateView> } |
   { 'err' : string };
-export type Result_58 = { 'ok' : PlanImportReport } |
+export type Result_58 = { 'ok' : MarginClassesView } |
   { 'err' : string };
-export type Result_59 = { 'ok' : ImportReport } |
+export type Result_59 = { 'ok' : Array<LibItemVersionView> } |
   { 'err' : string };
 export type Result_6 = { 'ok' : TenderAccessResult } |
   { 'err' : string };
-export type Result_60 = { 'ok' : OaView } |
+export type Result_60 = { 'ok' : NewCode } |
   { 'err' : string };
-export type Result_61 = { 'ok' : RestorePart } |
+export type Result_61 = { 'ok' : PlanImportReport } |
   { 'err' : string };
-export type Result_62 = { 'ok' : MyQuoteAnswered } |
+export type Result_62 = { 'ok' : ImportReport } |
   { 'err' : string };
-export type Result_63 = { 'ok' : DeclarationDraft } |
+export type Result_63 = { 'ok' : OaView } |
   { 'err' : string };
-export type Result_64 = { 'ok' : NewTicket } |
+export type Result_64 = { 'ok' : RestorePart } |
   { 'err' : string };
-export type Result_65 = { 'ok' : QuoteCreated } |
+export type Result_65 = { 'ok' : MyQuoteAnswered } |
   { 'err' : string };
-export type Result_66 = {
+export type Result_66 = { 'ok' : DeclarationDraft } |
+  { 'err' : string };
+export type Result_67 = { 'ok' : NewTicket } |
+  { 'err' : string };
+export type Result_68 = { 'ok' : QuoteCreated } |
+  { 'err' : string };
+export type Result_69 = {
     'ok' : { 'id' : bigint, 'warnings' : Array<string> }
   } |
   { 'err' : string };
-export type Result_67 = { 'ok' : TenderCompareView } |
-  { 'err' : string };
-export type Result_68 = { 'ok' : CiawExport } |
-  { 'err' : string };
-export type Result_69 = { 'ok' : TicketInfo } |
-  { 'err' : string };
 export type Result_7 = { 'ok' : bigint } |
   { 'err' : string };
-export type Result_70 = { 'ok' : Array<QuoteFinding> } |
+export type Result_70 = { 'ok' : TenderCompareView } |
   { 'err' : string };
-export type Result_71 = { 'ok' : TenderApplyResult } |
+export type Result_71 = { 'ok' : CiawExport } |
   { 'err' : string };
-export type Result_72 = { 'ok' : MyTenderFile } |
+export type Result_72 = { 'ok' : TicketInfo } |
   { 'err' : string };
-export type Result_73 = { 'ok' : MyAttestView } |
+export type Result_73 = { 'ok' : Array<QuoteFinding> } |
+  { 'err' : string };
+export type Result_74 = { 'ok' : TenderApplyResult } |
+  { 'err' : string };
+export type Result_75 = { 'ok' : MyTenderFile } |
+  { 'err' : string };
+export type Result_76 = { 'ok' : MyAttestView } |
   { 'err' : string };
 export type Result_8 = { 'ok' : WorkStartDone } |
   { 'err' : string };
@@ -5702,24 +6039,24 @@ export interface WorkCaps {
   'setLeader' : boolean,
 }
 export interface WorkConfidential {
-  'contract' : Confidential_20,
+  'contract' : Confidential_22,
   'extra' : Extra,
   'version' : bigint,
   'updatedAt' : bigint,
   'updatedBy' : PersonId,
   'notes' : Confidential_3,
   'workId' : WorkId,
-  'clientContact' : Confidential_19,
+  'clientContact' : Confidential_21,
 }
 export interface WorkConfidentialVersion {
   'at' : bigint,
   'by' : PersonId,
   'id' : bigint,
-  'contract' : Confidential_20,
+  'contract' : Confidential_22,
   'version' : bigint,
   'notes' : Confidential_3,
   'workId' : WorkId,
-  'clientContact' : Confidential_19,
+  'clientContact' : Confidential_21,
 }
 export interface WorkDone {
   'id' : bigint,
@@ -6052,7 +6389,7 @@ export interface _SERVICE {
     [bigint, bigint, bigint],
     Array<AbsenceChangeView>
   >,
-  'acceptMyQuote' : ActorMethod<[bigint, string], Result_62>,
+  'acceptMyQuote' : ActorMethod<[bigint, string], Result_65>,
   'accessStats' : ActorMethod<[], AccessStats>,
   'addDealFile' : ActorMethod<
     [string, string, bigint, ExternalBlob, DealFilePurpose],
@@ -6080,11 +6417,11 @@ export interface _SERVICE {
       bigint,
       ExternalBlob,
     ],
-    Result_73
+    Result_76
   >,
   'addMyTenderFile' : ActorMethod<
     [string, string, string, bigint, ExternalBlob],
-    Result_72
+    Result_75
   >,
   'addQuoteTerms' : ActorMethod<[QuoteTermsInput], Result_7>,
   'addRobot' : ActorMethod<[Principal, string, Array<string>], Result_1>,
@@ -6095,11 +6432,12 @@ export interface _SERVICE {
     [bigint, string, bigint, boolean, bigint],
     Result_12
   >,
-  'applyTenderChoices' : ActorMethod<[bigint, bigint], Result_71>,
+  'applyTenderChoices' : ActorMethod<[bigint, bigint], Result_74>,
   'approveOaInvoice' : ActorMethod<
     [bigint, bigint, OaProofInput, string],
     Result_1
   >,
+  'approvePurchase' : ActorMethod<[bigint, bigint, string], Result_1>,
   'archiveAbsence' : ActorMethod<[bigint], Result_1>,
   'archiveAssignment' : ActorMethod<[bigint, bigint, bigint], Result_7>,
   'archiveCalendarBlock' : ActorMethod<[bigint], Result_1>,
@@ -6123,42 +6461,43 @@ export interface _SERVICE {
   'boardRules' : ActorMethod<[], BoardRulesView>,
   'cancelJob' : ActorMethod<[bigint], Result_1>,
   'cancelProgressDraft' : ActorMethod<[bigint, string], Result_1>,
-  'checkQuoteVersion' : ActorMethod<[bigint], Result_70>,
-  'checkTicket' : ActorMethod<[string], Result_69>,
-  'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_68>,
+  'checkQuoteVersion' : ActorMethod<[bigint], Result_73>,
+  'checkTicket' : ActorMethod<[string], Result_72>,
+  'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_71>,
   'claimBootstrap' : ActorMethod<[string, string], Result_3>,
-  'compareTender' : ActorMethod<[bigint], Result_67>,
+  'compareTender' : ActorMethod<[bigint], Result_70>,
   'completeJob' : ActorMethod<[bigint, bigint, string], Result_1>,
   'confirmAssignment' : ActorMethod<[bigint, boolean, string], Result_1>,
   'confirmHours' : ActorMethod<[bigint, boolean, string], Result_1>,
   'confirmLink' : ActorMethod<[Principal], Result_1>,
-  'createDeal' : ActorMethod<[bigint, bigint], Result_66>,
+  'createDeal' : ActorMethod<[bigint, bigint], Result_69>,
   'createOrg' : ActorMethod<[OrgInput], Result_4>,
-  'createQuote' : ActorMethod<[QuoteNew], Result_65>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_57>,
+  'createQuote' : ActorMethod<[QuoteNew], Result_68>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_60>,
   'createTender' : ActorMethod<[TenderInput], Result_7>,
-  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_64>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_67>,
   'createWork' : ActorMethod<[WorkInput], Result_2>,
   'creditProgress' : ActorMethod<[bigint, string], Result_7>,
   'dashboard' : ActorMethod<[bigint], DashboardView>,
   'dealSetup' : ActorMethod<[], DealSetup>,
   'decideProposal' : ActorMethod<[bigint, boolean, string], Result_1>,
   'decideQuoteVersion' : ActorMethod<[bigint, boolean, string], Result_1>,
-  'declarationDraft' : ActorMethod<[bigint], Result_63>,
-  'declineMyQuote' : ActorMethod<[bigint, string, string], Result_62>,
+  'declarationDraft' : ActorMethod<[bigint], Result_66>,
+  'declineMyQuote' : ActorMethod<[bigint, string, string], Result_65>,
   'declineMyTender' : ActorMethod<[string, string], Result_1>,
   'dismissWorkStart' : ActorMethod<[bigint, string], Result_8>,
   'disputeOaInvoice' : ActorMethod<[bigint, bigint, string], Result_1>,
+  'disputePurchase' : ActorMethod<[bigint, bigint, string], Result_1>,
   'endDeal' : ActorMethod<[bigint, string, bigint], Result_1>,
   'endMembership' : ActorMethod<[bigint], Result_1>,
-  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_61>,
+  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_64>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
   'failJob' : ActorMethod<[bigint, bigint, string, boolean], Result_1>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
   'getLibraryItem' : ActorMethod<[bigint], Result_21>,
   'getMeasureSurvey' : ActorMethod<[bigint], SurveyDetail>,
-  'getOa' : ActorMethod<[bigint], Result_60>,
+  'getOa' : ActorMethod<[bigint], Result_63>,
   'getPlan' : ActorMethod<[bigint], PlanView>,
   'getQuoteDocSettings' : ActorMethod<[], QuoteDocSettings>,
   'getQuoteRules' : ActorMethod<[], QuoteRulesView>,
@@ -6167,16 +6506,16 @@ export interface _SERVICE {
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
   'handleIssue' : ActorMethod<[bigint, string], Result_1>,
-  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_59>,
+  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_62>,
   'importPlanning' : ActorMethod<
     [boolean, string, string, Array<string>, ImportBlock],
-    Result_58
+    Result_61
   >,
-  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_57>,
-  'invitePerson' : ActorMethod<[InviteRequest], Result_57>,
+  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_60>,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_60>,
   'leaseJobs' : ActorMethod<[bigint], Array<JobLease>>,
   'libraryChapters' : ActorMethod<[boolean], Array<LibChapterView>>,
-  'libraryItemHistory' : ActorMethod<[bigint], Result_56>,
+  'libraryItemHistory' : ActorMethod<[bigint], Result_59>,
   'libraryUnits' : ActorMethod<[boolean], Array<UnitView>>,
   'listAbsences' : ActorMethod<
     [[] | [bigint], bigint, bigint],
@@ -6188,6 +6527,7 @@ export interface _SERVICE {
   'listDeals' : ActorMethod<[bigint], Array<DealStatusView>>,
   'listDocKinds' : ActorMethod<[boolean], Array<DocKindView>>,
   'listFiles' : ActorMethod<[[] | [bigint]], Array<FileView>>,
+  'listHourClaims' : ActorMethod<[[] | [bigint]], Array<HourClaimView>>,
   'listImportBatches' : ActorMethod<[], Array<ImportBatch>>,
   'listInvites' : ActorMethod<[bigint, bigint], Array<InviteView>>,
   'listIssues' : ActorMethod<
@@ -6198,7 +6538,7 @@ export interface _SERVICE {
   'listLibrary' : ActorMethod<[LibFilter], LibPage>,
   'listLinks' : ActorMethod<[], Array<LinkView>>,
   'listMailLog' : ActorMethod<[bigint, bigint], Array<MailLogView>>,
-  'listMarginClasses' : ActorMethod<[], Result_55>,
+  'listMarginClasses' : ActorMethod<[], Result_58>,
   'listMeasureWorks' : ActorMethod<[], Array<MeasureWorkBrief>>,
   'listMembers' : ActorMethod<[bigint], Array<MembershipView>>,
   'listMunicipalities' : ActorMethod<[boolean], Array<MunicipalityView>>,
@@ -6212,7 +6552,7 @@ export interface _SERVICE {
     Array<OaInvoiceBrief>
   >,
   'listOaQuotes' : ActorMethod<[bigint], Array<OaQuoteBrief>>,
-  'listOaRates' : ActorMethod<[bigint], Result_54>,
+  'listOaRates' : ActorMethod<[bigint], Result_57>,
   'listOas' : ActorMethod<[OaFilter], Array<OaView>>,
   'listOrgDocs' : ActorMethod<[bigint], OrgDocsView>,
   'listOrgs' : ActorMethod<[boolean], Array<OrgView>>,
@@ -6220,6 +6560,11 @@ export interface _SERVICE {
   'listPermits' : ActorMethod<[string, [] | [bigint]], Array<PermitView>>,
   'listPersons' : ActorMethod<[boolean], Array<PersonView>>,
   'listProgress' : ActorMethod<[bigint], Array<ProgressBrief>>,
+  'listPurchases' : ActorMethod<
+    [[] | [bigint], [] | [PurchaseStatus]],
+    Array<PurchaseBrief>
+  >,
+  'listPurchasesToPay' : ActorMethod<[], Result_56>,
   'listQuotes' : ActorMethod<[[] | [bigint], boolean], Array<QuoteSummary>>,
   'listReports' : ActorMethod<[bigint, bigint, bigint], Array<ReportSummary>>,
   'listRobots' : ActorMethod<[], Array<RobotView>>,
@@ -6232,10 +6577,10 @@ export interface _SERVICE {
   'listWorkStages' : ActorMethod<[], Array<WorkStageView>>,
   'listWorks' : ActorMethod<[], Array<WorkView>>,
   'loadLibraryStartChapters' : ActorMethod<[], Result_7>,
-  'lookupFine' : ActorMethod<[FineQuery], Result_53>,
-  'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_52>,
+  'lookupFine' : ActorMethod<[FineQuery], Result_55>,
+  'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_54>,
   'mailQuoteToClient' : ActorMethod<[bigint], Result_1>,
-  'makeOaContract' : ActorMethod<[bigint, bigint], Result_36>,
+  'makeOaContract' : ActorMethod<[bigint, bigint], Result_37>,
   'markIntroSeen' : ActorMethod<[], undefined>,
   'markNotificationsRead' : ActorMethod<[Array<bigint>], undefined>,
   'markOaContractSigned' : ActorMethod<
@@ -6243,6 +6588,7 @@ export interface _SERVICE {
     Result_1
   >,
   'markProgressPrepared' : ActorMethod<[bigint], Result_1>,
+  'markPurchasePaid' : ActorMethod<[bigint, bigint, [] | [bigint]], Result_1>,
   'me' : ActorMethod<[], MeView>,
   'measurePost' : ActorMethod<[bigint, bigint], MeasurePostDetail>,
   'measureSettings' : ActorMethod<[], MeasureSettingsView>,
@@ -6254,6 +6600,7 @@ export interface _SERVICE {
   'myNotifications' : ActorMethod<[boolean], Array<NotificationView>>,
   'myOaInvoices' : ActorMethod<[], Array<MyOaInvoice>>,
   'myProposals' : ActorMethod<[], Array<ProposalView>>,
+  'myPurchases' : ActorMethod<[], Array<MyPurchaseView>>,
   'myWorks' : ActorMethod<[], Array<ExternalWork>>,
   'newProgress' : ActorMethod<[bigint], Result_7>,
   'newQuoteVersion' : ActorMethod<[bigint, [] | [bigint]], Result_7>,
@@ -6273,36 +6620,39 @@ export interface _SERVICE {
   >,
   'permitsOnSite' : ActorMethod<[bigint], Array<PermitView>>,
   'postSettings' : ActorMethod<[], PostSettingsView>,
-  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_50>,
-  'previewMail' : ActorMethod<[string, [] | [bigint], bigint], Result_51>,
-  'previewPlan' : ActorMethod<[bigint, PlanChange], Result_50>,
-  'progressInvoiceData' : ActorMethod<[bigint], Result_49>,
+  'previewDependency' : ActorMethod<[bigint, DependencyInput], Result_52>,
+  'previewMail' : ActorMethod<[string, [] | [bigint], bigint], Result_53>,
+  'previewPlan' : ActorMethod<[bigint, PlanChange], Result_52>,
+  'progressInvoiceData' : ActorMethod<[bigint], Result_51>,
   'progressQty' : ActorMethod<[bigint], ProgressQtyView>,
   'progressSettings' : ActorMethod<[], ProgressSettings>,
   'progressWorks' : ActorMethod<[], Array<ProgressWorkBrief>>,
+  'purchaseCosts' : ActorMethod<[bigint], Result_50>,
+  'purchaseSettings' : ActorMethod<[], PurchaseSettings>,
   'queueReminders' : ActorMethod<[bigint], Result_7>,
   'queueTestMail' : ActorMethod<[string], Result_7>,
   'queueWeekMails' : ActorMethod<[bigint, [] | [bigint]], Result_7>,
   'quoteSequence' : ActorMethod<[bigint], bigint>,
-  'readConfidentialFile' : ActorMethod<[bigint], Result_48>,
-  'readContract' : ActorMethod<[bigint], Result_47>,
-  'readContractHistory' : ActorMethod<[bigint], Result_46>,
-  'readDeal' : ActorMethod<[bigint], Result_45>,
-  'readLibraryPriceHistory' : ActorMethod<[bigint], Result_44>,
-  'readLibraryPrices' : ActorMethod<[Array<bigint>], Result_43>,
-  'readMyAttestFile' : ActorMethod<[string], Result_41>,
-  'readMyContract' : ActorMethod<[string, bigint], Result_42>,
-  'readMyContractFile' : ActorMethod<[string, bigint], Result_41>,
-  'readMyProgress' : ActorMethod<[bigint], Result_40>,
-  'readMyQuote' : ActorMethod<[bigint], Result_39>,
-  'readMyTender' : ActorMethod<[string], Result_38>,
-  'readMyTenderAnswer' : ActorMethod<[string], Result_37>,
-  'readOaContract' : ActorMethod<[bigint, bigint], Result_36>,
-  'readOaInvoice' : ActorMethod<[bigint], Result_35>,
-  'readOaQuote' : ActorMethod<[bigint], Result_34>,
-  'readOrgConfidential' : ActorMethod<[bigint], Result_33>,
-  'readProgressRevision' : ActorMethod<[bigint], Result_32>,
-  'readProgressStatement' : ActorMethod<[bigint], Result_31>,
+  'readConfidentialFile' : ActorMethod<[bigint], Result_49>,
+  'readContract' : ActorMethod<[bigint], Result_48>,
+  'readContractHistory' : ActorMethod<[bigint], Result_47>,
+  'readDeal' : ActorMethod<[bigint], Result_46>,
+  'readLibraryPriceHistory' : ActorMethod<[bigint], Result_45>,
+  'readLibraryPrices' : ActorMethod<[Array<bigint>], Result_44>,
+  'readMyAttestFile' : ActorMethod<[string], Result_42>,
+  'readMyContract' : ActorMethod<[string, bigint], Result_43>,
+  'readMyContractFile' : ActorMethod<[string, bigint], Result_42>,
+  'readMyProgress' : ActorMethod<[bigint], Result_41>,
+  'readMyQuote' : ActorMethod<[bigint], Result_40>,
+  'readMyTender' : ActorMethod<[string], Result_39>,
+  'readMyTenderAnswer' : ActorMethod<[string], Result_38>,
+  'readOaContract' : ActorMethod<[bigint, bigint], Result_37>,
+  'readOaInvoice' : ActorMethod<[bigint], Result_36>,
+  'readOaQuote' : ActorMethod<[bigint], Result_35>,
+  'readOrgConfidential' : ActorMethod<[bigint], Result_34>,
+  'readProgressRevision' : ActorMethod<[bigint], Result_33>,
+  'readProgressStatement' : ActorMethod<[bigint], Result_32>,
+  'readPurchase' : ActorMethod<[bigint], Result_31>,
   'readQuoteVersion' : ActorMethod<[bigint], Result_30>,
   'readTender' : ActorMethod<[bigint], Result_29>,
   'readTenderFile' : ActorMethod<[string, bigint], Result_28>,
@@ -6317,6 +6667,7 @@ export interface _SERVICE {
   'restoreFinish' : ActorMethod<[string], Result_24>,
   'restorePerson' : ActorMethod<[bigint], Result_1>,
   'retryJob' : ActorMethod<[bigint], Result_1>,
+  'reviewHourClaim' : ActorMethod<[bigint, boolean, string], Result_1>,
   'reviewOrgDoc' : ActorMethod<[bigint, boolean, string], Result_1>,
   'revokeInvite' : ActorMethod<[bigint], Result_1>,
   'revokeLink' : ActorMethod<[Principal], Result_1>,
@@ -6354,6 +6705,8 @@ export interface _SERVICE {
   >,
   'saveProgressRevision' : ActorMethod<[bigint, RevisionModel], Result_1>,
   'saveProgressSettings' : ActorMethod<[ProgressSettings], Result_1>,
+  'savePurchase' : ActorMethod<[PurchaseInput, bigint], Result_7>,
+  'savePurchaseSettings' : ActorMethod<[PurchaseSettings], Result_1>,
   'saveQuoteDraft' : ActorMethod<
     [
       bigint,
@@ -6444,6 +6797,7 @@ export interface _SERVICE {
   'wadmRules' : ActorMethod<[], WadmRules>,
   'weekBoard' : ActorMethod<[BoardQuery], BoardView>,
   'withdrawOaInvoice' : ActorMethod<[bigint, bigint, string], Result_1>,
+  'withdrawPurchase' : ActorMethod<[bigint, bigint, string], Result_1>,
   'withholdingHistory' : ActorMethod<[bigint], Array<WithholdingCheckView>>,
   'workAdmin' : ActorMethod<[bigint], WorkAdminView>,
   'workConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,

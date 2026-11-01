@@ -27,6 +27,7 @@ module {
     source : Text;
     updatedAt : Int;
     rev : Nat;
+    purchaseId : ?Nat; // 2c.7: een werfdeel van deze aankoopfactuur
   };
 
   public type OaLineQty = {

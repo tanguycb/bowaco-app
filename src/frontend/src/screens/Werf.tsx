@@ -26,6 +26,7 @@ import { PendingStarts } from "./WerfStart";
 import { OpmetingWerf } from "./Opmeting";
 import { MyStatements, WorkStatements } from "./Vorderingen";
 import { WorkOaInvoices } from "./OaFacturen";
+import { WorkHourClaims, WorkPurchases } from "./Aankoop";
 import { MyQuotes } from "./MijnOfferte";
 import { WorkTenders } from "./Prijsvragen";
 import { WorkOaQuotes } from "./OaOffertes";
@@ -218,6 +219,8 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
         <div className="a-tabbody">
           {caps.progress && <WorkStatements workId={id} caps={caps} go={go} embedded />}
           {caps.oaInvoices && <WorkOaInvoices workId={id} caps={caps} go={go} />}
+          {caps.hourClaims && <WorkHourClaims workId={id} />}
+          {caps.purchases && <WorkPurchases workId={id} go={go} />}
           {w.caps.contract && <Contract w={w} works={works.data ?? []} />}
         </div>
       );

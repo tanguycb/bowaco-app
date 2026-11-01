@@ -14,6 +14,9 @@ import { EmptyState, Loading, Page } from "./common";
 import { OpenConfidential } from "./Dossier";
 import { fmtQty, parseQty } from "./Offertes";
 import "../app/oafactuur.css";
+import { MyPurchasesBlock, PayList, PurchaseList, PurchaseTabs } from "./Aankoop";
+import { PurchaseForm } from "./AankoopForm";
+import { PurchaseView } from "./AankoopView";
 
 const T = t.oaFacturen;
 const statusTag = (s: OaInvoiceStatus) => (s === OaInvoiceStatus.approved ? "a-tag--ok" : s === OaInvoiceStatus.disputed ? "a-tag--bad" : s === OaInvoiceStatus.withdrawn ? "" : "a-tag--accent");
@@ -23,6 +26,13 @@ const regimeOf = (r: OaVatRegime): string => (r.__kind__ === "reverse" ? "revers
 const regimeTs = (k: string): OaVatRegime => (k === "reverse" ? { __kind__: "reverse", reverse: null } : { __kind__: "normal", normal: BigInt(k) });
 
 export function OaFacturenPage({ caps, go, route }: { caps: Caps; go: (to: string) => void; route: string[] }) {
+  // 2c.7: aankoopfacturen (meerdere werven, leveranciers) en Te betalen, als tabbladen van deze werklijst (geen menu-item).
+  if (route[1] === "aankoop" && caps.purchases) {
+    if (route[2] === "nieuw") return <PurchaseForm go={go} />;
+    if (route[2] && /^\d+$/.test(route[2])) return route[3] === "wijzigen" ? <PurchaseForm key={`e${route[2]}`} id={BigInt(route[2])} go={go} /> : <PurchaseView key={route[2]} id={BigInt(route[2])} go={go} />;
+    return <PurchaseList caps={caps} go={go} />;
+  }
+  if (route[1] === "te-betalen" && caps.purchases) return <PayList caps={caps} go={go} />;
   if (route[1] === "nieuw") return caps.quotePrices ? <InvoiceForm go={go} /> : <ListPage caps={caps} go={go} />;
   if (route[1] && /^\d+$/.test(route[1])) {
     if (route[2] === "wijzigen" && caps.quotePrices) return <InvoiceForm key={`e${route[1]}`} id={BigInt(route[1])} go={go} />;
@@ -39,6 +49,7 @@ function ListPage({ caps, go }: { caps: Caps; go: (to: string) => void }) {
   const rows = q.data ?? [];
   return (
     <Page label={T.label} title={T.title} actions={caps.quotePrices ? <Button variant="primary" icon="plus" onClick={() => go("oa-facturen/nieuw")} data-testid="oi-new">{T.register}</Button> : undefined}>
+      <PurchaseTabs caps={caps} go={go} active="parts" />
       <p className="bw-muted" style={{ maxWidth: 720 }}>{caps.quotePrices ? T.lead : T.leadQty}</p>
       <label className="bw-field" style={{ maxWidth: 240 }}>
         <span className="bw-label">{T.statusFilter}</span>
@@ -305,6 +316,7 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
         <Button icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button>
         <Button icon="building" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
         {v.canEdit && <Button icon="edit" onClick={() => go(`oa-facturen/${id}/wijzigen`)} data-testid="oi-edit">{T.edit}</Button>}
+        {b.purchaseId !== undefined && <Button icon="receipt" onClick={() => go(`oa-facturen/aankoop/${b.purchaseId}`)} data-testid="oi-purchase">{T.purchaseLink}</Button>}
         {v.canDecide && <Button variant="primary" icon="check" onClick={() => { setReason(""); setSheet("approve"); }} data-testid="oi-approve">{T.approve}</Button>}
         {v.canEdit && <Button icon="alert" onClick={() => { setReason(""); setSheet("dispute"); }} data-testid="oi-dispute">{T.dispute}</Button>}
         {v.canDecide && <Button variant="quiet" icon="close" onClick={() => { setReason(""); setSheet("withdraw"); }}>{T.withdraw}</Button>}
@@ -457,6 +469,7 @@ export function MijnFacturenPage() {
     <Page label={T.mine} title={T.mineTitle}>
       <p className="bw-muted" style={{ maxWidth: 640 }}>{T.mineLead}</p>
       <Loading q={q} />
+      <MyPurchasesBlock />
       {q.data && rows.length === 0 && <EmptyState title={t.leeg.mijnFacturen.t} text={t.leeg.mijnFacturen.d} />}
       {rows.length > 0 && (
         <ul className="a-list" data-testid="my-oi">
@@ -474,14 +487,14 @@ export function MijnFacturenPage() {
 }
 
 // ── Kleine hulp ────────────────────────────────────────────────────────────
-function roundDiv(n: bigint, d: bigint): bigint { return n >= 0n ? (n + d / 2n) / d : -((-n + d / 2n) / d); }
-function euroIn(c: bigint | undefined): string {
+export function roundDiv(n: bigint, d: bigint): bigint { return n >= 0n ? (n + d / 2n) / d : -((-n + d / 2n) / d); }
+export function euroIn(c: bigint | undefined): string {
   if (c === undefined) return "";
   const neg = c < 0n;
   const a = neg ? -c : c;
   return `${neg ? "-" : ""}${a / 100n},${String(a % 100n).padStart(2, "0")}`;
 }
-function parseEuroSigned(s: string): bigint | null {
+export function parseEuroSigned(s: string): bigint | null {
   const v = s.trim().replace("−", "-");
   const neg = v.startsWith("-");
   const r = parseEuro(neg ? v.slice(1) : v);

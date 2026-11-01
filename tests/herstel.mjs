@@ -55,9 +55,9 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices", "quoteFormInfos", "quoteVersionForms", "quoteSubgroups", "quoteLineForms", "textBlocks", "quoteSentExtras", "tenders", "tenderItems", "tenderInvites", "oaQuotes", "agreements", "oaContractTemplates", "orgDocs", "dealNotices"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices", "quoteFormInfos", "quoteVersionForms", "quoteSubgroups", "quoteLineForms", "textBlocks", "quoteSentExtras", "tenders", "tenderItems", "tenderInvites", "oaQuotes", "agreements", "oaContractTemplates", "orgDocs", "dealNotices", "purchases", "hourClaims"];
   // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
-  const SIZE = { libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10, oaInvoiceAmounts: 50, textBlocks: 50, quoteSentExtras: 20, quoteVersionTerms: 100, tenderItems: 100, oaQuoteAmounts: 50, oaQuoteDrafts: 50, oaContractTemplates: 10, agreementFrozen: 10, agreementTerms: 50 };
+  const SIZE = { purchaseAmounts: 50, libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10, oaInvoiceAmounts: 50, textBlocks: 50, quoteSentExtras: 20, quoteVersionTerms: 100, tenderItems: 100, oaQuoteAmounts: 50, oaQuoteDrafts: 50, oaContractTemplates: 10, agreementFrozen: 10, agreementTerms: 50 };
   const partOpt = async (k) => { try { return await part(k, SIZE[k] ?? 500); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
   const intern = { version: (await admin.me()).version, at: BigInt(Date.now()) * 1_000_000n, trades: await admin.listTrades(true), settings: await part("settings"), auditCount: await admin.auditCount() };
   for (const k of INTERN) intern[k] = await part(k);
@@ -77,6 +77,8 @@ async function exportAll(cid, dir) {
   for (const k of ["oaQuoteAmounts", "oaQuoteDrafts", "tenderChoices"]) vertrouwelijk[k] = await partOpt(k);
   // 2c.4: de tarieven van OA's, de prijzen en tarieven per afspraak en de vastgelegde contractversies.
   for (const k of ["oaRates", "agreementTerms", "agreementFrozen"]) vertrouwelijk[k] = await partOpt(k);
+  // 2c.7: de regels en bedragen van de aankoopfacturen en de OA-voorschotten.
+  for (const k of ["purchaseAmounts", "oaAdvances"]) vertrouwelijk[k] = await partOpt(k);
   // 2.12 (review M1): de tellers als ALLERLAATSTE: op een levende canister kan tussen twee stukken nog een staat verstuurd of
   // een record gemaakt worden; een teller die ouder is dan de records geeft na een herstel hetzelfde nummer nog eens.
   intern.counters = await part("counters");
@@ -254,6 +256,10 @@ async function restoreAll(cid, dir) {
   await send("oaRates", vertrouwelijk.oaRates ?? [], 300);
   await send("agreementTerms", vertrouwelijk.agreementTerms ?? [], 50);
   await send("agreementFrozen", vertrouwelijk.agreementFrozen ?? [], 10);
+  await send("purchases", intern.purchases ?? [], 200);
+  await send("hourClaims", intern.hourClaims ?? [], 300);
+  await send("purchaseAmounts", vertrouwelijk.purchaseAmounts ?? [], 50);
+  await send("oaAdvances", vertrouwelijk.oaAdvances ?? [], 300);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -373,6 +379,8 @@ function normalize(intern, vertrouwelijk, audit) {
     oaContractTemplates: byKey(intern.oaContractTemplates ?? [], id),
     orgDocs: byKey(intern.orgDocs ?? [], id),
     dealNotices: byKey(intern.dealNotices ?? [], (x) => x[0]),
+    purchases: byKey(intern.purchases ?? [], id),
+    hourClaims: byKey(intern.hourClaims ?? [], id),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),
@@ -397,6 +405,8 @@ function normalize(intern, vertrouwelijk, audit) {
     "vertrouwelijk.oaRates": byKey(vertrouwelijk.oaRates ?? [], (x) => x[0]),
     "vertrouwelijk.agreementTerms": byKey(vertrouwelijk.agreementTerms ?? [], (x) => x[0]),
     "vertrouwelijk.agreementFrozen": byKey(vertrouwelijk.agreementFrozen ?? [], (x) => x[0]),
+    "vertrouwelijk.purchaseAmounts": byKey(vertrouwelijk.purchaseAmounts ?? [], (x) => x[0]),
+    "vertrouwelijk.oaAdvances": byKey(vertrouwelijk.oaAdvances ?? [], (x) => x[0]),
     audit,
   };
   return out;

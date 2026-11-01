@@ -73,6 +73,8 @@ module {
     myTenders : Bool; // 2c.2: een OA met een firma: Mijn prijsvragen (enkel de uitnodigingen aan zijn firma)
     deals : Bool; // 2c.4: afspraken, tarieven en contracten van OA's maken (admin, calculator)
     myDeals : Bool; // 2c.4: een OA met een firma: Mijn contracten en Mijn attesten
+    purchases : Bool; // 2c.7: aankoopfacturen registreren, controleren, te betalen (admin, calculator)
+    hourClaims : Bool; // 2c.7: uren van OA's bevestigen (werfleider van de werf, beheerder)
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
 
@@ -893,6 +895,8 @@ module {
     oaContractTemplates : [Types.OaContractTemplate];
     orgDocs : [Types.OrgDoc];
     dealNotices : [(Text, Int)];
+    purchases : [Types.Purchase]; // 2c.7 (intern: zonder bedragen)
+    hourClaims : [Types.HourClaim];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -1015,6 +1019,10 @@ module {
     #oaRates : [(Nat, Types.Confidential<Types.OaRate>)]; // 2c.4 (vertrouwelijk)
     #agreementTerms : [(Nat, Types.Confidential<Types.AgreementTerms>)];
     #agreementFrozen : [(Nat, Types.Confidential<Types.AgreementFrozen>)];
+    #purchases : [Types.Purchase]; // 2c.7 (intern)
+    #hourClaims : [Types.HourClaim];
+    #purchaseAmounts : [(Nat, Types.Confidential<Types.PurchaseAmounts>)]; // 2c.7 (vertrouwelijk)
+    #oaAdvances : [(Nat, Types.Confidential<Types.OaAdvance>)];
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -1047,6 +1055,8 @@ module {
     oaRates : [(Nat, Types.Confidential<Types.OaRate>)]; // 2c.4: tarieven van OA's, prijzen en tarieven per afspraak, contractversies
     agreementTerms : [(Nat, Types.Confidential<Types.AgreementTerms>)];
     agreementFrozen : [(Nat, Types.Confidential<Types.AgreementFrozen>)];
+    purchaseAmounts : [(Nat, Types.Confidential<Types.PurchaseAmounts>)]; // 2c.7: regels en bedragen van de aankoopfacturen, OA-voorschotten
+    oaAdvances : [(Nat, Types.Confidential<Types.OaAdvance>)];
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────

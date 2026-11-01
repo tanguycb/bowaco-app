@@ -458,6 +458,23 @@ const table = {
   addMyAttest: [["oa"], () => ["", "", [], [], "", "application/pdf", 0n, blob]],
   readMyAttestFile: [["oa"], () => ["0".repeat(16)]],
   scanOrgDocs: [ADMIN, () => []],
+  // 2c.7: aankoopfacturen (R44). Kantoor (admin, calculator) registreert, beslist en ziet bedragen (update-calls met auditregel);
+  // een onbekende aankoop of dag: voor iedereen "Geen toegang" (geen id-orakel). De uren per dag: de werfleider en de beheerder
+  // (listHourClaims zonder werf; per dag beslist de werf). De OA ziet zijn eigen facturen enkel met de schakelaar (staat uit).
+  purchaseSettings: [INTERNAL, () => []],
+  savePurchaseSettings: [ADMIN, () => [{ askHours: "x", passOn: true }]],
+  listPurchases: [["admin", "calculator"], () => [[], []]],
+  readPurchase: [NONE, () => [X]],
+  listPurchasesToPay: [["admin", "calculator"], () => []],
+  purchaseCosts: [["admin", "calculator"], () => [B]],
+  savePurchase: [["admin", "calculator"], () => [{ id: [], orgId: X, kind: { oa: null }, number: "", invoiceDay: 0n, dueDay: [], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], oaStatementFileId: [], oaStatementRef: "", note: "", netCents: 0n, vatCents: 0n, totalCents: 0n, lines: [], finalWorkIds: [] }, 0n]],
+  approvePurchase: [NONE, () => [X, 0n, ""]],
+  disputePurchase: [NONE, () => [X, 0n, ""]],
+  withdrawPurchase: [NONE, () => [X, 0n, ""]],
+  markPurchasePaid: [NONE, () => [X, 0n, []]],
+  listHourClaims: [["admin", "werfleider"], () => [[]]],
+  reviewHourClaim: [NONE, () => [X, true, ""]],
+  myPurchases: [NONE, () => []],
   setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
   getSettings: [INTERNAL, () => []],
   setSettings: [ADMIN, () => [{ werfleiderZietAlles: true, inviteDays: 0n, threshold30bisCents: 3_000_000n, thresholdCheckinatworkCents: 50_000_000n }]],

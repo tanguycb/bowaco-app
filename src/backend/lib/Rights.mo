@@ -82,6 +82,11 @@ module {
     // tarieven, afspraken, contracten, sjabloon, attesten keuren (admin, calculator; bedragen lezen enkel via update-calls met
     // auditregel); #ownDeals = een OA met een firma: "Mijn contracten" en "Mijn attesten" (enkel zijn eigen firma).
     #readDeals; #editDeals; #ownDeals;
+    // 2c.7 (R44): aankoopfacturen. #editPurchases = registreren, controleren, goedkeuren, betwisten, betaald markeren, te betalen
+    // en doorrekenen (admin, calculator; bedragen enkel via update-calls met auditregel). #confirmHourClaims = de uren per dag op een
+    // OA-factuur bevestigen (de werfleider van DIE werf, en de beheerder), zonder bedrag. De OA ziet de stand van zijn eigen facturen
+    // met de bestaande schakelaar (#ownOaInvoices, R31).
+    #editPurchases; #confirmHourClaims;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -274,6 +279,9 @@ module {
       case (#readDeals) on(func w = dealScope(ctx, p, w) != #none);
       case (#editDeals) admin or calc;
       case (#ownDeals) has(p, #onderaannemer) and p.orgId != null;
+      // 2c.7 (R44): aankoop enkel kantoor; de uren per dag de werfleider van die werf (en de beheerder).
+      case (#editPurchases) admin or calc;
+      case (#confirmHourClaims) on(func w = admin or leaderOn(ctx, p, w));
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -369,6 +377,18 @@ module {
     if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
     if (has(p, #admin) or has(p, #calculator)) { return #full };
     if (leaderOn(ctx, p, w)) { return #status };
+    #none;
+  };
+
+  // ── Aankoopfacturen (2c.7, R44) ──────────────────────────────────────────
+  // #full = admin en calculator: aankopen, regels, bedragen (bedragen enkel via een update-call). #hours = de werfleider van de werf:
+  // enkel de uren per dag van de OA's op zijn werf (HourClaim), nooit een bedrag. De rest: niets.
+  public type PurchaseScope = { #full; #hours; #none };
+
+  public func purchaseScope(ctx : Ctx, p : Person, w : WorkId) : PurchaseScope {
+    if (p.archivedAt != null or not workExists(ctx, w)) { return #none };
+    if (has(p, #admin) or has(p, #calculator)) { return #full };
+    if (leaderOn(ctx, p, w)) { return #hours };
     #none;
   };
 
@@ -661,6 +681,8 @@ module {
       myTenders = may(ctx, p, #ownTenders, null);
       deals = may(ctx, p, #editDeals, null);
       myDeals = may(ctx, p, #ownDeals, null);
+      purchases = may(ctx, p, #editPurchases, null);
+      hourClaims = p.archivedAt == null and (has(p, #admin) or has(p, #werfleider));
       home = home(p);
     };
   };

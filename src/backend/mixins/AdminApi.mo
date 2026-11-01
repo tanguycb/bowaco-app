@@ -45,6 +45,7 @@ mixin (
   quoteForms : Types.QuoteFormState,
   tenders : Types.TenderState,
   oaDeals : Types.OaDealState,
+  purchases : Types.PurchaseState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -273,6 +274,8 @@ mixin (
       oaContractTemplates = oaDeals.templates.values().toArray();
       orgDocs = oaDeals.orgDocs.values().toArray();
       dealNotices = oaDeals.notices.entries().toArray();
+      purchases = purchases.purchases.values().toArray();
+      hourClaims = purchases.claims.values().toArray();
     };
   };
 
@@ -284,10 +287,10 @@ mixin (
     let p = Access.requireActive(access, caller);
     let ctx = { works; settings };
     Rights.require(ctx, p, #export, null);
-    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "marginClasses" or kind == "marginClassLinks" or kind == "quoteVersionTerms" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices" or kind == "oaRates" or kind == "agreementTerms" or kind == "agreementFrozen";
+    let confidentialKind = kind == "orgConfidential" or kind == "personConfidential" or kind == "confidentialFiles" or kind == "workConfidential" or kind == "workConfidentialHistory" or kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "marginClasses" or kind == "marginClassLinks" or kind == "quoteVersionTerms" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices" or kind == "oaRates" or kind == "agreementTerms" or kind == "agreementFrozen" or kind == "purchaseAmounts" or kind == "oaAdvances";
     // 2.2/2.4: de prijzen van de bibliotheek en van de offertes vragen daarbovenop #readCosts (aankoopprijzen, R20).
     // 2.12 (review L1): ook de opslag-URL's van vertrouwelijke bestanden (contracten, OA-facturen): lezen ervan vraagt #readCosts (R12).
-    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "confidentialFiles" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices" or kind == "oaRates" or kind == "agreementTerms" or kind == "agreementFrozen") { Rights.require(ctx, p, #readCosts, null) };
+    if (kind == "libCosts" or kind == "libSells" or kind == "libSellVersions" or kind == "quotePrices" or kind == "quoteVersionConf" or kind == "progressConf" or kind == "progressFrozen" or kind == "progressRevisions" or kind == "oaInvoiceAmounts" or kind == "confidentialFiles" or kind == "oaQuoteAmounts" or kind == "oaQuoteDrafts" or kind == "tenderChoices" or kind == "oaRates" or kind == "agreementTerms" or kind == "agreementFrozen" or kind == "purchaseAmounts" or kind == "oaAdvances") { Rights.require(ctx, p, #readCosts, null) };
     if (confidentialKind) { Rights.require(ctx, p, #readConfidentialContact, null) };
     if (from == 0) { Access.audit(audit, caller, ?p.id, null, if confidentialKind "bekeek:export-vertrouwelijk-deel" else "export-deel", kind) };
     func pg<T>(xs : [T]) : [T] { Access.page(xs, from, limit) };
@@ -412,6 +415,10 @@ mixin (
       case "oaRates" ?#oaRates(pg(oaDeals.rates.entries().toArray()));
       case "agreementTerms" ?#agreementTerms(pg(oaDeals.terms.entries().toArray()));
       case "agreementFrozen" ?#agreementFrozen(pg(oaDeals.frozen.entries().toArray()));
+      case "purchases" ?#purchases(pg(purchases.purchases.values().toArray()));
+      case "hourClaims" ?#hourClaims(pg(purchases.claims.values().toArray()));
+      case "purchaseAmounts" ?#purchaseAmounts(pg(purchases.amounts.entries().toArray()));
+      case "oaAdvances" ?#oaAdvances(pg(purchases.advances.entries().toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };
@@ -456,6 +463,8 @@ mixin (
       oaRates = oaDeals.rates.entries().toArray();
       agreementTerms = oaDeals.terms.entries().toArray();
       agreementFrozen = oaDeals.frozen.entries().toArray();
+      purchaseAmounts = purchases.amounts.entries().toArray();
+      oaAdvances = purchases.advances.entries().toArray();
     };
   };
 

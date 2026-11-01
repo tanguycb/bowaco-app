@@ -1,0 +1,695 @@
+// Aankoopfacturen zoals ze binnenkomen (stap 2c.7, ontwerp 2c §4.7, §8 R44; zonder AI; VOORLOPIG: AC-23, AC-24, vragen voor Alexis
+// en de boekhouder). Kantoor (admin, calculator) registreert een factuur van een OA of een leverancier met de regels per werf (of
+// algemene kost) en kostensoort, de uren per dag, de betaalkorting en de vorderingsstaat van de OA als tweede bijlage. Bij een OA
+// wordt elke werf een werfdeel (een OA-factuur van 2.11) met zijn eigen controle (lib/OaInvoice.mo); de aankoop is goedgekeurd als
+// alle delen goedgekeurd zijn. Een leverancier wordt hier zelf goedgekeurd (geen OA-controle).
+//   • Rechten (Rights.purchaseScope, R44): kantoor alles, bedragen enkel via update-calls met auditregel; de werfleider van de werf
+//     bevestigt de uren per dag (HourClaimView, GEEN bedrag); de OA ziet de stand van zijn eigen facturen (bestaande schakelaar).
+//   • Voor 2c.5: Purchase.passOnCosts (de doorrekenbare kosten van een werf); hier purchaseCosts voor het scherm.
+// Geen await in deze mixin: elke oproep is één atomische stap (R33).
+import Array "mo:core/Array";
+import Int "mo:core/Int";
+import Iter "mo:core/Iter";
+import List "mo:core/List";
+import Map "mo:core/Map";
+import Nat "mo:core/Nat";
+import Result "mo:core/Result";
+import Runtime "mo:core/Runtime";
+import Text "mo:core/Text";
+import Time "mo:core/Time";
+import Types "../types";
+import Views "../types/views";
+import OV "../types/oaviews";
+import PV "../types/purchaseviews";
+import Access "../lib/Access";
+import Config "../lib/Config";
+import Dossier "../lib/Dossier";
+import Ids "../lib/Ids";
+import OaDeals "../lib/OaDeals";
+import OaInvoice "../lib/OaInvoice";
+import Plan "../lib/Plan";
+import Progress "../lib/Progress";
+import Purchase "../lib/Purchase";
+import QuoteCalc "../lib/QuoteCalc";
+import Quotes "../lib/Quotes";
+import Rights "../lib/Rights";
+
+mixin (
+  settings : Types.SettingsState,
+  access : Types.AccessState,
+  org : Types.OrgState,
+  works : Types.WorksState,
+  files : Types.FileState,
+  plan : Types.PlanState,
+  reports : Types.ReportState,
+  quotes : Types.QuotesState,
+  workStarts : Types.WorkStartState,
+  surveys : Types.SurveyState,
+  oaInvoices : Types.OaInvoiceState,
+  oaDeals : Types.OaDealState,
+  purchases : Types.PurchaseState,
+  audit : Types.AuditState,
+  ctr : Types.Counters,
+) {
+
+  // ── Instellingen ─────────────────────────────────────────────────────────
+  public query ({ caller }) func purchaseSettings() : async PV.PurchaseSettings {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.internal(p)) { Runtime.trap("Geen toegang") };
+    { askHours = Purchase.askMode(settings); passOn = Purchase.passOnDefault(settings) };
+  };
+
+  public shared ({ caller }) func savePurchaseSettings(i : PV.PurchaseSettings) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #manageSettings, null);
+    if (i.askHours != "verschil" and i.askHours != "altijd") { return #err("Uren vragen: verschil of altijd") };
+    settings.values.add("purchase.askHours", i.askHours);
+    settings.values.add("purchase.passOn", if (i.passOn) "ja" else "nee");
+    Access.audit(audit, caller, ?p.id, null, "aankoop-instellingen", "uren vragen: " # i.askHours # ", doorrekenen standaard: " # (if (i.passOn) "ja" else "nee"));
+    #ok;
+  };
+
+  // ── Lezen zonder bedragen (kantoor) ─────────────────────────────────────
+  public query ({ caller }) func listPurchases(workId : ?Nat, status : ?Types.PurchaseStatus) : async [PV.PurchaseBrief] {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #editPurchases, null);
+    let src = switch workId { case (?w) Purchase.purchasesOf(purchases, w); case null purchases.purchases.values().toArray() };
+    let out = src.filter(func(x : Types.Purchase) : Bool = switch status { case (?s) x.status == s; case null x.status != #withdrawn }).map(puBrief);
+    out.sort(func(a, b) = if (a.invoiceDay != b.invoiceDay) Nat.compare(b.invoiceDay, a.invoiceDay) else Nat.compare(b.id, a.id));
+  };
+
+  // ── Met bedragen (admin, calculator; update-call met auditregel) ────────
+  public shared ({ caller }) func readPurchase(id : Nat) : async Result.Result<PV.PurchaseFullView, Text> {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
+    let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
+    Access.audit(audit, caller, ?p.id, puFirstWork(x), "bekeek:aankoop", puOrgName(x.orgId) # " " # x.number);
+    #ok(puFull(x));
+  };
+
+  // Te betalen: goedgekeurd en nog niet betaald, eerst wat korting geeft (kortingsdag nog niet voorbij), dan de vervaldag.
+  public shared ({ caller }) func listPurchasesToPay() : async Result.Result<[PV.PayRow], Text> {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
+    let today = Dossier.today();
+    let rows = List.empty<(Nat, Nat, Nat, PV.PayRow)>();
+    for (x in purchases.purchases.values()) {
+      if (x.status == #approved and x.paidDay == null) {
+        let a = puAmounts(x);
+        let disc = puDiscount(x, a, today);
+        let pay = a.totalCents - (switch disc { case (?d) d; case null 0 });
+        let text = switch (disc, x.discountUntil, a.discountBp) {
+          case (?d, ?u, ?bp) "betaal uiterlijk op " # Plan.fmtDay(u) # " voor " # puPct(bp) # " (" # Progress.euro(d) # ")";
+          case _ { switch (x.dueDay) { case (?dd) "vervalt op " # Plan.fmtDay(dd); case null "geen vervaldag" } };
+        };
+        let k1 = switch disc { case (?_) 0; case null 1 };
+        let k2 = switch (disc, x.discountUntil, x.dueDay) { case (?_, ?u, _) u; case (_, _, ?dd) dd; case _ 999_999 };
+        rows.add((k1, k2, x.id, { brief = puBrief(x); netCents = a.netCents; totalCents = a.totalCents; discountBp = a.discountBp; discountCents = disc; payCents = pay; text }));
+      };
+    };
+    Access.audit(audit, caller, ?p.id, null, "bekeek:te-betalen", rows.size().toText() # " facturen");
+    let sorted = rows.toArray().sort(func(a, b) = if (a.0 != b.0) Nat.compare(a.0, b.0) else if (a.1 != b.1) Nat.compare(a.1, b.1) else Nat.compare(a.2, b.2));
+    #ok(sorted.map(func(r : (Nat, Nat, Nat, PV.PayRow)) : PV.PayRow = r.3));
+  };
+
+  // De kosten van een werf die aan de klant doorgerekend worden (alle aankopen die meetellen; de min-meerstaat van 2c.5 leest
+  // dezelfde regels met Purchase.passOnCosts).
+  public shared ({ caller }) func purchaseCosts(workId : Nat) : async Result.Result<[PV.PurchaseCostView], Text> {
+    let p = Access.requireActive(access, caller);
+    if (Rights.purchaseScope({ works; settings }, p, workId) != #full) { return #err("Geen toegang") };
+    let xs = Purchase.passOnCosts(purchases, org, workId, null, null, false);
+    Access.audit(audit, caller, ?p.id, ?workId, "bekeek:doorrekenen", xs.size().toText() # " kostenregels");
+    #ok(xs.map(func(c : Purchase.PassOnCost) : PV.PurchaseCostView = { key = c.key; purchaseId = c.purchaseId; number = c.number; orgName = c.orgName; day = c.day; kind = c.kindKey; kindName = Purchase.costName(c.kind); description = c.description; unit = c.unit; qtyMilli = c.qtyMilli; costCents = c.costCents; status = c.status }));
+  };
+
+  // ── Registreren of verbeteren ───────────────────────────────────────────
+  // Registreren (id = null) of verbeteren zolang de aankoop geregistreerd is en geen werfdeel beslist is. Een firma + nummer bestaat
+  // maar één keer (ook tegenover de OA-facturen van 2.11). Bij een OA ontstaat per werf een werfdeel (OA-factuur van 2.11).
+  public shared ({ caller }) func savePurchase(x : PV.PurchaseInput, rev : Nat) : async Result.Result<Nat, Text> {
+    let p = Access.requireActive(access, caller);
+    let ctx = { works; settings };
+    if (not Rights.may(ctx, p, #editPurchases, null)) { return #err("Geen toegang") };
+    for (l in x.lines.values()) { switch (l.workId) { case (?w) { if (Rights.purchaseScope(ctx, p, w) != #full) { return #err("Geen toegang") } }; case null {} } };
+    let o = switch (org.orgs.get(x.orgId)) { case (?y) y; case null return #err("Onbekende firma") };
+    if (o.archivedAt != null) { return #err("Deze firma is gearchiveerd") };
+    switch (x.kind, o.kind) {
+      case (#oa, #subcontractor) {};
+      case (#oa, _) { return #err("Een OA-factuur is van een onderaannemer") };
+      case (#supplier, #supplier) {};
+      case (#supplier, _) { return #err("Een leveranciersfactuur is van een leverancier") };
+      case (#other, #subcontractor or #supplier or #other or #authority) {};
+      case (#other, _) { return #err("Kies een onderaannemer, leverancier of andere firma") };
+    };
+    let nr = x.number.trim(#char ' ');
+    if (nr.size() == 0 or nr.size() > Config.maxName) { return #err("Factuurnummer: 1 tot " # Config.maxName.toText() # " tekens") };
+    let today = Dossier.today();
+    if (x.invoiceDay > today + 1 or x.invoiceDay + 730 < today) { return #err("Factuurdatum: vandaag of de voorbije twee jaar") };
+    switch (x.dueDay) { case (?d) { if (d < x.invoiceDay or d > x.invoiceDay + 365) { return #err("Vervaldag: na de factuurdatum, hoogstens een jaar later") } }; case null {} };
+    switch (x.discountUntil, x.discountBp) {
+      case (?d, ?bp) {
+        if (d < x.invoiceDay or d > x.invoiceDay + 365) { return #err("Kortingsdag: na de factuurdatum, hoogstens een jaar later") };
+        if (bp == 0 or bp > 1_000) { return #err("Betaalkorting: meer dan 0 en hoogstens 10 %") };
+      };
+      case (null, null) {};
+      case _ { return #err("Betaalkorting: geef de uiterste dag én het percentage") };
+    };
+    switch (x.periodFrom, x.periodTo) { case (?f, ?t) { if (t < f) { return #err("Periode: het einde ligt vóór het begin") } }; case _ {} };
+    switch (x.vatRegime) { case (#normal bp) { if (bp != 600 and bp != 2100 and bp != 1200 and bp != 0) { return #err("Btw-tarief: 0, 6, 12 of 21 %") } }; case (#reverse) {} };
+    if (x.note.size() > Config.maxNote or x.oaStatementRef.size() > Config.maxName) { return #err("Notitie of verwijzing te lang") };
+    if (x.lines.size() == 0) { return #err("Geef minstens één regel") };
+    if (x.lines.size() > Config.maxOaInvoiceLines) { return #err("Hoogstens " # Config.maxOaInvoiceLines.toText() # " regels") };
+    for (v in [x.netCents, x.vatCents, x.totalCents].values()) { if (Int.abs(v) > Int.abs(Config.maxAmountCents)) { return #err("Bedrag te groot") } };
+    // De regels nakijken (soort, werf, post, uren per dag).
+    let parsed = List.empty<(PV.PurchaseLineInput, Types.CostKind)>();
+    for (l in x.lines.values()) {
+      let k = switch (Purchase.costFromKey(l.kind)) { case (?y) y; case null return #err("Onbekende kostensoort: " # l.kind) };
+      switch (puCheckLine(x, l, k, today)) { case (?e) return #err(e); case null {} };
+      parsed.add((l, k));
+    };
+    let workIds = List.empty<Nat>();
+    for (l in x.lines.values()) { switch (l.workId) { case (?w) { if (workIds.find(func y = y == w) == null) { workIds.add(w) } }; case null {} } };
+    if (x.kind == #oa and workIds.size() == 0) { return #err("Een OA-factuur heeft minstens één regel op een werf (een algemene kost alleen: kies 'andere')") };
+    for (w in x.finalWorkIds.values()) { if (workIds.find(func y = y == w) == null) { return #err("'Laatste factuur' geldt enkel voor een werf op deze factuur") } };
+    for (fid in [x.fileId, x.oaStatementFileId].values()) {
+      switch fid {
+        case (?f) {
+          let fr = switch (files.files.get(f)) { case (?y) y; case null return #err("Onbekend bestand") };
+          let onWork = switch (fr.workId) { case (?w) workIds.find(func y = y == w) != null; case null true };
+          if (not fr.confidential or not onWork or fr.archivedAt != null) { return #err("Een bijlage is een vertrouwelijk bestand van een werf op deze factuur (of zonder werf)") };
+          if (fr.mime != "application/pdf" and fr.mime != "image/jpeg" and fr.mime != "image/png") { return #err("Bijlage: PDF, JPEG of PNG") };
+        };
+        case null {};
+      };
+    };
+    let key = Purchase.keyOf(x.orgId, nr);
+    // Dubbele registratie: dezelfde firma en hetzelfde nummer als een andere aankoop of een OA-factuur van 2.11.
+    switch (purchases.keys.get(key)) { case (?other) { if (?other != x.id) { switch (purchases.purchases.get(other)) { case (?q) { if (q.status != #withdrawn) { return #err("Factuur " # nr # " van " # o.name # " is al geregistreerd") } }; case null {} } } }; case null {} };
+    switch (oaInvoices.keys.get(OaInvoice.keyOf(x.orgId, nr))) { case (?other) { switch (oaInvoices.invoices.get(other)) { case (?oi) { if (oi.status != #withdrawn and purchases.partOf.get(other) == null) { return #err("Factuur " # nr # " van " # o.name # " is al geregistreerd (OA-facturen)") } }; case null {} } }; case null {} };
+    let now = Time.now();
+    let old : ?Types.Purchase = switch (x.id) {
+      case null null;
+      case (?id) {
+        let q = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
+        for (w in puWorksOf(q).values()) { if (Rights.purchaseScope(ctx, p, w) != #full) { return #err("Geen toegang") } };
+        if (q.status != #registered) { return #err("Enkel een geregistreerde factuur kan verbeterd worden (deze is " # Purchase.statusKey(q.status) # ")") };
+        if (rev != q.rev) { return #err("Iemand anders bewaarde deze factuur intussen; laad opnieuw") };
+        for (pid in q.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.status != #registered and i.status != #withdrawn) { return #err("Een werfdeel is al beslist (" # OaInvoice.statusKey(i.status) # "): verbeteren kan niet meer") } }; case null {} } };
+        ?q;
+      };
+    };
+    let id = switch old { case (?q) q.id; case null Ids.next(ctr, "purchase") };
+    // De uren per dag: een dag die niet veranderde, houdt zijn id en de bevestiging van de werfleider.
+    let oldClaims = Map.empty<Text, Types.HourClaim>();
+    switch old { case (?q) { for (c in Purchase.claimsOf(purchases, q.id).values()) { oldClaims.add(puClaimSig(c.workId, c.day, c.persons, c.slots, c.pauseMin), c); puDropClaim(c) } }; case null {} };
+    let lines = parsed.toArray().map(
+      func((l, k) : (PV.PurchaseLineInput, Types.CostKind)) : Types.PurchaseLine {
+        let ids = l.days.map(
+          func(d : PV.HourDayInput) : Nat {
+            let w = switch (l.workId) { case (?y) y; case null 0 };
+            let sig = puClaimSig(w, d.day, d.persons, d.slots, d.pauseMin);
+            let (cid, review, extra) = switch (oldClaims.get(sig)) { case (?c) { oldClaims.remove(sig); (c.id, c.review, c.extra) }; case null (Ids.next(ctr, "hourClaim"), null, []) };
+            purchases.claims.add(cid, { id = cid; purchaseId = id; workId = w; orgId = x.orgId; day = d.day; persons = d.persons; slots = d.slots; pauseMin = d.pauseMin; hoursMilli = Purchase.claimHours(d.persons, d.slots, d.pauseMin); review; extra });
+            Quotes.addIndex(purchases.claimsByWork, w, cid);
+            cid;
+          }
+        );
+        { workId = l.workId; kind = k; root = l.root; description = l.description.trim(#char ' '); persons = l.persons; qtyMilli = l.qtyMilli; unit = l.unit.trim(#char ' '); unitCents = l.unitCents; amountCents = l.amountCents; passOn = l.passOn and l.workId != null and Purchase.isCost(k); claimIds = ids };
+      }
+    );
+    let amounts : Types.PurchaseAmounts = { purchaseId = id; netCents = x.netCents; vatCents = x.vatCents; totalCents = x.totalCents; discountBp = x.discountBp; lines; extra = [] };
+    var extra : Types.Extra = switch old { case (?q) q.extra.filter(func((k, _) : (Text, Text)) : Bool = not k.startsWith(#text "slot:")); case null [] };
+    for (w in x.finalWorkIds.values()) { extra := OaDeals.extraSet(extra, "slot:" # w.toText(), "ja") };
+    let base : Types.Purchase = switch old {
+      case (?q) { { q with orgId = x.orgId; kind = x.kind; number = nr; invoiceDay = x.invoiceDay; dueDay = x.dueDay; discountUntil = x.discountUntil; periodFrom = x.periodFrom; periodTo = x.periodTo; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; oaStatementFileId = x.oaStatementFileId; oaStatementRef = x.oaStatementRef.trim(#char ' '); note = x.note.trim(#char ' '); rev = q.rev + 1; updatedAt = now; updatedBy = p.id; extra } };
+      case null { { id; orgId = x.orgId; kind = x.kind; number = nr; invoiceDay = x.invoiceDay; dueDay = x.dueDay; discountUntil = x.discountUntil; periodFrom = x.periodFrom; periodTo = x.periodTo; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; oaStatementFileId = x.oaStatementFileId; oaStatementRef = x.oaStatementRef.trim(#char ' '); status = #registered; parts = []; decision = null; creditOf = null; paidDay = null; note = x.note.trim(#char ' '); source = "hand"; externalRef = ""; rev = 0; createdAt = now; createdBy = p.id; updatedAt = now; updatedBy = p.id; extra } };
+    };
+    // Indexen: oude sleutel en werven weg, nieuwe erbij.
+    let oldWorks = switch old { case (?q) puWorksOf(q); case null [] };
+    switch old {
+      case (?q) {
+        if (purchases.keys.get(Purchase.keyOf(q.orgId, q.number)) == ?q.id) { purchases.keys.remove(Purchase.keyOf(q.orgId, q.number)) };
+        for (w in oldWorks.values()) { purchases.byWork.add(w, Quotes.ids(purchases.byWork, w).filter(func y = y != q.id)) };
+      };
+      case null {};
+    };
+    purchases.amounts.add(id, #plain(amounts));
+    purchases.keys.add(key, id);
+    for (w in workIds.values()) { Quotes.addIndex(purchases.byWork, w, id) };
+    // Werfdelen (enkel bij een OA): één OA-factuur van 2.11 per werf.
+    let parts = if (x.kind == #oa) puSyncParts(base, amounts, workIds.toArray(), now, p.id) else { puEndParts(base, now, p.id, "geen OA-factuur meer"); [] };
+    purchases.purchases.add(id, { base with parts });
+    let touched = List.empty<(Nat, Nat)>();
+    for (w in workIds.values()) { touched.add((w, x.orgId)) };
+    switch old { case (?q) { for (w in oldWorks.values()) { touched.add((w, q.orgId)) } }; case null {} };
+    for ((w, oid) in touched.values()) { Purchase.syncAdvances(purchases, oaDeals, oaInvoices, w, oid) };
+    Access.audit(audit, caller, ?p.id, workIds.get(0), if (old == null) "aankoop-geregistreerd" else "aankoop-verbeterd", o.name # " " # nr # " (" # Purchase.kindKey(x.kind) # ", " # lines.size().toText() # " regels, " # workIds.size().toText() # " werven)");
+    #ok(id);
+  };
+
+  // ── Beslissen (zonder werfdelen: leverancier, andere), intrekken, betaald ─
+  // Een aankoop met werfdelen beslist per werfdeel (approveOaInvoice, met de inhoudingsplicht); deze functies gelden voor een aankoop
+  // zonder werfdelen. Met markeringen vraagt goedkeuren een reden.
+  public shared ({ caller }) func approvePurchase(id : Nat, rev : Nat, reason : Text) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
+    let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
+    if (x.parts.size() > 0) { return #err("Deze factuur heeft werfdelen: keur elk werfdeel goed (OA-facturen)") };
+    if (x.status != #registered and x.status != #disputed) { return #err("Deze factuur is " # Purchase.statusKey(x.status)) };
+    if (rev != x.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
+    let why = reason.trim(#char ' ');
+    if (why.size() > Config.maxQuoteReason) { return #err("Reden: hoogstens " # Config.maxQuoteReason.toText() # " tekens") };
+    let flags = puFull(x).flagCount;
+    if (flags > 0 and why.size() < Config.minQuoteReason) { return #err(flags.toText() # " markering(en): geef een reden om toch goed te keuren") };
+    let now = Time.now();
+    purchases.purchases.add(id, { x with status = #approved; decision = ?{ at = now; by = p.id; approved = true; reason = why; flags }; rev = x.rev + 1; updatedAt = now; updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, puFirstWork(x), "aankoop-goedgekeurd", puOrgName(x.orgId) # " " # x.number # (if (flags > 0) ": " # flags.toText() # " markering(en), reden: " # why else ""));
+    #ok;
+  };
+
+  public shared ({ caller }) func disputePurchase(id : Nat, rev : Nat, reason : Text) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
+    let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
+    if (x.parts.size() > 0) { return #err("Deze factuur heeft werfdelen: betwist het werfdeel (OA-facturen)") };
+    if (x.status != #registered) { return #err("Enkel een geregistreerde factuur kan betwist worden (deze is " # Purchase.statusKey(x.status) # ")") };
+    if (rev != x.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
+    let why = reason.trim(#char ' ');
+    if (why.size() < Config.minQuoteReason or why.size() > Config.maxQuoteReason) { return #err("Geef een reden (5 tot 300 tekens)") };
+    let now = Time.now();
+    purchases.purchases.add(id, { x with status = #disputed; decision = ?{ at = now; by = p.id; approved = false; reason = why; flags = puFull(x).flagCount }; rev = x.rev + 1; updatedAt = now; updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, puFirstWork(x), "aankoop-betwist", puOrgName(x.orgId) # " " # x.number # ": " # why);
+    #ok;
+  };
+
+  // Intrekken (fout geregistreerd): ook de werfdelen; niet als er al een deel goedgekeurd is.
+  public shared ({ caller }) func withdrawPurchase(id : Nat, rev : Nat, reason : Text) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
+    let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
+    if (x.status == #approved or x.status == #withdrawn or x.status == #checking) { return #err("Deze factuur is " # Purchase.statusKey(x.status)) };
+    if (rev != x.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
+    let why = reason.trim(#char ' ');
+    if (why.size() < Config.minQuoteReason or why.size() > Config.maxQuoteReason) { return #err("Geef een reden (5 tot 300 tekens)") };
+    let now = Time.now();
+    puEndParts(x, now, p.id, "ingetrokken: " # why);
+    if (purchases.keys.get(Purchase.keyOf(x.orgId, x.number)) == ?x.id) { purchases.keys.remove(Purchase.keyOf(x.orgId, x.number)) };
+    purchases.purchases.add(id, { x with status = #withdrawn; note = (if (x.note == "") "" else x.note # "\n") # "Ingetrokken: " # why; rev = x.rev + 1; updatedAt = now; updatedBy = p.id });
+    for (w in puWorksOf(x).values()) { Purchase.syncAdvances(purchases, oaDeals, oaInvoices, w, x.orgId) };
+    Access.audit(audit, caller, ?p.id, puFirstWork(x), "aankoop-ingetrokken", puOrgName(x.orgId) # " " # x.number # ": " # why);
+    #ok;
+  };
+
+  // Betaald markeren (de betaling zelf gebeurt in de bank, AC-23); null = niet meer betaald.
+  public shared ({ caller }) func markPurchasePaid(id : Nat, rev : Nat, day : ?Nat) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
+    let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
+    if (x.status != #approved) { return #err("Enkel een goedgekeurde factuur kan betaald gemarkeerd worden") };
+    if (rev != x.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
+    switch day { case (?d) { if (d < x.invoiceDay or d > Dossier.today() + 1) { return #err("Betaaldag: na de factuurdatum, niet in de toekomst") } }; case null {} };
+    let now = Time.now();
+    purchases.purchases.add(id, { x with paidDay = day; rev = x.rev + 1; updatedAt = now; updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, puFirstWork(x), "aankoop-betaald", puOrgName(x.orgId) # " " # x.number # ": " # (switch day { case (?d) "betaald op " # Plan.fmtDay(d); case null "niet meer betaald" }));
+    #ok;
+  };
+
+  // ── Uren bevestigen (werfleider van de werf; GEEN bedrag) ───────────────
+  // De dagen met uren op OA-facturen die als vraag naar de werfleider gaan (instelling: enkel bij een verschil met het werfverslag,
+  // of altijd), van de werven waar hij dat mag; ook al beantwoorde dagen zolang het werfdeel open is.
+  public query ({ caller }) func listHourClaims(workId : ?Nat) : async [PV.HourClaimView] {
+    let p = Access.requireActive(access, caller);
+    let ctx = { works; settings };
+    switch workId { case (?w) Rights.require(ctx, p, #confirmHourClaims, ?w); case null { if (not Rights.caps(ctx, p).hourClaims) { Runtime.trap("Geen toegang") } } };
+    let ids = switch workId { case (?w) Quotes.ids(purchases.claimsByWork, w); case null purchases.claims.keys().toArray() };
+    let out = List.empty<PV.HourClaimView>();
+    for (cid in ids.values()) {
+      switch (purchases.claims.get(cid)) {
+        case (?c) {
+          if (Rights.may(ctx, p, #confirmHourClaims, ?c.workId) and puClaimOpen(c)) {
+            let st = Purchase.claimState(settings, reports, c);
+            if (st != "geen-vraag") { out.add(puClaimView(c, st, p)) };
+          };
+        };
+        case null {};
+      };
+    };
+    out.toArray().sort(func(a, b) = if (a.day != b.day) Nat.compare(b.day, a.day) else Nat.compare(a.id, b.id));
+  };
+
+  public shared ({ caller }) func reviewHourClaim(id : Nat, ok : Bool, note : Text) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    let c = switch (purchases.claims.get(id)) { case (?y) y; case null return #err("Geen toegang") };
+    if (not Rights.may({ works; settings }, p, #confirmHourClaims, ?c.workId)) { return #err("Geen toegang") };
+    if (not puClaimOpen(c)) { return #err("Deze factuur is al beslist of ingetrokken") };
+    let why = note.trim(#char ' ');
+    if (why.size() > Config.maxQuoteReason) { return #err("Reden: hoogstens " # Config.maxQuoteReason.toText() # " tekens") };
+    if (not ok and why.size() < Config.minQuoteReason) { return #err("Klopt niet: geef een reden (5 tot 300 tekens)") };
+    purchases.claims.add(id, { c with review = ?{ by = p.id; at = Time.now(); ok; note = why } });
+    let what = puOrgName(c.orgId) # " " # Plan.fmtDay(c.day) # ": " # c.persons.toText() # " pers., " # puHours(c.hoursMilli) # " u";
+    Access.audit(audit, caller, ?p.id, ?c.workId, if ok "uren-klopt" else "uren-klopt-niet", what # (if ok "" else " — " # why));
+    if (not ok) { OaDeals.notifyOffice(access, audit, ctr, "Uren op factuur " # puNumber(c.purchaseId) # " kloppen niet volgens de werfleider (" # what # "): " # why, ?c.workId) };
+    #ok;
+  };
+
+  // ── De OA: de stand van zijn eigen facturen (per factuur, niet per werfdeel) ─
+  public query ({ caller }) func myPurchases() : async [PV.MyPurchaseView] {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #ownOaInvoices, null);
+    let own = switch (p.orgId) { case (?o) o; case null Runtime.trap("Geen toegang") };
+    let notice = OaInvoice.disputeNotice(settings);
+    let out = List.empty<PV.MyPurchaseView>();
+    for (x in purchases.purchases.values()) {
+      if (x.orgId == own and x.kind == #oa and x.status != #withdrawn) {
+        let reason = switch (x.status) {
+          case (#disputed) { if (notice == "uit") "" else { var r = ""; for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { switch (i.status, i.decision) { case (#disputed, ?d) { r := d.reason }; case _ {} } }; case null {} } }; r } };
+          case _ "";
+        };
+        let disputed = Purchase.claimsOf(purchases, x.id).filterMap(func(c : Types.HourClaim) : ?PV.MyDisputedDay = switch (c.review) { case (?r) { if (r.ok) null else ?{ day = c.day; persons = c.persons; hoursMilli = c.hoursMilli; note = if (notice == "uit") "" else r.note } }; case null null });
+        var decided : ?Int = null;
+        for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { switch (i.decision) { case (?d) { decided := ?d.at }; case null {} } }; case null {} } };
+        out.add({ number = x.number; invoiceDay = x.invoiceDay; status = x.status; works = puWorksOf(x).map(puWorkName); decidedAt = decided; reason; disputedDays = disputed });
+      };
+    };
+    out.toArray().sort(func(a, b) = Nat.compare(b.invoiceDay, a.invoiceDay));
+  };
+
+  // ── Hulp ───────────────────────────────────────────────────────────────
+  func puCtx() : OaInvoice.Ctx { { settings; access; org; works; plan; reports; qs = quotes; starts = workStarts; ss = surveys; oi = oaInvoices; deals = oaDeals; pur = purchases } };
+  func puOrgName(o : Nat) : Text { switch (org.orgs.get(o)) { case (?x) x.name; case null "#" # o.toText() } };
+  func puWorkName(w : Nat) : Text { switch (works.works.get(w)) { case (?x) x.name; case null "" } };
+  func puWorkCode(w : Nat) : Text { switch (works.works.get(w)) { case (?x) x.code; case null "" } };
+  func puNumber(id : Nat) : Text { switch (purchases.purchases.get(id)) { case (?x) x.number; case null "#" # id.toText() } };
+  func puAmounts(x : Types.Purchase) : Types.PurchaseAmounts {
+    switch (Purchase.amountsOf(purchases, x.id)) { case (?a) a; case null { { purchaseId = x.id; netCents = 0; vatCents = 0; totalCents = 0; discountBp = null; lines = []; extra = [] } } };
+  };
+  func puWorksOf(x : Types.Purchase) : [Nat] { Purchase.worksOf(puAmounts(x)) };
+  func puFirstWork(x : Types.Purchase) : ?Nat { let ws = puWorksOf(x); if (ws.size() > 0) ?ws[0] else null };
+  func puHours(m : Int) : Text {
+    let a = Int.abs(m);
+    let frac = a % 1000;
+    (if (m < 0) "-" else "") # (a / 1000).toText() # (if (frac == 0) "" else "," # Text.fromIter((1000 + frac).toText().chars().drop(1)).trimEnd(#char '0'));
+  };
+  func puPct(bp : Nat) : Text { let f = bp % 100; (bp / 100).toText() # (if (f == 0) "" else "," # Text.fromIter((100 + f).toText().chars().drop(1)).trimEnd(#char '0')) # " %" };
+  func puDiscount(x : Types.Purchase, a : Types.PurchaseAmounts, today : Nat) : ?Int {
+    switch (x.discountUntil, a.discountBp) { case (?u, ?bp) { if (u >= today) ?QuoteCalc.roundDiv(a.netCents * bp, 10_000) else null }; case _ null };
+  };
+  func puClaimSig(w : Nat, day : Nat, persons : Nat, slots : [Types.TimeSlot], pause : Nat) : Text {
+    var s = w.toText() # "|" # day.toText() # "|" # persons.toText() # "|" # pause.toText();
+    for (t in slots.values()) { s := s # "|" # t.fromMin.toText() # "-" # t.toMin.toText() };
+    s;
+  };
+  func puDropClaim(c : Types.HourClaim) {
+    purchases.claims.remove(c.id);
+    purchases.claimsByWork.add(c.workId, Quotes.ids(purchases.claimsByWork, c.workId).filter(func y = y != c.id));
+  };
+  // Een dag is open zolang de aankoop meetelt (niet ingetrokken) en het werfdeel van die werf nog niet goedgekeurd is.
+  func puClaimOpen(c : Types.HourClaim) : Bool {
+    let x = switch (purchases.purchases.get(c.purchaseId)) { case (?y) y; case null return false };
+    if (x.status == #withdrawn or x.status == #approved) { return false };
+    for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.workId == c.workId and (i.status == #approved or i.status == #withdrawn)) { return false } }; case null {} } };
+    true;
+  };
+  func puClaimView(c : Types.HourClaim, st : Text, p : Types.Person) : PV.HourClaimView {
+    let (rn, rh) = Purchase.reportHours(reports, c.workId, c.orgId, c.day);
+    let x = purchases.purchases.get(c.purchaseId);
+    {
+      id = c.id;
+      workId = c.workId;
+      workCode = puWorkCode(c.workId);
+      workName = puWorkName(c.workId);
+      orgName = puOrgName(c.orgId);
+      number = switch x { case (?y) y.number; case null "" };
+      invoiceDay = switch x { case (?y) y.invoiceDay; case null 0 };
+      day = c.day;
+      persons = c.persons;
+      slots = c.slots;
+      pauseMin = c.pauseMin;
+      hoursMilli = c.hoursMilli;
+      reportPersons = rn;
+      reportMilli = rh;
+      diffMilli = c.hoursMilli - rh;
+      state = st;
+      reviewNote = switch (c.review) { case (?r) r.note; case null "" };
+      reviewByName = switch (c.review) { case (?r) Access.personName(access, r.by); case null "" };
+      reviewedAt = switch (c.review) { case (?r) ?r.at; case null null };
+      canReview = puClaimOpen(c) and Rights.may({ works; settings }, p, #confirmHourClaims, ?c.workId);
+    };
+  };
+
+  // De werfdelen van een OA-aankoop gelijkzetten: per werf één OA-factuur van 2.11 (bijwerken of nieuw), een werf die wegviel →
+  // ingetrokken. Geeft alle delen (ook de vroeger ingetrokken).
+  func puSyncParts(x : Types.Purchase, a : Types.PurchaseAmounts, workIds : [Nat], now : Int, by : Nat) : [Nat] {
+    let live = Map.empty<Nat, Types.OaInvoice>();
+    let out = List.empty<Nat>();
+    for (pid in x.parts.values()) {
+      switch (oaInvoices.invoices.get(pid)) {
+        case (?i) { if (i.status != #withdrawn and live.get(i.workId) == null) { live.add(i.workId, i) } else { out.add(pid) } };
+        case null {};
+      };
+    };
+    for (w in workIds.values()) {
+      let pls = Purchase.linesOfWork(a, w);
+      let ls = pls.map(Purchase.partLine);
+      var net : Int = 0;
+      for (l in ls.values()) { net += l.amountCents };
+      let vat = switch (x.vatRegime) { case (#reverse) 0; case (#normal bp) QuoteCalc.roundDiv(net * bp, 10_000) };
+      var minD : ?Nat = null;
+      var maxD : ?Nat = null;
+      for (l in pls.values()) { for (cid in l.claimIds.values()) { switch (purchases.claims.get(cid)) { case (?c) { minD := ?(switch minD { case (?m) Nat.min(m, c.day); case null c.day }); maxD := ?(switch maxD { case (?m) Nat.max(m, c.day); case null c.day }) }; case null {} } } };
+      let pf = switch (x.periodFrom) { case (?f) ?f; case null minD };
+      let pt = switch (x.periodTo) { case (?t) ?t; case null maxD };
+      let pid = switch (live.get(w)) {
+        case (?i) {
+          for (k in [OaInvoice.keyOf(i.orgId, i.number), Purchase.partKey(i.orgId, i.number, i.workId)].values()) { if (oaInvoices.keys.get(k) == ?i.id) { oaInvoices.keys.remove(k) } };
+          oaInvoices.invoices.add(i.id, { i with orgId = x.orgId; number = x.number; invoiceDay = x.invoiceDay; dueDay = x.dueDay; periodFrom = pf; periodTo = pt; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; note = x.note; rev = i.rev + 1; updatedAt = now; updatedBy = by });
+          live.remove(w);
+          i.id;
+        };
+        case null {
+          let nid = Ids.next(ctr, "oaInvoice");
+          oaInvoices.invoices.add(nid, { id = nid; orgId = x.orgId; workId = w; number = x.number; invoiceDay = x.invoiceDay; dueDay = x.dueDay; periodFrom = pf; periodTo = pt; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; status = #registered; decision = null; note = x.note; source = "aankoop"; externalRef = ""; rev = 0; createdAt = now; createdBy = by; updatedAt = now; updatedBy = by; extra = [("aankoop", x.id.toText())] });
+          Quotes.addIndex(oaInvoices.byWork, w, nid);
+          purchases.partOf.add(nid, x.id);
+          nid;
+        };
+      };
+      oaInvoices.keys.add(Purchase.partKey(x.orgId, x.number, w), pid);
+      oaInvoices.amounts.add(pid, #plain({ invoiceId = pid; netCents = net; vatCents = vat; totalCents = net + vat; lines = ls; extra = [] }));
+      out.add(pid);
+    };
+    // Een werf die niet meer op de factuur staat: het werfdeel wordt ingetrokken.
+    for (i in live.values()) { puWithdrawPart(i, now, by, "werf niet meer op de factuur"); out.add(i.id) };
+    out.toArray();
+  };
+
+  func puWithdrawPart(i : Types.OaInvoice, now : Int, by : Nat, why : Text) {
+    for (k in [OaInvoice.keyOf(i.orgId, i.number), Purchase.partKey(i.orgId, i.number, i.workId)].values()) { if (oaInvoices.keys.get(k) == ?i.id) { oaInvoices.keys.remove(k) } };
+    oaInvoices.invoices.add(i.id, { i with status = #withdrawn; note = (if (i.note == "") "" else i.note # "\n") # "Ingetrokken: " # why; rev = i.rev + 1; updatedAt = now; updatedBy = by });
+  };
+
+  func puEndParts(x : Types.Purchase, now : Int, by : Nat, why : Text) {
+    for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.status != #withdrawn) { puWithdrawPart(i, now, by, why) } }; case null {} } };
+  };
+
+  func puCheckLine(x : PV.PurchaseInput, l : PV.PurchaseLineInput, k : Types.CostKind, today : Nat) : ?Text {
+    if (l.description.size() > Config.maxName * 3) { return ?("Omschrijving van een regel: hoogstens " # (Config.maxName * 3).toText() # " tekens") };
+    if (l.unit.size() > 20) { return ?"Eenheid: hoogstens 20 tekens" };
+    if (Int.abs(l.qtyMilli) > Int.abs(Config.maxProgressQtyMilli) or Int.abs(l.unitCents) > Int.abs(Config.maxAmountCents) or Int.abs(l.amountCents) > Int.abs(Config.maxAmountCents)) { return ?"Regel: waarde te groot" };
+    let oaOnly = switch k { case (#post or #regie or #crew or #advance or #advanceDeduct) true; case _ false };
+    if (oaOnly and x.kind != #oa) { return ?("«" # Purchase.costName(k) # "» staat enkel op een OA-factuur") };
+    let w = switch (l.workId) {
+      case (?w) w;
+      case null {
+        if (not Purchase.isCost(k)) { return ?("Een regel «" # Purchase.costName(k) # "» hoort bij een werf") };
+        if (l.root != null or l.days.size() > 0) { return ?"Een algemene kost hangt aan geen post en heeft geen uren per dag" };
+        return null;
+      };
+    };
+    switch (works.works.get(w)) { case (?y) { if (y.archivedAt != null) { return ?"Een regel staat op een gearchiveerde werf" } }; case null { return ?"Onbekende werf" } };
+    let ps = OaInvoice.posts(puCtx(), w);
+    switch (k, l.root) {
+      case (#post, ?r) { if (not ps.containsKey(r)) { return ?"Een regel verwijst naar een post die niet in de getekende offerte van die werf staat" } };
+      case (#post, null) { return ?"Een regel van soort post vraagt een post" };
+      case (#regie or #crew, ?r) { switch (ps.get(r)) { case (?pp) { if (pp.form != #regie) { return ?"Een regieregel hoort bij een regiepost" } }; case null { return ?"Onbekende regiepost" } } };
+      case (#regie or #crew, null) {};
+      case (_, ?_) { return ?("Een regel «" # Purchase.costName(k) # "» hangt aan geen post") };
+      case (_, null) {};
+    };
+    switch (k, l.persons) {
+      case (#crew, ?n) { if (n == 0 or n > 50) { return ?"Ploeguren: 1 tot 50 personen" } };
+      case (#crew, null) { return ?"Ploeguren: geef het aantal personen" };
+      case _ {};
+    };
+    if (k == #advance or k == #advanceDeduct) {
+      if (OaDeals.agreementOf(oaDeals, w, x.orgId) == null) { return ?"Een voorschot hoort bij een afspraak met deze OA op die werf (Wie werkt mee)" };
+      if (k == #advance and l.amountCents <= 0) { return ?"Voorschot: een positief bedrag" };
+      if (k == #advanceDeduct and l.amountCents >= 0) { return ?"Aftrek voorschot: een negatief bedrag" };
+    };
+    if (l.days.size() > 0 and not Purchase.isHours(k)) { return ?"Uren per dag enkel bij regie of ploeguren" };
+    if (l.days.size() > 62) { return ?"Hoogstens 62 dagen per regel" };
+    let seen = Map.empty<Nat, ()>();
+    for (d in l.days.values()) {
+      if (d.day > today or d.day + 730 < today) { return ?"Een dag met uren: vandaag of de voorbije twee jaar" };
+      if (seen.containsKey(d.day)) { return ?("De dag " # Plan.fmtDay(d.day) # " staat twee keer op dezelfde regel") };
+      seen.add(d.day, ());
+      if (d.persons == 0 or d.persons > 50) { return ?"Een dag met uren: 1 tot 50 personen" };
+      if (d.slots.size() == 0 or d.slots.size() > 6) { return ?"Een dag met uren: 1 tot 6 tijdvakken (van–tot)" };
+      for (s in d.slots.values()) { if (s.fromMin >= s.toMin or s.toMin > 1440) { return ?"Een tijdvak: van vóór tot, binnen de dag" } };
+      if (d.pauseMin > 600) { return ?"Pauze: hoogstens 10 uur" };
+    };
+    null;
+  };
+
+  func puBrief(x : Types.Purchase) : PV.PurchaseBrief {
+    let a = puAmounts(x);
+    let ws = Purchase.worksOf(a);
+    let refs = ws.map(
+      func(w : Nat) : PV.PurchaseWorkRef {
+        var part : ?Types.OaInvoice = null;
+        for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.workId == w and i.status != #withdrawn) { part := ?i } }; case null {} } };
+        { workId = w; workCode = puWorkCode(w); workName = puWorkName(w); partId = switch part { case (?i) ?i.id; case null null }; partStatus = switch part { case (?i) ?i.status; case null null } };
+      }
+    );
+    var open = 0;
+    if (Purchase.counts(x.status)) { for (c in Purchase.claimsOf(purchases, x.id).values()) { if (puClaimOpen(c) and Purchase.claimState(settings, reports, c) == "te-bevestigen") { open += 1 } } };
+    {
+      id = x.id;
+      orgId = x.orgId;
+      orgName = puOrgName(x.orgId);
+      kind = x.kind;
+      number = x.number;
+      invoiceDay = x.invoiceDay;
+      dueDay = x.dueDay;
+      discountUntil = x.discountUntil;
+      status = x.status;
+      works = refs;
+      general = a.lines.any(func(l : Types.PurchaseLine) : Bool = l.workId == null);
+      lineCount = a.lines.size();
+      hasFile = x.fileId != null;
+      hasStatement = x.oaStatementFileId != null;
+      paidDay = x.paidDay;
+      openClaims = open;
+      updatedAt = x.updatedAt;
+      rev = x.rev;
+    };
+  };
+
+  func puFlag(f : Text) : OV.OaFlag { { key = f; text = OaInvoice.flagText(f) } };
+
+  func puFull(x : Types.Purchase) : PV.PurchaseFullView {
+    let a = puAmounts(x);
+    let today = Dossier.today();
+    // De controle van elk werfdeel (2.11 + 2c.7), één keer per werf.
+    let controls = Map.empty<Nat, OaInvoice.Control>();
+    for (pid in x.parts.values()) {
+      switch (oaInvoices.invoices.get(pid), OaInvoice.amountsOf(oaInvoices, pid)) {
+        case (?i, ?pa) { if (i.status != #withdrawn) { controls.add(i.workId, OaInvoice.control(puCtx(), i, pa)) } };
+        case _ {};
+      };
+    };
+    let postsBy = Map.empty<Nat, Map.Map<Nat, OaInvoice.PostInfo>>();
+    let seenOnWork = Map.empty<Nat, Nat>();
+    var lineFlags = 0;
+    var k = 0;
+    let lines = List.empty<PV.PurchaseLineView>();
+    for (l in a.lines.values()) {
+      let (qf, mf, agreed) : ([Text], [Text], ?Int) = switch (l.workId) {
+        case (?w) {
+          let j = switch (seenOnWork.get(w)) { case (?n) n; case null 0 };
+          seenOnWork.add(w, j + 1);
+          switch (controls.get(w)) {
+            case (?c) { if (j < c.lines.size()) (c.lines[j].qtyFlags, c.lines[j].moneyFlags, c.lines[j].agreedCents) else ([], [], null) };
+            case null { (puOwnFlags(l), [], null) };
+          };
+        };
+        case null { (puOwnFlags(l), [], null) };
+      };
+      if (controls.size() == 0 or l.workId == null) { lineFlags += qf.size() + mf.size() };
+      let postTitle = switch (l.workId, l.root) {
+        case (?w, ?r) {
+          let ps = switch (postsBy.get(w)) { case (?m) m; case null { let m = OaInvoice.posts(puCtx(), w); postsBy.add(w, m); m } };
+          switch (ps.get(r)) { case (?pp) pp.title; case null "" };
+        };
+        case _ "";
+      };
+      let cls = l.claimIds.filterMap(func(id : Nat) : ?Types.HourClaim = purchases.claims.get(id));
+      let (calc, dayTotal) = switch (l.workId) { case (?w) Purchase.dayCalc(oaDeals, l, cls, w, x.orgId); case null ([], null) };
+      let days = Array.tabulate<PV.PurchaseDayView>(
+        cls.size(),
+        func(i) {
+          let c = cls[i];
+          let (rn, rh) = Purchase.reportHours(reports, c.workId, c.orgId, c.day);
+          let dc = calc[i];
+          { claimId = c.id; day = c.day; persons = c.persons; slots = c.slots; pauseMin = c.pauseMin; hoursMilli = c.hoursMilli; reportPersons = rn; reportMilli = rh; diffMilli = c.hoursMilli - rh; state = Purchase.claimState(settings, reports, c); reviewNote = switch (c.review) { case (?r) r.note; case null "" }; reviewByName = switch (c.review) { case (?r) Access.personName(access, r.by); case null "" }; rateCents = dc.rateCents; rateFrom = dc.rateFrom; cents = dc.cents };
+        },
+      );
+      lines.add({ index = k; workId = l.workId; workCode = switch (l.workId) { case (?w) puWorkCode(w); case null "" }; kind = Purchase.costKey(l.kind); kindName = Purchase.costName(l.kind); root = l.root; postTitle; description = l.description; persons = l.persons; qtyMilli = l.qtyMilli; unit = l.unit; unitCents = l.unitCents; amountCents = l.amountCents; passOn = l.passOn; days; dayCents = dayTotal; agreedCents = agreed; qtyFlags = qf.map(puFlag); moneyFlags = mf.map(puFlag) });
+      k += 1;
+    };
+    // De aankoop zelf: som, btw, totaal, bijlage (de werfdelen rekenen hun deel uit de regels).
+    let hf = List.empty<Text>();
+    var sum : Int = 0;
+    for (l in a.lines.values()) { sum += l.amountCents };
+    if (sum != a.netCents) { hf.add("som-regels") };
+    if (a.netCents + a.vatCents != a.totalCents) { hf.add("totaal") };
+    var expVat : ?Int = null;
+    switch (x.vatRegime) {
+      case (#reverse) { expVat := ?0; if (a.vatCents != 0) { hf.add("btw-verlegd-bedrag") }; if (not x.reverseMention) { hf.add("btw-verlegd-vermelding") } };
+      case (#normal bp) {
+        let e = QuoteCalc.roundDiv(a.netCents * bp, 10_000);
+        expVat := ?e;
+        if (Int.abs(a.vatCents - e) > 1) { hf.add("btw-bedrag") };
+        switch (org.orgs.get(x.orgId)) { case (?o) { if (o.kind == #subcontractor) { hf.add("btw-normaal-bij-oa") } }; case null {} };
+      };
+    };
+    if (x.fileId == null) { hf.add("geen-bijlage") };
+    let final = func(w : Nat) : Bool = OaDeals.extraGet(x.extra, "slot:" # w.toText()) == "ja";
+    let advances = if (x.kind != #oa) [] else Purchase.worksOf(a).filterMap(
+      func(w : Nat) : ?PV.PurchaseAdvanceView {
+        let allowed = Purchase.allowedAdvance(oaDeals, w, x.orgId);
+        let (adv, ded) = Purchase.advanceSums(purchases, w, x.orgId, null);
+        if (allowed == null and adv == 0 and ded == 0) null else ?{ workId = w; workCode = puWorkCode(w); allowedCents = allowed; advancedCents = adv; deductedCents = ded; restCents = adv - ded; final = final(w) };
+      }
+    );
+    let decision = switch (x.decision) { case (?d) ?{ at = d.at; byName = Access.personName(access, d.by); approved = d.approved; reason = d.reason; flags = d.flags }; case null null };
+    let allRegistered = x.parts.all(func(pid : Nat) : Bool = switch (oaInvoices.invoices.get(pid)) { case (?i) i.status == #registered or i.status == #withdrawn; case null true });
+    {
+      brief = puBrief(x);
+      note = x.note;
+      periodFrom = x.periodFrom;
+      periodTo = x.periodTo;
+      vatRegime = x.vatRegime;
+      reverseMention = x.reverseMention;
+      oaStatementRef = x.oaStatementRef;
+      netCents = a.netCents;
+      vatCents = a.vatCents;
+      totalCents = a.totalCents;
+      discountBp = a.discountBp;
+      discountCents = switch (a.discountBp) { case (?bp) ?QuoteCalc.roundDiv(a.netCents * bp, 10_000); case null null };
+      sumLinesCents = sum;
+      expectedVatCents = expVat;
+      headerFlags = hf.toArray().map(puFlag);
+      flagCount = hf.size() + lineFlags;
+      lines = lines.toArray();
+      advances;
+      file = puFile(x.fileId);
+      statement = puFile(x.oaStatementFileId);
+      decision;
+      attestWarnings = if (x.kind == #oa) OaDeals.attestWarnings(oaDeals, settings, org, x.orgId, today) else [];
+      finalWorkIds = Purchase.worksOf(a).filter(final);
+      canEdit = x.status == #registered and allRegistered;
+      canDecide = x.parts.size() == 0 and (x.status == #registered or x.status == #disputed);
+      canPay = x.status == #approved;
+    };
+  };
+
+  // Een regel zonder werfdeel (leverancier, algemene kost): enkel de rekenfout (hoeveelheid × eenheidsprijs).
+  func puOwnFlags(l : Types.PurchaseLine) : [Text] {
+    if (l.qtyMilli != 0 and Int.abs(l.amountCents - QuoteCalc.roundDiv(l.qtyMilli * l.unitCents, 1000)) > 1) ["rekenfout"] else [];
+  };
+
+  func puFile(f : ?Nat) : ?Views.FileView {
+    switch f { case (?fid) { switch (files.files.get(fid)) { case (?x) ?{ Dossier.fileView(x) with blob = null }; case null null } }; case null null };
+  };
+
+};

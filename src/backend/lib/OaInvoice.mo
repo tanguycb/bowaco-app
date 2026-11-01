@@ -21,6 +21,7 @@ import Config "Config";
 import Library "Library";
 import Measure "Measure";
 import OaDeals "OaDeals";
+import Purchase "Purchase";
 import Progress "Progress";
 import QuoteCalc "QuoteCalc";
 import Quotes "Quotes";
@@ -39,6 +40,7 @@ module {
     ss : Types.SurveyState;
     oi : Types.OaInvoiceState;
     deals : Types.OaDealState; // 2c.4: het tarief van de afspraak op deze werf en die dag
+    pur : Types.PurchaseState; // 2c.7: een werfdeel van een aankoop (kostensoort, ploeguren, uren per dag, voorschot)
   };
 
   // ── Instellingen (settings.values, D8: geen migratie) ─────────────────────
@@ -201,7 +203,14 @@ module {
     or c.works.memberships.values().any(func m = m.workId == workId and m.endedAt == null and m.role == #onderaannemer and (switch (m.personId) { case (?pid) { switch (c.access.persons.get(pid)) { case (?q) q.orgId == ?orgId; case null false } }; case null false }));
   };
 
+  // 2c.7: een werfdeel van een aankoop krijgt bovenop de controle van 2.11 die van zijn aankoopregels (partControl); een factuur
+  // van 2.11 (geen werfdeel) blijft precies zoals ze was.
   public func control(c : Ctx, inv : Types.OaInvoice, a : Types.OaInvoiceAmounts) : Control {
+    let base = baseControl(c, inv, a);
+    switch (c.pur.partOf.get(inv.id)) { case (?pid) partControl(c, inv, base, pid); case null base };
+  };
+
+  func baseControl(c : Ctx, inv : Types.OaInvoice, a : Types.OaInvoiceAmounts) : Control {
     let bp = thresholdBp(c.settings);
     let minC : Int = thresholdCents(c.settings);
     let ps = posts(c, inv.workId);
@@ -313,6 +322,124 @@ module {
     { lines; headerFlags = hf.toArray(); sumLinesCents = sum; expectedVatCents = expVat; oaOnWork = onWork; hoursAll; flagCount = flagCount + hf.size() };
   };
 
+  // ── 2c.7: de controle van een werfdeel (aankoop over één of meer werven) ──
+  func without(xs : [Text], ks : [Text]) : [Text] { xs.filter(func x = ks.find(func k = k == x) == null) };
+  func plus(xs : [Text], k : Text) : [Text] { if (xs.find(func x = x == k) == null) xs.concat([k]) else xs };
+
+  // Een eenheidsprijs naast de afgesproken: boven het percentage én boven het minimumbedrag op de hoeveelheid (zoals 2.11).
+  func priceFlag(unit : Int, ag : Int, qty : Int, bp : Nat, minC : Int) : ?Text {
+    let dev = unit - ag;
+    let devTotal = absI(QuoteCalc.roundDiv(dev * qty, 1000));
+    let devPct = if (ag == 0) dev != 0 else absI(dev) * 10_000 > absI(ag) * bp;
+    if (dev != 0 and devPct and devTotal > minC) ?(if (dev > 0) "prijs-hoger" else "prijs-lager") else null;
+  };
+
+  func partControl(c : Ctx, inv : Types.OaInvoice, base : Control, pid : Nat) : Control {
+    let p = switch (c.pur.purchases.get(pid)) { case (?x) x; case null return base };
+    let pa = switch (Purchase.amountsOf(c.pur, pid)) { case (?x) x; case null return base };
+    let pls = Purchase.linesOfWork(pa, inv.workId);
+    let bp = thresholdBp(c.settings);
+    let minC : Int = thresholdCents(c.settings);
+    let day = rateDay(inv);
+    let w = inv.workId;
+    let org = inv.orgId;
+    let (advOther, dedOther) = Purchase.advanceSums(c.pur, w, org, ?pid);
+    let allowed = Purchase.allowedAdvance(c.deals, w, org);
+    var myAdv : Int = 0;
+    var myDed : Int = 0;
+    for (l in pls.values()) { if (l.kind == #advance) { myAdv += l.amountCents } else if (l.kind == #advanceDeduct) { myDed += absI(l.amountCents) } };
+    var flagCount = 0;
+    let lines = base.lines.map(
+      func(lc : LineCheck) : LineCheck {
+        if (lc.index >= pls.size()) { flagCount += lc.qtyFlags.size() + lc.moneyFlags.size(); return lc };
+        let pl = pls[lc.index];
+        var qf = lc.qtyFlags;
+        var mf = lc.moneyFlags;
+        var agreed = lc.agreedCents;
+        var agreedOrg = lc.agreedOrg;
+        switch (pl.kind) {
+          case (#crew) {
+            // Ploeguren: de rekenfout op de ploeg (uren × ploegtarief); met een ploegtarief in de afspraak de ploegprijs ernaast.
+            mf := without(mf, ["rekenfout"]);
+            if (absI(pl.amountCents - QuoteCalc.roundDiv(pl.qtyMilli * pl.unitCents, 1000)) > 1) { mf := plus(mf, "rekenfout") };
+            switch (Purchase.dealRateAt(c.deals, w, org, #crewHour, "uur", day)) {
+              case (?(r, _)) {
+                mf := without(mf, ["prijs-hoger", "prijs-lager", "geen-uurloon", "afspraak-andere-oa"]);
+                agreed := ?r;
+                agreedOrg := true;
+                switch (priceFlag(pl.unitCents, r, pl.qtyMilli, bp, minC)) { case (?f) { mf := plus(mf, f) }; case null {} };
+              };
+              case null {};
+            };
+          };
+          case (#advance) {
+            qf := without(qf, ["niet-gekoppeld"]);
+            agreed := allowed;
+            agreedOrg := allowed != null;
+            switch allowed {
+              case null { mf := plus(mf, "voorschot-zonder-afspraak") };
+              case (?al) { if (advOther + myAdv > al) { mf := plus(mf, "voorschot-boven-afspraak") } };
+            };
+          };
+          case (#advanceDeduct) {
+            qf := without(qf, ["niet-gekoppeld"]);
+            if (pl.amountCents > 0) { mf := plus(mf, "aftrek-positief") };
+            if (dedOther + myDed > advOther + myAdv) { mf := plus(mf, "aftrek-boven-voorschot") };
+          };
+          case (#material) { qf := without(qf, ["niet-gekoppeld"]) };
+          case (#transportHour or #dieselKm or #kmLevy or #containerTon or #machineHire) {
+            qf := without(qf, ["niet-gekoppeld"]);
+            switch (Purchase.rateKindOf(pl.kind)) {
+              case (?(rk, unit)) {
+                switch (Purchase.dealRateAt(c.deals, w, org, rk, unit, day)) {
+                  case (?(r, _)) {
+                    agreed := ?r;
+                    agreedOrg := true;
+                    switch (priceFlag(pl.unitCents, r, pl.qtyMilli, bp, minC)) { case (?f) { mf := plus(mf, f) }; case null {} };
+                  };
+                  case null { mf := plus(mf, "geen-tarief") };
+                };
+              };
+              case null {};
+            };
+          };
+          case _ {};
+        };
+        // Uren per dag: het bedrag = Σ uren × het tarief van die dag (een tariefwissel in de periode rekent zo juist); de vraag aan
+        // de werfleider (te bevestigen, klopt niet) en de som van de dagen naast de uren van de regel.
+        if (Purchase.isHours(pl.kind) and pl.claimIds.size() > 0) {
+          let cls = pl.claimIds.filterMap(func(id : Nat) : ?Types.HourClaim = c.pur.claims.get(id));
+          let (_, tot) = Purchase.dayCalc(c.deals, pl, cls, w, org);
+          switch tot {
+            case (?e) {
+              mf := without(mf, ["tariefwissel", "prijs-hoger", "prijs-lager"]);
+              let dev = pl.amountCents - e;
+              let pct = if (e == 0) dev != 0 else absI(dev) * 10_000 > absI(e) * bp;
+              if (dev != 0 and pct and absI(dev) > minC) { mf := plus(mf, if (dev > 0) "bedrag-per-dag-hoger" else "bedrag-per-dag-lager") };
+            };
+            case null {};
+          };
+          var sum : Int = 0;
+          for (x in cls.values()) { sum += x.hoursMilli };
+          if (sum != lc.line.qtyMilli) { qf := plus(qf, "uren-som-dagen") };
+          for (x in cls.values()) {
+            switch (Purchase.claimState(c.settings, c.reports, x)) {
+              case "te-bevestigen" { qf := plus(qf, "uren-niet-bevestigd") };
+              case "klopt-niet" { qf := plus(qf, "uren-klopt-niet") };
+              case _ {};
+            };
+          };
+        };
+        flagCount += qf.size() + mf.size();
+        { lc with qtyFlags = qf; moneyFlags = mf; agreedCents = agreed; agreedOrg };
+      }
+    );
+    var hf = base.headerFlags;
+    // De laatste factuur van deze OA op deze werf trekt het restvoorschot af.
+    if (OaDeals.extraGet(p.extra, "slot:" # w.toText()) == "ja" and advOther + myAdv - dedOther - myDed > 0) { hf := plus(hf, "restvoorschot") };
+    { base with lines; headerFlags = hf; flagCount = flagCount + hf.size() };
+  };
+
   // De inhouding als de raadpleging rood is (VOORLOPIG, vraag aan de boekhouder): 35 % sociaal en 15 % fiscaal op het bedrag
   // excl. btw (art. 30bis en 30ter RSZ-wet, art. 403 en 404 WIB 92).
   public func withholdingCents(result : Types.WithholdingResult, netCents : Int) : (Int, Int) {
@@ -346,6 +473,17 @@ module {
       case "btw-normaal-bij-oa" "normaal btw-tarief van een onderaannemer: is de verlegging niet van toepassing?";
       case "oa-niet-op-werf" "deze firma is geen OA op deze werf";
       case "geen-bijlage" "geen bijlage";
+      case "geen-tarief" "geen tarief in de afspraak voor deze kostensoort";
+      case "voorschot-zonder-afspraak" "voorschot zonder afspraak op deze werf";
+      case "voorschot-boven-afspraak" "voorschot hoger dan de afspraak (max. 20 %)";
+      case "aftrek-positief" "een aftrek van het voorschot is een negatief bedrag";
+      case "aftrek-boven-voorschot" "meer afgetrokken dan het voorschot";
+      case "restvoorschot" "laatste factuur: het restvoorschot is niet afgetrokken";
+      case "bedrag-per-dag-hoger" "bedrag hoger dan de uren per dag × het tarief van die dag";
+      case "bedrag-per-dag-lager" "bedrag lager dan de uren per dag × het tarief van die dag";
+      case "uren-som-dagen" "de uren van de regel ≠ de som van de dagen";
+      case "uren-niet-bevestigd" "uren nog niet bevestigd door de werfleider";
+      case "uren-klopt-niet" "de werfleider zegt: de uren kloppen niet";
       case _ k;
     };
   };

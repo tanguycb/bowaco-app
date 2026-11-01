@@ -172,6 +172,7 @@ export function OaFactuurAdmin() {
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   return (
+    <>
     <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="oa-invoice-settings">
       <h2 className="bw-h2">{T.title}</h2>
       <p className="bw-muted">{T.lead}</p>
@@ -187,6 +188,38 @@ export function OaFactuurAdmin() {
           <Field label={T.oaView}><Choice label={T.oaView} value={view ? "ja" : "nee"} onChange={(v) => setView(v === "ja")} options={[{ value: "ja", label: t.common.yes }, { value: "nee", label: t.common.no }]} /></Field>
           <Field label={T.notice}><Choice label={T.notice} value={notice} onChange={setNotice} options={["uit", "melding", "app"].map((k) => ({ value: k, label: T.noticeOpts[k] }))} /></Field>
           <div><Button variant="primary" busy={save.isPending} disabled={!valid} onClick={() => save.mutate()}>{T.save}</Button></div>
+        </>
+      )}
+    </section>
+    <PurchaseAdmin />
+    </>
+  );
+}
+
+/** 2c.7: de aankoopfacturen: uren aan de werfleider vragen (enkel bij een verschil, AC-24, of altijd), kosten standaard doorrekenen. */
+function PurchaseAdmin() {
+  const T = t.aankoop.settings;
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const cur = useQuery({ queryKey: ["purchaseSettings"], queryFn: () => actor!.purchaseSettings(), enabled: !!actor && !isFetching });
+  const [ask, setAsk] = useState("verschil");
+  const [pass, setPass] = useState(true);
+  useEffect(() => { if (cur.data) { setAsk(cur.data.askHours); setPass(cur.data.passOn); } }, [cur.data]);
+  const save = useMutation({
+    mutationFn: async () => unwrap(await actor!.savePurchaseSettings({ askHours: ask, passOn: pass })),
+    onSuccess: () => { toast.show({ kind: "ok", text: T.saved }); void qc.invalidateQueries({ queryKey: ["purchaseSettings"] }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  return (
+    <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="purchase-settings">
+      <h2 className="bw-h2">{T.title}</h2>
+      <Loading q={cur} />
+      {cur.data && (
+        <>
+          <Field label={T.askHours}><Choice label={T.askHours} value={ask} onChange={setAsk} options={["verschil", "altijd"].map((k) => ({ value: k, label: T.ask[k] }))} /></Field>
+          <Field label={T.passOn}><Choice label={T.passOn} value={pass ? "ja" : "nee"} onChange={(v) => setPass(v === "ja")} options={[{ value: "ja", label: t.common.yes }, { value: "nee", label: t.common.no }]} /></Field>
+          <div><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{T.save}</Button></div>
         </>
       )}
     </section>

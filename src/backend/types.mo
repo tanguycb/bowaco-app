@@ -2019,6 +2019,99 @@ module {
     notices : Map.Map<Text, Int>; // verstuurde meldingen over attesten ("<attest>:30" · "<attest>:vervallen"), één keer
   };
 
+  // ── OA-facturen zoals ze binnenkomen (stap 2c.7, ontwerp 2c §4.7, §9 migratie 6) ──
+  // Eigen domein `purchases` (nieuw stabiel veld, deelvorm, OldActor = {}). Een AANKOOPFACTUUR zoals ze binnenkomt (een OA, een
+  // leverancier of iets anders), over één of meer werven: intern zonder bedragen (wie, nummer, datums, bijlagen, status, werfdelen);
+  // de bedragen en de regels zijn VERTROUWELIJK (PurchaseAmounts). Bij een OA wordt elke werf een WERFDEEL = een gewone OA-factuur
+  // van 2.11 (oaInvoices; nummer = dat van de factuur, sleutel "<firma>:<NUMMER>@<werf>"), zodat de controle van 2.11 per werf blijft
+  // werken; de aankoop is goedgekeurd als alle delen goedgekeurd zijn. Een leverancier heeft geen werfdelen (geen OA-controle).
+  // Uren per dag (datum, personen, van–tot, pauze) zijn een vraag aan de werfleider van die werf (HourClaim, ZONDER bedrag). Een
+  // OA-voorschot hoort bij een afspraak (2c.4) en houdt zijn aftrekken bij (vertrouwelijk). Volledig vanaf het begin (D1a).
+  public type CostKind = { #post; #regie; #crew; #transportHour; #dieselKm; #kmLevy; #material; #containerTon; #machineHire; #advance; #advanceDeduct; #other : Text };
+  public type PurchaseStatus = { #registered; #checking; #approved; #disputed; #withdrawn };
+  public type PurchaseKind = { #oa; #supplier; #other };
+  // Goedkeuring of betwisting van een aankoop ZONDER werfdelen (leverancier); bij een OA beslissen de werfdelen (OaInvoiceDecision).
+  public type PurchaseDecision = { at : Int; by : PersonId; approved : Bool; reason : Text; flags : Nat };
+
+  // klasse: intern (zonder bedragen). Een aankoopfactuur zoals ze binnenkomt (één of meer werven).
+  public type Purchase = {
+    id : Nat;
+    orgId : OrgId;
+    kind : PurchaseKind;
+    number : Text; // het factuurnummer van de firma
+    invoiceDay : Day;
+    dueDay : ?Day;
+    discountUntil : ?Day; // uiterste betaaldag voor de betaalkorting (het percentage staat bij de bedragen)
+    periodFrom : ?Day; // de periode van de prestaties (voor de werfdelen)
+    periodTo : ?Day;
+    vatRegime : OaVatRegime;
+    reverseMention : Bool;
+    fileId : ?Nat; // de factuur (vertrouwelijk bestand)
+    oaStatementFileId : ?Nat; // de vorderingsstaat van de OA als tweede bijlage (vertrouwelijk bestand)
+    oaStatementRef : Text;
+    status : PurchaseStatus;
+    parts : [Nat]; // de werfdelen (OA-facturen van 2.11), één per werf
+    decision : ?PurchaseDecision;
+    creditOf : ?Nat; // een creditnota op deze aankoop (later)
+    paidDay : ?Day;
+    note : Text; // intern
+    source : Text; // "hand" · later "peppol" (fase 3)
+    externalRef : Text;
+    rev : Nat;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra; // "slot:<werf>" = "ja": de laatste factuur van deze OA op die werf (restvoorschot)
+  };
+
+  // klasse: vertrouwelijk. Eén regel: werf (null = algemene kost), kostensoort, hoeveelheid, eenheidsprijs, bedrag, doorrekenen.
+  // Ploeguren: persons = de ploeg, qtyMilli = ploeguren, unitCents = ploegtarief (personen × tarief per persoon).
+  public type PurchaseLine = {
+    workId : ?WorkId;
+    kind : CostKind;
+    root : ?Nat;
+    description : Text;
+    persons : ?Nat;
+    qtyMilli : Int;
+    unit : Text;
+    unitCents : Int;
+    amountCents : Int;
+    passOn : Bool; // doorrekenen aan de klant (min-meerstaat, 2c.5)
+    claimIds : [Nat]; // de dagen met uren (HourClaim)
+  };
+  public type PurchaseAmounts = { purchaseId : Nat; netCents : Int; vatCents : Int; totalCents : Int; discountBp : ?Nat; lines : [PurchaseLine]; extra : Extra };
+
+  // klasse: intern (uren, GEEN bedrag). Een dag met uren op de factuur, als vraag aan de werfleider van die werf.
+  public type HourClaimReview = { by : PersonId; at : Int; ok : Bool; note : Text };
+  public type HourClaim = {
+    id : Nat;
+    purchaseId : Nat;
+    workId : WorkId;
+    orgId : OrgId;
+    day : Day;
+    persons : Nat;
+    slots : [TimeSlot];
+    pauseMin : Nat; // pauze per persoon
+    hoursMilli : Int; // personen × (som van de tijdvakken − pauze)
+    review : ?HourClaimReview;
+    extra : Extra;
+  };
+
+  // klasse: vertrouwelijk. Een voorschot van een OA op een afspraak (2c.4) en de aftrekken (aankoop, bedrag).
+  public type OaAdvance = { agreementId : Nat; purchaseId : Nat; cents : Int; deducted : [(Nat, Int)] };
+
+  public type PurchaseState = {
+    purchases : Map.Map<Nat, Purchase>;
+    amounts : Map.Map<Nat, Confidential<PurchaseAmounts>>; // vertrouwelijk; sleutel = aankoop
+    claims : Map.Map<Nat, HourClaim>;
+    advances : Map.Map<Nat, Confidential<OaAdvance>>; // vertrouwelijk; sleutel = het werfdeel van het voorschot (index, herrekend)
+    keys : Map.Map<Text, Nat>; // "<firma>:<NUMMER>" → aankoop (index)
+    byWork : Map.Map<Nat, [Nat]>; // werf → aankopen (index)
+    claimsByWork : Map.Map<Nat, [Nat]>; // werf → uren (index)
+    partOf : Map.Map<Nat, Nat>; // werfdeel (OA-factuur) → aankoop (index)
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

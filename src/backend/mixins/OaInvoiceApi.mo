@@ -15,6 +15,7 @@ import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Principal "mo:core/Principal";
 import Result "mo:core/Result";
 import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
@@ -29,6 +30,7 @@ import Ids "../lib/Ids";
 import Plan "../lib/Plan";
 import OaInvoice "../lib/OaInvoice";
 import OaDeals "../lib/OaDeals";
+import Purchase "../lib/Purchase";
 import Progress "../lib/Progress";
 import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
@@ -48,6 +50,7 @@ mixin (
   wadm : Types.WadmState,
   oaInvoices : Types.OaInvoiceState,
   oaDeals : Types.OaDealState,
+  purchases : Types.PurchaseState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -116,7 +119,8 @@ mixin (
     let notice = OaInvoice.disputeNotice(settings);
     let out = List.empty<OV.MyOaInvoice>();
     for (i in oaInvoices.invoices.values()) {
-      if (i.orgId == own and i.status != #withdrawn) {
+      // 2c.7: een werfdeel staat bij myPurchases (per factuur, niet per werf).
+      if (i.orgId == own and i.status != #withdrawn and purchases.partOf.get(i.id) == null) {
         let reason = switch (i.status, i.decision) { case (#disputed, ?d) { if (notice == "uit") "" else d.reason }; case _ "" };
         out.add({ id = i.id; workName = oiWorkName(i.workId); number = i.number; invoiceDay = i.invoiceDay; status = i.status; decidedAt = switch (i.decision) { case (?d) ?d.at; case null null }; reason });
       };
@@ -173,6 +177,9 @@ mixin (
       case null {};
     };
     let key = OaInvoice.keyOf(x.orgId, nr);
+    // 2c.7: een werfdeel van een aankoopfactuur verbeter je in de aankoop; een nummer van een aankoop is al geregistreerd.
+    switch (x.id) { case (?id) { if (purchases.partOf.get(id) != null) { return #err("Deze factuur is een werfdeel van een aankoopfactuur: verbeter de aankoopfactuur") } }; case null {} };
+    switch (purchases.keys.get(Purchase.keyOf(x.orgId, nr))) { case (?other) { switch (purchases.purchases.get(other)) { case (?q) { if (q.status != #withdrawn) { return #err("Factuur " # nr # " van " # o.name # " is al geregistreerd (aankoopfacturen)") } }; case null {} } }; case null {} };
     let now = Time.now();
     let amounts = func(id : Nat) : Types.OaInvoiceAmounts { { invoiceId = id; netCents = x.netCents; vatCents = x.vatCents; totalCents = x.totalCents; lines = x.lines.map(func(l : Types.OaInvoiceLine) : Types.OaInvoiceLine = { l with description = l.description.trim(#char ' ') }); extra = [] } };
     switch (x.id) {
@@ -240,6 +247,7 @@ mixin (
     let wText = switch w { case (#check c) "inhoudingsplicht " # Wadm.resultWord(c.result) # " (" # c.reference # ")"; case (#exception e) "uitzondering op de inhoudingsplicht: " # Text.fromIter(e.chars().take(120)) };
     Access.audit(audit, caller, ?p.id, ?i.workId, "oa-factuur-goedgekeurd", oiOrgName(i.orgId) # " " # i.number # ": " # wText # (if (k.flagCount > 0) ", " # k.flagCount.toText() # " markering(en), reden: " # why else "") # (if (OaDeals.attestWarnings(oaDeals, settings, org, i.orgId, Dossier.today()).size() > 0) ", attesten niet in orde" else ""));
     switch w { case (#check c) { if (c.result != #clear) { Access.notifyAdmins(access, audit, ctr, "inhoudingsplicht", oiOrgName(i.orgId) # " " # i.number # ": goedgekeurd met inhoudingsplicht (" # Wadm.resultWord(c.result) # "): bij de betaling inhouden") } }; case _ {} };
+    oiSyncPurchase(caller, p.id, id, now);
     #ok;
   };
 
@@ -255,6 +263,7 @@ mixin (
     let now = Time.now();
     oaInvoices.invoices.add(id, { i with status = #disputed; decision = ?{ at = now; by = p.id; approved = false; reason = why; withholding = null; flags = k.flagCount }; rev = i.rev + 1; updatedAt = now; updatedBy = p.id });
     Access.audit(audit, caller, ?p.id, ?i.workId, "oa-factuur-betwist", oiOrgName(i.orgId) # " " # i.number # ": " # why);
+    oiSyncPurchase(caller, p.id, id, now);
     // Naar de OA (instelbaar): een melding aan de personen van die firma op die werf, nooit een bedrag.
     if (OaInvoice.disputeNotice(settings) == "melding") {
       Access.notifyOrgOnWork(access, { works; settings }, audit, ctr, i.orgId, i.workId, null, p.id, "oa-factuur", "Uw factuur " # i.number # " (" # oiWorkName(i.workId) # ") wordt betwist: " # why);
@@ -267,6 +276,7 @@ mixin (
     let i = switch (oaInvoices.invoices.get(id)) { case (?x) x; case null return #err("Geen toegang") };
     if (Rights.oaInvoiceScope({ works; settings }, p, i.workId) != #full) { return #err("Geen toegang") };
     if (i.status == #approved or i.status == #withdrawn) { return #err("Deze factuur is " # OaInvoice.statusKey(i.status)) };
+    if (purchases.partOf.get(id) != null) { return #err("Deze factuur is een werfdeel van een aankoopfactuur: trek de aankoopfactuur in") };
     if (rev != i.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
     let why = reason.trim(#char ' ');
     if (why.size() < Config.minQuoteReason or why.size() > Config.maxQuoteReason) { return #err("Geef een reden (5 tot 300 tekens)") };
@@ -277,7 +287,28 @@ mixin (
   };
 
   // ── Hulp ───────────────────────────────────────────────────────────────
-  func oiCtx() : OaInvoice.Ctx { { settings; access; org; works; plan; reports; qs = quotes; starts = workStarts; ss = surveys; oi = oaInvoices; deals = oaDeals } };
+  // 2c.7: na een beslissing over een werfdeel volgt de aankoop (alle delen goedgekeurd = goedgekeurd; een deel betwist = betwist).
+  func oiSyncPurchase(caller : Principal, by : Nat, partId : Nat, now : Int) {
+    switch (purchases.partOf.get(partId)) {
+      case (?pid) {
+        switch (Purchase.syncStatus(purchases, oaInvoices, pid, now, by)) {
+          case (?(_, st)) {
+            switch (purchases.purchases.get(pid), Purchase.amountsOf(purchases, pid)) {
+              case (?x, ?a) {
+                for (w in Purchase.worksOf(a).values()) { Purchase.syncAdvances(purchases, oaDeals, oaInvoices, w, x.orgId) };
+                Access.audit(audit, caller, ?by, null, "aankoop-stand", oiOrgName(x.orgId) # " " # x.number # ": " # Purchase.statusKey(st));
+              };
+              case _ {};
+            };
+          };
+          case null {};
+        };
+      };
+      case null {};
+    };
+  };
+
+  func oiCtx() : OaInvoice.Ctx { { settings; access; org; works; plan; reports; qs = quotes; starts = workStarts; ss = surveys; oi = oaInvoices; deals = oaDeals; pur = purchases } };
   func oiOrgName(o : Nat) : Text { switch (org.orgs.get(o)) { case (?x) x.name; case null "#" # o.toText() } };
   func oiWorkName(w : Nat) : Text { switch (works.works.get(w)) { case (?x) x.name; case null "" } };
   func oiAmounts(i : Types.OaInvoice) : Types.OaInvoiceAmounts {
@@ -306,6 +337,7 @@ mixin (
       source = i.source;
       updatedAt = i.updatedAt;
       rev = i.rev;
+      purchaseId = purchases.partOf.get(i.id);
     };
   };
 
@@ -364,7 +396,7 @@ mixin (
       previous = prev.toArray();
       decision = switch (i.decision) { case (?d) ?{ at = d.at; byName = Access.personName(access, d.by); approved = d.approved; reason = d.reason; withholding = d.withholding; flags = d.flags }; case null null };
       file = switch (i.fileId) { case (?fid) { switch (files.files.get(fid)) { case (?f) ?{ Dossier.fileView(f) with blob = null }; case null null } }; case null null };
-      canEdit = i.status == #registered;
+      canEdit = i.status == #registered and purchases.partOf.get(i.id) == null;
       canDecide = open;
       disputeNotice = OaInvoice.disputeNotice(settings);
       attestWarnings = OaDeals.attestWarnings(oaDeals, settings, org, i.orgId, today);

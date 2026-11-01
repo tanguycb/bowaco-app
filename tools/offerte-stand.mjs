@@ -1,4 +1,4 @@
-// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2), OA-offertes, keuzes en hun prijzen in de bibliotheek (2c.3), OA-facturen en afspraken met de OA (2c.4) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
+// De stand van alle offertes, vorderingsstaten, prijsvragen (2c.2), OA-offertes, keuzes en hun prijzen in de bibliotheek (2c.3), OA-facturen en afspraken met de OA (2c.4), aankoopfacturen, uren per dag en voorschotten (2c.7) en rechten op een canister, als JSON (migratiecheck 2c.1, ontwerp 2c §9).
 //   node tools/offerte-stand.mjs <canister> <uit.json>           met de .did van DEZE map (oude kopie of nieuwe code)
 //   node tools/offerte-stand.mjs vergelijk <voor.json> <na.json>   elk veld van "voor" moet in "na" gelijk zijn (nieuwe velden
 //                                                                   en nieuwe offertes tellen niet); geeft de verschillen
@@ -164,6 +164,39 @@ if (typeof who.admin.listDeals === "function") {
   stand.mijnAttesten = await res(who.oa.listMyAttests());
   stand.contracten = Object.fromEntries((await chunkOf("agreementFrozen")).map(([k, v]) => [String(k), v]));
   stand.contractSjablonen = await res(who.admin.listContractTemplates());
+}
+// 2c.7: de aankoopfacturen (enkel als de code ze kent): elke aankoop met bedragen en controle (update-call met auditregel), wie de
+// lijst en de aankoop mag lezen, de uren per dag per werf (werfleider en beheerder), te betalen, de doorrekenbare kosten per werf, de
+// stand van de OA (Mijn facturen) en de vertrouwelijke regels en voorschotten.
+if (typeof who.admin.listPurchases === "function") {
+  stand.aankopen = {};
+  stand.aankoopRechten = {};
+  stand.uren = {};
+  stand.doorrekenen = {};
+  for (const b of (await res(who.admin.listPurchases([], [{ withdrawn: null }]))).ok ?? []) stand.aankopen[`ingetrokken-${b.id}`] = b;
+  for (const b of (await res(who.admin.listPurchases([], []))).ok ?? []) {
+    stand.aankopen[String(b.id)] = await res(who.admin.readPurchase(b.id));
+    const per = {};
+    for (const rol of ["calculator", "werfleider", "architect", "oa", "klant", "vc"]) per[rol] = allowed(await res(who[rol].readPurchase(b.id)));
+    stand.aankoopRechten[String(b.id)] = per;
+  }
+  const lijst = {};
+  for (const rol of ["calculator", "werfleider", "architect", "oa", "klant", "vc"]) lijst[rol] = allowed(await res(who[rol].listPurchases([], [])));
+  stand.aankoopRechten.lijst = lijst;
+  for (const w of await who.admin.listWorks()) {
+    const u = await res(who.admin.listHourClaims([w.id]));
+    if (u.ok && u.ok.length) stand.uren[String(w.id)] = { beheerder: u.ok, werfleider: await res(who.werfleider.listHourClaims([w.id])) };
+    const c = await res(who.admin.purchaseCosts(w.id));
+    if (c.ok && c.ok.length) stand.doorrekenen[String(w.id)] = c.ok;
+  }
+  // Als object per id: nieuwe aankopen en dagen tellen bij de vergelijking niet, gewijzigde wel.
+  const byId = (r, f) => (r.ok ? Object.fromEntries(r.ok.map((x) => [String(f(x)), x])) : r);
+  stand.urenWerfleider = byId(await res(who.werfleider.listHourClaims([])), (c) => c.id);
+  stand.teBetalen = byId(await res(who.admin.listPurchasesToPay()), (r) => r.brief.id);
+  stand.mijnAankopen = byId(await res(who.oa.myPurchases()), (x) => x.number);
+  stand.aankoopInstellingen = await res(who.admin.purchaseSettings());
+  stand.aankoopBedragen = Object.fromEntries((await chunkOf("purchaseAmounts")).map(([k, v]) => [String(k), v]));
+  stand.oaVoorschotten = Object.fromEntries((await chunkOf("oaAdvances")).map(([k, v]) => [String(k), v]));
 }
 const ex = await who.admin.exportIntern();
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;
