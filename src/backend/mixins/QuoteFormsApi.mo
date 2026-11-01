@@ -293,7 +293,7 @@ mixin (
         // 2c.4: het regietarief van de offerte volgt het tarief van de OA dat vandaag geldt (firmafiche → Tarieven & attesten).
         let fromRateId : ?Nat = if (g.followRate) {
           let o = g.orgId ?? return #err("Regie: kies de onderaannemer wiens tarief de offerte volgt");
-          let r = OaDeals.rateAt(oaDeals, o, #regiePerson, Post.local(Time.now()).day) ?? return #err("Deze firma heeft nog geen regietarief (firmafiche → Tarieven & attesten)");
+          let r = OaDeals.rateAt(oaDeals, o, #regiePerson, "uur", Post.local(Time.now()).day) ?? return #err("Deze firma heeft nog geen regietarief (firmafiche → Tarieven & attesten)");
           if (r.cents != g.costCents) { return #err("Het regietarief van de firma is intussen gewijzigd: vernieuw") };
           ?r.id;
         } else null;

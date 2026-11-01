@@ -2359,6 +2359,7 @@ export const nl = {
       "geen-afspraak": "geen afgesproken prijs",
       "geen-uurloon": "geen afgesproken uurloon",
       rekenfout: "bedrag ≠ hoeveelheid × prijs",
+      tariefwissel: "tarief van de werf wisselt binnen de periode: per dag nakijken",
       "geen-regels": "geen regels",
       "som-regels": "som van de regels ≠ excl. btw",
       totaal: "excl. + btw ≠ totaal",
@@ -2978,6 +2979,8 @@ export const nl = {
   // 2c.4: afspraken met de gekozen OA (Wie werkt mee, firmafiche → Tarieven & attesten, Mijn contracten, Mijn attesten, Beheer).
   afspraken: {
     title: "Afspraken met onderaannemers",
+    notIntact: "De controlecode van dit contract klopt niet meer: neem contact op met de beheerder.",
+    archiveReason: "Reden van archiveren",
     edit: "Wijzigen",
     lead: "Per onderaannemer: de afspraak voor deze werf, het contract en de attesten. Een werf houdt het tarief van haar start.",
     none: "Nog geen afspraken. Ze ontstaan bij Werf starten (de gekozen onderaannemer van elke post), of met de hand.",

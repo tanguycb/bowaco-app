@@ -280,6 +280,9 @@ module {
           case null { if (l.kind != #other) { mf.add(if (l.kind == #regie) "geen-uurloon" else "geen-afspraak") } };
         };
         if (absI(l.amountCents - QuoteCalc.roundDiv(l.qtyMilli * l.unitCents, 1000)) > 1) { mf.add("rekenfout") };
+        // 2c.4 (review M3): een regietarief van de afspraak begint binnen de periode: één tarief rekent niet juist (2c.7: per dag).
+        let regieLine = l.kind == #regie or (switch post { case (?p) p.form == #regie; case null false });
+        if (regieLine and OaDeals.regieChangeIn(c.deals, inv.workId, inv.orgId, inv.periodFrom, inv.periodTo)) { mf.add("tariefwissel") };
         flagCount += qf.size() + mf.size();
         { index = k; line = l; post; expectedQtyMilli = expected; expectedFrom = from; prevQtyMilli = prev.qtyMilli; prevCents = prev.cents; hours; agreedCents = agreed; agreedOrg; qtyFlags = qf.toArray(); moneyFlags = mf.toArray() };
       },
@@ -333,6 +336,7 @@ module {
       case "geen-afspraak" "geen afgesproken prijs voor deze post";
       case "geen-uurloon" "geen afgesproken uurloon voor regie";
       case "rekenfout" "bedrag ≠ hoeveelheid × eenheidsprijs";
+      case "tariefwissel" "het tarief van de werf wisselt binnen de periode: bedrag per dag nakijken";
       case "geen-regels" "geen regels ingevuld";
       case "som-regels" "som van de regels ≠ bedrag excl. btw";
       case "totaal" "excl. btw + btw ≠ totaal";

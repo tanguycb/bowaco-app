@@ -108,6 +108,26 @@ module {
     at : Int;
     signedAt : ?Int;
     provisional : Bool;
+    intact : Bool; // review L7: de controlecode opnieuw nagerekend
+  };
+  // Review M2: het contract voor de OA zelf, zonder enig id van de app (geen post-oorsprong, geen tarief-id).
+  public type MyContractPost = { title : Text; unit : Text; qtyMilli : Int; unitCents : ?Int };
+  public type MyContractRate = { kindName : Text; unit : Text; cents : Int; validFrom : Day; note : Text };
+  public type MyContractView = {
+    version : Nat;
+    title : Text;
+    text : Text;
+    fields : [(Text, Text)];
+    posts : [MyContractPost];
+    rates : [MyContractRate];
+    totalCents : ?Int;
+    advanceBp : Nat;
+    advanceCents : ?Int;
+    hash : Text;
+    at : Int;
+    signedAt : ?Int;
+    provisional : Bool;
+    intact : Bool;
   };
   public type ContractTemplateView = { id : Nat; version : Nat; title : Text; text : Text; provisional : Bool; note : Text; createdAt : Int; createdByName : Text; archived : Bool };
 

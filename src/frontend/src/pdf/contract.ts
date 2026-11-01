@@ -27,6 +27,14 @@ export type ContractPdfData = {
 
 const qf = new Intl.NumberFormat("nl-BE", { maximumFractionDigits: 3 });
 const qty = (m: bigint) => qf.format(Number(m) / 1000);
+/** Afronden op de cent, half weg van nul (zoals QuoteCalc.roundDiv in de backend). */
+export function roundDiv(n: bigint, d: bigint): bigint {
+  const neg = (n < 0n) !== (d < 0n);
+  const a = n < 0n ? -n : n;
+  const b = d < 0n ? -d : d;
+  const q = (2n * a + b) / (2n * b);
+  return neg ? -q : q;
+}
 const ef = new Intl.NumberFormat("nl-BE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const euro = (c: bigint) => `€ ${ef.format(Number(c) / 100)}`;
 
@@ -129,7 +137,7 @@ export async function contractPdf(d: ContractPdfData, fonts: PdfFonts): Promise<
     right(qty(p.qtyMilli), X.qty, y, F.mono, 8.5);
     text(p.unit.slice(0, 8), X.unit, y, F.r, 8.5, GRAY);
     right(p.unitCents === null ? "—" : euro(p.unitCents), X.price, y, F.mono, 8.5);
-    right(p.unitCents === null ? "—" : euro((p.unitCents * p.qtyMilli) / 1000n), X.tot, y, F.mono, 8.5);
+    right(p.unitCents === null ? "—" : euro(roundDiv(p.unitCents * p.qtyMilli, 1000n)), X.tot, y, F.mono, 8.5);
     for (const l of t) { text(l, X.desc, y, F.r, 9); y -= 12; }
     hline(y + 8, LINE, 0.4);
     y -= 2;

@@ -80,8 +80,10 @@ mixin (
     // 1b.1: de vergunning zelf toont enkel bij de vergunning (wie vergunningen mag lezen, R13).
     // 2c.2: de eigen PDF van een OA (ontwerp of ingediend) toont bij de OA-offerte, niet hier.
     let tenderFiles = Tenders.ownedFiles(tenders);
+    // 2c.4 (review L3): bestanden van tarieven, getekende contracten en attesten tonen enkel daar.
+    let dealFiles = OaDeals.ownedFiles(oaDeals);
     let permitFiles = switch workId { case (?w) permits.permits.values().filter(func x = x.workId == w).flatMap(func(x : Types.Permit) : Iter.Iter<Nat> = x.fileIds.values()).toArray(); case null [] };
-    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id) and not surveys.fileOwners.containsKey(f.id) and permitFiles.find(func x = x == f.id) == null and not tenderFiles.containsKey(f.id) and (internal or (not f.confidential and own(f)))).map(Dossier.fileView).toArray();
+    files.files.values().filter(func f = f.archivedAt == null and f.workId == workId and hidden.find(func x = x == f.id) == null and not reports.fileOwners.containsKey(f.id) and not surveys.fileOwners.containsKey(f.id) and permitFiles.find(func x = x == f.id) == null and not tenderFiles.containsKey(f.id) and not dealFiles.containsKey(f.id) and (internal or (not f.confidential and own(f)))).map(Dossier.fileView).toArray();
   };
 
   public shared ({ caller }) func readConfidentialFile(id : Nat) : async Result.Result<Views.FileView, Text> {

@@ -103,9 +103,10 @@ module {
     best.values().toArray();
   };
 
-  public func rateAt(d : D, orgId : Nat, kind : Types.RateKind, day : Day) : ?Types.OaRate {
+  // Het tarief van die soort en eenheid (review L2: regie = per uur) dat op `day` geldt.
+  public func rateAt(d : D, orgId : Nat, kind : Types.RateKind, unit : Text, day : Day) : ?Types.OaRate {
     var out : ?Types.OaRate = null;
-    for (r in ratesOf(d, orgId, false).values()) { if (r.kind == kind and r.validFrom <= day) { out := ?r } };
+    for (r in ratesOf(d, orgId, false).values()) { if (r.kind == kind and r.unit == unit and r.validFrom <= day) { out := ?r } };
     out;
   };
 
@@ -145,11 +146,11 @@ module {
   public func newRef(seed : Text) : Text { Text.fromIter(hash("bowaco-ref-v1|" # seed).chars().take(16)) };
 
   // Het tarief van deze werf op die dag (⚖9): het afgesproken tarief van die soort met de grootste validFrom ≤ day.
-  public func agreedRateAt(t : Types.AgreementTerms, kind : Types.RateKind, day : Day) : ?Types.AgreedRate {
+  public func agreedRateAt(t : Types.AgreementTerms, kind : Types.RateKind, unit : Text, day : Day) : ?Types.AgreedRate {
     var out : ?Types.AgreedRate = null;
     var first : ?Types.AgreedRate = null;
     for (r in t.rates.values()) {
-      if (r.kind == kind) {
+      if (r.kind == kind and r.unit == unit) {
         if (r.validFrom <= day) { switch out { case (?o) { if (r.validFrom >= o.validFrom) { out := ?r } }; case null { out := ?r } } };
         switch first { case (?f) { if (r.validFrom < f.validFrom) { first := ?r } }; case null { first := ?r } };
       };
@@ -159,11 +160,28 @@ module {
   };
 
   // Voor de controle van OA-facturen (2.11): het regietarief van de afspraak van deze firma op deze werf op die dag.
+  // Review L6: een beëindigde afspraak houdt haar werftarief voor prestaties tot en met de dag van het einde.
   public func dealRegieAt(d : D, workId : Nat, orgId : Nat, day : Day) : ?(Int, Day) {
     let a = agreementOf(d, workId, orgId) ?? return null;
-    switch (a.status) { case (#ended _) return null; case _ {} };
+    switch (a.status) { case (#ended e) { if (day > dayOf(e.at)) return null }; case _ {} };
     let t = termsOf(d, a.id) ?? return null;
-    switch (agreedRateAt(t, #regiePerson, day)) { case (?r) ?(r.cents, r.validFrom); case null null };
+    switch (agreedRateAt(t, #regiePerson, "uur", day)) { case (?r) ?(r.cents, r.validFrom); case null null };
+  };
+
+  public func dayOf(t : Int) : Day { if (t <= 0) 0 else Int.abs(t) / Int.abs(Config.day) };
+
+  // Review M3: begint een regietarief van de afspraak binnen de periode (van, tot]? Dan rekent één tarief de factuur niet juist
+  // (2c.7 rekent per dag); de controle markeert het.
+  public func regieChangeIn(d : D, workId : Nat, orgId : Nat, from : ?Day, to : ?Day) : Bool {
+    let (f, u) = switch (from, to) { case (?f, ?u) (f, u); case _ return false };
+    let a = agreementOf(d, workId, orgId) ?? return false;
+    let t = termsOf(d, a.id) ?? return false;
+    t.rates.any(func(r : Types.AgreedRate) : Bool = r.kind == #regiePerson and r.unit == "uur" and r.validFrom > f and r.validFrom <= u);
+  };
+
+  // Review M1: na een contract (versie ≥ 1) zet elke wijziging de afspraak terug op ontwerp: er is een aanhangsel nodig.
+  public func afterChange(a : Types.Agreement) : Types.AgreementStatus {
+    switch (a.status) { case (#ended e) #ended(e); case _ { if (a.contractVersion > 0) #draft else a.status } };
   };
 
   // Een OA die een afspraak heeft (niet beëindigd): hij mag zijn attesten opladen (opslagpoort).
@@ -198,13 +216,13 @@ module {
   // Stand van één soort: geldig · vervalt (binnen 30 dagen) · vervallen · te-keuren (opgeladen, nog niet goedgekeurd) · ontbreekt.
   public type AttestState = { kind : Text; name : Text; required : Bool; state : Text; validUntil : ?Day; docId : ?Nat };
 
-  func later(a : ?Day, b : ?Day) : Bool { switch (a, b) { case (null, _) true; case (_, null) false; case (?x, ?y) x > y } };
-
   public func bestApproved(d : D, orgId : Nat, kind : Text) : ?Types.OrgDoc {
     var best : ?Types.OrgDoc = null;
     for (x in docsOf(d, orgId).values()) {
+      // Review M4: het laatst goedgekeurde (niet gearchiveerde) attest telt, ook als een vorig een latere datum had (verkeerd ingegeven).
       if (x.kind == kind and x.status == #approved) {
-        switch best { case (?b) { if (later(x.validUntil, b.validUntil)) { best := ?x } }; case null { best := ?x } };
+        let at = func(y : Types.OrgDoc) : Int { switch (y.checkedAt) { case (?c) c; case null y.createdAt } };
+        switch best { case (?b) { if (at(x) > at(b) or (at(x) == at(b) and x.id > b.id)) { best := ?x } }; case null { best := ?x } };
       };
     };
     best;
@@ -280,6 +298,11 @@ module {
     n;
   };
 
+  // Een melding aan kantoor (beheerders en calculators).
+  public func notifyOffice(access : Types.AccessState, log : Types.AuditState, ctr : Types.Counters, text : Text, workId : ?Nat) {
+    for (p in access.persons.values()) { if (p.archivedAt == null and Rights.isOffice(p)) { Access.notify(log, ctr, p.id, "afspraak", text, workId) } };
+  };
+
   // ── De afspraak bij Werf starten (2.8) ───────────────────────────────────
   // Nieuw: de tarieven van de firma die op de startdag golden (per soort het geldende), en het regietarief van de offerte als de
   // firma voor regie nog geen tarief heeft. Bestaat ze al (meerwerk op dezelfde werf): enkel de nieuwe posten en hun prijzen
@@ -296,17 +319,26 @@ module {
     by : Nat;
   };
 
-  public func ensureForStart(d : D, ctr : Types.Counters, i : StartInput) : (Nat, Bool) {
+  // Geeft (afspraak, nieuw?, aanhangsel nodig?): het laatste = een bestaand contract klopt niet meer met de posten of prijzen.
+  public func ensureForStart(d : D, ctr : Types.Counters, i : StartInput) : (Nat, Bool, Bool) {
     let now = Time.now();
     func union(a : [Nat], b : [Nat]) : [Nat] { a.concat(b.filter(func x = a.find(func y = y == x) == null)) };
     switch (agreementOf(d, i.workId, i.orgId)) {
       case (?a) {
         let t = switch (termsOf(d, a.id)) { case (?x) x; case null { { agreementId = a.id; prices = []; rates = []; amountCents = null; advanceCents = null; extra = [] } } };
-        let newPrices = i.prices.filter(func((r, _) : (Nat, Int)) : Bool = t.prices.find(func((q, _) : (Nat, Int)) : Bool = q == r) == null);
-        let amount : ?Int = switch (t.amountCents, i.amountCents) { case (?x, ?y) ?(x + y); case (null, y) y; case (x, null) x };
-        d.terms.add(a.id, #plain({ t with prices = t.prices.concat(newPrices); amountCents = amount }));
-        d.agreements.add(a.id, { a with roots = union(a.roots, i.roots); oaQuoteIds = union(a.oaQuoteIds, i.oaQuoteIds); rev = a.rev + 1; updatedAt = now; updatedBy = i.by });
-        (a.id, false);
+        // Review H1: de prijzen samenvoegen (de nieuwste prijs van een post wint) en het totaal opnieuw uit alle posten van de firma
+        // op de werf (postsFor rekent Σ VH × prijs over de gestarte offertes), nooit optellen bij het vorige totaal.
+        let kept = t.prices.filter(func((r, _) : (Nat, Int)) : Bool = i.prices.find(func((q, _) : (Nat, Int)) : Bool = q == r) == null);
+        let prices = kept.concat(i.prices);
+        let adv : ?Int = switch (i.amountCents) { case (?m) { if (a.advanceBp == 0) null else ?QuoteCalc.roundDiv(m * a.advanceBp, 10_000) }; case null t.advanceCents };
+        let roots = union(a.roots, i.roots);
+        let changed = roots.size() != a.roots.size() or prices.size() != t.prices.size() or prices.any(func((r, c) : (Nat, Int)) : Bool = t.prices.find(func((q, x) : (Nat, Int)) : Bool = q == r and x == c) == null);
+        let oq = union(a.oaQuoteIds, i.oaQuoteIds);
+        // Niets veranderd voor deze firma: niets aanraken (de versie blijft, een klaarstaand contract kan nog getekend worden).
+        if (not changed and oq.size() == a.oaQuoteIds.size() and i.amountCents == t.amountCents) { return (a.id, false, false) };
+        d.terms.add(a.id, #plain({ t with prices; amountCents = i.amountCents; advanceCents = adv }));
+        d.agreements.add(a.id, { a with roots; oaQuoteIds = oq; status = if changed afterChange(a) else a.status; rev = a.rev + 1; updatedAt = now; updatedBy = i.by });
+        (a.id, false, changed and a.contractVersion > 0);
       };
       case null {
         let id = Ids.next(ctr, "agreement");
@@ -347,7 +379,7 @@ module {
         d.agreementKeys.add(keyOf(i.workId, i.orgId), id);
         addIdx(d.agreementsByWork, i.workId, id);
         d.terms.add(id, #plain({ agreementId = id; prices = i.prices; rates; amountCents = i.amountCents; advanceCents = null; extra = [] }));
-        (id, true);
+        (id, true, false);
       };
     };
   };

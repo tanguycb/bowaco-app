@@ -450,6 +450,7 @@ const table = {
   listOrgDocs: [INTERNAL, () => [X]],
   saveOrgDoc: [["admin", "calculator"], () => [{ orgId: X, kind: "ba", title: "", fileId: [], validFrom: [], validUntil: [], note: "" }]],
   reviewOrgDoc: [["admin", "calculator"], () => [X, true, ""]],
+  archiveOrgDoc: [["admin", "calculator"], () => [X, ""]],
   listMyContracts: [["oa"], () => []],
   readMyContract: [["oa"], () => ["0".repeat(16), 1n]],
   readMyContractFile: [["oa"], () => ["0".repeat(16), 1n]],

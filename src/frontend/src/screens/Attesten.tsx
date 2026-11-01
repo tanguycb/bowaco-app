@@ -29,6 +29,7 @@ export function TarievenAttesten({ orgId, caps, isOa }: { orgId: bigint; caps: C
   const [r, setR] = useState({ kind: "regie", unit: "", euro: "", from: dayToInput(todayDay()), source: "offerte", ref: "" });
   const [d, setD] = useState({ kind: "ba", until: "", from: "" });
   const [reject, setReject] = useState<{ id: bigint; why: string } | null>(null);
+  const [arch, setArch] = useState<{ id: bigint; why: string } | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["orgDocs", String(orgId)] }); void qc.invalidateQueries({ queryKey: ["oaRates", String(orgId)] }); };
@@ -57,6 +58,7 @@ export function TarievenAttesten({ orgId, caps, isOa }: { orgId: bigint; caps: C
     onError: fail,
     onSettled: () => setProgress(null),
   });
+  const archiveDoc = useMutation({ mutationFn: async (x: { id: bigint; why: string }) => unwrap(await actor!.archiveOrgDoc(x.id, x.why)), onSuccess: () => { setArch(null); refresh(); }, onError: fail });
   const review = useMutation({ mutationFn: async (x: { id: bigint; ok: boolean; why: string }) => unwrap(await actor!.reviewOrgDoc(x.id, x.ok, x.why)), onSuccess: () => { setReject(null); refresh(); }, onError: fail });
   if (!caps.readTeam) return null;
   return (
@@ -75,6 +77,9 @@ export function TarievenAttesten({ orgId, caps, isOa }: { orgId: bigint; caps: C
                 ? <><input className="bw-input" aria-label={A.rejectReason} placeholder={A.rejectReason} value={reject.why} onChange={(e) => setReject({ id: x.id, why: e.target.value })} /><Button onClick={() => review.mutate({ id: x.id, ok: false, why: reject.why })}>{A.reject}</Button></>
                 : <Button variant="quiet" onClick={() => setReject({ id: x.id, why: "" })}>{A.reject}</Button>}
             </span>}
+            {docs.data!.mayReview && x.status !== DocStatus.received && (arch?.id === x.id
+              ? <span className="a-row" style={{ gap: 6 }}><input className="bw-input" aria-label={A.archiveReason} placeholder={A.archiveReason} value={arch.why} onChange={(e) => setArch({ id: x.id, why: e.target.value })} /><Button busy={archiveDoc.isPending} onClick={() => archiveDoc.mutate(arch)}>{A.archive}</Button></span>
+              : <Button variant="quiet" onClick={() => setArch({ id: x.id, why: "" })}>{A.archive}</Button>)}
           </li>))}
         </ul>))}
       {caps.deals && isOa && (

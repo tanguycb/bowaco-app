@@ -5,7 +5,7 @@
 // 20 %) en betaling, en maakt het contract (controlecode), downloadt de PDF en laadt het getekende bewijs op (aanhangsel = nieuwe versie).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ExternalBlob, OrgKind, type Caps, type OaContractView, type DealStatusView, type WorkView } from "../backend";
+import { ExternalBlob, OrgKind, type Caps, type DealStatusView, type WorkView } from "../backend";
 import { Button, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, inputToDay, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
@@ -28,8 +28,16 @@ export function AttestTags({ d }: { d: { attests: { kind: string; name: string; 
   );
 }
 
+/** Wat de PDF nodig heeft: OaContractView (kantoor) en MyContractView (de OA, zonder ids) hebben dit allebei. */
+type ContractLike = {
+  title: string; version: bigint; provisional: boolean; text: string; fields: Array<[string, string]>; hash: string; at: bigint; signedAt?: bigint; totalCents?: bigint; intact: boolean;
+  posts: Array<{ title: string; unit: string; qtyMilli: bigint; unitCents?: bigint }>;
+  rates: Array<{ kindName: string; unit: string; cents: bigint; validFrom: bigint }>;
+};
+
 /** De PDF van een contractversie, uit wat in de app vastligt (kantoor en de OA voor zijn eigen contract). */
-export async function contractDownload(c: OaContractView, firm: string, work: string) {
+export async function contractDownload(c: ContractLike, firm: string, work: string) {
+  if (!c.intact) throw new Error(t.afspraken.notIntact);
   const [{ contractPdf }, { loadPdfFonts }] = await Promise.all([import("../pdf/contract.ts"), import("../pdf/fonts.ts")]);
   const fld = Object.fromEntries(c.fields);
   const bytes = await contractPdf({

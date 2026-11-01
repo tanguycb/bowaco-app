@@ -205,7 +205,7 @@ mixin (
     if (o.kind != #subcontractor or o.archivedAt != null) { return #err("Een afspraak is met een (actieve) onderaannemer") };
     if (OaDeals.agreementOf(oaDeals, workId, orgId) != null) { return #err("Er is al een afspraak met deze firma op deze werf") };
     let fp = OaDeals.postsFor(quotes, workStarts, tenders, workId, orgId);
-    let (id, _) = OaDeals.ensureForStart(oaDeals, ctr, { workId; orgId; roots = fp.roots; prices = fp.prices; amountCents = fp.amountCents; startDay = odToday(); regie = null; oaQuoteIds = fp.oaQuoteIds; by = p.id });
+    let (id, _, _) = OaDeals.ensureForStart(oaDeals, ctr, { workId; orgId; roots = fp.roots; prices = fp.prices; amountCents = fp.amountCents; startDay = odToday(); regie = null; oaQuoteIds = fp.oaQuoteIds; by = p.id });
     let warn = OaDeals.attestWarnings(oaDeals, settings, org, orgId, odToday());
     Access.audit(audit, caller, ?p.id, ?workId, "afspraak-nieuw", odWorkCode(workId) # " · " # o.name # ": " # fp.roots.size().toText() # " posten" # (if (warn.size() > 0) " · " # warn.size().toText() # " attest(en) niet in orde" else ""));
     #ok({ id; warnings = warn });
@@ -224,9 +224,9 @@ mixin (
     let adv : ?Int = switch t { case (?x) { switch (x.amountCents) { case (?m) { if (i.advanceBp == 0) null else ?QuoteCalc.roundDiv(m * i.advanceBp, 10_000) }; case null null } }; case null null };
     switch t { case (?x) { oaDeals.terms.add(a.id, #plain({ x with advanceCents = adv })) }; case null {} };
     let now = Time.now();
-    let back = if (a.status == #signed) #draft else a.status;
-    oaDeals.agreements.add(a.id, { a with advanceBp = i.advanceBp; paymentDays = i.paymentDays; endOfMonth = i.endOfMonth; status = back; rev = a.rev + 1; updatedAt = now; updatedBy = p.id });
-    Access.audit(audit, caller, ?p.id, ?a.workId, "afspraak-gewijzigd", odWorkCode(a.workId) # " · " # odOrgName(a.orgId) # ": voorschot en betaaltermijn" # (if (a.status == #signed) " (aanhangsel nodig)" else ""));
+    oaDeals.agreements.add(a.id, { a with advanceBp = i.advanceBp; paymentDays = i.paymentDays; endOfMonth = i.endOfMonth; status = OaDeals.afterChange(a); rev = a.rev + 1; updatedAt = now; updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, ?a.workId, "afspraak-gewijzigd", odWorkCode(a.workId) # " · " # odOrgName(a.orgId) # ": voorschot en betaaltermijn" # (if (a.contractVersion > 0) " (aanhangsel nodig)" else ""));
+    odAddendum(a, "voorschot en betaaltermijn");
     #ok;
   };
 
@@ -245,10 +245,15 @@ mixin (
     if (t.rates.any(func(r : Types.AgreedRate) : Bool = r.kind == k and r.unit == u and r.validFrom == i.validFrom)) { return #err("Er is al een tarief van die soort vanaf die dag") };
     oaDeals.terms.add(a.id, #plain({ t with rates = t.rates.concat([{ kind = k; unit = u; cents = i.cents; validFrom = i.validFrom; fromRateId = i.fromRateId; note }]) }));
     let now = Time.now();
-    let back = if (a.status == #signed) #draft else a.status;
-    oaDeals.agreements.add(a.id, { a with status = back; rev = a.rev + 1; updatedAt = now; updatedBy = p.id });
-    Access.audit(audit, caller, ?p.id, ?a.workId, "afspraak-tarief", odWorkCode(a.workId) # " · " # odOrgName(a.orgId) # ": " # OaDeals.kindName(k) # " vanaf " # Plan.fmtDay(i.validFrom) # (if (a.status == #signed) " (aanhangsel nodig)" else ""));
+    oaDeals.agreements.add(a.id, { a with status = OaDeals.afterChange(a); rev = a.rev + 1; updatedAt = now; updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, ?a.workId, "afspraak-tarief", odWorkCode(a.workId) # " · " # odOrgName(a.orgId) # ": " # OaDeals.kindName(k) # " vanaf " # Plan.fmtDay(i.validFrom) # (if (a.contractVersion > 0) " (aanhangsel nodig)" else ""));
+    odAddendum(a, "tarief op de werf");
     #ok;
+  };
+
+  // Review M1: na een contract vraagt elke wijziging een aanhangsel; kantoor krijgt een melding (zonder bedrag).
+  func odAddendum(a : Types.Agreement, what : Text) {
+    if (a.contractVersion > 0) { OaDeals.notifyOffice(access, audit, ctr, "Afspraak " # odOrgName(a.orgId) # " op " # odWorkCode(a.workId) # " gewijzigd (" # what # "): aanhangsel nodig.", ?a.workId) };
   };
 
   public shared ({ caller }) func endDeal(id : Nat, reason : Text, rev : Nat) : async Result.Result<(), Text> {
@@ -280,7 +285,9 @@ mixin (
     let t = OaDeals.termsOf(oaDeals, a.id);
     let tpl = OaContract.current(oaDeals);
     let posts = odPrices(a, t).map(func(x : DV.DealPriceView) : Types.FrozenPost = { root = x.root; title = x.title; unit = x.unit; qtyMilli = x.qtyMilli; unitCents = x.cents });
-    let total = switch t { case (?x) x.amountCents; case null null };
+    // Review H1: het totaal uit de vastgelegde posten (Σ VH × eenheidsprijs, op de cent half weg van nul), zoals de PDF.
+    let priced = odPrices(a, t).filter(func(x : DV.DealPriceView) : Bool = x.cents != null);
+    let total : ?Int = if (priced.size() == 0) null else ?priced.foldLeft<DV.DealPriceView, Int>(0, func(acc, x) = acc + QuoteCalc.roundDiv((switch (x.cents) { case (?c) c; case null 0 }) * x.qtyMilli, 1000));
     let tasks = Plan.tasksOf(plan, a.workId).filter(func(x : Types.Task) : Bool = x.responsibleOrgId == ?a.orgId or plan.assignments.values().any(func(s : Types.Assignment) : Bool = s.taskId == x.id and s.orgId == a.orgId and s.archivedAt == null));
     let contact = switch (oa.orgContacts.get(a.orgId)) { case (?c) [switch (c.phone) { case (?x) x; case null "" }, switch (c.email) { case (?x) x; case null "" }].filter(func(s : Text) : Bool = s != "").values().join(" · "); case null "" };
     let quotesText = a.oaQuoteIds.map(odOaQuoteName).values().join(", ");
@@ -323,7 +330,17 @@ mixin (
   };
 
   func odContractView(f : Types.AgreementFrozen) : DV.OaContractView {
-    { version = f.contractVersion; templateVersion = f.templateVersion; title = f.title; text = f.text; fields = f.fields; posts = f.posts; rates = f.rates.map(odAgreedView); totalCents = f.totalCents; advanceBp = f.advanceBp; advanceCents = f.advanceCents; hash = f.hash; at = f.at; signedAt = switch (f.signed) { case (?s) ?s.at; case null null }; provisional = OaDeals.extraGet(f.extra, "voorlopig") == "ja" };
+    { version = f.contractVersion; templateVersion = f.templateVersion; title = f.title; text = f.text; fields = f.fields; posts = f.posts; rates = f.rates.map(odAgreedView); totalCents = f.totalCents; advanceBp = f.advanceBp; advanceCents = f.advanceCents; hash = f.hash; at = f.at; signedAt = switch (f.signed) { case (?s) ?s.at; case null null }; provisional = OaDeals.extraGet(f.extra, "voorlopig") == "ja"; intact = OaContract.hashOf(f) == f.hash };
+  };
+
+  func odMyContractView(f : Types.AgreementFrozen) : DV.MyContractView {
+    {
+      version = f.contractVersion; title = f.title; text = f.text; fields = f.fields;
+      posts = f.posts.map(func(x : Types.FrozenPost) : DV.MyContractPost = { title = x.title; unit = x.unit; qtyMilli = x.qtyMilli; unitCents = x.unitCents });
+      rates = f.rates.map(func(r : Types.AgreedRate) : DV.MyContractRate = { kindName = OaDeals.kindName(r.kind); unit = r.unit; cents = r.cents; validFrom = r.validFrom; note = r.note });
+      totalCents = f.totalCents; advanceBp = f.advanceBp; advanceCents = f.advanceCents; hash = f.hash; at = f.at;
+      signedAt = switch (f.signed) { case (?s) ?s.at; case null null }; provisional = OaDeals.extraGet(f.extra, "voorlopig") == "ja"; intact = OaContract.hashOf(f) == f.hash;
+    };
   };
 
   // Contract maken (of een aanhangsel na het tekenen): alles ligt vast onder de controlecode; status "te tekenen".
@@ -337,7 +354,8 @@ mixin (
     let f = switch (odFreeze(p, a)) { case (#ok x) x; case (#err e) return #err(e) };
     oaDeals.frozen.add(OaDeals.frozenKey(a.id, f.contractVersion), #plain(f));
     let now = Time.now();
-    oaDeals.agreements.add(a.id, { a with status = #toSign; contractVersion = f.contractVersion; contractHash = f.hash; templateVersion = ?f.templateVersion; signedFileId = null; rev = a.rev + 1; updatedAt = now; updatedBy = p.id });
+    // Review M1: de versie van de afspraak bij het contract; getekend registreren kan enkel zolang ze niet meer wijzigde.
+    oaDeals.agreements.add(a.id, { a with status = #toSign; contractVersion = f.contractVersion; contractHash = f.hash; templateVersion = ?f.templateVersion; signedFileId = null; rev = a.rev + 1; updatedAt = now; updatedBy = p.id; extra = OaDeals.extraSet(a.extra, "contractRev", (a.rev + 1).toText()) });
     Access.audit(audit, caller, ?p.id, ?a.workId, "contract-klaar", odWorkCode(a.workId) # " · " # odOrgName(a.orgId) # ": versie " # f.contractVersion.toText() # (if (f.contractVersion > 1) " (aanhangsel)" else "") # ", controlecode " # Text.fromIter(f.hash.chars().take(12)));
     let warn = OaDeals.attestWarnings(oaDeals, settings, org, a.orgId, odToday());
     if (warn.size() > 0) { Access.notify(audit, ctr, p.id, "attest", "Contract " # odOrgName(a.orgId) # " op " # odWorkCode(a.workId) # ": " # warn.values().join("; "), ?a.workId) };
@@ -360,6 +378,9 @@ mixin (
     let a = switch (odDeal(p, id)) { case (#ok x) x; case (#err e) return #err(e) };
     if (a.rev != rev) { return #err("De afspraak is intussen gewijzigd: vernieuw") };
     if (version != a.contractVersion or a.status != #toSign) { return #err("Enkel de laatste versie die klaar is om te tekenen") };
+    if (OaDeals.extraGet(a.extra, "contractRev") != a.rev.toText()) { return #err("De afspraak wijzigde na het contract: maak eerst een aanhangsel") };
+    // Review L5: enkel een bestand dat via addDealFile(#signed) voor DEZE afspraak kwam.
+    if (not OaDeals.extraGet(a.extra, "bewijs").split(#char ',').any(func(x : Text) : Bool = x == fileId.toText())) { return #err("Onbekend bestand") };
     let f = OaDeals.frozenOf(oaDeals, a.id, version) ?? return #err("Onbekende contractversie");
     if (not odFileOk(p, fileId)) { return #err("Onbekend bestand") };
     if (note.size() > Config.maxNote) { return #err("Notitie te lang") };
@@ -417,6 +438,16 @@ mixin (
       case (#rate o or #orgDoc o) { if (not org.orgs.containsKey(o)) { return #err("Onbekende firma") }; null };
     };
     let id = switch (odAddFile(p, name, mime, size, blob, workId)) { case (#ok x) x; case (#err e) return #err(e) };
+    switch purpose {
+      case (#signed aid) {
+        // Het bestand hoort bij deze afspraak (zonder de versie te verhogen: dit verandert niets aan wat afgesproken is).
+        switch (oaDeals.agreements.get(aid)) {
+          case (?a) { let cur = OaDeals.extraGet(a.extra, "bewijs"); oaDeals.agreements.add(aid, { a with extra = OaDeals.extraSet(a.extra, "bewijs", if (cur == "") id.toText() else cur # "," # id.toText()) }) };
+          case null {};
+        };
+      };
+      case _ {};
+    };
     Access.audit(audit, caller, ?p.id, workId, "bestand-toegevoegd", "afspraken: " # name # " (" # size.toText() # " B, vertrouwelijk)");
     #ok(id);
   };
@@ -462,6 +493,18 @@ mixin (
     #ok(id);
   };
 
+  // Review M4: een attest archiveren (verkeerde datum, vervangen) met een reden; het telt dan niet meer mee.
+  public shared ({ caller }) func archiveOrgDoc(id : Nat, reason : Text) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #editDeals, null);
+    let x = oaDeals.orgDocs.get(id) ?? return #err("Onbekend attest");
+    if (x.archivedAt != null) { return #err("Al gearchiveerd") };
+    let why = Access.cleanText(reason, Config.maxNote) ?? return #err("Geef een reden");
+    oaDeals.orgDocs.add(id, { x with archivedAt = ?Time.now(); note = why });
+    Access.audit(audit, caller, ?p.id, null, "attest-gearchiveerd", odOrgName(x.orgId) # ": " # x.title # " (" # why # ")");
+    #ok;
+  };
+
   // Goedkeuren of afkeuren (met reden) wat een OA oplaadde (⚖11: het telt pas na de goedkeuring).
   public shared ({ caller }) func reviewOrgDoc(id : Nat, ok : Bool, note : Text) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
@@ -502,12 +545,12 @@ mixin (
     );
   };
 
-  public shared ({ caller }) func readMyContract(ref : Text, version : Nat) : async Result.Result<DV.OaContractView, Text> {
+  public shared ({ caller }) func readMyContract(ref : Text, version : Nat) : async Result.Result<DV.MyContractView, Text> {
     let p = Access.requireActive(access, caller);
     let a = odMine(p, ref) ?? return #err("Onbekend contract");
     let f = OaDeals.frozenOf(oaDeals, a.id, version) ?? return #err("Onbekend contract");
     Access.audit(audit, caller, ?p.id, ?a.workId, "bekeek:mijn-contract", odOrgName(a.orgId) # " v" # version.toText());
-    #ok(odContractView(f));
+    #ok(odMyContractView(f));
   };
 
   public shared ({ caller }) func readMyContractFile(ref : Text, version : Nat) : async Result.Result<DV.MyFileOpen, Text> {

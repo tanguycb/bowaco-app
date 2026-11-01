@@ -209,13 +209,15 @@ const myR = await oaR.listMyContracts();
 const refR = myR[0]?.ref ?? "";
 check("(B7) Mijn contracten (Reiger): één contract met het werfadres, zonder id of klant", myR.length === 1 && refR.length === 16 && myR[0].workAddress.includes("Merkebeke") && !S(myR).includes(KLANTNAAM) && !("id" in myR[0]), S(myR));
 const mc = ok(await oaR.readMyContract(refR, 1n));
-check("(B7) de OA leest zijn contract: dezelfde controlecode, zijn eigen prijzen", mc.hash === c1.hash && mc.posts.length === 1 && un(mc.posts[0].unitCents) === 1234n);
+check("(B7) de OA leest zijn contract: dezelfde controlecode (nagerekend: intact), zijn eigen prijzen, geen id van de app (geen post-oorsprong, geen tarief-id)", mc.hash === c1.hash && mc.intact && mc.posts.length === 1 && un(mc.posts[0].unitCents) === 1234n && !("root" in mc.posts[0]) && mc.rates.every((r) => !("fromRateId" in r)) && !/"(id|root|fromRateId|agreementId)"/.test(S(mc)));
 check("(B7) Merel ziet het contract van Reiger niet (lijst leeg, lezen geweigerd); een ontwerp zonder contract ziet niemand", (await oaM.listMyContracts()).length === 0 && /Onbekend contract/.test(errOf(await oaM.readMyContract(refR, 1n))) && /Onbekend contract/.test(errOf(await oaR.readMyContract("0".repeat(16), 1n))));
 check("(B7) werfleider, klant, onbekende login: Mijn contracten geweigerd", (await Promise.all([wl, klant, vreemd].map((x) => denied(x.listMyContracts())))).every(Boolean));
 check("(B7) het getekende bewijs vóór het tekenen: niet beschikbaar", /Nog niet getekend/.test(errOf(await oaR.readMyContractFile(refR, 1n))));
 rev = ok(await calc.readDeal(dR.id)).deal.rev;
 const fSigned = ok(await calc.addDealFile("proef-getekend.pdf", "application/pdf", 40_000n, fakeBlob("c"), { signed: dR.id }));
-check("(B7) getekend registreren met een bestand van iemand anders of een verkeerde versie: geweigerd", /laatste versie/.test(errOf(await calc.markOaContractSigned(dR.id, 2n, fSigned, "", rev))));
+const fOther = ok(await calc.addDealFile("proef-andere-afspraak.pdf", "application/pdf", 40_000n, fakeBlob("d"), { signed: dR2.id }));
+const fAttest = ok(await calc.addDealFile("proef-attest.pdf", "application/pdf", 40_000n, fakeBlob("e"), { orgDoc: MEREL }));
+check("(B7) getekend registreren met een verkeerde versie, het bewijs van een andere afspraak of een attestbestand: geweigerd", /laatste versie/.test(errOf(await calc.markOaContractSigned(dR.id, 2n, fSigned, "", rev))) && /Onbekend bestand/.test(errOf(await calc.markOaContractSigned(dR.id, 1n, fOther, "", rev))) && /Onbekend bestand/.test(errOf(await calc.markOaContractSigned(dR.id, 1n, fAttest, "", rev))));
 ok(await calc.markOaContractSigned(dR.id, 1n, fSigned, "proef: getekend terug", rev));
 const st2 = (await wl.listDeals(W1)).find((d) => d.id === dR.id);
 const sf = ok(await oaR.readMyContractFile(refR, 1n));
@@ -251,6 +253,98 @@ const w2 = ok(await calc.readDeal(dR.id)).warnings;
 check("(B8) een vervallen attest (tienjarige) en een ontbrekend (personeel): waarschuwing in de afspraak en bij de OA-factuur", w2.some((w) => /tienjarige/i.test(w) && /vervallen/.test(w)) && w2.some((w) => /Personeel/i.test(w) && /ontbreekt/.test(w)) && !w2.some((w) => /BA/.test(w)) && ok(await calc.readOaInvoice(I2)).attestWarnings.length === 2, S(w2));
 check("(B8) de OA opent zijn eigen attest", ok(await oaR.readMyAttestFile(att.ref)).name === "proef-ba.pdf");
 
+// B10. Wijziging terwijl het contract klaarstaat (#toSign): terug op ontwerp, melding aan kantoor, tekenen geweigerd (review M1).
+{
+  const r0 = ok(await calc.readDeal(dR.id)).deal;
+  check("(B10) versie 2 staat klaar om te tekenen", r0.status === "te tekenen" && r0.contractVersion === 2n);
+  ok(await calc.addDealRate(dR.id, { kind: "transport", unit: "uur", cents: 5500n, validFrom: today, fromRateId: [], note: "proef: tijdens te tekenen" }, r0.rev));
+  const r1 = ok(await calc.readDeal(dR.id)).deal;
+  const fS2 = ok(await calc.addDealFile("proef-getekend-v2.pdf", "application/pdf", 40_000n, fakeBlob("f"), { signed: dR.id }));
+  check("(B10) een tarief erbij tijdens 'te tekenen': terug op ontwerp, kantoor krijgt 'aanhangsel nodig', versie 2 tekenen geweigerd", r1.status === "ontwerp" && (await calc.myNotifications(true)).some((n) => n.kind === "afspraak" && /aanhangsel nodig/.test(n.text) && n.text.includes("Reiger")) && /laatste versie/.test(errOf(await calc.markOaContractSigned(dR.id, 2n, fS2, "", r1.rev))));
+}
+
+// B11. Tweede werfstart op W1 (meerwerk): een extra post en een gewijzigde prijs (review H1).
+{
+  const nv = ok(await calc.newQuoteVersion(Q1.q.quoteId, [Q1.q.versionId]));
+  const m = fromRead(ok(await calc.readQuoteVersion(nv)));
+  const st = m.lines.find((l) => l.title === "Proef stopcontact 2c4");
+  M.updateLine(m, st.key, { price: { ...st.price, cost: 1300n } });
+  M.addLine(m, st.chapter, { title: "Proef extra post 2c4", qtyMilli: 2_000n, unit: "st", form: "vh", price: price(500n, REIGER) });
+  ok(await saveAll(calc, m));
+  await sendAccept(nv);
+  const pvm = ok(await wl.workStartPreview(nv, inp(nextWd(today))));
+  ok(await wl.startWorkFromQuote(nv, inp(nextWd(today)), pvm.planVersion));
+  const f = ok(await calc.readDeal(dR.id));
+  const p13 = f.prices.find((x) => x.title.includes("Proef stopcontact"));
+  const pex = f.prices.find((x) => x.title.includes("Proef extra post"));
+  check("(B11) de afspraak na het meerwerk: nieuwste prijs (€ 13,00), extra post, totaal opnieuw (12 × 13,00 + 2 × 5,00 = € 166,00, niet opgeteld), voorschot 20 % herrekend (€ 33,20)", f.prices.length === 2 && un(p13?.cents) === 1300n && un(pex?.cents) === 500n && un(f.amountCents) === 16_600n && un(f.advanceCents) === 3320n, S([f.prices, f.amountCents, f.advanceCents]));
+  check("(B11) de tarieven blijven (⚖9): regie € 42 en € 46 vanaf de werfdag, transport", f.rates.filter((r) => r.kind === "regie").map((r) => r.cents).join(",") === "4200,4600");
+  const c3 = ok(await calc.makeOaContract(dR.id, f.deal.rev));
+  check("(B11) aanhangsel v3: totaal uit de vastgelegde posten (Σ op de cent) = € 166,00", c3.version === 3n && un(c3.totalCents) === 16_600n && c3.intact);
+}
+
+// B12. Tariefwissel binnen de periode van een factuur; een beëindigde afspraak houdt haar tarief tot het einde (review M3, L6).
+{
+  const inv = { ...invIn("4", today, 4600n), periodFrom: [today - 20n] };
+  const v4 = ok(await calc.readOaInvoice(ok(await calc.saveOaInvoice(inv, 0n))));
+  check("(B12) periode over de dag van het nieuwe werftarief: markering tariefwissel (bedrag per dag nakijken)", v4.lines[0].m.flags.includes("tariefwissel"), S(v4.lines[0].m.flags));
+  const d2 = ok(await calc.readDeal(dR2.id)).deal;
+  ok(await calc.endDeal(dR2.id, "proef: werk klaar", d2.rev));
+  const w2in = (n, to) => ({ ...invIn(n, to, 4600n), workId: W2 });
+  // De dag van het einde volgens de klok van de canister (de rollentest verzet die klok op het eigen net).
+  const endAt = (await admin.auditLog(0n, 20n)).find((a) => a.action === "afspraak-beeindigd").at;
+  const endDay = endAt / 86_400_000_000_000n;
+  const vEnd = ok(await calc.readOaInvoice(ok(await calc.saveOaInvoice(w2in("5", endDay), 0n))));
+  const vAfter = ok(await calc.readOaInvoice(ok(await calc.saveOaInvoice(w2in("6", endDay + 1n), 0n))));
+  check("(B12) beëindigde afspraak: prestaties tot de dag van het einde houden € 46; daarna geen werftarief meer", un(vEnd.lines[0].m.agreedCents) === 4600n && un(vAfter.lines[0].m.agreedCents) !== 4600n, `${un(vEnd.lines[0].m.agreedCents)} / ${un(vAfter.lines[0].m.agreedCents)}`);
+}
+
+// B13. Attest met een verkeerde datum archiveren en verbeteren (review M4); gearchiveerd firmatarief telt niet.
+{
+  const bad = ok(await calc.saveOrgDoc({ orgId: REIGER, kind: "personeel", title: "", fileId: [], validFrom: [], validUntil: [today + 3650n], note: "proef: verkeerde datum" }));
+  check("(B13) archiveren: werfleider en OA geweigerd; zonder reden geweigerd", (await denied(wl.archiveOrgDoc(bad, "x"))) && (await denied(oaR.archiveOrgDoc(bad, "x"))) && /reden/.test(errOf(await calc.archiveOrgDoc(bad, ""))));
+  ok(await calc.archiveOrgDoc(bad, "verkeerde datum ingegeven"));
+  ok(await calc.saveOrgDoc({ orgId: REIGER, kind: "personeel", title: "", fileId: [], validFrom: [], validUntil: [today + 100n], note: "" }));
+  const st = (await wl.listOrgDocs(REIGER)).states.find((x) => x.kind === "personeel");
+  check("(B13) na archiveren en opnieuw zetten: personeel geldig tot de juiste datum", st.state === "geldig" && un(st.validUntil) === today + 100n, S(st));
+  const rT = ok(await calc.saveOaRate(rateIn({ kind: "transport", cents: 9900n, validFrom: today - 5n })));
+  ok(await calc.archiveOaRate(rT, "proef: fout ingevoerd"));
+  const W3 = await mkWork(`P-AF3${suffix}`);
+  const d3 = ok(await calc.createDeal(W3, REIGER));
+  const f3 = ok(await calc.readDeal(d3.id));
+  check("(B13) een gearchiveerd firmatarief komt niet in een nieuwe afspraak; het geldende regietarief (€ 46) wel", !f3.rates.some((r) => r.cents === 9900n) && f3.rates.some((r) => r.kind === "regie" && r.cents === 4600n), S(f3.rates));
+  // Alle attesten die nu binnen 30 dagen vervallen, zijn gemeld (de migratiecheck kijkt na een herstel dat er niets opnieuw komt).
+  await admin.scanOrgDocs();
+}
+
+let SPECHTID = -1n;
+// B14. Rechten zoals in het echt: werfleider van een ANDERE werf, gearchiveerde persoon, de opslagpoort (review M5, L1).
+{
+  const set0 = await admin.getSettings();
+  const setIn = (x) => ({ werfleiderZietAlles: x, inviteDays: set0.inviteDays, threshold30bisCents: set0.threshold30bisCents, thresholdCheckinatworkCents: set0.thresholdCheckinatworkCents });
+  const W4 = ok(await admin.createWork({ code: `P-AF4${suffix}`, name: "Proef andere werf 2c4", address: addr, parentId: [], clientOrgId: [KLANTORG], architectOrgId: [], leaderPersonId: [], vatBp: 2100n })).id;
+  ok(await calc.createDeal(W4, MEREL));
+  ok(await admin.setSettings(setIn(false)));
+  const other = await denied(wl.listDeals(W4));
+  const own = !(await denied(wl.listDeals(W1)));
+  ok(await admin.setSettings(setIn(set0.werfleiderZietAlles)));
+  check("(B14) werfleider van een andere werf ('werfleider ziet alles' uit): geen afspraken van die werf; van zijn eigen werf wel", other && own);
+  const oaR2 = await freshBackend(cid);
+  await login(oaR2, REIGER, `Proef OA Reiger twee ${suffix}`);
+  const before = (await oaR2.listMyContracts()).length === 1;
+  const id2 = (await oaR2.me()).person[0].id;
+  ok(await admin.archivePerson(id2));
+  check("(B14) een tweede login van Reiger ziet het contract; na afzetten niets meer (lijst, lezen, opslagpoort)", before && (await denied(oaR2.listMyContracts())) && (await denied(oaR2.readMyContract(refR, 1n))) && (await denied(oaR2._immutableObjectStorageCreateCertificate("sha256:" + "0".repeat(64)))));
+  const cert = async (x) => { try { await x._immutableObjectStorageCreateCertificate("sha256:" + "1".repeat(64)); return true; } catch { return false; } };
+  const oaS = await freshBackend(cid);
+  const SPECHT = await orgOf(`Proef Dak Specht 2c4 ${suffix}`);
+  SPECHTID = SPECHT;
+  await login(oaS, SPECHT, `Proef OA Specht ${suffix}`);
+  check("(B14) opslagpoort: een OA met een afspraak, en een OA van een firma zonder afspraak (eigen attesten) krijgen een certificaat; een onbekende login niet", (await cert(oaR)) && (await cert(oaS)) && !(await cert(vreemd)));
+  const sa = ok(await oaS.addMyAttest("ba", "", [], [today + 200n], "proef-specht.pdf", "application/pdf", 900n, fakeBlob("9")));
+  check("(B14) de OA zonder afspraak laadt het attest van zijn eigen firma op; Reiger ziet het niet", sa.ref.length === 16 && !(await oaR.listMyAttests()).docs.some((d) => d.ref === sa.ref) && (await oaS.listMyContracts()).length === 0);
+}
+
 // B9. .did-controle, export en een afspraak met de hand.
 {
   const did = readFileSync(join(import.meta.dirname, "../src/backend/dist/backend.did"), "utf8");
@@ -267,7 +361,25 @@ check("(B8) de OA opent zijn eigen attest", ok(await oaR.readMyAttestFile(att.re
 }
 const ex = await admin.exportIntern();
 const exc = await admin.exportConfidential();
-check("(B9) export: afspraken, attesten intern; tarieven, prijzen en contractversies vertrouwelijk", ex.agreements.some((a) => a.id === dR.id) && ex.orgDocs.length >= 2 && !/cents"/i.test(S(ex.agreements)) && exc.oaRates.length >= 2 && exc.agreementTerms.some(([id]) => id === dR.id) && exc.agreementFrozen.length >= 2);
+// Review L8: elke waarde van de interne records doorlopen (ook extra en notities), tijdstempels, ids, versies en dagen overgeslagen:
+// geen enkel proefbedrag mag er als getal in staan.
+const AMOUNTS = new Set(["1234", "14808", "1300", "16600", "3320", "4200", "4600", "5500", "9900", "1481", "500", "4000"]);
+const skipKey = (k) => /At$|^at$|Id$|Ids$|^id$|^rev$|Day$|By$|^by$|[Hh]ash$|^roots$|^version|Version$|^validFrom$|^validUntil$|^advanceBp$|^paymentDays$/.test(k);
+const leaks = [];
+const walkRec = (x, path) => {
+  if (x === null || x === undefined) return;
+  if (typeof x === "bigint" || typeof x === "number") { if (AMOUNTS.has(String(x))) leaks.push(path); return; }
+  if (typeof x === "string") { for (const tok of x.match(/\d+/g) ?? []) if (AMOUNTS.has(tok) && !/^ref|\.ref$/.test(path)) leaks.push(`${path}=${x.slice(0, 40)}`); return; }
+  if (Array.isArray(x)) {
+    if (x.length === 2 && typeof x[0] === "string" && typeof x[1] === "string") { if (x[0] !== "ref" && x[0] !== "bewijs" && x[0] !== "contractRev") walkRec(x[1], `${path}.${x[0]}`); return; }
+    x.forEach((y, i) => walkRec(y, `${path}[${i}]`));
+    return;
+  }
+  if (typeof x === "object") for (const [k, v] of Object.entries(x)) if (!skipKey(k)) walkRec(v, `${path}.${k}`);
+};
+walkRec(ex.agreements.filter((a) => [REIGER, MEREL, SPECHTID].includes(a.orgId)), "agreements");
+walkRec(ex.orgDocs.filter((d) => [REIGER, MEREL, SPECHTID].includes(d.orgId)), "orgDocs");
+check("(B9) export: afspraken en attesten intern zonder enig proefbedrag (ook niet in extra of notities); tarieven, prijzen en contractversies vertrouwelijk", leaks.length === 0 && ex.agreements.some((a) => a.id === dR.id) && ex.orgDocs.length >= 2 && exc.oaRates.length >= 2 && exc.agreementTerms.some(([id]) => id === dR.id) && exc.agreementFrozen.length >= 2, leaks.slice(0, 5).join(" · "));
 check("(B9) een afspraak met de hand: een tweede keer met dezelfde firma geweigerd; een leverancier of de werfleider: geweigerd", /al een afspraak/.test(errOf(await calc.createDeal(W1, REIGER))) && /onderaannemer/.test(errOf(await calc.createDeal(W1, KLANTORG))) && (await denied(wl.createDeal(W2, MEREL))));
 const cd = ok(await calc.createDeal(W2, MEREL));
 check("(B9) afspraak met de hand (Merel op werf 2): waarschuwing voor de ontbrekende attesten", cd.warnings.length === 3 && (await wl.listDeals(W2)).length === 2);

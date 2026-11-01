@@ -475,7 +475,9 @@ mixin (
     let regie = switch (QuoteForms.termsOf(quoteForms, v.id)) { case (?x) x.regie; case null null };
     for (o in wsDealOrgs(pr, v).values()) {
       let fp = OaDeals.postsFor(quotes, workStarts, tenders, workId, o);
-      let (_, created) = OaDeals.ensureForStart(oaDeals, ctr, { workId; orgId = o; roots = fp.roots; prices = fp.prices; amountCents = fp.amountCents; startDay = pr.startDay; regie; oaQuoteIds = fp.oaQuoteIds; by = p.id });
+      let (_, created, addendum) = OaDeals.ensureForStart(oaDeals, ctr, { workId; orgId = o; roots = fp.roots; prices = fp.prices; amountCents = fp.amountCents; startDay = pr.startDay; regie; oaQuoteIds = fp.oaQuoteIds; by = p.id });
+      // Review M1: het contract met deze firma klopt niet meer (nieuwe posten of prijzen): kantoor maakt een aanhangsel.
+      if addendum { OaDeals.notifyOffice(access, audit, ctr, "Afspraak " # WorkStart.orgName(org, ?o) # " op " # wsWorkCode(workId) # " gewijzigd door de werfstart uit offerte " # tag # ": aanhangsel nodig.", ?workId) };
       Access.audit(audit, caller, ?p.id, ?workId, if created "afspraak-nieuw" else "afspraak-aangevuld", wsWorkCode(workId) # " · " # WorkStart.orgName(org, ?o) # ": " # fp.roots.size().toText() # " posten (werfstart uit offerte " # tag # ")");
     };
     Access.audit(audit, caller, ?p.id, ?workId, "werf-gestart", "offerte " # tag # " → " # wsWorkCode(workId) # (if (rec.newWork) " (nieuwe werf)" else "") # (if (pr.bases.size() > 0) " (meerwerk: enkel het verschil)" else "") # ": " # newIds.size().toText() # " taken, " # linkedIds.size().toText() # " gekoppeld, " # depIds.size().toText() # " afhankelijkheden, " # permitIds.size().toText() # " vergunningsvoorstellen, 30bis " # decl # ", start " # Plan.fmtDay(pr.startDay));
