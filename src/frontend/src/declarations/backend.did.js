@@ -1875,8 +1875,10 @@ export const PurchaseLine = IDL.Record({
   'unit' : IDL.Text,
   'description' : IDL.Text,
   'amountCents' : IDL.Int,
+  'extra' : Extra,
   'persons' : IDL.Opt(IDL.Nat),
   'workId' : IDL.Opt(WorkId),
+  'lineId' : IDL.Nat,
   'passOn' : IDL.Bool,
 });
 export const PurchaseAmounts = IDL.Record({
@@ -2098,6 +2100,7 @@ export const Purchase = IDL.Record({
   'oaStatementRef' : IDL.Text,
   'createdAt' : IDL.Int,
   'createdBy' : PersonId,
+  'withheldDay' : IDL.Opt(Day),
   'extra' : Extra,
   'updatedAt' : IDL.Int,
   'updatedBy' : PersonId,
@@ -3995,6 +3998,7 @@ export const PurchaseBrief = IDL.Record({
   'invoiceDay' : IDL.Nat,
   'orgId' : IDL.Nat,
   'kind' : PurchaseKind,
+  'withheldDay' : IDL.Opt(IDL.Nat),
   'openClaims' : IDL.Nat,
   'updatedAt' : IDL.Int,
   'discountUntil' : IDL.Opt(IDL.Nat),
@@ -4012,7 +4016,9 @@ export const PayRow = IDL.Record({
   'totalCents' : IDL.Int,
   'text' : IDL.Text,
   'discountBp' : IDL.Opt(IDL.Nat),
+  'warnings' : IDL.Vec(IDL.Text),
   'brief' : PurchaseBrief,
+  'withholdCents' : IDL.Int,
   'payCents' : IDL.Int,
 });
 export const Result_56 = IDL.Variant({
@@ -4735,6 +4741,7 @@ export const PurchaseCostView = IDL.Record({
   'number' : IDL.Text,
   'kindName' : IDL.Text,
   'purchaseId' : IDL.Nat,
+  'lineId' : IDL.Nat,
 });
 export const Result_50 = IDL.Variant({
   'ok' : IDL.Vec(PurchaseCostView),
@@ -5342,6 +5349,7 @@ export const PurchaseLineView = IDL.Record({
   'index' : IDL.Nat,
   'postTitle' : IDL.Text,
   'workId' : IDL.Opt(IDL.Nat),
+  'lineId' : IDL.Nat,
   'agreedCents' : IDL.Opt(IDL.Int),
   'passOn' : IDL.Bool,
   'workCode' : IDL.Text,
@@ -5351,6 +5359,7 @@ export const PurchaseFullView = IDL.Record({
   'headerFlags' : IDL.Vec(OaFlag),
   'decision' : IDL.Opt(PurchaseDecisionView),
   'discountCents' : IDL.Opt(IDL.Int),
+  'withholdSocialCents' : IDL.Int,
   'finalWorkIds' : IDL.Vec(IDL.Nat),
   'netCents' : IDL.Int,
   'advances' : IDL.Vec(PurchaseAdvanceView),
@@ -5370,8 +5379,10 @@ export const PurchaseFullView = IDL.Record({
   'canPay' : IDL.Bool,
   'brief' : PurchaseBrief,
   'periodTo' : IDL.Opt(IDL.Nat),
+  'partsNetCents' : IDL.Int,
   'reverseMention' : IDL.Bool,
   'vatRegime' : OaVatRegime,
+  'withholdFiscalCents' : IDL.Int,
   'flagCount' : IDL.Nat,
 });
 export const Result_31 = IDL.Variant({
@@ -6066,6 +6077,7 @@ export const PurchaseLineInput = IDL.Record({
   'amountCents' : IDL.Int,
   'persons' : IDL.Opt(IDL.Nat),
   'workId' : IDL.Opt(IDL.Nat),
+  'lineId' : IDL.Opt(IDL.Nat),
   'passOn' : IDL.Bool,
 });
 export const PurchaseInput = IDL.Record({
@@ -6979,7 +6991,7 @@ export const idlService = IDL.Service({
     ),
   'markProgressPrepared' : IDL.Func([IDL.Nat], [Result_1], []),
   'markPurchasePaid' : IDL.Func(
-      [IDL.Nat, IDL.Nat, IDL.Opt(IDL.Nat)],
+      [IDL.Nat, IDL.Nat, IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
       [Result_1],
       [],
     ),
@@ -9119,8 +9131,10 @@ export const idlFactory = ({ IDL }) => {
     'unit' : IDL.Text,
     'description' : IDL.Text,
     'amountCents' : IDL.Int,
+    'extra' : Extra,
     'persons' : IDL.Opt(IDL.Nat),
     'workId' : IDL.Opt(WorkId),
+    'lineId' : IDL.Nat,
     'passOn' : IDL.Bool,
   });
   const PurchaseAmounts = IDL.Record({
@@ -9342,6 +9356,7 @@ export const idlFactory = ({ IDL }) => {
     'oaStatementRef' : IDL.Text,
     'createdAt' : IDL.Int,
     'createdBy' : PersonId,
+    'withheldDay' : IDL.Opt(Day),
     'extra' : Extra,
     'updatedAt' : IDL.Int,
     'updatedBy' : PersonId,
@@ -11232,6 +11247,7 @@ export const idlFactory = ({ IDL }) => {
     'invoiceDay' : IDL.Nat,
     'orgId' : IDL.Nat,
     'kind' : PurchaseKind,
+    'withheldDay' : IDL.Opt(IDL.Nat),
     'openClaims' : IDL.Nat,
     'updatedAt' : IDL.Int,
     'discountUntil' : IDL.Opt(IDL.Nat),
@@ -11249,7 +11265,9 @@ export const idlFactory = ({ IDL }) => {
     'totalCents' : IDL.Int,
     'text' : IDL.Text,
     'discountBp' : IDL.Opt(IDL.Nat),
+    'warnings' : IDL.Vec(IDL.Text),
     'brief' : PurchaseBrief,
+    'withholdCents' : IDL.Int,
     'payCents' : IDL.Int,
   });
   const Result_56 = IDL.Variant({ 'ok' : IDL.Vec(PayRow), 'err' : IDL.Text });
@@ -11966,6 +11984,7 @@ export const idlFactory = ({ IDL }) => {
     'number' : IDL.Text,
     'kindName' : IDL.Text,
     'purchaseId' : IDL.Nat,
+    'lineId' : IDL.Nat,
   });
   const Result_50 = IDL.Variant({
     'ok' : IDL.Vec(PurchaseCostView),
@@ -12552,6 +12571,7 @@ export const idlFactory = ({ IDL }) => {
     'index' : IDL.Nat,
     'postTitle' : IDL.Text,
     'workId' : IDL.Opt(IDL.Nat),
+    'lineId' : IDL.Nat,
     'agreedCents' : IDL.Opt(IDL.Int),
     'passOn' : IDL.Bool,
     'workCode' : IDL.Text,
@@ -12561,6 +12581,7 @@ export const idlFactory = ({ IDL }) => {
     'headerFlags' : IDL.Vec(OaFlag),
     'decision' : IDL.Opt(PurchaseDecisionView),
     'discountCents' : IDL.Opt(IDL.Int),
+    'withholdSocialCents' : IDL.Int,
     'finalWorkIds' : IDL.Vec(IDL.Nat),
     'netCents' : IDL.Int,
     'advances' : IDL.Vec(PurchaseAdvanceView),
@@ -12580,8 +12601,10 @@ export const idlFactory = ({ IDL }) => {
     'canPay' : IDL.Bool,
     'brief' : PurchaseBrief,
     'periodTo' : IDL.Opt(IDL.Nat),
+    'partsNetCents' : IDL.Int,
     'reverseMention' : IDL.Bool,
     'vatRegime' : OaVatRegime,
+    'withholdFiscalCents' : IDL.Int,
     'flagCount' : IDL.Nat,
   });
   const Result_31 = IDL.Variant({ 'ok' : PurchaseFullView, 'err' : IDL.Text });
@@ -13246,6 +13269,7 @@ export const idlFactory = ({ IDL }) => {
     'amountCents' : IDL.Int,
     'persons' : IDL.Opt(IDL.Nat),
     'workId' : IDL.Opt(IDL.Nat),
+    'lineId' : IDL.Opt(IDL.Nat),
     'passOn' : IDL.Bool,
   });
   const PurchaseInput = IDL.Record({
@@ -14153,7 +14177,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'markProgressPrepared' : IDL.Func([IDL.Nat], [Result_1], []),
     'markPurchasePaid' : IDL.Func(
-        [IDL.Nat, IDL.Nat, IDL.Opt(IDL.Nat)],
+        [IDL.Nat, IDL.Nat, IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
         [Result_1],
         [],
       ),

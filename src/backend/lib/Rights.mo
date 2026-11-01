@@ -281,7 +281,8 @@ module {
       case (#ownDeals) has(p, #onderaannemer) and p.orgId != null;
       // 2c.7 (R44): aankoop enkel kantoor; de uren per dag de werfleider van die werf (en de beheerder).
       case (#editPurchases) admin or calc;
-      case (#confirmHourClaims) on(func w = admin or leaderOn(ctx, p, w));
+      // review L8: de werfleider die LID is van die werf (niet via "werfleider ziet alles"), en de beheerder.
+      case (#confirmHourClaims) on(func w = admin or (wl and member(ctx, p, w, ?#werfleider)));
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17

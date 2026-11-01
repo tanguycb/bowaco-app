@@ -3519,7 +3519,9 @@ export interface PayRow {
     totalCents: bigint;
     text: string;
     discountBp?: bigint;
+    warnings: Array<string>;
     brief: PurchaseBrief;
+    withholdCents: bigint;
     payCents: bigint;
 }
 export interface Permit {
@@ -4284,6 +4286,7 @@ export interface Purchase {
     oaStatementRef: string;
     createdAt: bigint;
     createdBy: PersonId;
+    withheldDay?: Day;
     extra: Extra;
     updatedAt: bigint;
     updatedBy: PersonId;
@@ -4326,6 +4329,7 @@ export interface PurchaseBrief {
     invoiceDay: bigint;
     orgId: bigint;
     kind: PurchaseKind;
+    withheldDay?: bigint;
     openClaims: bigint;
     updatedAt: bigint;
     discountUntil?: bigint;
@@ -4350,6 +4354,7 @@ export interface PurchaseCostView {
     number: string;
     kindName: string;
     purchaseId: bigint;
+    lineId: bigint;
 }
 export interface PurchaseDayView {
     day: bigint;
@@ -4387,6 +4392,7 @@ export interface PurchaseFullView {
     headerFlags: Array<OaFlag>;
     decision?: PurchaseDecisionView;
     discountCents?: bigint;
+    withholdSocialCents: bigint;
     finalWorkIds: Array<bigint>;
     netCents: bigint;
     advances: Array<PurchaseAdvanceView>;
@@ -4406,8 +4412,10 @@ export interface PurchaseFullView {
     canPay: boolean;
     brief: PurchaseBrief;
     periodTo?: bigint;
+    partsNetCents: bigint;
     reverseMention: boolean;
     vatRegime: OaVatRegime;
+    withholdFiscalCents: bigint;
     flagCount: bigint;
 }
 export interface PurchaseInput {
@@ -4442,8 +4450,10 @@ export interface PurchaseLine {
     unit: string;
     description: string;
     amountCents: bigint;
+    extra: Extra;
     persons?: bigint;
     workId?: WorkId;
+    lineId: bigint;
     passOn: boolean;
 }
 export interface PurchaseLineInput {
@@ -4457,6 +4467,7 @@ export interface PurchaseLineInput {
     amountCents: bigint;
     persons?: bigint;
     workId?: bigint;
+    lineId?: bigint;
     passOn: boolean;
 }
 export interface PurchaseLineView {
@@ -4476,6 +4487,7 @@ export interface PurchaseLineView {
     index: bigint;
     postTitle: string;
     workId?: bigint;
+    lineId: bigint;
     agreedCents?: bigint;
     passOn: boolean;
     workCode: string;
@@ -7830,7 +7842,7 @@ export interface backendInterface {
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     markOaContractSigned(id: bigint, version: bigint, fileId: bigint, note: string, rev: bigint): Promise<Result_1>;
     markProgressPrepared(id: bigint): Promise<Result_1>;
-    markPurchasePaid(id: bigint, rev: bigint, day: bigint | null): Promise<Result_1>;
+    markPurchasePaid(id: bigint, rev: bigint, day: bigint | null, withheldDay: bigint | null): Promise<Result_1>;
     me(): Promise<MeView>;
     measurePost(workId: bigint, root: bigint): Promise<MeasurePostDetail>;
     measureSettings(): Promise<MeasureSettingsView>;
@@ -10200,17 +10212,17 @@ export class Backend implements backendInterface {
             return from_candid_Result_1_n23(this._uploadFile, this._downloadFile, result);
         }
     }
-    async markPurchasePaid(arg0: bigint, arg1: bigint, arg2: bigint | null): Promise<Result_1> {
+    async markPurchasePaid(arg0: bigint, arg1: bigint, arg2: bigint | null, arg3: bigint | null): Promise<Result_1> {
         if (this.processError) {
             try {
-                const result = await this.actor.markPurchasePaid(arg0, arg1, to_candid_opt_n32(this._uploadFile, this._downloadFile, arg2));
+                const result = await this.actor.markPurchasePaid(arg0, arg1, to_candid_opt_n32(this._uploadFile, this._downloadFile, arg2), to_candid_opt_n32(this._uploadFile, this._downloadFile, arg3));
                 return from_candid_Result_1_n23(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.markPurchasePaid(arg0, arg1, to_candid_opt_n32(this._uploadFile, this._downloadFile, arg2));
+            const result = await this.actor.markPurchasePaid(arg0, arg1, to_candid_opt_n32(this._uploadFile, this._downloadFile, arg2), to_candid_opt_n32(this._uploadFile, this._downloadFile, arg3));
             return from_candid_Result_1_n23(this._uploadFile, this._downloadFile, result);
         }
     }
@@ -14874,6 +14886,7 @@ function from_candid_record_n1043(_uploadFile: (file: ExternalBlob) => Promise<U
     number: string;
     kindName: string;
     purchaseId: bigint;
+    lineId: bigint;
 }): {
     day: bigint;
     key: string;
@@ -14887,6 +14900,7 @@ function from_candid_record_n1043(_uploadFile: (file: ExternalBlob) => Promise<U
     number: string;
     kindName: string;
     purchaseId: bigint;
+    lineId: bigint;
 } {
     return {
         day: value.day,
@@ -14900,7 +14914,8 @@ function from_candid_record_n1043(_uploadFile: (file: ExternalBlob) => Promise<U
         description: value.description,
         number: value.number,
         kindName: value.kindName,
-        purchaseId: value.purchaseId
+        purchaseId: value.purchaseId,
+        lineId: value.lineId
     };
 }
 function from_candid_record_n1049(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -16354,6 +16369,7 @@ async function from_candid_record_n1183(_uploadFile: (file: ExternalBlob) => Pro
     headerFlags: Array<_OaFlag>;
     decision: [] | [_PurchaseDecisionView];
     discountCents: [] | [bigint];
+    withholdSocialCents: bigint;
     finalWorkIds: Array<bigint>;
     netCents: bigint;
     advances: Array<_PurchaseAdvanceView>;
@@ -16373,14 +16389,17 @@ async function from_candid_record_n1183(_uploadFile: (file: ExternalBlob) => Pro
     canPay: boolean;
     brief: _PurchaseBrief;
     periodTo: [] | [bigint];
+    partsNetCents: bigint;
     reverseMention: boolean;
     vatRegime: _OaVatRegime;
+    withholdFiscalCents: bigint;
     flagCount: bigint;
 }): Promise<{
     periodFrom?: bigint;
     headerFlags: Array<OaFlag>;
     decision?: PurchaseDecisionView;
     discountCents?: bigint;
+    withholdSocialCents: bigint;
     finalWorkIds: Array<bigint>;
     netCents: bigint;
     advances: Array<PurchaseAdvanceView>;
@@ -16400,8 +16419,10 @@ async function from_candid_record_n1183(_uploadFile: (file: ExternalBlob) => Pro
     canPay: boolean;
     brief: PurchaseBrief;
     periodTo?: bigint;
+    partsNetCents: bigint;
     reverseMention: boolean;
     vatRegime: OaVatRegime;
+    withholdFiscalCents: bigint;
     flagCount: bigint;
 }> {
     return {
@@ -16409,6 +16430,7 @@ async function from_candid_record_n1183(_uploadFile: (file: ExternalBlob) => Pro
         headerFlags: value.headerFlags,
         decision: record_opt_to_undefined(from_candid_opt_n1184(_uploadFile, _downloadFile, value.decision)),
         discountCents: record_opt_to_undefined(from_candid_opt_n15(_uploadFile, _downloadFile, value.discountCents)),
+        withholdSocialCents: value.withholdSocialCents,
         finalWorkIds: value.finalWorkIds,
         netCents: value.netCents,
         advances: from_candid_vec_n1185(_uploadFile, _downloadFile, value.advances),
@@ -16428,8 +16450,10 @@ async function from_candid_record_n1183(_uploadFile: (file: ExternalBlob) => Pro
         canPay: value.canPay,
         brief: from_candid_PurchaseBrief_n880(_uploadFile, _downloadFile, value.brief),
         periodTo: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.periodTo)),
+        partsNetCents: value.partsNetCents,
         reverseMention: value.reverseMention,
         vatRegime: from_candid_OaVatRegime_n127(_uploadFile, _downloadFile, value.vatRegime),
+        withholdFiscalCents: value.withholdFiscalCents,
         flagCount: value.flagCount
     };
 }
@@ -16477,6 +16501,7 @@ function from_candid_record_n1190(_uploadFile: (file: ExternalBlob) => Promise<U
     index: bigint;
     postTitle: string;
     workId: [] | [bigint];
+    lineId: bigint;
     agreedCents: [] | [bigint];
     passOn: boolean;
     workCode: string;
@@ -16497,6 +16522,7 @@ function from_candid_record_n1190(_uploadFile: (file: ExternalBlob) => Promise<U
     index: bigint;
     postTitle: string;
     workId?: bigint;
+    lineId: bigint;
     agreedCents?: bigint;
     passOn: boolean;
     workCode: string;
@@ -16518,6 +16544,7 @@ function from_candid_record_n1190(_uploadFile: (file: ExternalBlob) => Promise<U
         index: value.index,
         postTitle: value.postTitle,
         workId: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.workId)),
+        lineId: value.lineId,
         agreedCents: record_opt_to_undefined(from_candid_opt_n15(_uploadFile, _downloadFile, value.agreedCents)),
         passOn: value.passOn,
         workCode: value.workCode
@@ -20636,8 +20663,10 @@ function from_candid_record_n455(_uploadFile: (file: ExternalBlob) => Promise<Ui
     unit: string;
     description: string;
     amountCents: bigint;
+    extra: _Extra;
     persons: [] | [bigint];
     workId: [] | [_WorkId];
+    lineId: bigint;
     passOn: boolean;
 }): {
     qtyMilli: bigint;
@@ -20648,8 +20677,10 @@ function from_candid_record_n455(_uploadFile: (file: ExternalBlob) => Promise<Ui
     unit: string;
     description: string;
     amountCents: bigint;
+    extra: Extra;
     persons?: bigint;
     workId?: WorkId;
+    lineId: bigint;
     passOn: boolean;
 } {
     return {
@@ -20661,8 +20692,10 @@ function from_candid_record_n455(_uploadFile: (file: ExternalBlob) => Promise<Ui
         unit: value.unit,
         description: value.description,
         amountCents: value.amountCents,
+        extra: value.extra,
         persons: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.persons)),
         workId: record_opt_to_undefined(from_candid_opt_n66(_uploadFile, _downloadFile, value.workId)),
+        lineId: value.lineId,
         passOn: value.passOn
     };
 }
@@ -21077,6 +21110,7 @@ function from_candid_record_n514(_uploadFile: (file: ExternalBlob) => Promise<Ui
     oaStatementRef: string;
     createdAt: bigint;
     createdBy: _PersonId;
+    withheldDay: [] | [_Day];
     extra: _Extra;
     updatedAt: bigint;
     updatedBy: _PersonId;
@@ -21106,6 +21140,7 @@ function from_candid_record_n514(_uploadFile: (file: ExternalBlob) => Promise<Ui
     oaStatementRef: string;
     createdAt: bigint;
     createdBy: PersonId;
+    withheldDay?: Day;
     extra: Extra;
     updatedAt: bigint;
     updatedBy: PersonId;
@@ -21136,6 +21171,7 @@ function from_candid_record_n514(_uploadFile: (file: ExternalBlob) => Promise<Ui
         oaStatementRef: value.oaStatementRef,
         createdAt: value.createdAt,
         createdBy: value.createdBy,
+        withheldDay: record_opt_to_undefined(from_candid_opt_n44(_uploadFile, _downloadFile, value.withheldDay)),
         extra: value.extra,
         updatedAt: value.updatedAt,
         updatedBy: value.updatedBy,
@@ -25400,6 +25436,7 @@ function from_candid_record_n881(_uploadFile: (file: ExternalBlob) => Promise<Ui
     invoiceDay: bigint;
     orgId: bigint;
     kind: _PurchaseKind;
+    withheldDay: [] | [bigint];
     openClaims: bigint;
     updatedAt: bigint;
     discountUntil: [] | [bigint];
@@ -25419,6 +25456,7 @@ function from_candid_record_n881(_uploadFile: (file: ExternalBlob) => Promise<Ui
     invoiceDay: bigint;
     orgId: bigint;
     kind: PurchaseKind;
+    withheldDay?: bigint;
     openClaims: bigint;
     updatedAt: bigint;
     discountUntil?: bigint;
@@ -25439,6 +25477,7 @@ function from_candid_record_n881(_uploadFile: (file: ExternalBlob) => Promise<Ui
         invoiceDay: value.invoiceDay,
         orgId: value.orgId,
         kind: from_candid_PurchaseKind_n517(_uploadFile, _downloadFile, value.kind),
+        withheldDay: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.withheldDay)),
         openClaims: value.openClaims,
         updatedAt: value.updatedAt,
         discountUntil: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.discountUntil)),
@@ -25478,7 +25517,9 @@ function from_candid_record_n890(_uploadFile: (file: ExternalBlob) => Promise<Ui
     totalCents: bigint;
     text: string;
     discountBp: [] | [bigint];
+    warnings: Array<string>;
     brief: _PurchaseBrief;
+    withholdCents: bigint;
     payCents: bigint;
 }): {
     discountCents?: bigint;
@@ -25486,7 +25527,9 @@ function from_candid_record_n890(_uploadFile: (file: ExternalBlob) => Promise<Ui
     totalCents: bigint;
     text: string;
     discountBp?: bigint;
+    warnings: Array<string>;
     brief: PurchaseBrief;
+    withholdCents: bigint;
     payCents: bigint;
 } {
     return {
@@ -25495,7 +25538,9 @@ function from_candid_record_n890(_uploadFile: (file: ExternalBlob) => Promise<Ui
         totalCents: value.totalCents,
         text: value.text,
         discountBp: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.discountBp)),
+        warnings: value.warnings,
         brief: from_candid_PurchaseBrief_n880(_uploadFile, _downloadFile, value.brief),
+        withholdCents: value.withholdCents,
         payCents: value.payCents
     };
 }
@@ -34534,6 +34579,7 @@ function to_candid_record_n1461(_uploadFile: (file: ExternalBlob) => Promise<Uin
     oaStatementRef: string;
     createdAt: bigint;
     createdBy: PersonId;
+    withheldDay?: Day;
     extra: Extra;
     updatedAt: bigint;
     updatedBy: PersonId;
@@ -34563,6 +34609,7 @@ function to_candid_record_n1461(_uploadFile: (file: ExternalBlob) => Promise<Uin
     oaStatementRef: string;
     createdAt: bigint;
     createdBy: _PersonId;
+    withheldDay: [] | [_Day];
     extra: _Extra;
     updatedAt: bigint;
     updatedBy: _PersonId;
@@ -34593,6 +34640,7 @@ function to_candid_record_n1461(_uploadFile: (file: ExternalBlob) => Promise<Uin
         oaStatementRef: value.oaStatementRef,
         createdAt: value.createdAt,
         createdBy: value.createdBy,
+        withheldDay: value.withheldDay ? candid_some(value.withheldDay) : candid_none(),
         extra: value.extra,
         updatedAt: value.updatedAt,
         updatedBy: value.updatedBy,
@@ -35029,8 +35077,10 @@ function to_candid_record_n1524(_uploadFile: (file: ExternalBlob) => Promise<Uin
     unit: string;
     description: string;
     amountCents: bigint;
+    extra: Extra;
     persons?: bigint;
     workId?: WorkId;
+    lineId: bigint;
     passOn: boolean;
 }): {
     qtyMilli: bigint;
@@ -35041,8 +35091,10 @@ function to_candid_record_n1524(_uploadFile: (file: ExternalBlob) => Promise<Uin
     unit: string;
     description: string;
     amountCents: bigint;
+    extra: _Extra;
     persons: [] | [bigint];
     workId: [] | [_WorkId];
+    lineId: bigint;
     passOn: boolean;
 } {
     return {
@@ -35054,8 +35106,10 @@ function to_candid_record_n1524(_uploadFile: (file: ExternalBlob) => Promise<Uin
         unit: value.unit,
         description: value.description,
         amountCents: value.amountCents,
+        extra: value.extra,
         persons: value.persons ? candid_some(value.persons) : candid_none(),
         workId: value.workId ? candid_some(value.workId) : candid_none(),
+        lineId: value.lineId,
         passOn: value.passOn
     };
 }
@@ -37947,6 +38001,7 @@ function to_candid_record_n1826(_uploadFile: (file: ExternalBlob) => Promise<Uin
     amountCents: bigint;
     persons?: bigint;
     workId?: bigint;
+    lineId?: bigint;
     passOn: boolean;
 }): {
     qtyMilli: bigint;
@@ -37959,6 +38014,7 @@ function to_candid_record_n1826(_uploadFile: (file: ExternalBlob) => Promise<Uin
     amountCents: bigint;
     persons: [] | [bigint];
     workId: [] | [bigint];
+    lineId: [] | [bigint];
     passOn: boolean;
 } {
     return {
@@ -37972,6 +38028,7 @@ function to_candid_record_n1826(_uploadFile: (file: ExternalBlob) => Promise<Uin
         amountCents: value.amountCents,
         persons: value.persons ? candid_some(value.persons) : candid_none(),
         workId: value.workId ? candid_some(value.workId) : candid_none(),
+        lineId: value.lineId ? candid_some(value.lineId) : candid_none(),
         passOn: value.passOn
     };
 }

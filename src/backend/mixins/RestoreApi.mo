@@ -512,6 +512,8 @@ mixin (
     // 2c.7: de indexen van de aankopen (sleutels, per werf, uren per werf, werfdeel → aankoop) en de sleutels van de werfdelen in
     // oaInvoices.keys ("<firma>:<NUMMER>@<werf>"; hierboven zette 2.11 er "<firma>:<NUMMER>" voor).
     Purchase.rebuildIndex(purchases, oaInvoices);
+    // Review L7: de voorschotten (een herrekende index) opnieuw uit de aankopen, niet uit de bewaarkopie.
+    Purchase.syncAll(purchases, oaDeals, oaInvoices);
     rsAtLeast("purchase", rsMaxKey(purchases.purchases));
     rsAtLeast("hourClaim", rsMaxKey(purchases.claims));
   };

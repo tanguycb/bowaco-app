@@ -94,17 +94,24 @@ mixin (
     let today = Dossier.today();
     let rows = List.empty<(Nat, Nat, Nat, PV.PayRow)>();
     for (x in purchases.purchases.values()) {
-      if (x.status == #approved and x.paidDay == null) {
-        let a = puAmounts(x);
+      let a = puAmounts(x);
+      let (soc, fis) = puWithhold(x);
+      let wh = soc + fis;
+      // Ook betaald maar de inhouding nog niet doorgestort (review H2).
+      if (x.status == #approved and (x.paidDay == null or (wh > 0 and x.withheldDay == null))) {
         let disc = puDiscount(x, a, today);
-        let pay = a.totalCents - (switch disc { case (?d) d; case null 0 });
-        let text = switch (disc, x.discountUntil, a.discountBp) {
+        let pay = a.totalCents - (switch disc { case (?d) d; case null 0 }) - wh;
+        let base = switch (disc, x.discountUntil, a.discountBp) {
           case (?d, ?u, ?bp) "betaal uiterlijk op " # Plan.fmtDay(u) # " voor " # puPct(bp) # " (" # Progress.euro(d) # ")";
           case _ { switch (x.dueDay) { case (?dd) "vervalt op " # Plan.fmtDay(dd); case null "geen vervaldag" } };
         };
+        let text = (if (x.paidDay == null) base else "betaald op " # (switch (x.paidDay) { case (?d) Plan.fmtDay(d); case null "" })) # (if (wh > 0) " · inhouding " # Progress.euro(wh) # " door te storten (RSZ " # Progress.euro(soc) # ", FOD Financiën " # Progress.euro(fis) # ")" else "");
+        let warnings = List.empty<Text>();
+        if (x.parts.size() > 0 and Purchase.partsNet(oaInvoices, x) != a.netCents) { warnings.add("som-werfdelen") };
+        if (wh > 0 and x.withheldDay == null) { warnings.add("inhouding") };
         let k1 = switch disc { case (?_) 0; case null 1 };
         let k2 = switch (disc, x.discountUntil, x.dueDay) { case (?_, ?u, _) u; case (_, _, ?dd) dd; case _ 999_999 };
-        rows.add((k1, k2, x.id, { brief = puBrief(x); netCents = a.netCents; totalCents = a.totalCents; discountBp = a.discountBp; discountCents = disc; payCents = pay; text }));
+        rows.add((k1, k2, x.id, { brief = puBrief(x); netCents = a.netCents; totalCents = a.totalCents; discountBp = a.discountBp; discountCents = disc; withholdCents = wh; payCents = pay; text; warnings = warnings.toArray() }));
       };
     };
     Access.audit(audit, caller, ?p.id, null, "bekeek:te-betalen", rows.size().toText() # " facturen");
@@ -117,9 +124,9 @@ mixin (
   public shared ({ caller }) func purchaseCosts(workId : Nat) : async Result.Result<[PV.PurchaseCostView], Text> {
     let p = Access.requireActive(access, caller);
     if (Rights.purchaseScope({ works; settings }, p, workId) != #full) { return #err("Geen toegang") };
-    let xs = Purchase.passOnCosts(purchases, org, workId, null, null, false);
+    let xs = Purchase.passOnCosts(purchases, oaInvoices, workId, null, null, false);
     Access.audit(audit, caller, ?p.id, ?workId, "bekeek:doorrekenen", xs.size().toText() # " kostenregels");
-    #ok(xs.map(func(c : Purchase.PassOnCost) : PV.PurchaseCostView = { key = c.key; purchaseId = c.purchaseId; number = c.number; orgName = c.orgName; day = c.day; kind = c.kindKey; kindName = Purchase.costName(c.kind); description = c.description; unit = c.unit; qtyMilli = c.qtyMilli; costCents = c.costCents; status = c.status }));
+    #ok(xs.map(func(c : Purchase.PassOnCost) : PV.PurchaseCostView = { key = c.key; purchaseId = c.purchaseId; lineId = c.lineId; number = c.number; orgName = puOrgName(c.orgId); day = c.day; kind = c.kindKey; kindName = Purchase.costName(c.kind); description = c.description; unit = c.unit; qtyMilli = c.qtyMilli; costCents = c.costCents; status = c.status }));
   };
 
   // ── Registreren of verbeteren ───────────────────────────────────────────
@@ -137,7 +144,8 @@ mixin (
       case (#oa, _) { return #err("Een OA-factuur is van een onderaannemer") };
       case (#supplier, #supplier) {};
       case (#supplier, _) { return #err("Een leveranciersfactuur is van een leverancier") };
-      case (#other, #subcontractor or #supplier or #other or #authority) {};
+      case (#other, #subcontractor) { return #err("Een factuur van een onderaannemer is een OA-factuur (met de inhoudingsplicht)") };
+      case (#other, #supplier or #other or #authority) {};
       case (#other, _) { return #err("Kies een onderaannemer, leverancier of andere firma") };
     };
     let nr = x.number.trim(#char ' ');
@@ -168,7 +176,7 @@ mixin (
     };
     let workIds = List.empty<Nat>();
     for (l in x.lines.values()) { switch (l.workId) { case (?w) { if (workIds.find(func y = y == w) == null) { workIds.add(w) } }; case null {} } };
-    if (x.kind == #oa and workIds.size() == 0) { return #err("Een OA-factuur heeft minstens één regel op een werf (een algemene kost alleen: kies 'andere')") };
+    if (x.kind == #oa and workIds.size() == 0) { return #err("Een OA-factuur heeft minstens één regel op een werf") };
     for (w in x.finalWorkIds.values()) { if (workIds.find(func y = y == w) == null) { return #err("'Laatste factuur' geldt enkel voor een werf op deze factuur") } };
     for (fid in [x.fileId, x.oaStatementFileId].values()) {
       switch fid {
@@ -191,9 +199,10 @@ mixin (
       case (?id) {
         let q = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
         for (w in puWorksOf(q).values()) { if (Rights.purchaseScope(ctx, p, w) != #full) { return #err("Geen toegang") } };
-        if (q.status != #registered) { return #err("Enkel een geregistreerde factuur kan verbeterd worden (deze is " # Purchase.statusKey(q.status) # ")") };
+        // Review L9: ook een betwiste factuur (na verbeteren terug geregistreerd, nieuwe controle); nooit met een goedgekeurd deel.
+        if (q.status != #registered and q.status != #disputed) { return #err("Enkel een geregistreerde of betwiste factuur kan verbeterd worden (deze is " # Purchase.statusKey(q.status) # ")") };
         if (rev != q.rev) { return #err("Iemand anders bewaarde deze factuur intussen; laad opnieuw") };
-        for (pid in q.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.status != #registered and i.status != #withdrawn) { return #err("Een werfdeel is al beslist (" # OaInvoice.statusKey(i.status) # "): verbeteren kan niet meer") } }; case null {} } };
+        for (pid in q.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.status == #approved) { return #err("Een werfdeel is al goedgekeurd: verbeteren kan niet meer") } }; case null {} } };
         ?q;
       };
     };
@@ -201,8 +210,18 @@ mixin (
     // De uren per dag: een dag die niet veranderde, houdt zijn id en de bevestiging van de werfleider.
     let oldClaims = Map.empty<Text, Types.HourClaim>();
     switch old { case (?q) { for (c in Purchase.claimsOf(purchases, q.id).values()) { oldClaims.add(puClaimSig(c.workId, c.day, c.persons, c.slots, c.pauseMin), c); puDropClaim(c) } }; case null {} };
+    // Vaste regel-id's (review M2): een bestaande regel houdt zijn id (het formulier stuurt hem mee), een nieuwe krijgt de volgende uit
+    // de teller van de aankoop (Purchase.extra "regels").
+    let oldIds = Map.empty<Nat, ()>();
+    switch old { case (?q) { for (l in puAmounts(q).lines.values()) { oldIds.add(l.lineId, ()) } }; case null {} };
+    var seq : Nat = switch old { case (?q) { switch (Nat.fromText(OaDeals.extraGet(q.extra, "regels"))) { case (?n) n; case null 0 } }; case null 0 };
+    let used = Map.empty<Nat, ()>();
     let lines = parsed.toArray().map(
       func((l, k) : (PV.PurchaseLineInput, Types.CostKind)) : Types.PurchaseLine {
+        let lineId = switch (l.lineId) {
+          case (?lid) { if (oldIds.containsKey(lid) and not used.containsKey(lid)) { used.add(lid, ()); lid } else { seq += 1; seq } };
+          case null { seq += 1; seq };
+        };
         let ids = l.days.map(
           func(d : PV.HourDayInput) : Nat {
             let w = switch (l.workId) { case (?y) y; case null 0 };
@@ -213,15 +232,16 @@ mixin (
             cid;
           }
         );
-        { workId = l.workId; kind = k; root = l.root; description = l.description.trim(#char ' '); persons = l.persons; qtyMilli = l.qtyMilli; unit = l.unit.trim(#char ' '); unitCents = l.unitCents; amountCents = l.amountCents; passOn = l.passOn and l.workId != null and Purchase.isCost(k); claimIds = ids };
+        { workId = l.workId; kind = k; root = l.root; description = l.description.trim(#char ' '); persons = l.persons; qtyMilli = l.qtyMilli; unit = l.unit.trim(#char ' '); unitCents = l.unitCents; amountCents = l.amountCents; passOn = l.passOn and l.workId != null and Purchase.isCost(k); claimIds = ids; lineId; extra = [] };
       }
     );
     let amounts : Types.PurchaseAmounts = { purchaseId = id; netCents = x.netCents; vatCents = x.vatCents; totalCents = x.totalCents; discountBp = x.discountBp; lines; extra = [] };
     var extra : Types.Extra = switch old { case (?q) q.extra.filter(func((k, _) : (Text, Text)) : Bool = not k.startsWith(#text "slot:")); case null [] };
     for (w in x.finalWorkIds.values()) { extra := OaDeals.extraSet(extra, "slot:" # w.toText(), "ja") };
+    extra := OaDeals.extraSet(extra, "regels", seq.toText());
     let base : Types.Purchase = switch old {
-      case (?q) { { q with orgId = x.orgId; kind = x.kind; number = nr; invoiceDay = x.invoiceDay; dueDay = x.dueDay; discountUntil = x.discountUntil; periodFrom = x.periodFrom; periodTo = x.periodTo; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; oaStatementFileId = x.oaStatementFileId; oaStatementRef = x.oaStatementRef.trim(#char ' '); note = x.note.trim(#char ' '); rev = q.rev + 1; updatedAt = now; updatedBy = p.id; extra } };
-      case null { { id; orgId = x.orgId; kind = x.kind; number = nr; invoiceDay = x.invoiceDay; dueDay = x.dueDay; discountUntil = x.discountUntil; periodFrom = x.periodFrom; periodTo = x.periodTo; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; oaStatementFileId = x.oaStatementFileId; oaStatementRef = x.oaStatementRef.trim(#char ' '); status = #registered; parts = []; decision = null; creditOf = null; paidDay = null; note = x.note.trim(#char ' '); source = "hand"; externalRef = ""; rev = 0; createdAt = now; createdBy = p.id; updatedAt = now; updatedBy = p.id; extra } };
+      case (?q) { { q with orgId = x.orgId; kind = x.kind; number = nr; invoiceDay = x.invoiceDay; dueDay = x.dueDay; discountUntil = x.discountUntil; periodFrom = x.periodFrom; periodTo = x.periodTo; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; oaStatementFileId = x.oaStatementFileId; oaStatementRef = x.oaStatementRef.trim(#char ' '); note = x.note.trim(#char ' '); status = #registered; rev = q.rev + 1; updatedAt = now; updatedBy = p.id; extra } };
+      case null { { id; orgId = x.orgId; kind = x.kind; number = nr; invoiceDay = x.invoiceDay; dueDay = x.dueDay; discountUntil = x.discountUntil; periodFrom = x.periodFrom; periodTo = x.periodTo; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; oaStatementFileId = x.oaStatementFileId; oaStatementRef = x.oaStatementRef.trim(#char ' '); status = #registered; parts = []; decision = null; creditOf = null; paidDay = null; withheldDay = null; note = x.note.trim(#char ' '); source = "hand"; externalRef = ""; rev = 0; createdAt = now; createdBy = p.id; updatedAt = now; updatedBy = p.id; extra } };
     };
     // Indexen: oude sleutel en werven weg, nieuwe erbij.
     let oldWorks = switch old { case (?q) puWorksOf(q); case null [] };
@@ -287,6 +307,8 @@ mixin (
     if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
     let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
     if (x.status == #approved or x.status == #withdrawn or x.status == #checking) { return #err("Deze factuur is " # Purchase.statusKey(x.status)) };
+    // Review M1: ook een betwiste aankoop met een goedgekeurd werfdeel niet.
+    for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.status == #approved) { return #err("Een werfdeel is al goedgekeurd: intrekken kan niet meer") } }; case null {} } };
     if (rev != x.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
     let why = reason.trim(#char ' ');
     if (why.size() < Config.minQuoteReason or why.size() > Config.maxQuoteReason) { return #err("Geef een reden (5 tot 300 tekens)") };
@@ -300,16 +322,19 @@ mixin (
   };
 
   // Betaald markeren (de betaling zelf gebeurt in de bank, AC-23); null = niet meer betaald.
-  public shared ({ caller }) func markPurchasePaid(id : Nat, rev : Nat, day : ?Nat) : async Result.Result<(), Text> {
+  // withheldDay: de dag waarop de inhouding (inhoudingsplicht) doorgestort is aan RSZ/FOD (review H2); null = nog niet.
+  public shared ({ caller }) func markPurchasePaid(id : Nat, rev : Nat, day : ?Nat, withheldDay : ?Nat) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
     let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
     if (x.status != #approved) { return #err("Enkel een goedgekeurde factuur kan betaald gemarkeerd worden") };
     if (rev != x.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
-    switch day { case (?d) { if (d < x.invoiceDay or d > Dossier.today() + 1) { return #err("Betaaldag: na de factuurdatum, niet in de toekomst") } }; case null {} };
+    for (dd in [day, withheldDay].values()) { switch dd { case (?d) { if (d < x.invoiceDay or d > Dossier.today() + 1) { return #err("Betaaldag: na de factuurdatum, niet in de toekomst") } }; case null {} } };
+    let (soc, fis) = puWithhold(x);
+    if (withheldDay != null and soc + fis == 0) { return #err("Deze factuur heeft geen inhouding") };
     let now = Time.now();
-    purchases.purchases.add(id, { x with paidDay = day; rev = x.rev + 1; updatedAt = now; updatedBy = p.id });
-    Access.audit(audit, caller, ?p.id, puFirstWork(x), "aankoop-betaald", puOrgName(x.orgId) # " " # x.number # ": " # (switch day { case (?d) "betaald op " # Plan.fmtDay(d); case null "niet meer betaald" }));
+    purchases.purchases.add(id, { x with paidDay = day; withheldDay; rev = x.rev + 1; updatedAt = now; updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, puFirstWork(x), "aankoop-betaald", puOrgName(x.orgId) # " " # x.number # ": " # (switch day { case (?d) "betaald op " # Plan.fmtDay(d); case null "niet betaald" }) # (if (soc + fis > 0) (switch withheldDay { case (?d) ", inhouding doorgestort op " # Plan.fmtDay(d); case null ", inhouding nog niet doorgestort" }) else ""));
     #ok;
   };
 
@@ -364,7 +389,9 @@ mixin (
           case (#disputed) { if (notice == "uit") "" else { var r = ""; for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { switch (i.status, i.decision) { case (#disputed, ?d) { r := d.reason }; case _ {} } }; case null {} } }; r } };
           case _ "";
         };
-        let disputed = Purchase.claimsOf(purchases, x.id).filterMap(func(c : Types.HourClaim) : ?PV.MyDisputedDay = switch (c.review) { case (?r) { if (r.ok) null else ?{ day = c.day; persons = c.persons; hoursMilli = c.hoursMilli; note = if (notice == "uit") "" else r.note } }; case null null });
+        // Review M5: de dagen die niet kloppen pas als het werfdeel van die werf betwist is, en de notitie enkel als de instelling dat toelaat.
+        let partDisputed = func(w : Nat) : Bool = x.parts.any(func(pid : Nat) : Bool = switch (oaInvoices.invoices.get(pid)) { case (?i) i.workId == w and i.status == #disputed; case null false });
+        let disputed = if (notice == "uit") [] else Purchase.claimsOf(purchases, x.id).filterMap(func(c : Types.HourClaim) : ?PV.MyDisputedDay = switch (c.review) { case (?r) { if (r.ok or not partDisputed(c.workId)) null else ?{ day = c.day; persons = c.persons; hoursMilli = c.hoursMilli; note = r.note } }; case null null });
         var decided : ?Int = null;
         for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { switch (i.decision) { case (?d) { decided := ?d.at }; case null {} } }; case null {} } };
         out.add({ number = x.number; invoiceDay = x.invoiceDay; status = x.status; works = puWorksOf(x).map(puWorkName); decidedAt = decided; reason; disputedDays = disputed });
@@ -393,6 +420,11 @@ mixin (
   func puDiscount(x : Types.Purchase, a : Types.PurchaseAmounts, today : Nat) : ?Int {
     switch (x.discountUntil, a.discountBp) { case (?u, ?bp) { if (u >= today) ?QuoteCalc.roundDiv(a.netCents * bp, 10_000) else null }; case _ null };
   };
+  // De inhouding van een aankoop (review H2): het zwaarste resultaat bij de goedgekeurde werfdelen op Σ werfdelen excl. btw.
+  func puWithhold(x : Types.Purchase) : (Int, Int) {
+    switch (Purchase.withholdingResult(oaInvoices, x)) { case (?r) OaInvoice.withholdingCents(r, Purchase.partsNet(oaInvoices, x)); case null (0, 0) };
+  };
+
   func puClaimSig(w : Nat, day : Nat, persons : Nat, slots : [Types.TimeSlot], pause : Nat) : Text {
     var s = w.toText() # "|" # day.toText() # "|" # persons.toText() # "|" # pause.toText();
     for (t in slots.values()) { s := s # "|" # t.fromMin.toText() # "-" # t.toMin.toText() };
@@ -447,12 +479,17 @@ mixin (
         case null {};
       };
     };
+    // Review L4: btw per deel afgerond, het laatste deel krijgt de rest, zodat Σ delen = de btw van de factuur.
+    var vatLeft : Int = a.vatCents;
+    var n = 0;
     for (w in workIds.values()) {
+      n += 1;
       let pls = Purchase.linesOfWork(a, w);
       let ls = pls.map(Purchase.partLine);
       var net : Int = 0;
       for (l in ls.values()) { net += l.amountCents };
-      let vat = switch (x.vatRegime) { case (#reverse) 0; case (#normal bp) QuoteCalc.roundDiv(net * bp, 10_000) };
+      let vat = switch (x.vatRegime) { case (#reverse) 0; case (#normal bp) { if (n == workIds.size()) vatLeft else QuoteCalc.roundDiv(net * bp, 10_000) } };
+      vatLeft -= vat;
       var minD : ?Nat = null;
       var maxD : ?Nat = null;
       for (l in pls.values()) { for (cid in l.claimIds.values()) { switch (purchases.claims.get(cid)) { case (?c) { minD := ?(switch minD { case (?m) Nat.min(m, c.day); case null c.day }); maxD := ?(switch maxD { case (?m) Nat.max(m, c.day); case null c.day }) }; case null {} } } };
@@ -461,7 +498,7 @@ mixin (
       let pid = switch (live.get(w)) {
         case (?i) {
           for (k in [OaInvoice.keyOf(i.orgId, i.number), Purchase.partKey(i.orgId, i.number, i.workId)].values()) { if (oaInvoices.keys.get(k) == ?i.id) { oaInvoices.keys.remove(k) } };
-          oaInvoices.invoices.add(i.id, { i with orgId = x.orgId; number = x.number; invoiceDay = x.invoiceDay; dueDay = x.dueDay; periodFrom = pf; periodTo = pt; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; note = x.note; rev = i.rev + 1; updatedAt = now; updatedBy = by });
+          oaInvoices.invoices.add(i.id, { i with orgId = x.orgId; number = x.number; invoiceDay = x.invoiceDay; dueDay = x.dueDay; periodFrom = pf; periodTo = pt; vatRegime = x.vatRegime; reverseMention = x.reverseMention; fileId = x.fileId; note = x.note; status = if (i.status == #disputed) #registered else i.status; rev = i.rev + 1; updatedAt = now; updatedBy = by });
           live.remove(w);
           i.id;
         };
@@ -500,6 +537,8 @@ mixin (
     let w = switch (l.workId) {
       case (?w) w;
       case null {
+        // Review H1: bij een OA hoort elke regel bij een werf (een werfdeel), zodat de controle en de inhoudingsplicht ze dekken.
+        if (x.kind == #oa) { return ?"Bij een OA-factuur hoort elke regel bij een werf (kies de werf, ook voor een algemene kost)" };
         if (not Purchase.isCost(k)) { return ?("Een regel «" # Purchase.costName(k) # "» hoort bij een werf") };
         if (l.root != null or l.days.size() > 0) { return ?"Een algemene kost hangt aan geen post en heeft geen uren per dag" };
         return null;
@@ -533,9 +572,7 @@ mixin (
       if (seen.containsKey(d.day)) { return ?("De dag " # Plan.fmtDay(d.day) # " staat twee keer op dezelfde regel") };
       seen.add(d.day, ());
       if (d.persons == 0 or d.persons > 50) { return ?"Een dag met uren: 1 tot 50 personen" };
-      if (d.slots.size() == 0 or d.slots.size() > 6) { return ?"Een dag met uren: 1 tot 6 tijdvakken (van–tot)" };
-      for (s in d.slots.values()) { if (s.fromMin >= s.toMin or s.toMin > 1440) { return ?"Een tijdvak: van vóór tot, binnen de dag" } };
-      if (d.pauseMin > 600) { return ?"Pauze: hoogstens 10 uur" };
+      switch (Purchase.slotsError(d.slots, d.pauseMin)) { case (?e) { return ?(Plan.fmtDay(d.day) # ": " # e) }; case null {} };
     };
     null;
   };
@@ -568,6 +605,7 @@ mixin (
       hasFile = x.fileId != null;
       hasStatement = x.oaStatementFileId != null;
       paidDay = x.paidDay;
+      withheldDay = x.withheldDay;
       openClaims = open;
       updatedAt = x.updatedAt;
       rev = x.rev;
@@ -623,36 +661,24 @@ mixin (
           { claimId = c.id; day = c.day; persons = c.persons; slots = c.slots; pauseMin = c.pauseMin; hoursMilli = c.hoursMilli; reportPersons = rn; reportMilli = rh; diffMilli = c.hoursMilli - rh; state = Purchase.claimState(settings, reports, c); reviewNote = switch (c.review) { case (?r) r.note; case null "" }; reviewByName = switch (c.review) { case (?r) Access.personName(access, r.by); case null "" }; rateCents = dc.rateCents; rateFrom = dc.rateFrom; cents = dc.cents };
         },
       );
-      lines.add({ index = k; workId = l.workId; workCode = switch (l.workId) { case (?w) puWorkCode(w); case null "" }; kind = Purchase.costKey(l.kind); kindName = Purchase.costName(l.kind); root = l.root; postTitle; description = l.description; persons = l.persons; qtyMilli = l.qtyMilli; unit = l.unit; unitCents = l.unitCents; amountCents = l.amountCents; passOn = l.passOn; days; dayCents = dayTotal; agreedCents = agreed; qtyFlags = qf.map(puFlag); moneyFlags = mf.map(puFlag) });
+      lines.add({ index = k; lineId = l.lineId; workId = l.workId; workCode = switch (l.workId) { case (?w) puWorkCode(w); case null "" }; kind = Purchase.costKey(l.kind); kindName = Purchase.costName(l.kind); root = l.root; postTitle; description = l.description; persons = l.persons; qtyMilli = l.qtyMilli; unit = l.unit; unitCents = l.unitCents; amountCents = l.amountCents; passOn = l.passOn; days; dayCents = dayTotal; agreedCents = agreed; qtyFlags = qf.map(puFlag); moneyFlags = mf.map(puFlag) });
       k += 1;
     };
     // De aankoop zelf: som, btw, totaal, bijlage (de werfdelen rekenen hun deel uit de regels).
-    let hf = List.empty<Text>();
-    var sum : Int = 0;
-    for (l in a.lines.values()) { sum += l.amountCents };
-    if (sum != a.netCents) { hf.add("som-regels") };
-    if (a.netCents + a.vatCents != a.totalCents) { hf.add("totaal") };
-    var expVat : ?Int = null;
-    switch (x.vatRegime) {
-      case (#reverse) { expVat := ?0; if (a.vatCents != 0) { hf.add("btw-verlegd-bedrag") }; if (not x.reverseMention) { hf.add("btw-verlegd-vermelding") } };
-      case (#normal bp) {
-        let e = QuoteCalc.roundDiv(a.netCents * bp, 10_000);
-        expVat := ?e;
-        if (Int.abs(a.vatCents - e) > 1) { hf.add("btw-bedrag") };
-        switch (org.orgs.get(x.orgId)) { case (?o) { if (o.kind == #subcontractor) { hf.add("btw-normaal-bij-oa") } }; case null {} };
-      };
-    };
-    if (x.fileId == null) { hf.add("geen-bijlage") };
+    let (hf0, sum, expVat) = Purchase.headerFlags(x, a, org);
+    let pnet = Purchase.partsNet(oaInvoices, x);
+    let hf = if (x.parts.size() > 0 and pnet != a.netCents) hf0.concat(["som-werfdelen"]) else hf0;
+    let (wSoc, wFis) = puWithhold(x);
     let final = func(w : Nat) : Bool = OaDeals.extraGet(x.extra, "slot:" # w.toText()) == "ja";
     let advances = if (x.kind != #oa) [] else Purchase.worksOf(a).filterMap(
       func(w : Nat) : ?PV.PurchaseAdvanceView {
         let allowed = Purchase.allowedAdvance(oaDeals, w, x.orgId);
-        let (adv, ded) = Purchase.advanceSums(purchases, w, x.orgId, null);
+        let (adv, ded) = Purchase.advanceSums(purchases, w, x.orgId, null, null);
         if (allowed == null and adv == 0 and ded == 0) null else ?{ workId = w; workCode = puWorkCode(w); allowedCents = allowed; advancedCents = adv; deductedCents = ded; restCents = adv - ded; final = final(w) };
       }
     );
     let decision = switch (x.decision) { case (?d) ?{ at = d.at; byName = Access.personName(access, d.by); approved = d.approved; reason = d.reason; flags = d.flags }; case null null };
-    let allRegistered = x.parts.all(func(pid : Nat) : Bool = switch (oaInvoices.invoices.get(pid)) { case (?i) i.status == #registered or i.status == #withdrawn; case null true });
+    let allRegistered = x.parts.all(func(pid : Nat) : Bool = switch (oaInvoices.invoices.get(pid)) { case (?i) i.status != #approved; case null true });
     {
       brief = puBrief(x);
       note = x.note;
@@ -666,9 +692,12 @@ mixin (
       totalCents = a.totalCents;
       discountBp = a.discountBp;
       discountCents = switch (a.discountBp) { case (?bp) ?QuoteCalc.roundDiv(a.netCents * bp, 10_000); case null null };
+      partsNetCents = pnet;
+      withholdSocialCents = wSoc;
+      withholdFiscalCents = wFis;
       sumLinesCents = sum;
       expectedVatCents = expVat;
-      headerFlags = hf.toArray().map(puFlag);
+      headerFlags = hf.map(puFlag);
       flagCount = hf.size() + lineFlags;
       lines = lines.toArray();
       advances;
@@ -677,7 +706,7 @@ mixin (
       decision;
       attestWarnings = if (x.kind == #oa) OaDeals.attestWarnings(oaDeals, settings, org, x.orgId, today) else [];
       finalWorkIds = Purchase.worksOf(a).filter(final);
-      canEdit = x.status == #registered and allRegistered;
+      canEdit = (x.status == #registered or x.status == #disputed) and allRegistered;
       canDecide = x.parts.size() == 0 and (x.status == #registered or x.status == #disputed);
       canPay = x.status == #approved;
     };

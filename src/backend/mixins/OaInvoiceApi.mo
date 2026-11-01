@@ -240,12 +240,14 @@ mixin (
       };
     };
     let k = OaInvoice.control(oiCtx(), i, oiAmounts(i));
-    if (k.flagCount > 0 and why.size() < Config.minQuoteReason) { return #err(k.flagCount.toText() # " markering(en): geef een reden om toch goed te keuren") };
+    // 2c.7 (review H1): bij het laatste werfdeel tellen de kopmarkeringen van de aankoop mee (som, totaal, btw).
+    let flagN = k.flagCount + oiPurchaseFlags(i).size();
+    if (flagN > 0 and why.size() < Config.minQuoteReason) { return #err(flagN.toText() # " markering(en): geef een reden om toch goed te keuren") };
     let now = Time.now();
-    oaInvoices.invoices.add(id, { i with status = #approved; decision = ?{ at = now; by = p.id; approved = true; reason = why; withholding = ?w; flags = k.flagCount }; rev = i.rev + 1; updatedAt = now; updatedBy = p.id });
+    oaInvoices.invoices.add(id, { i with status = #approved; decision = ?{ at = now; by = p.id; approved = true; reason = why; withholding = ?w; flags = flagN }; rev = i.rev + 1; updatedAt = now; updatedBy = p.id });
     // 2.12 (M6): de motivering van een uitzondering hoort in de auditlog (het is de enige grond om zonder raadpleging goed te keuren).
     let wText = switch w { case (#check c) "inhoudingsplicht " # Wadm.resultWord(c.result) # " (" # c.reference # ")"; case (#exception e) "uitzondering op de inhoudingsplicht: " # Text.fromIter(e.chars().take(120)) };
-    Access.audit(audit, caller, ?p.id, ?i.workId, "oa-factuur-goedgekeurd", oiOrgName(i.orgId) # " " # i.number # ": " # wText # (if (k.flagCount > 0) ", " # k.flagCount.toText() # " markering(en), reden: " # why else "") # (if (OaDeals.attestWarnings(oaDeals, settings, org, i.orgId, Dossier.today()).size() > 0) ", attesten niet in orde" else ""));
+    Access.audit(audit, caller, ?p.id, ?i.workId, "oa-factuur-goedgekeurd", oiOrgName(i.orgId) # " " # i.number # ": " # wText # (if (flagN > 0) ", " # flagN.toText() # " markering(en), reden: " # why else "") # (if (OaDeals.attestWarnings(oaDeals, settings, org, i.orgId, Dossier.today()).size() > 0) ", attesten niet in orde" else ""));
     switch w { case (#check c) { if (c.result != #clear) { Access.notifyAdmins(access, audit, ctr, "inhoudingsplicht", oiOrgName(i.orgId) # " " # i.number # ": goedgekeurd met inhoudingsplicht (" # Wadm.resultWord(c.result) # "): bij de betaling inhouden") } }; case _ {} };
     oiSyncPurchase(caller, p.id, id, now);
     #ok;
@@ -308,6 +310,18 @@ mixin (
     };
   };
 
+  // 2c.7 (review H1): de kopmarkeringen van de aankoop (som van de regels, totaal, btw) als dit het laatste werfdeel is dat nog
+  // beslist moet worden (alle andere delen goedgekeurd); anders geen.
+  func oiPurchaseFlags(i : Types.OaInvoice) : [Text] {
+    let pid = switch (purchases.partOf.get(i.id)) { case (?x) x; case null return [] };
+    let x = switch (purchases.purchases.get(pid)) { case (?y) y; case null return [] };
+    let a = switch (Purchase.amountsOf(purchases, pid)) { case (?y) y; case null return [] };
+    let othersDone = x.parts.all(func(q : Nat) : Bool = q == i.id or (switch (oaInvoices.invoices.get(q)) { case (?o) o.status == #approved or o.status == #withdrawn; case null true }));
+    if (not othersDone) { return [] };
+    let (hf, _, _) = Purchase.headerFlags(x, a, org);
+    hf.filter(func(f : Text) : Bool = f != "geen-bijlage");
+  };
+
   func oiCtx() : OaInvoice.Ctx { { settings; access; org; works; plan; reports; qs = quotes; starts = workStarts; ss = surveys; oi = oaInvoices; deals = oaDeals; pur = purchases } };
   func oiOrgName(o : Nat) : Text { switch (org.orgs.get(o)) { case (?x) x.name; case null "#" # o.toText() } };
   func oiWorkName(w : Nat) : Text { switch (works.works.get(w)) { case (?x) x.name; case null "" } };
@@ -365,7 +379,10 @@ mixin (
     let today = Dossier.today();
     var todayCheck : ?Types.WithholdingCheck = null;
     for (c in wadm.checks.values()) { if (c.orgId == i.orgId and c.consultedOn == today) { switch todayCheck { case (?b) { if (c.id > b.id) { todayCheck := ?c } }; case null { todayCheck := ?c } } } };
-    let (soc, fis) = switch todayCheck { case (?c) OaInvoice.withholdingCents(c.result, a.netCents); case null (0, 0) };
+    // 2c.7 (review H2): bij een werfdeel op het excl. btw van de hele aankoop (Σ werfdelen).
+    let base = switch (purchases.partOf.get(i.id)) { case (?pid) { switch (purchases.purchases.get(pid)) { case (?x) Purchase.partsNet(oaInvoices, x); case null a.netCents } }; case null a.netCents };
+    let (soc, fis) = switch todayCheck { case (?c) OaInvoice.withholdingCents(c.result, base); case null (0, 0) };
+    let pflags = if (i.status == #registered or i.status == #disputed) oiPurchaseFlags(i) else [];
     let prev = List.empty<OV.OaPrevious>();
     for (x in OaInvoice.invoicesOf(oaInvoices, i.workId).values()) {
       if (x.id != i.id and x.orgId == i.orgId) { prev.add({ id = x.id; number = x.number; invoiceDay = x.invoiceDay; status = x.status; netCents = switch (OaInvoice.amountsOf(oaInvoices, x.id)) { case (?y) y.netCents; case null 0 } }) };
@@ -385,8 +402,8 @@ mixin (
       sumLinesCents = k.sumLinesCents;
       expectedVatCents = k.expectedVatCents;
       lines = k.lines.map(func(l : OaInvoice.LineCheck) : OV.OaLineView = { q = oiQty(l); m = { unitCents = l.line.unitCents; amountCents = l.line.amountCents; agreedCents = l.agreedCents; agreedOrg = l.agreedOrg; prevCents = l.prevCents; flags = l.moneyFlags } });
-      headerFlags = k.headerFlags.map(func(f : Text) : OV.OaFlag = { key = f; text = OaInvoice.flagText(f) });
-      flagCount = k.flagCount;
+      headerFlags = k.headerFlags.map(func(f : Text) : OV.OaFlag = { key = f; text = OaInvoice.flagText(f) }).concat(pflags.map(func(f : Text) : OV.OaFlag = { key = "aankoop:" # f; text = "aankoopfactuur: " # OaInvoice.flagText(f) }));
+      flagCount = k.flagCount + pflags.size();
       hoursAll = oiHours(k.hoursAll);
       oaOnWork = k.oaOnWork;
       withholding = Wadm.oaStatus(access, org, wadm, i.orgId, today);

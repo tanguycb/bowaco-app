@@ -190,6 +190,23 @@ module {
     for (s in slots.values()) { if (s.toMin > s.fromMin) { m += s.toMin - s.fromMin } };
     if (pauseMin >= m) 0 else m - pauseMin;
   };
+  // De tijdvakken van een dag nakijken (review L1): van vóór tot (niet over middernacht), binnen de dag, niet overlappend, de pauze
+  // korter dan de duur. null = goed.
+  public func slotsError(slots : [Types.TimeSlot], pauseMin : Nat) : ?Text {
+    if (slots.size() == 0 or slots.size() > 6) { return ?"Een dag met uren: 1 tot 6 tijdvakken (van–tot)" };
+    for (x in slots.values()) {
+      if (x.toMin > 1440 or x.fromMin >= 1440) { return ?"Een tijdvak ligt binnen de dag (00:00–24:00)" };
+      if (x.fromMin >= x.toMin) { return ?"Een tijdvak over middernacht kan niet: splits het in twee dagen" };
+    };
+    let sorted = slots.sort(func(a, b) = Nat.compare(a.fromMin, b.fromMin));
+    var k = 1;
+    while (k < sorted.size()) { if (sorted[k].fromMin < sorted[k - 1].toMin) { return ?"Twee tijdvakken van dezelfde dag overlappen" }; k += 1 };
+    var dur = 0;
+    for (x in slots.values()) { dur += x.toMin - x.fromMin };
+    if (pauseMin >= dur) { return ?"De pauze is even lang of langer dan de gewerkte tijd" };
+    null;
+  };
+
   public func claimHours(persons : Nat, slots : [Types.TimeSlot], pauseMin : Nat) : Int {
     QuoteCalc.roundDiv(persons * minutesPerPerson(slots, pauseMin) * 1000, 60);
   };
@@ -198,20 +215,33 @@ module {
   public func reportHours(reports : Types.ReportState, workId : Nat, orgId : Nat, day : Day) : (Nat, Int) {
     var persons = 0;
     var minutes = 0;
-    for (a in reports.attendances.values()) {
-      if (a.workId == workId and a.orgId == ?orgId and a.day == day and a.archivedAt == null and a.replacedBy == null) {
-        persons += a.headcount;
-        minutes += a.minutesTotal;
+    // Via de dagindex ("werf:dag" → verslagen → blokken), geen volle scan van alle aanwezigheden (review M6).
+    let rids = switch (reports.dayIndex.get(workId.toText() # ":" # day.toText())) { case (?x) x; case null [] };
+    for (rid in rids.values()) {
+      let ids = switch (reports.blocks.get(rid)) { case (?b) b.attendances; case null [] };
+      for (aid in ids.values()) {
+        switch (reports.attendances.get(aid)) {
+          case (?a) {
+            if (a.workId == workId and a.orgId == ?orgId and a.day == day and a.archivedAt == null and a.replacedBy == null) {
+              persons += a.headcount;
+              minutes += a.minutesTotal;
+            };
+          };
+          case null {};
+        };
       };
     };
     (persons, QuoteCalc.roundDiv(minutes * 1000, 60));
   };
 
+  // Tolerantie per dag (review L3): ± 5 duizendsten van een uur (afronding van minuten).
+  public let hourTolerance : Int = 5;
+
   // Gaat de dag als vraag naar de werfleider? Altijd (instelling) of enkel bij een verschil met het werfverslag (AC-24).
   public func asked(s : Types.SettingsState, reports : Types.ReportState, c : Types.HourClaim) : Bool {
     if (askMode(s) == "altijd") { return true };
     let (n, h) = reportHours(reports, c.workId, c.orgId, c.day);
-    h != c.hoursMilli or n != c.persons;
+    Int.abs(h - c.hoursMilli) > hourTolerance or n != c.persons;
   };
 
   // De stand van één dag: "klopt" · "klopt-niet" · "te-bevestigen" · "geen-vraag" (geen verschil, niet gevraagd).
@@ -273,11 +303,14 @@ module {
   };
 
   // De voorschotten en de aftrekken van deze firma op deze werf (aankopen die meetellen), zonder een aankoop.
-  public func advanceSums(d : D, workId : Nat, orgId : Nat, except : ?Nat) : (Int, Int) {
+  // upTo = (factuurdatum, id): enkel de aankopen die in die volgorde ervoor (of gelijk) komen (review L6: de markeringen van een
+  // goedgekeurd deel veranderen niet meer door een latere factuur).
+  public func advanceSums(d : D, workId : Nat, orgId : Nat, except : ?Nat, upTo : ?(Nat, Nat)) : (Int, Int) {
     var adv : Int = 0;
     var ded : Int = 0;
     for (p in purchasesOf(d, workId).values()) {
-      if (p.orgId == orgId and counts(p.status) and ?p.id != except) {
+      let before = switch upTo { case (?(day, id)) p.invoiceDay < day or (p.invoiceDay == day and p.id <= id); case null true };
+      if (p.orgId == orgId and counts(p.status) and ?p.id != except and before) {
         switch (amountsOf(d, p.id)) {
           case (?a) { for (l in linesOfWork(a, workId).values()) { if (l.kind == #advance) { adv += l.amountCents } else if (l.kind == #advanceDeduct) { ded += Int.abs(l.amountCents) } } };
           case null {};
@@ -329,13 +362,13 @@ module {
 
   // ── Doorrekenen aan de klant (voor de min-meerstaat van 2c.5) ───────────
   // Eén kostenregel van een aankoop op een werf, die kantoor aan de klant doorrekent (PurchaseLine.passOn). De min-meerstaat rekent
-  // de verkoopprijs (kostprijs / (1 − marge), standaard / 0,8) en kent de regel aan zijn sleutel "kost:<aankoop>:<regel>" (MmOverride).
+  // de verkoopprijs (kostprijs / (1 − marge), standaard / 0,8) en kent de regel aan zijn sleutel "kost:<aankoop>:<lineId>" (MmOverride;
+  // de lineId blijft bij een verbetering, review M2). Geen firmanaam (review M4): een kantoorview zoekt die zelf op met orgId.
   public type PassOnCost = {
-    key : Text; // "kost:<aankoop>:<regel>" (regel = plaats in de aankoop, vanaf 0)
+    key : Text; // "kost:<aankoop>:<lineId>"
     purchaseId : Nat;
-    lineIndex : Nat;
+    lineId : Nat;
     orgId : Nat;
-    orgName : Text;
     number : Text;
     day : Day; // het einde van de periode, anders de factuurdatum
     kind : Types.CostKind;
@@ -344,28 +377,40 @@ module {
     unit : Text;
     qtyMilli : Int;
     costCents : Int; // het bedrag van de regel (kostprijs, excl. btw)
-    status : Types.PurchaseStatus;
-    source : Text; // "aankoop <nummer> <firma>"
+    status : Types.PurchaseStatus; // bij een OA: de stand van het werfdeel van die werf (review M3)
+    source : Text; // "aankoop:<id>"
   };
 
-  // De doorrekenbare kostenregels van één werf, in de periode (dag ≥ from, dag ≤ to) als die er is. onlyApproved: enkel goedgekeurde
-  // aankopen (anders ook geregistreerd en in controle; nooit betwist of ingetrokken). Geen posten, geen uren, geen voorschotten.
-  public func passOnCosts(d : D, org : Types.OrgState, workId : Nat, from : ?Day, to : ?Day, onlyApproved : Bool) : [PassOnCost] {
+  // De stand die telt voor een regel op een werf: bij een aankoop met werfdelen die van het werfdeel van die werf, anders die van de
+  // aankoop.
+  public func statusOnWork(oi : Types.OaInvoiceState, p : Types.Purchase, workId : Nat) : Types.PurchaseStatus {
+    if (p.parts.size() == 0 or p.status == #withdrawn) { return p.status };
+    for (pid in p.parts.values()) {
+      switch (oi.invoices.get(pid)) {
+        case (?i) { if (i.workId == workId and i.status != #withdrawn) { return switch (i.status) { case (#approved) #approved; case (#disputed) #disputed; case _ #registered } } };
+        case null {};
+      };
+    };
+    #withdrawn;
+  };
+
+  // De doorrekenbare kostenregels van één werf, in de periode (dag ≥ from, dag ≤ to) als die er is. onlyApproved: enkel goedgekeurd
+  // (bij een OA: het werfdeel van die werf); anders ook geregistreerd en in controle; nooit betwist of ingetrokken. Geen posten, geen
+  // uren, geen voorschotten.
+  public func passOnCosts(d : D, oi : Types.OaInvoiceState, workId : Nat, from : ?Day, to : ?Day, onlyApproved : Bool) : [PassOnCost] {
     let out = List.empty<PassOnCost>();
     for (p in purchasesOf(d, workId).values()) {
       let day = switch (p.periodTo) { case (?t) t; case null p.invoiceDay };
       let inPeriod = (switch from { case (?f) day >= f; case null true }) and (switch to { case (?t) day <= t; case null true });
-      let st = if (onlyApproved) p.status == #approved else counts(p.status);
+      let s = statusOnWork(oi, p, workId);
+      let st = if (onlyApproved) s == #approved else counts(s);
       if (inPeriod and st) {
-        let name = switch (org.orgs.get(p.orgId)) { case (?o) o.name; case null "#" # p.orgId.toText() };
         switch (amountsOf(d, p.id)) {
           case (?a) {
-            var k = 0;
             for (l in a.lines.values()) {
               if (l.workId == ?workId and l.passOn and isCost(l.kind)) {
-                out.add({ key = "kost:" # p.id.toText() # ":" # k.toText(); purchaseId = p.id; lineIndex = k; orgId = p.orgId; orgName = name; number = p.number; day; kind = l.kind; kindKey = costKey(l.kind); description = l.description; unit = l.unit; qtyMilli = l.qtyMilli; costCents = l.amountCents; status = p.status; source = "aankoop " # p.number # " " # name });
+                out.add({ key = "kost:" # p.id.toText() # ":" # l.lineId.toText(); purchaseId = p.id; lineId = l.lineId; orgId = p.orgId; number = p.number; day; kind = l.kind; kindKey = costKey(l.kind); description = l.description; unit = l.unit; qtyMilli = l.qtyMilli; costCents = l.amountCents; status = s; source = "aankoop:" # p.id.toText() });
               };
-              k += 1;
             };
           };
           case null {};
@@ -373,6 +418,80 @@ module {
       };
     };
     out.toArray();
+  };
+
+  // ── De aankoop zelf: kopmarkeringen, som van de werfdelen, inhoudingsplicht ─
+  // som = Σ regels ≠ excl. btw · excl. + btw ≠ totaal · btw (verlegd, vermelding, bedrag, normaal bij een OA) · geen bijlage.
+  public func headerFlags(x : Types.Purchase, a : Types.PurchaseAmounts, org : Types.OrgState) : ([Text], Int, ?Int) {
+    let hf = List.empty<Text>();
+    var sum : Int = 0;
+    for (l in a.lines.values()) { sum += l.amountCents };
+    if (sum != a.netCents) { hf.add("som-regels") };
+    if (a.netCents + a.vatCents != a.totalCents) { hf.add("totaal") };
+    var expVat : ?Int = null;
+    switch (x.vatRegime) {
+      case (#reverse) { expVat := ?0; if (a.vatCents != 0) { hf.add("btw-verlegd-bedrag") }; if (not x.reverseMention) { hf.add("btw-verlegd-vermelding") } };
+      case (#normal bp) {
+        let e = QuoteCalc.roundDiv(a.netCents * bp, 10_000);
+        expVat := ?e;
+        if (Int.abs(a.vatCents - e) > 1) { hf.add("btw-bedrag") };
+        switch (org.orgs.get(x.orgId)) { case (?o) { if (o.kind == #subcontractor) { hf.add("btw-normaal-bij-oa") } }; case null {} };
+      };
+    };
+    if (x.fileId == null) { hf.add("geen-bijlage") };
+    (hf.toArray(), sum, expVat);
+  };
+
+  // Σ excl. btw van de werfdelen die nog meetellen (niet ingetrokken).
+  public func partsNet(oi : Types.OaInvoiceState, x : Types.Purchase) : Int {
+    var n : Int = 0;
+    for (pid in x.parts.values()) {
+      switch (oi.invoices.get(pid), oi.amounts.get(pid)) {
+        case (?i, ?c) { if (i.status != #withdrawn) { switch (plain(c)) { case (?am) { n += am.netCents }; case null {} } } };
+        case _ {};
+      };
+    };
+    n;
+  };
+
+  // De inhoudingsplicht van de aankoop (review H2): het zwaarste resultaat van de raadplegingen bij de goedgekeurde werfdelen, op het
+  // excl. btw van de hele aankoop (Σ werfdelen). null = geen raadpleging met een rood resultaat.
+  public func withholdingResult(oi : Types.OaInvoiceState, x : Types.Purchase) : ?Types.WithholdingResult {
+    var social = false;
+    var fiscal = false;
+    for (pid in x.parts.values()) {
+      switch (oi.invoices.get(pid)) {
+        case (?i) {
+          switch (i.status, i.decision) {
+            case (#approved, ?dec) {
+              switch (dec.withholding) {
+                case (?#check c) { switch (c.result) { case (#social) { social := true }; case (#fiscal) { fiscal := true }; case (#both) { social := true; fiscal := true }; case _ {} } };
+                case _ {};
+              };
+            };
+            case _ {};
+          };
+        };
+        case null {};
+      };
+    };
+    if (social and fiscal) ?#both else if (social) ?#social else if (fiscal) ?#fiscal else null;
+  };
+
+  // Alle voorschotten opnieuw (na een herstel, review L7).
+  public func syncAll(d : D, deals : Types.OaDealState, oi : Types.OaInvoiceState) {
+    let seen = Map.empty<Text, ()>();
+    for (p in d.purchases.values()) {
+      switch (amountsOf(d, p.id)) {
+        case (?a) {
+          for (w in worksOf(a).values()) {
+            let k = w.toText() # ":" # p.orgId.toText();
+            if (not seen.containsKey(k)) { seen.add(k, ()); syncAdvances(d, deals, oi, w, p.orgId) };
+          };
+        };
+        case null {};
+      };
+    };
   };
 
   // ── Indexen (herstel) en bestanden ───────────────────────────────────────

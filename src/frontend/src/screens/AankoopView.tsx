@@ -24,6 +24,7 @@ export function PurchaseView({ id, go }: { id: bigint; go: (to: string) => void 
   const [sheet, setSheet] = useState<null | "approve" | "dispute" | "withdraw" | "pay">(null);
   const [reason, setReason] = useState("");
   const [payDay, setPayDay] = useState(dayToInput(todayDay()));
+  const [whDay, setWhDay] = useState("");
   const [busy, setBusy] = useState(false);
   const v: PurchaseFullView | undefined = q.data;
   if (!v) return <Page label={T.label} title={TA.title}><Loading q={q} /></Page>;
@@ -55,7 +56,7 @@ export function PurchaseView({ id, go }: { id: bigint; go: (to: string) => void 
         {v.canEdit && <Button icon="edit" onClick={() => go(`oa-facturen/aankoop/${id}/wijzigen`)} data-testid="pu-edit">{TA.edit}</Button>}
         {v.canDecide && <Button variant="primary" icon="check" onClick={() => setSheet("approve")} data-testid="pu-approve">{TA.approve}</Button>}
         {v.canDecide && b.status === "registered" && <Button icon="alert" onClick={() => setSheet("dispute")} data-testid="pu-dispute">{TA.dispute}</Button>}
-        {v.canPay && <Button icon="check" onClick={() => setSheet("pay")} data-testid="pu-pay-mark">{b.paidDay !== undefined ? TA.unpay : TA.pay}</Button>}
+        {v.canPay && <Button icon="check" onClick={() => { setPayDay(dayToInput(b.paidDay ?? todayDay())); setWhDay(dayToInput(b.withheldDay)); setSheet("pay"); }} data-testid="pu-pay-mark">{TA.pay}</Button>}
         {(b.status === "registered" || b.status === "disputed") && <Button variant="quiet" icon="close" onClick={() => setSheet("withdraw")} data-testid="pu-withdraw">{TA.withdraw}</Button>}
       </>}
     >
@@ -76,6 +77,7 @@ export function PurchaseView({ id, go }: { id: bigint; go: (to: string) => void 
             <div className="vs-dl__big"><dt>{T.total}</dt><dd className="bw-mono">{fmtEuro(v.totalCents)}</dd></div>
           </dl>
           {v.discountBp !== undefined && b.discountUntil !== undefined && <p className="a-note" data-testid="pu-discount">{TA.discountLine(pct(v.discountBp), fmtDayNum(b.discountUntil), fmtEuro(v.discountCents))}</p>}
+          {v.withholdSocialCents + v.withholdFiscalCents > 0n && <p className="a-err" data-testid="pu-withhold">{TA.withhold(fmtEuro(v.withholdSocialCents), fmtEuro(v.withholdFiscalCents))}{b.withheldDay !== undefined ? ` · ${TA.withheldOn(fmtDayNum(b.withheldDay))}` : ""}</p>}
           {v.attestWarnings.length > 0 && <div className="a-alert"><strong>{t.afspraken.warnings}: </strong>{v.attestWarnings.join(" · ")}</div>}
           {v.headerFlags.length > 0 && <ul className="vs-findings">{v.headerFlags.map((f) => <li key={f.key}><span className="a-tag a-tag--warn">{T.flagTag}</span> {T.flags[f.key] ?? f.text}</li>)}</ul>}
           {v.advances.length > 0 && (
@@ -136,8 +138,9 @@ export function PurchaseView({ id, go }: { id: bigint; go: (to: string) => void 
         <p>{T.withdrawLead}</p>
         <label className="bw-field"><span className="bw-label">{TA.reason}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
       </Sheet>
-      <Sheet title={b.paidDay !== undefined ? TA.unpay : TA.pay} open={sheet === "pay"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={b.paidDay === undefined && inputToDay(payDay) === undefined} onClick={() => void run(() => actor!.markPurchasePaid(id, b.rev, b.paidDay !== undefined ? null : inputToDay(payDay)!), TA.paidOk)} data-testid="pu-pay-go">{b.paidDay !== undefined ? TA.unpay : TA.pay}</Button></>}>
-        {b.paidDay === undefined && <label className="bw-field"><span className="bw-label">{TA.pay}</span><input type="date" className="bw-input" value={payDay} onChange={(e) => setPayDay(e.target.value)} /></label>}
+      <Sheet title={TA.pay} open={sheet === "pay"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={false} onClick={() => void run(() => actor!.markPurchasePaid(id, b.rev, inputToDay(payDay) ?? null, inputToDay(whDay) ?? null), TA.paidOk)} data-testid="pu-pay-go">{TA.pay}</Button></>}>
+        <label className="bw-field"><span className="bw-label">{TA.pay}</span><input type="date" className="bw-input" value={payDay} onChange={(e) => setPayDay(e.target.value)} /></label>
+        {v.withholdSocialCents + v.withholdFiscalCents > 0n && <label className="bw-field"><span className="bw-label">{TA.withheld}</span><input type="date" className="bw-input" value={whDay} onChange={(e) => setWhDay(e.target.value)} /></label>}
       </Sheet>
     </Page>
   );

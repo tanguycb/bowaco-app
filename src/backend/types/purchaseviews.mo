@@ -20,6 +20,7 @@ module {
     amountCents : Int;
     passOn : Bool;
     days : [HourDayInput]; // bij uren: per dag zoals op de factuur
+    lineId : ?Nat; // bij verbeteren: de vaste id van de regel (review M2); null = nieuwe regel
   };
   public type PurchaseInput = {
     id : ?Nat; // null = nieuw
@@ -63,6 +64,7 @@ module {
     hasFile : Bool;
     hasStatement : Bool;
     paidDay : ?Nat;
+    withheldDay : ?Nat; // de inhouding is doorgestort
     openClaims : Nat; // dagen met uren die de werfleider nog moet bevestigen
     updatedAt : Int;
     rev : Nat;
@@ -88,6 +90,7 @@ module {
   };
   public type PurchaseLineView = {
     index : Nat;
+    lineId : Nat;
     workId : ?Nat;
     workCode : Text;
     kind : Text;
@@ -122,6 +125,9 @@ module {
     totalCents : Int;
     discountBp : ?Nat;
     discountCents : ?Int; // korting op het bedrag excl. btw bij betaling vóór de kortingsdag (VOORLOPIG)
+    partsNetCents : Int; // Σ excl. btw van de werfdelen (0 zonder werfdelen)
+    withholdSocialCents : Int; // inhouding op Σ werfdelen volgens de raadplegingen bij het goedkeuren (review H2)
+    withholdFiscalCents : Int;
     sumLinesCents : Int;
     expectedVatCents : ?Int;
     headerFlags : [OV.OaFlag];
@@ -139,10 +145,12 @@ module {
   };
 
   // Te betalen (update-call, auditregel "bekeek:te-betalen"): eerst wat korting geeft, dan de vervaldag (AC-23).
-  public type PayRow = { brief : PurchaseBrief; netCents : Int; totalCents : Int; discountBp : ?Nat; discountCents : ?Int; payCents : Int; text : Text };
+  // payCents = totaal − korting − inhouding (aan de OA); de inhouding staat apart (door te storten aan RSZ/FOD). warnings: "som-werfdelen"
+  // (Σ werfdelen ≠ excl. btw), "inhouding" (nog niet doorgestort).
+  public type PayRow = { brief : PurchaseBrief; netCents : Int; totalCents : Int; discountBp : ?Nat; discountCents : ?Int; withholdCents : Int; payCents : Int; text : Text; warnings : [Text] };
 
   // De kosten van een werf die doorgerekend worden aan de klant (update-call, auditregel "bekeek:doorrekenen"; voedt 2c.5).
-  public type PurchaseCostView = { key : Text; purchaseId : Nat; number : Text; orgName : Text; day : Nat; kind : Text; kindName : Text; description : Text; unit : Text; qtyMilli : Int; costCents : Int; status : Types.PurchaseStatus };
+  public type PurchaseCostView = { key : Text; purchaseId : Nat; lineId : Nat; number : Text; orgName : Text; day : Nat; kind : Text; kindName : Text; description : Text; unit : Text; qtyMilli : Int; costCents : Int; status : Types.PurchaseStatus };
 
   // De werfleider: een dag met uren op een factuur van een OA, GEEN bedrag.
   public type HourClaimView = {

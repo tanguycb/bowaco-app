@@ -2078,22 +2078,23 @@ await sec("── 2c.7 aankoopfacturen per rol (R44; de rest staat in tests/aank
   const day = BigInt(Math.floor(Number((await admin.auditLog(0n, 1n))[0].at / 1_000_000n) / 86_400_000));
   const others = [["werfleider", wl], ["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon]];
   const big = (_, v) => (typeof v === "bigint" ? v.toString() : v);
-  const pin = (o) => ({ id: [], orgId: orgY.ok.id, kind: { oa: null }, number: `PR-2C7-${Date.now().toString(36)}`, invoiceDay: day, dueDay: [], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], oaStatementFileId: [], oaStatementRef: "", note: "proef rollen 2c.7", netCents: 24_000n, vatCents: 0n, totalCents: 24_000n, lines: [{ workId: [B], kind: "regie", root: [], description: "Proef regie rollen", persons: [], qtyMilli: 6_000n, unit: "u", unitCents: 4000n, amountCents: 24_000n, passOn: false, days: [{ day, persons: 1n, slots: [{ fromMin: 420n, toMin: 810n }], pauseMin: 30n }] }], finalWorkIds: [], ...o });
+  const pin = (o) => ({ id: [], orgId: orgY.ok.id, kind: { oa: null }, number: `PR-2C7-${Date.now().toString(36)}`, invoiceDay: day, dueDay: [], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], oaStatementFileId: [], oaStatementRef: "", note: "proef rollen 2c.7", netCents: 24_000n, vatCents: 0n, totalCents: 24_000n, lines: [{ workId: [A], kind: "regie", root: [], description: "Proef regie rollen", persons: [], qtyMilli: 6_000n, unit: "u", unitCents: 4000n, amountCents: 24_000n, passOn: false, days: [{ day, persons: 1n, slots: [{ fromMin: 420n, toMin: 810n }], pauseMin: 30n }], lineId: [] }], finalWorkIds: [], ...o });
   const pr = await calc.savePurchase(pin({}), 0n);
-  check("calculator registreert een OA-factuur op werf B met uren per dag (één werfdeel)", isOk(pr), errOf(pr));
+  check("calculator registreert een OA-factuur op werf A met uren per dag (één werfdeel)", isOk(pr), errOf(pr));
   const pid = pr.ok;
-  for (const [n, x] of others) check(`${n}: aankoopfacturen lijst, lezen, registreren, goedkeuren, te betalen en doorrekenen geweigerd`, (await denied(x.listPurchases([], []))) && (await denied(x.readPurchase(pid))) && (await denied(x.savePurchase(pin({}), 0n))) && (await denied(x.approvePurchase(pid, 0n, "proef"))) && (await denied(x.listPurchasesToPay())) && (await denied(x.purchaseCosts(B))));
+  for (const [n, x] of others) check(`${n}: aankoopfacturen lijst, lezen, registreren, goedkeuren, te betalen en doorrekenen geweigerd`, (await denied(x.listPurchases([], []))) && (await denied(x.readPurchase(pid))) && (await denied(x.savePurchase(pin({}), 0n))) && (await denied(x.approvePurchase(pid, 0n, "proef"))) && (await denied(x.listPurchasesToPay())) && (await denied(x.purchaseCosts(A))));
   check("calculator en admin lezen de aankoop met bedragen (update-call, auditregel bekeek:aankoop)", isOk(await calc.readPurchase(pid)) && isOk(await admin.readPurchase(pid)) && (await admin.auditLog(0n, 20n)).some((e) => e.action === "bekeek:aankoop"));
-  const hc = await wl.listHourClaims([B]);
+  const hc = await wl.listHourClaims([A]);
   const mine = hc.find((c) => c.number.startsWith("PR-2C7-"));
-  check("werfleider van werf B ziet de dag als vraag (verschil met het werfverslag), zonder bedrag", !!mine && mine.hoursMilli === 6_000n && !/cents|price|cost|amount|total|agreed/i.test(Object.keys(mine).join()), JSON.stringify(mine, big));
-  for (const [n, x] of others.filter(([n]) => n !== "werfleider")) check(`${n}: geen uren van OA-facturen (lijst, bevestigen)`, (await denied(x.listHourClaims([B]))) && (await denied(x.reviewHourClaim(mine.id, true, ""))));
-  check("calculator bevestigt geen uren (enkel de werfleider van de werf en de beheerder)", (await denied(calc.listHourClaims([B]))) && (await denied(calc.reviewHourClaim(mine.id, true, ""))));
+  check("werfleider van werf A (lid als werfleider) ziet de dag als vraag (verschil met het werfverslag), zonder bedrag", !!mine && mine.hoursMilli === 6_000n && !/cents|price|cost|amount|total|agreed/i.test(Object.keys(mine).join()), JSON.stringify(mine, big));
+  for (const [n, x] of others.filter(([n]) => n !== "werfleider")) check(`${n}: geen uren van OA-facturen (lijst, bevestigen)`, (await denied(x.listHourClaims([A]))) && (await denied(x.reviewHourClaim(mine.id, true, ""))));
+  check("werfleider die geen werfleider-lid is van werf B: geen uren van werf B (review L8, ook als hij de werf ziet)", await denied(wl.listHourClaims([B])));
+  check("calculator bevestigt geen uren (enkel de werfleider van de werf en de beheerder)", (await denied(calc.listHourClaims([A]))) && (await denied(calc.reviewHourClaim(mine.id, true, ""))));
   check("werfleider bevestigt de dag (klopt)", isOk(await wl.reviewHourClaim(mine.id, true, "")));
   check("de OA ziet zijn aankoopfacturen niet zolang de beheerder de schakelaar niet aanzette", await denied(oa2.myPurchases()));
   const me = async (x) => (await x.me()).caps[0];
   check("caps: kantoor purchases (werfleider niet); uren: werfleider en beheerder (calculator niet)", (await me(calc)).purchases && !(await me(wl)).purchases && (await me(wl)).hourClaims && (await me(admin)).hourClaims && !(await me(calc)).hourClaims && !(await me(oa2)).hourClaims);
-  check("het werfdeel is een OA-factuur van 2.11 op werf B (de werfleider ziet ze zonder bedrag)", (await wl.listOaInvoices([B], [])).some((i) => i.purchaseId[0] === pid));
+  check("het werfdeel is een OA-factuur van 2.11 op werf A (de werfleider ziet ze zonder bedrag)", (await wl.listOaInvoices([A], [])).some((i) => i.purchaseId[0] === pid));
 }
 
 await sec("── afzetten (R16, T7)");

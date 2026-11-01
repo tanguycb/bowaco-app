@@ -2851,7 +2851,9 @@ type PurchaseLine__489446641 =
     amountCents : Int;
     claimIds : [Nat];
     description : Text;
+    extra : Extra__905353614;
     kind : CostKind__567034376;
+    lineId : Nat;
     passOn : Bool;
     persons : ?Nat;
     qtyMilli : Int;
@@ -2865,7 +2867,9 @@ type PurchaseLine__574373509 =
     amountCents : Int;
     claimIds : [Nat];
     description : Text;
+    extra : Extra__945213800;
     kind : CostKind__755880766;
+    lineId : Nat;
     passOn : Bool;
     persons : ?Nat;
     qtyMilli : Int;
@@ -2920,7 +2924,8 @@ type Purchase__206591387 =
     status : PurchaseStatus__131367305;
     updatedAt : Int;
     updatedBy : PersonId__471029118;
-    vatRegime : OaVatRegime__1039218123
+    vatRegime : OaVatRegime__1039218123;
+    withheldDay : ?Day__667596731
   };
 type Purchase__658447333 =
   {
@@ -2951,7 +2956,8 @@ type Purchase__658447333 =
     status : PurchaseStatus__860587462;
     updatedAt : Int;
     updatedBy : PersonId__967516914;
-    vatRegime : OaVatRegime__244662200
+    vatRegime : OaVatRegime__244662200;
+    withheldDay : ?Day__162369424
   };
 type QuoteAcceptance__128591277 =
   {

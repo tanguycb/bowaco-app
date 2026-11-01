@@ -42,6 +42,7 @@ module {
     decision : ?PurchaseDecision;
     creditOf : ?Nat; // een creditnota op deze aankoop (later)
     paidDay : ?Day;
+    withheldDay : ?Day; // de inhouding (inhoudingsplicht) is doorgestort (RSZ/FOD)
     note : Text; // intern
     source : Text; // "hand" · later "peppol" (fase 3)
     externalRef : Text;
@@ -65,6 +66,8 @@ module {
     amountCents : Int;
     passOn : Bool; // doorrekenen aan de klant (min-meerstaat, 2c.5)
     claimIds : [Nat]; // de dagen met uren (HourClaim)
+    lineId : Nat; // vaste id binnen de aankoop (teller in Purchase.extra "regels"): sleutel "kost:<aankoop>:<lineId>"
+    extra : Extra;
   };
   type PurchaseAmounts = { purchaseId : Nat; netCents : Int; vatCents : Int; totalCents : Int; discountBp : ?Nat; lines : [PurchaseLine]; extra : Extra };
 

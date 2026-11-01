@@ -3194,7 +3194,9 @@ export interface PayRow {
   'totalCents' : bigint,
   'text' : string,
   'discountBp' : [] | [bigint],
+  'warnings' : Array<string>,
   'brief' : PurchaseBrief,
+  'withholdCents' : bigint,
   'payCents' : bigint,
 }
 export interface Permit {
@@ -3922,6 +3924,7 @@ export interface Purchase {
   'oaStatementRef' : string,
   'createdAt' : bigint,
   'createdBy' : PersonId,
+  'withheldDay' : [] | [Day],
   'extra' : Extra,
   'updatedAt' : bigint,
   'updatedBy' : PersonId,
@@ -3964,6 +3967,7 @@ export interface PurchaseBrief {
   'invoiceDay' : bigint,
   'orgId' : bigint,
   'kind' : PurchaseKind,
+  'withheldDay' : [] | [bigint],
   'openClaims' : bigint,
   'updatedAt' : bigint,
   'discountUntil' : [] | [bigint],
@@ -3988,6 +3992,7 @@ export interface PurchaseCostView {
   'number' : string,
   'kindName' : string,
   'purchaseId' : bigint,
+  'lineId' : bigint,
 }
 export interface PurchaseDayView {
   'day' : bigint,
@@ -4025,6 +4030,7 @@ export interface PurchaseFullView {
   'headerFlags' : Array<OaFlag>,
   'decision' : [] | [PurchaseDecisionView],
   'discountCents' : [] | [bigint],
+  'withholdSocialCents' : bigint,
   'finalWorkIds' : Array<bigint>,
   'netCents' : bigint,
   'advances' : Array<PurchaseAdvanceView>,
@@ -4044,8 +4050,10 @@ export interface PurchaseFullView {
   'canPay' : boolean,
   'brief' : PurchaseBrief,
   'periodTo' : [] | [bigint],
+  'partsNetCents' : bigint,
   'reverseMention' : boolean,
   'vatRegime' : OaVatRegime,
+  'withholdFiscalCents' : bigint,
   'flagCount' : bigint,
 }
 export interface PurchaseInput {
@@ -4083,8 +4091,10 @@ export interface PurchaseLine {
   'unit' : string,
   'description' : string,
   'amountCents' : bigint,
+  'extra' : Extra,
   'persons' : [] | [bigint],
   'workId' : [] | [WorkId],
+  'lineId' : bigint,
   'passOn' : boolean,
 }
 export interface PurchaseLineInput {
@@ -4098,6 +4108,7 @@ export interface PurchaseLineInput {
   'amountCents' : bigint,
   'persons' : [] | [bigint],
   'workId' : [] | [bigint],
+  'lineId' : [] | [bigint],
   'passOn' : boolean,
 }
 export interface PurchaseLineView {
@@ -4117,6 +4128,7 @@ export interface PurchaseLineView {
   'index' : bigint,
   'postTitle' : string,
   'workId' : [] | [bigint],
+  'lineId' : bigint,
   'agreedCents' : [] | [bigint],
   'passOn' : boolean,
   'workCode' : string,
@@ -6588,7 +6600,10 @@ export interface _SERVICE {
     Result_1
   >,
   'markProgressPrepared' : ActorMethod<[bigint], Result_1>,
-  'markPurchasePaid' : ActorMethod<[bigint, bigint, [] | [bigint]], Result_1>,
+  'markPurchasePaid' : ActorMethod<
+    [bigint, bigint, [] | [bigint], [] | [bigint]],
+    Result_1
+  >,
   'me' : ActorMethod<[], MeView>,
   'measurePost' : ActorMethod<[bigint, bigint], MeasurePostDetail>,
   'measureSettings' : ActorMethod<[], MeasureSettingsView>,

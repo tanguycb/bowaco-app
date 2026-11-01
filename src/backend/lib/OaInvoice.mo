@@ -343,7 +343,7 @@ module {
     let day = rateDay(inv);
     let w = inv.workId;
     let org = inv.orgId;
-    let (advOther, dedOther) = Purchase.advanceSums(c.pur, w, org, ?pid);
+    let (advOther, dedOther) = Purchase.advanceSums(c.pur, w, org, ?pid, ?(p.invoiceDay, p.id));
     let allowed = Purchase.allowedAdvance(c.deals, w, org);
     var myAdv : Int = 0;
     var myDed : Int = 0;
@@ -421,7 +421,9 @@ module {
           };
           var sum : Int = 0;
           for (x in cls.values()) { sum += x.hoursMilli };
-          if (sum != lc.line.qtyMilli) { qf := plus(qf, "uren-som-dagen") };
+          if (absI(sum - lc.line.qtyMilli) > Purchase.hourTolerance * cls.size()) { qf := plus(qf, "uren-som-dagen") };
+          // Ploeguren (review L5): de personen van een dag ≠ de ploeg van de regel.
+          switch (pl.kind, pl.persons) { case (#crew, ?n) { if (cls.any(func(x : Types.HourClaim) : Bool = x.persons != n)) { qf := plus(qf, "ploeg-personen") } }; case _ {} };
           for (x in cls.values()) {
             switch (Purchase.claimState(c.settings, c.reports, x)) {
               case "te-bevestigen" { qf := plus(qf, "uren-niet-bevestigd") };
@@ -484,6 +486,8 @@ module {
       case "uren-som-dagen" "de uren van de regel ≠ de som van de dagen";
       case "uren-niet-bevestigd" "uren nog niet bevestigd door de werfleider";
       case "uren-klopt-niet" "de werfleider zegt: de uren kloppen niet";
+      case "ploeg-personen" "de personen van een dag ≠ de ploeg van de regel";
+      case "som-werfdelen" "som van de werfdelen ≠ bedrag excl. btw van de factuur";
       case _ k;
     };
   };

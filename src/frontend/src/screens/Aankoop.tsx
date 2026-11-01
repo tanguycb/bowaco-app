@@ -81,7 +81,7 @@ export function PayList({ caps, go }: { caps: Caps; go: (to: string) => void }) 
             <li key={String(r.brief.id)}>
               <button type="button" className="a-list__btn" onClick={() => go(`oa-facturen/aankoop/${r.brief.id}`)}>
                 <span className="a-tag bw-mono">{r.brief.number}</span>
-                <span className="a-list__main"><b>{r.brief.orgName}</b><span className="bw-muted">{r.text}</span></span>
+                <span className="a-list__main"><b>{r.brief.orgName}</b><span className="bw-muted">{r.text}</span>{r.warnings.map((w) => <span key={w} className="a-tag a-tag--warn">{TA.payWarnings[w] ?? w}</span>)}</span>
                 <span className="bw-mono">{fmtEuro(r.payCents)}</span>
                 <Icon name="next" size={18} />
               </button>

@@ -12,14 +12,22 @@ import { TA } from "./Aankoop";
 import { euroIn, parseEuroSigned, roundDiv } from "./OaFacturen";
 import { fmtQty, parseQty } from "./Offertes";
 
-type DayForm = { day: string; persons: string; from: string; to: string; pause: string };
-type LineForm = { work: string; kind: string; root: string; description: string; persons: string; qty: string; unit: string; price: string; amount: string; passOn: boolean; days: DayForm[] };
+type DayForm = { day: string; persons: string; slots: string; pause: string };
+type LineForm = { lineId?: bigint; work: string; kind: string; root: string; description: string; persons: string; qty: string; unit: string; price: string; amount: string; passOn: boolean; days: DayForm[] };
 const KINDS = ["post", "regie", "ploeg", "transport", "diesel", "kmheffing", "materiaal", "container", "machine", "voorschot", "aftrek-voorschot"];
 const OA_ONLY = new Set(["post", "regie", "ploeg", "voorschot", "aftrek-voorschot"]);
 const HOURS = new Set(["regie", "ploeg"]);
 const COST = new Set(["transport", "diesel", "kmheffing", "materiaal", "container", "machine"]);
 const UNITS: Record<string, string> = { regie: "u", ploeg: "u", transport: "uur", diesel: "km", kmheffing: "km", container: "ton", machine: "dag", materiaal: "st", voorschot: "", "aftrek-voorschot": "" };
 const toMin = (s: string): bigint | null => { const m = s.trim().match(/^(\d{1,2})[:.h]?(\d{2})?$/); if (!m) return null; const h = Number(m[1]); const mm = Number(m[2] ?? 0); return h <= 24 && mm < 60 ? BigInt(h * 60 + mm) : null; };
+// "07:30-12:00, 12:30-16:00" → tijdvakken (review L2: niet samenplooien, zodat de dag dezelfde blijft en de bevestiging blijft).
+const parseSlots = (s: string): { fromMin: bigint; toMin: bigint }[] | null => {
+  const parts = s.split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  const out = [];
+  for (const p of parts) { const m = p.split(/\s*[-–]\s*/); if (m.length !== 2) return null; const a = toMin(m[0]); const b = toMin(m[1]); if (a === null || b === null) return null; out.push({ fromMin: a, toMin: b }); }
+  return out;
+};
 const hm = (m: bigint) => `${String(Number(m) / 60 | 0).padStart(2, "0")}:${String(Number(m) % 60).padStart(2, "0")}`;
 const emptyLine = (work: string, passOn: boolean): LineForm => ({ work, kind: "regie", root: "", description: "", persons: "", qty: "", unit: "u", price: "", amount: "", passOn, days: [] });
 
@@ -54,7 +62,7 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
     if (!v) return;
     const b = v.brief;
     setF({ kind: b.kind, orgId: String(b.orgId), number: b.number, day: dayToInput(b.invoiceDay), due: dayToInput(b.dueDay), discUntil: dayToInput(b.discountUntil), discPct: v.discountBp !== undefined ? String(Number(v.discountBp) / 100).replace(".", ",") : "", from: dayToInput(v.periodFrom), to: dayToInput(v.periodTo), regime: v.vatRegime.__kind__ === "reverse" ? "reverse" : String(v.vatRegime.normal), mention: v.reverseMention, net: euroIn(v.netCents), vat: euroIn(v.vatCents), total: euroIn(v.totalCents), note: v.note, statRef: v.oaStatementRef });
-    setLines(v.lines.map((l) => ({ work: l.workId !== undefined ? String(l.workId) : "general", kind: l.kind, root: l.root !== undefined ? String(l.root) : "", description: l.description, persons: l.persons !== undefined ? String(l.persons) : "", qty: fmtQty(l.qtyMilli), unit: l.unit, price: euroIn(l.unitCents), amount: euroIn(l.amountCents), passOn: l.passOn, days: l.days.map((d) => ({ day: dayToInput(d.day), persons: String(d.persons), from: d.slots[0] ? hm(d.slots[0].fromMin) : "", to: d.slots[0] ? hm(d.slots[d.slots.length - 1].toMin) : "", pause: String(d.pauseMin) })) })));
+    setLines(v.lines.map((l) => ({ work: l.workId !== undefined ? String(l.workId) : "general", kind: l.kind, root: l.root !== undefined ? String(l.root) : "", description: l.description, persons: l.persons !== undefined ? String(l.persons) : "", qty: fmtQty(l.qtyMilli), unit: l.unit, price: euroIn(l.unitCents), amount: euroIn(l.amountCents), passOn: l.passOn, days: l.days.map((d) => ({ day: dayToInput(d.day), persons: String(d.persons), slots: d.slots.map((x) => `${hm(x.fromMin)}-${hm(x.toMin)}`).join(", "), pause: String(d.pauseMin) })), lineId: l.lineId })));
     setFile(v.file ? { id: v.file.id, name: v.file.name } : null);
     setStat(v.statement ? { id: v.statement.id, name: v.statement.name } : null);
     setFinals(v.finalWorkIds.map(String));
@@ -72,13 +80,12 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
     const days = [];
     for (const d of l.days) {
       const day = inputToDay(d.day);
-      const a = toMin(d.from);
-      const b = toMin(d.to);
-      if (day === undefined || a === null || b === null || !/^\d+$/.test(d.persons) || !/^\d*$/.test(d.pause)) return null;
-      days.push({ day, persons: BigInt(d.persons), slots: [{ fromMin: a, toMin: b }], pauseMin: BigInt(d.pause || "0") });
+      const slots = parseSlots(d.slots);
+      if (day === undefined || slots === null || !/^\d+$/.test(d.persons) || !/^\d*$/.test(d.pause)) return null;
+      days.push({ day, persons: BigInt(d.persons), slots, pauseMin: BigInt(d.pause || "0") });
     }
     const general = l.work === "general";
-    return { workId: general ? undefined : BigInt(l.work), kind: l.kind, root: (l.kind === "post" || HOURS.has(l.kind)) && l.root ? BigInt(l.root) : undefined, description: l.description, persons: l.kind === "ploeg" && /^\d+$/.test(l.persons) ? BigInt(l.persons) : undefined, qtyMilli: qty, unit: l.unit, unitCents: unit, amountCents: amount, passOn: !general && COST.has(l.kind) && l.passOn, days: HOURS.has(l.kind) && !general ? days : [] };
+    return { workId: general ? undefined : BigInt(l.work), kind: l.kind, root: (l.kind === "post" || HOURS.has(l.kind)) && l.root ? BigInt(l.root) : undefined, description: l.description, persons: l.kind === "ploeg" && /^\d+$/.test(l.persons) ? BigInt(l.persons) : undefined, qtyMilli: qty, unit: l.unit, unitCents: unit, amountCents: amount, passOn: !general && COST.has(l.kind) && l.passOn, days: HOURS.has(l.kind) && !general ? days : [], lineId: l.lineId };
   };
   const outs = lines.map(lineOut);
   const sum = outs.reduce((a, l) => a + (l?.amountCents ?? 0n), 0n);
@@ -162,9 +169,9 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
         {f.kind === "oa" && fld(TA.statementRef, <input className="bw-input" value={f.statRef} onChange={(e) => setF({ ...f, statRef: e.target.value })} />)}
         {fld(TA.note, <textarea className="bw-input" rows={2} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />)}
       </section>
-      <LinesEditor lines={lines} outs={outs} kinds={kinds} works={(works.data ?? []).map((w) => ({ id: String(w.id), label: `${w.code} · ${w.name}` }))} upLine={upLine} upDay={upDay} setLines={setLines} passOnDefault={set.data?.passOn ?? true} />
+      <LinesEditor oa={f.kind === "oa"} lines={lines} outs={outs} kinds={kinds} works={(works.data ?? []).map((w) => ({ id: String(w.id), label: `${w.code} · ${w.name}` }))} upLine={upLine} upDay={upDay} setLines={setLines} passOnDefault={set.data?.passOn ?? true} />
       <div className="a-row a-row--between">
-        <Button icon="plus" onClick={() => setLines((ls) => [...ls, emptyLine(ls[ls.length - 1]?.work ?? w0, false)])} data-testid="pu-add-line">{TA.addLine}</Button>
+        <Button icon="plus" onClick={() => setLines((ls) => [...ls, emptyLine(ls[ls.length - 1]?.work || w0 || (f.kind === "oa" ? String((works.data ?? [])[0]?.id ?? "") : ""), false)])} data-testid="pu-add-line">{TA.addLine}</Button>
         <span className={`bw-mono${net !== null && sum !== net ? " a-err" : ""}`}>{TA.sumLines}: {fmtEuro(sum)}{net !== null && sum !== net ? ` ≠ ${fmtEuro(net)}` : ""}</span>
       </div>
       {f.kind === "oa" && workIds.length > 0 && (
@@ -176,7 +183,7 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
   );
 }
 
-function LinesEditor({ lines, outs, kinds, works, upLine, upDay, setLines, passOnDefault }: { lines: LineForm[]; outs: (PurchaseLineInput | null)[]; kinds: string[]; works: { id: string; label: string }[]; upLine: (k: number, x: Partial<LineForm>) => void; upDay: (k: number, j: number, x: Partial<DayForm>) => void; setLines: React.Dispatch<React.SetStateAction<LineForm[]>>; passOnDefault: boolean }) {
+function LinesEditor({ oa, lines, outs, kinds, works, upLine, upDay, setLines, passOnDefault }: { oa: boolean; lines: LineForm[]; outs: (PurchaseLineInput | null)[]; kinds: string[]; works: { id: string; label: string }[]; upLine: (k: number, x: Partial<LineForm>) => void; upDay: (k: number, j: number, x: Partial<DayForm>) => void; setLines: React.Dispatch<React.SetStateAction<LineForm[]>>; passOnDefault: boolean }) {
   return (
     <section className="vs-section">
       <h2 className="bw-h3">{TA.lines}</h2>
@@ -191,7 +198,7 @@ function LinesEditor({ lines, outs, kinds, works, upLine, upDay, setLines, passO
                 <select className="bw-input" value={l.work} onChange={(e) => upLine(k, { work: e.target.value, root: "" })} data-testid="pu-line-work">
                   <option value="">—</option>
                   {works.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
-                  <option value="general">{TA.general}</option>
+                  {!oa && <option value="general">{TA.general}</option>}
                 </select>
               </label>
               <label className="bw-field"><span className="bw-label">{TA.costKind}</span>
@@ -218,13 +225,12 @@ function LinesEditor({ lines, outs, kinds, works, upLine, upDay, setLines, passO
                   <div key={j} className="a-row pu-day" data-testid="pu-day">
                     <input type="date" className="bw-input" value={d.day} onChange={(e) => upDay(k, j, { day: e.target.value })} />
                     <input className="bw-input bw-num" style={{ maxWidth: 60 }} inputMode="numeric" aria-label={TA.persons} value={d.persons} onChange={(e) => upDay(k, j, { persons: e.target.value })} />
-                    <input className="bw-input" style={{ maxWidth: 80 }} aria-label={TA.from} placeholder="07:30" value={d.from} onChange={(e) => upDay(k, j, { from: e.target.value })} />
-                    <input className="bw-input" style={{ maxWidth: 80 }} aria-label={TA.to} placeholder="16:00" value={d.to} onChange={(e) => upDay(k, j, { to: e.target.value })} />
+                    <input className="bw-input" style={{ maxWidth: 220 }} aria-label={TA.slots} placeholder="07:30-12:00, 12:30-16:00" value={d.slots} onChange={(e) => upDay(k, j, { slots: e.target.value })} />
                     <input className="bw-input bw-num" style={{ maxWidth: 70 }} inputMode="numeric" aria-label={TA.pause} placeholder="30" value={d.pause} onChange={(e) => upDay(k, j, { pause: e.target.value })} />
                     <Button variant="quiet" icon="close" iconOnly onClick={() => upLine(k, { days: l.days.filter((_, m) => m !== j) })}>{TA.removeLine}</Button>
                   </div>
                 ))}
-                <Button variant="quiet" icon="plus" onClick={() => upLine(k, { days: [...l.days, { day: "", persons: l.persons || "1", from: "07:30", to: "16:00", pause: "30" }] })} data-testid="pu-add-day">{TA.addDay}</Button>
+                <Button variant="quiet" icon="plus" onClick={() => upLine(k, { days: [...l.days, { day: "", persons: l.persons || "1", slots: "07:30-16:00", pause: "30" }] })} data-testid="pu-add-day">{TA.addDay}</Button>
               </div>
             )}
             <div className="a-row"><Button variant="quiet" icon="close" onClick={() => setLines((ls) => ls.filter((_, i) => i !== k))}>{TA.removeLine}</Button></div>
