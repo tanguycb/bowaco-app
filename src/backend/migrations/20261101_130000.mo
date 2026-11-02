@@ -35,6 +35,8 @@ module {
     documentIds : [Nat]; // documenten van 1.1 (vragenlijst, polis, bemiddelingsfiche, vervaldagbericht, attest)
     attestDocId : ?Nat; // het attest voor de klant (een van de documenten)
     attestSharedAt : ?Int; // kantoor deelde het attest met de klant (Mijn werf)
+    attestFileId : ?Nat; // het bestand dat toen gedeeld werd (een latere versie in het dossier blijft verborgen)
+    rev : Nat; // verhoogt bij elke wijziging; wie met een oudere rev bewaart, krijgt een fout
     note : Text;
     createdAt : Int;
     createdBy : PersonId;
@@ -44,7 +46,7 @@ module {
     extra : Extra;
   };
   // klasse: vertrouwelijk. Werfwaarde en premie. rateMilli = ‰ in duizendsten (3,04 ‰ = 3040).
-  type InsuranceConf = { insuranceId : Nat; workValueCents : ?Int; rateMilli : ?Nat; minPremiumCents : ?Int; premiumNetCents : ?Int; taxesCents : ?Int; paid : Bool; extra : Extra };
+  type InsuranceConf = { insuranceId : Nat; workValueCents : ?Int; rateMilli : ?Nat; minPremiumCents : ?Int; premiumNetCents : ?Int; taxesCents : ?Int; paid : Bool; rev : Nat; extra : Extra };
   // klasse: intern. Een werfvergadering; de actiepunten zijn taken (taskIds).
   type SiteMeeting = {
     id : Nat;
@@ -55,6 +57,7 @@ module {
     fileId : ?Nat; // het verslag van de architect
     taskIds : [Nat];
     note : Text;
+    rev : Nat;
     createdAt : Int;
     createdBy : PersonId;
     updatedAt : Int;
@@ -75,6 +78,8 @@ module {
     pvFileId : ?Nat; // het PV van de architect
     taskIds : [Nat]; // restpunten
     signedFileId : ?Nat; // het getekende document
+    docNote : Text; // opmerking OP het opleveringsdocument (de klant ziet die); de interne notitie komt nooit in de PDF
+    rev : Nat;
     docFileId : ?Nat; // het opleveringsdocument (PDF) voor de klant, vast bij afronden
     controlCode : ?Text; // sha-256 (hex) van dat document
     finishedAt : ?Int;

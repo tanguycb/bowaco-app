@@ -181,7 +181,7 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
   const id = w.id;
   switch (tab.key) {
     case "overzicht":
-      return client || !caps.readTeam ? <><ExternOverzicht w={w} caps={caps} go={go} client={client} />{client && caps.myWorks && <ClientSiteDocs workId={w.id} />}</> : <Overzicht w={w} caps={caps} go={go} fase={fase} />;
+      return client || !caps.readTeam ? <><ExternOverzicht w={w} caps={caps} go={go} client={client} />{(caps.myWorks || caps.myMinMeer) && <ClientSiteDocs workId={w.id} />}</> : <Overzicht w={w} caps={caps} go={go} fase={fase} />;
     case "offerte": {
       if (client) return <MyQuotes go={go} embedded workName={w.name} />;
       // 2c.2/2c.3: subtabbladen Versies · Prijsvragen · OA-offertes (interne rollen; de werfleider ziet enkel firma's, stand en deadline).

@@ -201,7 +201,7 @@ mixin (
     let mapKey = "docKind:" # key;
     let old = settings.lookups.get(mapKey);
     let isNew = switch old { case null true; case (?_) false };
-    if (isNew and Dossier.kinds(settings, true).size() >= Config.maxDocKinds) { return #err("Te veel documentsoorten") };
+    if (isNew and Dossier.ownKindCount(settings) >= Config.maxDocKinds) { return #err("Te veel documentsoorten") };
     // Vertrouwelijk wordt een soort niet meer af: bestaande documenten blijven vertrouwelijk (Dossier.docAccess).
     let archivedAt : ?Int = if (k.archived) {
       switch old { case (?o) { switch (o.archivedAt) { case (?a) ?a; case null ?Time.now() } }; case null ?Time.now() };

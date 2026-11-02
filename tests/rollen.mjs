@@ -2122,15 +2122,22 @@ await sec("── 2c.8 werfadministratie en oplevering per rol (R45, R46; de res
 {
   const others = [["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon]];
   const caps = async (x) => (await x.me()).caps[0];
-  const insIn = { id: [], workId: [A], kind: { rc10Sub: null }, insurerOrgId: [], brokerOrgId: [], policyRef: "PR-2C8", periodFrom: [], periodTo: [], status: { toDeclare: null }, note: "" };
+  const insIn = { id: [], workId: [A], kind: { rc10Sub: null }, insurerOrgId: [], brokerOrgId: [], policyRef: "PR-2C8", periodFrom: [], periodTo: [], status: { toDeclare: null }, note: "", rev: 0n };
   const ir = await calc.saveInsurance(insIn);
   check("calculator maakt een verzekering op werf A", isOk(ir), errOf(ir));
   const iid = ir.ok;
   check("admin leest de verzekering van werf A; de werfleider (lid van A) ook", (await admin.listInsurances([A], false)).length >= 1 && (await wl.listInsurances([A], false)).length >= 1);
   for (const [n, x] of others) check(`${n}: verzekering, vergadering, oplevering en fiches lezen en bewaren geweigerd`, (await denied(x.listInsurances([A], false))) && (await denied(x.listMeetings(A))) && (await denied(x.listHandovers(A))) && (await denied(x.listTechSheets(false))) && (await denied(x.saveInsurance(insIn))));
-  check("de werfleider ziet werfwaarde en premie niet (update-calls geweigerd)", (await denied(wl.readInsuranceConf(iid))) && (await denied(wl.saveInsuranceConf(iid, { workValueCents: [1000n], rateMilli: [], minPremiumCents: [], taxesCents: [], paid: false }))));
+  check("de werfleider ziet werfwaarde en premie niet (update-calls geweigerd)", (await denied(wl.readInsuranceConf(iid))) && (await denied(wl.saveInsuranceConf(iid, { workValueCents: [1000n], rateMilli: [], minPremiumCents: [], taxesCents: [], paid: false, rev: 0n }))));
   check("calculator en admin lezen de premie (update-call met auditregel bekeek:verzekering)", isOk(await calc.readInsuranceConf(iid)) && isOk(await admin.readInsuranceConf(iid)) && (await admin.auditLog(0n, 40n)).some((l) => l.action === "bekeek:verzekering"));
-  check("de werfleider van werf A bewaart een vergadering; de bibliotheek van fiches enkel kantoor", isOk(await wl.saveMeeting(A, { id: [], day: 20_000n, attendees: [], fileId: [], note: "", addPoints: [] })) && (await denied(wl.saveTechSheet({ id: [], materialKey: "x", title: "x", fileId: 1n, supplierOrgId: [] }))));
+  check("de werfleider van werf A bewaart een vergadering; de bibliotheek van fiches enkel kantoor", isOk(await wl.saveMeeting(A, { id: [], opId: "", rev: 0n, day: 20_000n, attendees: [], fileId: [], note: "", addPoints: [] })) && (await denied(wl.saveTechSheet({ id: [], materialKey: "x", title: "x", fileId: 1n, supplierOrgId: [] }))));
+  check("review M5: de calculator maakt geen planningstaken: vergadering, oplevering en afronden vragen de beheerder of de werfleider van de werf", (await denied(calc.saveMeeting(A, { id: [], opId: "", rev: 0n, day: 20_000n, attendees: [], fileId: [], note: "", addPoints: [] }))) && (await denied(calc.saveHandover(A, { id: [], opId: "", rev: 0n, kind: { provisional: null }, day: [], attendees: [], pvFileId: [], signedFileId: [], note: "", docNote: "", addPoints: [] }))) && (await denied(calc.finishHandover(999_999n, 1n, "0".repeat(64)))));
+  // Review M2: een klant van een ANDERE firma op dezelfde werf ziet niets (zoals QuoteClientApi).
+  const orgAnder = await org("client", "Proef Andere Klant NV");
+  const inv2 = await invite(admin, "Proef Klant Andere Firma", roles("klant"), { orgId: orgAnder.ok.id, workIds: [A] });
+  const klantB = await freshBackend(cid);
+  check("een tweede klant (andere firma) op werf A", isOk(await klantB.redeemCode(inv2.ok.code)));
+  check("review M2: de klant van een andere firma op dezelfde werf ziet de klantweergave niet; de eigen klant wel", (await denied(klantB.clientSiteAdmin(A))) && Array.isArray((await klant.clientSiteAdmin(A)).attests));
   check("klant: geen werfadministratie van kantoor; de klantweergave bestaat (leeg zolang niets gedeeld is)", (await denied(klant.listInsurances([A], false))) && Array.isArray((await klant.clientSiteAdmin(A)).attests));
   check("enkel de beheerder bewaart de instellingen en draait de ronde", (await denied(calc.saveSiteAdminSettings({ codeP: false, rates: [] }))) && (await denied(wl.scanSiteAdmin())) && (await denied(calc.scanSiteAdmin())));
   check("caps: siteAdmin voor interne rollen, editSiteAdmin voor kantoor, myWorks voor de klant", (await caps(wl)).siteAdmin && !(await caps(wl)).editSiteAdmin && (await caps(calc)).editSiteAdmin && (await caps(klant)).myWorks);

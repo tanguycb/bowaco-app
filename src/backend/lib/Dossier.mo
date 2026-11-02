@@ -167,6 +167,9 @@ module {
     all.filter(func k = withArchived or not k.archived).sort(func(a, b) = Nat.compare(a.order, b.order));
   };
 
+  // Review L11: het aantal soorten dat de admin zelf in de lijst heeft staan (de standaardsoorten die er virtueel bijkomen tellen niet mee voor de grens).
+  public func ownKindCount(s : Types.SettingsState) : Nat { s.lookups.keys().filter(isKindKey).size() };
+
   // Zet de standaardlijst in de keuzelijsten, zodat de admin ze daarna kan aanpassen.
   public func materialize(s : Types.SettingsState) {
     if (s.lookups.keys().any(isKindKey)) { return };

@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ExternalBlob, type InsuranceConfInput, type InsuranceInput, type InsuranceView, type WorkView } from "../backend";
-import { Button, Sheet, useToast } from "../design";
+import { Button, Confirm, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, inputToDay, parseEuro, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -23,10 +23,10 @@ export function premiumCents(valueCents: bigint, rateMilli: bigint, minCents: bi
 }
 
 /** Een bestand zonder vertrouwelijkheid opladen bij een werf (of zonder werf); geeft het id. */
-export async function uploadPlain(actor: NonNullable<ReturnType<typeof useBackend>["actor"]>, x: File, workId: bigint | undefined): Promise<bigint> {
+export async function uploadPlain(actor: NonNullable<ReturnType<typeof useBackend>["actor"]>, x: File, workId: bigint | undefined, confidential = false): Promise<bigint> {
   if (!["application/pdf", "image/jpeg", "image/png"].includes(x.type)) throw new Error(t.oaFacturen.fileType);
   const bytes = new Uint8Array(await x.arrayBuffer());
-  return unwrap(await actor.addFile(x.name, x.type, BigInt(bytes.length), ExternalBlob.fromBytes(bytes, x.type, x.name), workId ?? null, false));
+  return unwrap(await actor.addFile(x.name, x.type, BigInt(bytes.length), ExternalBlob.fromBytes(bytes, x.type, x.name), workId ?? null, confidential));
 }
 
 export const kindKey = (k: InsuranceView["kind"]) => (k.__kind__ === "rc10Sub" ? "rc10" : k.__kind__ === "other" ? "other" : k.__kind__);
@@ -56,7 +56,7 @@ function InsuranceForm({ w, cur, onClose }: { w: bigint | undefined; cur?: Insur
     mutationFn: async () => {
       const kind = f.kind === "rc10" ? { __kind__: "rc10Sub" as const, rc10Sub: null } : f.kind === "other" ? { __kind__: "other" as const, other: f.other } : f.kind === "ba10" ? { __kind__: "ba10" as const, ba10: null } : { __kind__: "abr" as const, abr: null };
       const status = f.status === "declared" ? { __kind__: "declared" as const, declared: inputToDay(f.declared) ?? 0n } : f.status === "notNeeded" ? { __kind__: "notNeeded" as const, notNeeded: f.reason } : f.status === "insured" ? { __kind__: "insured" as const, insured: null } : { __kind__: "toDeclare" as const, toDeclare: null };
-      const i: InsuranceInput = { id: cur?.id, workId: w, kind, insurerOrgId: f.insurer ? BigInt(f.insurer) : undefined, brokerOrgId: f.broker ? BigInt(f.broker) : undefined, policyRef: f.policy, periodFrom: inputToDay(f.from), periodTo: inputToDay(f.to), status, note: f.note };
+      const i: InsuranceInput = { id: cur?.id, workId: w, kind, insurerOrgId: f.insurer ? BigInt(f.insurer) : undefined, brokerOrgId: f.broker ? BigInt(f.broker) : undefined, policyRef: f.policy, periodFrom: inputToDay(f.from), periodTo: inputToDay(f.to), status, note: f.note, rev: cur?.rev ?? 0n };
       return unwrap(await actor!.saveInsurance(i));
     },
     onSuccess: () => { toast.show({ kind: "ok", text: I.saved }); void qc.invalidateQueries({ queryKey: ["insurances"] }); onClose(); },
@@ -103,8 +103,22 @@ function PremiumSheet({ ins, onClose }: { ins: InsuranceView; onClose: () => voi
   const effRate = rate ?? cur.data?.defaultRateMilli ?? 0n;
   const effMin = min ?? cur.data?.defaultMinCents ?? 0n;
   const prem = valid && value !== undefined ? premiumCents(value, effRate, effMin) : null;
+  // Review L14: veranderde de soort of het tarief sinds de premie bewaard werd, dan zegt het scherm dat (opnieuw bewaren herrekent de premie).
+  const changed = cur.data !== undefined && valid && value !== undefined && cur.data.premiumNetCents !== undefined && prem !== cur.data.premiumNetCents;
+  const sheet = useMutation({
+    mutationFn: async () => {
+      const d = unwrap(await actor!.insuranceSheet(ins.id));
+      const [{ insuranceSheetPdf }, { loadPdfFonts }] = await Promise.all([import("../pdf/verzekering.ts"), import("../pdf/fonts.ts")]);
+      const bytes = await insuranceSheetPdf({ kindName: d.kindName, policyRef: d.policyRef, insurer: d.insurerName, broker: d.brokerName, period: `${fmtDayNum(d.periodFrom)} – ${fmtDayNum(d.periodTo)}`, workCode: d.workCode, workName: d.workName, address: d.address, client: d.clientName, architect: d.architectName, start: fmtDayNum(d.startDay), end: fmtDayNum(d.endDay), workValue: d.workValueCents !== undefined ? fmtEuro(d.workValueCents) : "—", vat: `${Number(d.vatBp) / 100} %`, madeOn: fmtDayNum(BigInt(Math.floor(Date.now() / 86_400_000))) }, await loadPdfFonts());
+      const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `gegevens-verzekering-${d.workCode}.pdf`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
   const save = useMutation({
-    mutationFn: async () => { const i: InsuranceConfInput = { workValueCents: value ?? undefined, rateMilli: rate ?? undefined, minPremiumCents: min ?? undefined, taxesCents: taxes ?? undefined, paid: f.paid }; return unwrap(await actor!.saveInsuranceConf(ins.id, i)); },
+    mutationFn: async () => { const i: InsuranceConfInput = { workValueCents: value ?? undefined, rateMilli: rate ?? undefined, minPremiumCents: min ?? undefined, taxesCents: taxes ?? undefined, paid: f.paid, rev: cur.data?.rev ?? 0n }; return unwrap(await actor!.saveInsuranceConf(ins.id, i)); },
     onSuccess: () => { toast.show({ kind: "ok", text: I.saved }); void qc.invalidateQueries({ queryKey: ["insuranceConf"] }); onClose(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
@@ -123,6 +137,8 @@ function PremiumSheet({ ins, onClose }: { ins: InsuranceView; onClose: () => voi
           <Field label={I.taxes}><input className="bw-input bw-mono" inputMode="decimal" value={f.taxes} onChange={set("taxes")} /></Field>
           <label className="a-check"><input type="checkbox" checked={f.paid} onChange={(e) => setF({ ...f, paid: e.target.checked })} />{I.paid}</label>
           <p><b>{I.premiumNet}:</b> {prem === null ? I.noPremium : fmtEuro(prem)}</p>
+          {changed && <p className="a-err" role="status">{I.rateChanged(cur.data.premiumNetCents !== undefined ? fmtEuro(cur.data.premiumNetCents) : "—")}</p>}
+          <div><Button variant="quiet" busy={sheet.isPending} onClick={() => sheet.mutate()}>{I.sheetPdf}</Button></div>
         </div>
       )}
     </Sheet>
@@ -136,10 +152,11 @@ function InsuranceRow({ ins, workId, openFile }: { ins: InsuranceView; workId: b
   const [edit, setEdit] = useState(false);
   const [prem, setPrem] = useState(false);
   const [kindDoc, setKindDoc] = useState("verzekering");
+  const [askArchive, setAskArchive] = useState(false);
   const refresh = () => void qc.invalidateQueries({ queryKey: ["insurances"] });
   const run = useMutation({ mutationFn: async (fn: () => Promise<unknown>) => fn(), onSuccess: refresh, onError: (e) => toast.show({ kind: "error", text: errText(e) }) });
   const attach = useMutation({
-    mutationFn: async (x: File) => { const fid = await uploadPlain(actor!, x, workId); return unwrap(await actor!.attachInsuranceFile(ins.id, kindDoc === "attest" ? "verzekering-attest" : "verzekering", x.name.replace(/\.[^.]+$/, ""), fid, kindDoc === "attest")); },
+    mutationFn: async (x: File) => { const fid = await uploadPlain(actor!, x, workId, kindDoc !== "attest"); return unwrap(await actor!.attachInsuranceFile(ins.id, kindDoc === "attest" ? "verzekering-attest" : "verzekering", x.name.replace(/\.[^.]+$/, ""), fid, kindDoc === "attest")); },
     onSuccess: refresh, onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   const s = ins.status;
@@ -166,9 +183,10 @@ function InsuranceRow({ ins, workId, openFile }: { ins: InsuranceView; workId: b
             </>
           )}
           {ins.canSeeCosts && ins.attestDocId !== undefined && <Button variant="quiet" busy={run.isPending} onClick={() => run.mutate(async () => unwrap(await actor!.shareInsuranceAttest(ins.id, !ins.attestShared)))}>{ins.attestShared ? I.unshare : I.share}</Button>}
-          <Button variant="quiet" onClick={() => run.mutate(async () => unwrap(await actor!.archiveInsurance(ins.id)))}>{I.archive}</Button>
+          <Button variant="quiet" onClick={() => setAskArchive(true)}>{I.archive}</Button>
         </span>
       )}
+      <Confirm open={askArchive} title={I.archive} text={I.archiveAsk(ins.kindName)} confirmLabel={I.archive} busy={run.isPending} onClose={() => setAskArchive(false)} onConfirm={() => run.mutate(async () => { unwrap(await actor!.archiveInsurance(ins.id)); setAskArchive(false); })} />
       {edit && <InsuranceForm w={workId} cur={ins} onClose={() => setEdit(false)} />}
       {prem && <PremiumSheet ins={ins} onClose={() => setPrem(false)} />}
     </li>
@@ -200,7 +218,9 @@ export function useOpenFile(workId: bigint | undefined) {
     void (async () => {
       try {
         const list = await actor!.listFiles(workId ?? null);
-        const u = list.find((f) => f.id === id)?.blob?.getDirectURL();
+        const f = list.find((x) => x.id === id);
+        // Stukken met werfwaarde of premie zijn vertrouwelijk: de opslag-URL komt dan enkel uit een update-call met auditregel (kantoor).
+        const u = f?.confidential ? unwrap(await actor!.readConfidentialFile(id)).blob?.getDirectURL() : f?.blob?.getDirectURL();
         if (!u) throw new Error(t.common.error);
         window.open(u, "_blank", "noopener");
       } catch (e) {

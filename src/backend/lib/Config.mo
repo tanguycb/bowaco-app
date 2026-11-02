@@ -564,4 +564,6 @@ module {
   public let maxPointsPerCall : Nat = 20;
   public let maxAttendees : Nat = 30;
   public let maxTechSheets : Nat = 1_000;
+  public let maxInsurancesPerWork : Nat = 20;
+  public let maxScanInsurances : Nat = 200; // per tik van de uurlijkse ronde
 };

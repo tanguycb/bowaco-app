@@ -2,11 +2,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
-import { handoverPdf, handoverCode } from "../src/frontend/src/pdf/oplevering.ts";
+import { handoverPdf, handoverCode, handoverText } from "../src/frontend/src/pdf/oplevering.ts";
 import { fonts } from "./pdf-voorbeeld.mjs";
 
 export async function run(t) {
-  const { admin, calc, wl, arch, klant, vc, oaR, oaM, check, ok, isOk, errOf, denied, un, noMoney, S, fakeBlob, ctx, pass, fail } = t;
+  const { admin, calc, wl, arch, klant, klantB, vc, oaR, oaM, check, ok, isOk, errOf, denied, un, noMoney, S, fakeBlob, ctx, pass, fail } = t;
   const { W1, W2, REIGER, MEREL, KLANTNAAM, today, sfx, klantId } = ctx;
   const { PDFDocument } = createRequire(join(import.meta.dirname, "../src/frontend/package.json"))("pdf-lib");
   const nextWd = (d) => { let x = BigInt(d); while ((Number(x) + 3) % 7 > 4) x++; return x; };
@@ -17,12 +17,12 @@ export async function run(t) {
   // ── 4. Werfvergadering: actiepunten zijn taken ─────────────────────────
   const fMeet = ok(await calc.addFile("proef-verslag-vergadering-2c8.pdf", "application/pdf", 20_000n, fakeBlob("d"), [W1], false));
   const v0 = (await wl.getPlan(W1)).version;
-  const m1 = ok(await wl.saveMeeting(W1, { id: [], day: today, attendees: ["Proef Rita (Reiger)", "Proef Jan (architect)"], fileId: [fMeet], note: "", addPoints: [pt("Stopcontacten bijwerken", REIGER, nextWd(today + 3n)), pt("Plan aanpassen", MEREL), pt("Intern opvolgen", null)] }));
+  const m1 = ok(await wl.saveMeeting(W1, { id: [], opId: "", rev: 0n, day: today, attendees: ["Proef Rita (Reiger)", "Proef Jan (architect)"], fileId: [fMeet], note: "", addPoints: [pt("Stopcontacten bijwerken", REIGER, nextWd(today + 3n)), pt("Plan aanpassen", MEREL), pt("Intern opvolgen", null, today - 40n)] }));
   check("(4) werfvergadering met drie actiepunten: de firma die nog niet meewerkt krijgt een waarschuwing", m1.warnings.length === 1 && m1.warnings[0].includes("Merel"), S(m1.warnings));
-  const m2 = ok(await calc.saveMeeting(W1, { id: [], day: today, attendees: [], fileId: [], note: "tweede", addPoints: [] }));
+  const m2 = ok(await admin.saveMeeting(W1, { id: [], opId: "", rev: 0n, day: today, attendees: [], fileId: [], note: "tweede", addPoints: [] }));
   const ml = await wl.listMeetings(W1);
   check("(4) nummering per werf uit de teller: 1 en 2; de nieuwste eerst; het verslag hangt eraan", ml.length >= 2 && ml[0].number === 2n && ml[1].number === 1n && ml[1].fileName === "proef-verslag-vergadering-2c8.pdf" && ml[1].points.length === 3);
-  const m3 = ok(await calc.saveMeeting(W2, { id: [], day: today, attendees: [], fileId: [], note: "", addPoints: [] }));
+  const m3 = ok(await admin.saveMeeting(W2, { id: [], opId: "", rev: 0n, day: today, attendees: [], fileId: [], note: "", addPoints: [] }));
   check("(4) een andere werf telt apart (nummer 1)", (await calc.listMeetings(W2))[0].number === 1n && m3.id !== m1.id);
   const tk = (await tasksOf(W1)).filter((x) => x.templateKey[0] === "actiepunt");
   check("(4) de actiepunten zijn gewone taken (sleutel actiepunt) met de firma als uitvoerder; de planningsversie ging omhoog", tk.length === 3 && tk.filter((x) => x.responsibleOrgId[0] === REIGER).length === 1 && (await wl.getPlan(W1)).version > v0);
@@ -31,50 +31,77 @@ export async function run(t) {
   check("(4) de firma die niet meewerkt, ziet het punt niet", (await orgAs(oaM)).every((a) => a.taskTitle !== "Plan aanpassen"));
   check("(4) de OA leest de werfvergaderingen niet (en ziet in de planning enkel zijn eigen taak)", (await denied(oaR.listMeetings(W1))) && (await oaR.getPlan(W1)).tasks.every((x) => x.title === "Stopcontacten bijwerken") && !S(await oaR.getPlan(W1)).includes(KLANTNAAM));
   check("(4) de klant en de architect lezen de werfvergaderingen niet", (await denied(klant.listMeetings(W1))) && (await denied(arch.listMeetings(W1))));
-  check("(4) bij de vergadering van W2 mag de werfleider van W1 niets", (await denied(wl.listMeetings(W2))) && (await denied(wl.saveMeeting(W2, { id: [], day: today, attendees: [], fileId: [], note: "", addPoints: [] }))));
-  check("(4) een bestand van een andere werf of een lege titel wordt geweigerd", /bestand/i.test(errOf(await wl.saveMeeting(W1, { id: [], day: today, attendees: [], fileId: [(ok(await calc.addFile("x.pdf", "application/pdf", 1000n, fakeBlob("e"), [W2], false)))], note: "", addPoints: [] }))) && /Punt/.test(errOf(await wl.saveMeeting(W1, { id: [m2.id], day: today, attendees: [], fileId: [], note: "", addPoints: [pt("  ", null)] }))));
-  ok(await wl.saveMeeting(W1, { id: [m2.id], day: today, attendees: [], fileId: [], note: "tweede", addPoints: [pt("Extra punt", REIGER)] }));
+  check("(4) bij de vergadering van W2 mag de werfleider van W1 niets", (await denied(wl.listMeetings(W2))) && (await denied(wl.saveMeeting(W2, { id: [], opId: "", rev: 0n, day: today, attendees: [], fileId: [], note: "", addPoints: [] }))));
+  check("(4) een bestand van een andere werf of een lege titel wordt geweigerd", /bestand/i.test(errOf(await wl.saveMeeting(W1, { id: [], opId: "", rev: 0n, day: today, attendees: [], fileId: [(ok(await calc.addFile("x.pdf", "application/pdf", 1000n, fakeBlob("e"), [W2], false)))], note: "", addPoints: [] }))) && /Punt/.test(errOf(await wl.saveMeeting(W1, { id: [m2.id], opId: "", rev: 0n, day: today, attendees: [], fileId: [], note: "", addPoints: [pt("  ", null)] }))));
+  const m2v = (await wl.listMeetings(W1)).find((x) => x.id === m2.id);
+  ok(await wl.saveMeeting(W1, { id: [m2.id], opId: "", rev: m2v.rev, day: today, attendees: [], fileId: [], note: "tweede", addPoints: [pt("Extra punt", REIGER)] }));
   check("(4) punten erbij bij een bestaande vergadering", (await wl.listMeetings(W1)).find((x) => x.id === m2.id).points.length === 1);
-  ok(await calc.archiveMeeting(m2.id));
+  check("(4) review M3: bewaren met een oude rev (de vergadering veranderde intussen) wordt geweigerd", /Iemand anders/.test(errOf(await wl.saveMeeting(W1, { id: [m2.id], opId: "", rev: m2v.rev, day: today, attendees: [], fileId: [], note: "oud", addPoints: [] }))));
+  // Review L9: een opId maakt het aanmaken idempotent.
+  const op = crypto.randomUUID();
+  const mA = ok(await wl.saveMeeting(W1, { id: [], opId: op, rev: 0n, day: today, attendees: [], fileId: [], note: "idempotent", addPoints: [] }));
+  const mB = ok(await wl.saveMeeting(W1, { id: [], opId: op, rev: 0n, day: today, attendees: [], fileId: [], note: "idempotent", addPoints: [] }));
+  check("(4) review L9: dezelfde opId maakt geen tweede vergadering", mA.id === mB.id && (await wl.listMeetings(W1)).filter((x) => x.note === "idempotent").length === 1);
+  check("(4) review M5: de calculator maakt geen vergadering of actiepunt (planningstaken: beheerder of werfleider van de werf)", (await denied(calc.saveMeeting(W1, { id: [], opId: "", rev: 0n, day: today, attendees: [], fileId: [], note: "", addPoints: [] }))) && (await denied(calc.archiveMeeting(m2.id))));
+  ok(await admin.archiveMeeting(m2.id));
   check("(4) een gearchiveerde vergadering verdwijnt uit de lijst (de taken blijven in de planning)", !(await wl.listMeetings(W1)).some((x) => x.id === m2.id) && (await tasksOf(W1)).some((x) => x.title === "Extra punt"));
+  check("(4) review M6: een actiepunt vóór de start van de werf telt niet mee voor de aangifte", un((await calc.listInsurances([W1], false)).find((i) => i.id === ctx.I1).startDay) === today - 20n);
 
   // ── 5. Oplevering: restpunten per OA, afronden onder een controlecode ──────
   const fPv = ok(await calc.addFile("proef-pv-2c8.pdf", "application/pdf", 20_000n, fakeBlob("f"), [W1], false));
-  const h1 = ok(await wl.saveHandover(W1, { id: [], kind: { provisional: null }, day: [today], attendees: ["Proef Rita", "Proef architect Uil"], pvFileId: [fPv], signedFileId: [], note: "", addPoints: [pt("Kraan lekt", REIGER), pt("Verf bijwerken", REIGER, nextWd(today + 7n))] }));
+  const hIn = (o = {}) => ({ id: [], opId: "", rev: 0n, kind: { provisional: null }, day: [today], attendees: ["Proef Rita", "Proef architect Uil"], pvFileId: [fPv], signedFileId: [], note: "INTERNE-NOTITIE-2c8 niet voor de klant", docNote: "Opmerking op het document 2c8", addPoints: [pt("Kraan lekt", REIGER), pt("Verf bijwerken", REIGER, nextWd(today + 7n))], ...o });
+  const h1 = ok(await wl.saveHandover(W1, hIn()));
   check("(5) oplevering met twee restpunten voor de OA", h1.warnings.length === 0);
-  check("(5) een tweede voorlopige oplevering voor dezelfde werf geweigerd", /al een oplevering/.test(errOf(await wl.saveHandover(W1, { id: [], kind: { provisional: null }, day: [], attendees: [], pvFileId: [], signedFileId: [], note: "", addPoints: [] }))));
+  check("(5) een tweede voorlopige oplevering voor dezelfde werf geweigerd", /al een oplevering/.test(errOf(await wl.saveHandover(W1, hIn({ day: [], attendees: [], pvFileId: [], addPoints: [] })))));
+  check("(5) review M5: de calculator bewaart of rondt geen oplevering af", (await denied(calc.saveHandover(W1, hIn({ kind: { final: null } })))) && (await denied(calc.finishHandover(h1.id, 1n, "0".repeat(64)))));
   check("(5) de restpunten zijn taken (sleutel restpunt) en staan bij de OA in Mijn week", (await tasksOf(W1)).filter((x) => x.templateKey[0] === "restpunt").length === 2 && (await orgAs(oaR)).filter((a) => /Kraan lekt|Verf bijwerken/.test(a.taskTitle)).length === 2);
   check("(5) delen of afronden kan niet vóór het afronden", /af/i.test(errOf(await calc.shareHandover(h1.id, true))) && (await calc.listHandovers(W1))[0].openPoints === 2n);
   const doc = ok(await wl.handoverDoc(h1.id));
-  check("(5) de gegevens voor het document: werf, bouwheer, aanwezigen, restpunten met firma; geen enkel bedrag", doc.points.length === 2 && doc.clientName === KLANTNAAM && noMoney(doc) && doc.previousControlCode.length === 0);
-  const pdfData = { kind: "provisional", workCode: doc.workCode, workName: doc.workName, address: doc.address, client: doc.clientName, architect: doc.architectName, day: "vandaag", attendees: doc.attendees, points: doc.points.map((p) => ({ title: p.title, firm: p.orgName, due: String(p.day), done: p.done })), note: doc.note, madeOn: "vandaag" };
+  check("(5) review M4/L12: het document draagt de opmerking op het document, NIET de interne notitie, en het vakgebied i.p.v. een firmanaam; geen bedrag", doc.points.length === 2 && doc.clientName === KLANTNAAM && noMoney(doc) && doc.docNote === "Opmerking op het document 2c8" && !S(doc).includes("INTERNE-NOTITIE") && !S(doc).includes("Reiger") && doc.points.every((p) => /^onderaannemer/.test(p.who)) && doc.previousControlCode.length === 0);
+  const pdfData = { kind: "provisional", workCode: doc.workCode, workName: doc.workName, address: doc.address, client: doc.clientName, architect: doc.architectName, day: "vandaag", dayNum: Number(un(doc.day)), attendees: doc.attendees, points: doc.points.map((p) => ({ title: p.title, who: p.who, due: String(p.day), dueNum: Number(p.day), done: p.done })), docNote: doc.docNote, madeOn: "vandaag" };
+  check("(5) review M4: de interne notitie staat niet in de tekst van het document", !handoverText(pdfData).includes("INTERNE-NOTITIE") && handoverText(pdfData).includes("Opmerking op het document 2c8"));
+  check("(5) review L4: de vaste tekst van de browser = die van de backend (zelfde hash)", handoverText(pdfData) === doc.controlText);
   const code = await handoverCode(pdfData);
   const bytes = await handoverPdf(pdfData, fonts(), code);
   check("(5) PDF van de oplevering gemaakt (geldig, bladzijden)", (await PDFDocument.load(bytes)).getPageCount() >= 1);
   const fDoc = ok(await calc.addFile("oplevering-2c8.pdf", "application/pdf", BigInt(bytes.length), fakeBlob("1"), [W1], false));
-  check("(5) afronden met een foute controlecode of een niet-PDF geweigerd", /controlecode/.test(errOf(await wl.finishHandover(h1.id, fDoc, "xyz"))) && /PDF/.test(errOf(await wl.finishHandover(h1.id, ok(await calc.addFile("x.png", "image/png", 100n, fakeBlob("2"), [W1], false)), code))));
+  check("(5) afronden met een foute controlecode, een code van andere gegevens of een niet-PDF geweigerd (review L4)", /controlecode/.test(errOf(await wl.finishHandover(h1.id, fDoc, "xyz"))) && /controlecode klopt niet met de gegevens/.test(errOf(await wl.finishHandover(h1.id, fDoc, "a".repeat(64)))) && /PDF/.test(errOf(await wl.finishHandover(h1.id, ok(await calc.addFile("x.png", "image/png", 100n, fakeBlob("2"), [W1], false)), code))));
   const fin = ok(await wl.finishHandover(h1.id, fDoc, code));
   check("(5) afgerond met openstaande restpunten = met opmerkingen; de controlecode ligt vast", "withRemarks" in fin.status && un(fin.controlCode) === code && fin.openPoints === 2n);
-  check("(5) tweemaal afronden of archiveren van een afgeronde oplevering geweigerd", /al afgerond/.test(errOf(await wl.finishHandover(h1.id, fDoc, code))) && /bewaard/.test(errOf(await calc.archiveHandover(h1.id))));
+  check("(5) tweemaal afronden of archiveren van een afgeronde oplevering geweigerd", /al afgerond/.test(errOf(await wl.finishHandover(h1.id, fDoc, code))) && /bewaard/.test(errOf(await admin.archiveHandover(h1.id))));
   check("(5) de klant ziet het document nog niet", (await klant.clientSiteAdmin(W1)).handovers.length === 0);
+  check("(5) review L12: de architect (lid van de werf) opent het afgeronde opleveringsdocument ook zonder dat kantoor het deelde; geen bedrag", (await arch.clientSiteAdmin(W1)).handovers.length === 1 && noMoney(await arch.clientSiteAdmin(W1)));
   check("(5) de werfleider deelt niet met de klant, kantoor wel", (await denied(wl.shareHandover(h1.id, true))) && isOk(await calc.shareHandover(h1.id, true)));
   const cs = await klant.clientSiteAdmin(W1);
   check("(5) de klant ziet het gedeelde opleveringsdocument met zijn controlecode, zonder bedragen", cs.handovers.length === 1 && cs.handovers[0].controlCode === code && cs.handovers[0].file.name === "oplevering-2c8.pdf" && noMoney(cs));
-  check("(5) de OA en de architect lezen geen opleveringen (de OA ziet enkel zijn restpunten in de planning)", (await denied(oaR.listHandovers(W1))) && (await denied(oaR.handoverDoc(h1.id))) && (await denied(arch.listHandovers(W1))) && (await denied(vc.handoverDoc(h1.id))));
+  check("(5) review M2: de klant van een andere firma op dezelfde werf ziet het opleveringsdocument niet", await denied(klantB.clientSiteAdmin(W1)));
+  check("(5) de OA en de architect lezen de opleveringen van kantoor niet (de OA ziet enkel zijn restpunten in de planning)", (await denied(oaR.listHandovers(W1))) && (await denied(oaR.handoverDoc(h1.id))) && (await denied(arch.listHandovers(W1))) && (await denied(vc.handoverDoc(h1.id))));
   // Een restpunt afwerken in de planning: de oplevering telt het mee.
   const kraan = (await tasksOf(W1)).find((x) => x.title === "Kraan lekt");
   const plan = await wl.getPlan(W1);
   const tv = plan.tasks.find((x) => x.id === kraan.id);
   ok(await wl.saveTask(W1, { id: [kraan.id], title: tv.title, note: "", kind: { work: null }, trade: [], responsibleOrgId: [REIGER], status: { done: null }, percent: 100n, start: tv.start, workdays: tv.workdays, leadDays: 0n, orderDay: [], reason: "proef 2c8: afgewerkt" }, plan.version));
   check("(5) een afgewerkt restpunt (taak klaar) telt niet meer als open", (await calc.listHandovers(W1))[0].openPoints === 1n);
-  ok(await wl.saveHandover(W1, { id: [h1.id], kind: { provisional: null }, day: [today + 99n], attendees: ["Andere"], pvFileId: [], signedFileId: [], note: "na afronden", addPoints: [pt("Nog een restpunt", REIGER)] }));
+  const hNow = (await calc.listHandovers(W1))[0];
+  ok(await wl.saveHandover(W1, hIn({ id: [h1.id], rev: hNow.rev, day: [today + 99n], attendees: ["Andere"], pvFileId: [], note: "na afronden", docNote: "WIJZIGING-NA-AFRONDEN", addPoints: [pt("Nog een restpunt", REIGER)] })));
   const hv = (await calc.listHandovers(W1))[0];
-  check("(5) na afronden blijven datum, aanwezigen en PV vast; een nieuw restpunt en een notitie mogen nog", un(hv.day) === today && hv.attendees.length === 2 && un(hv.pvFileId) === fPv && hv.points.length === 3 && hv.note === "na afronden");
-  const h2 = ok(await wl.saveHandover(W1, { id: [], kind: { final: null }, day: [today], attendees: [], pvFileId: [], signedFileId: [], note: "", addPoints: [] }));
+  check("(5) na afronden blijven datum, aanwezigen, PV en de opmerking op het document vast; een nieuw restpunt en de interne notitie mogen nog", un(hv.day) === today && hv.attendees.length === 2 && un(hv.pvFileId) === fPv && hv.points.length === 3 && hv.note === "na afronden" && hv.docNote === "Opmerking op het document 2c8");
+  check("(5) review L5: de status volgt de open restpunten (met opmerkingen zolang er een open is)", "withRemarks" in hv.status && hv.openPoints === 2n);
+  check("(5) review M3: bewaren met de oude rev van de oplevering geweigerd", /Iemand anders/.test(errOf(await wl.saveHandover(W1, hIn({ id: [h1.id], rev: hNow.rev, addPoints: [] })))));
+  const h2 = ok(await wl.saveHandover(W1, hIn({ kind: { final: null }, docNote: "", addPoints: [] })));
+  const doc2 = ok(await wl.handoverDoc(h2.id));
   const fDoc2 = ok(await calc.addFile("oplevering-def-2c8.pdf", "application/pdf", 5_000n, fakeBlob("3"), [W1], false));
-  const fin2 = ok(await wl.finishHandover(h2.id, fDoc2, await handoverCode({ ...pdfData, kind: "final", points: [] })));
-  check("(5) definitieve oplevering zonder restpunten = afgerond", "done" in fin2.status);
+  const fin2 = ok(await wl.finishHandover(h2.id, fDoc2, await handoverCode({ ...pdfData, kind: "final", points: [], docNote: "" })));
+  check("(5) definitieve oplevering zonder restpunten = afgerond", "done" in fin2.status && doc2.points.length === 0);
   check("(5) een bestand van de oplevering is niet los te archiveren", /oplevering/i.test(errOf(await calc.archiveFile(fPv))));
+  {
+    // Review L10: de bestanden van een GEARCHIVEERD record mogen gearchiveerd worden (de vergadering van hierboven).
+    const fm = ok(await calc.addFile("proef-verslag-2-2c8.pdf", "application/pdf", 5_000n, fakeBlob("7"), [W1], false));
+    const mm = ok(await wl.saveMeeting(W1, { id: [], opId: "", rev: 0n, day: today, attendees: [], fileId: [fm], note: "met bestand", addPoints: [] }));
+    const blocked = /werfvergadering/i.test(errOf(await calc.archiveFile(fm)));
+    ok(await admin.archiveMeeting(mm.id));
+    check("(5) review L10: een bestand van een vergadering is niet los te archiveren, na het archiveren van de vergadering wel", blocked && isOk(await calc.archiveFile(fm)));
+  }
 
   // ── 6. Technische fiches, werfcode P.nnn, documentsoorten ────────────────
   const fSheet = ok(await calc.addFile("proef-fiche-2c8.pdf", "application/pdf", 8_000n, fakeBlob("4"), [], false));

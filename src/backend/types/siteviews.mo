@@ -32,6 +32,7 @@ module {
     archived : Bool;
     canEdit : Bool;
     canSeeCosts : Bool;
+    rev : Nat;
   };
 
   public type InsuranceInput = {
@@ -45,6 +46,7 @@ module {
     periodTo : ?Nat;
     status : Types.InsuranceStatus;
     note : Text;
+    rev : Nat; // 0 bij een nieuwe; anders de rev uit de weergave
   };
 
   // vertrouwelijk (enkel uit een update-call): werfwaarde en premie
@@ -58,8 +60,9 @@ module {
     paid : Bool;
     defaultRateMilli : Nat; // het tarief uit de instellingen voor deze soort
     defaultMinCents : Int;
+    rev : Nat;
   };
-  public type InsuranceConfInput = { workValueCents : ?Int; rateMilli : ?Nat; minPremiumCents : ?Int; taxesCents : ?Int; paid : Bool };
+  public type InsuranceConfInput = { workValueCents : ?Int; rateMilli : ?Nat; minPremiumCents : ?Int; taxesCents : ?Int; paid : Bool; rev : Nat };
 
   public type PointView = { taskId : Nat; title : Text; orgId : ?Nat; orgName : Text; day : Nat; done : Bool; inTeam : Bool };
   public type PointInput = { title : Text; orgId : ?Nat; day : Nat };
@@ -75,8 +78,9 @@ module {
     points : [PointView];
     note : Text;
     archived : Bool;
+    rev : Nat;
   };
-  public type MeetingInput = { id : ?Nat; day : Nat; attendees : [Text]; fileId : ?Nat; note : Text; addPoints : [PointInput] };
+  public type MeetingInput = { id : ?Nat; opId : Text; rev : Nat; day : Nat; attendees : [Text]; fileId : ?Nat; note : Text; addPoints : [PointInput] };
 
   public type HandoverView = {
     id : Nat;
@@ -95,10 +99,12 @@ module {
     isShared : Bool;
     points : [PointView];
     openPoints : Nat;
-    note : Text;
+    note : Text; // intern: komt nooit in het opleveringsdocument
+    docNote : Text; // opmerking OP het document (de klant ziet die)
     archived : Bool;
+    rev : Nat;
   };
-  public type HandoverInput = { id : ?Nat; kind : Types.HandoverKind; day : ?Nat; attendees : [Text]; pvFileId : ?Nat; signedFileId : ?Nat; note : Text; addPoints : [PointInput] };
+  public type HandoverInput = { id : ?Nat; opId : Text; rev : Nat; kind : Types.HandoverKind; day : ?Nat; attendees : [Text]; pvFileId : ?Nat; signedFileId : ?Nat; note : Text; docNote : Text; addPoints : [PointInput] };
 
   // De gegevens voor het opleveringsdocument (PDF in de browser): zonder aankoopprijzen of marges.
   public type HandoverDocData = {
@@ -111,10 +117,13 @@ module {
     architectName : Text;
     day : ?Nat;
     attendees : [Text];
-    points : [PointView];
-    note : Text;
+    points : [DocPoint];
+    docNote : Text;
     previousControlCode : ?Text;
+    controlText : Text; // de vaste tekst waarover de controlecode loopt (zelfde opbouw als pdf/oplevering.ts)
   };
+  // Een restpunt op het document: wie = het vakgebied ("onderaannemer schrijnwerk"), nooit de firmanaam.
+  public type DocPoint = { title : Text; who : Text; day : Nat; done : Bool };
 
   public type TechSheetView = { id : Nat; materialKey : Text; title : Text; fileId : Nat; fileName : Text; supplierOrgId : ?Nat; supplierName : Text; archived : Bool };
   public type TechSheetInput = { id : ?Nat; materialKey : Text; title : Text; fileId : Nat; supplierOrgId : ?Nat };
@@ -126,6 +135,9 @@ module {
   public type ClientAttest = { kindName : Text; periodFrom : ?Nat; periodTo : ?Nat; sharedAt : Int; file : Views.FileView };
   public type ClientHandover = { kind : Types.HandoverKind; day : ?Nat; status : Types.HandoverStatus; controlCode : Text; file : Views.FileView };
   public type ClientSiteView = { workId : Nat; attests : [ClientAttest]; handovers : [ClientHandover] };
+
+  // Gegevens voor de makelaar of verzekeraar (PDF "Gegevens voor de verzekering"): enkel kantoor, zonder OA-prijzen.
+  public type InsuranceSheetData = { insuranceId : Nat; kindName : Text; policyRef : Text; insurerName : Text; brokerName : Text; periodFrom : ?Nat; periodTo : ?Nat; workCode : Text; workName : Text; address : Text; clientName : Text; architectName : Text; startDay : ?Nat; endDay : ?Nat; workValueCents : ?Int; vatBp : Nat };
 
   public type SaveResult = { id : Nat; warnings : [Text] };
 }

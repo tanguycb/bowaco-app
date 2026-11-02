@@ -790,12 +790,14 @@ type Handover__268220691 =
     createdBy : PersonId__967516914;
     day : ?Day__162369424;
     docFileId : ?Nat;
+    docNote : Text;
     extra : Extra__945213800;
     finishedAt : ?Int;
     id : Nat;
     kind : HandoverKind__541569636;
     note : Text;
     pvFileId : ?Nat;
+    rev : Nat;
     sharedAt : ?Int;
     signedFileId : ?Nat;
     status : HandoverStatus__501553102;
@@ -813,12 +815,14 @@ type Handover__387117976 =
     createdBy : PersonId__239248111;
     day : ?Day__691174369;
     docFileId : ?Nat;
+    docNote : Text;
     extra : Extra__508241087;
     finishedAt : ?Int;
     id : Nat;
     kind : HandoverKind__683377537;
     note : Text;
     pvFileId : ?Nat;
+    rev : Nat;
     sharedAt : ?Int;
     signedFileId : ?Nat;
     status : HandoverStatus__644968176;
@@ -929,6 +933,7 @@ type InsuranceConf__1017405293 =
     paid : Bool;
     premiumNetCents : ?Int;
     rateMilli : ?Nat;
+    rev : Nat;
     taxesCents : ?Int;
     workValueCents : ?Int
   };
@@ -940,6 +945,7 @@ type InsuranceConf__358963699 =
     paid : Bool;
     premiumNetCents : ?Int;
     rateMilli : ?Nat;
+    rev : Nat;
     taxesCents : ?Int;
     workValueCents : ?Int
   };
@@ -953,6 +959,7 @@ type Insurance__339976675 =
   {
     archivedAt : ?Int;
     attestDocId : ?Nat;
+    attestFileId : ?Nat;
     attestSharedAt : ?Int;
     brokerOrgId : ?OrgId__351797135;
     createdAt : Int;
@@ -967,6 +974,7 @@ type Insurance__339976675 =
     periodFrom : ?Day__691174369;
     periodTo : ?Day__691174369;
     policyRef : Text;
+    rev : Nat;
     status : InsuranceStatus__43791460;
     updatedAt : Int;
     updatedBy : PersonId__239248111;
@@ -976,6 +984,7 @@ type Insurance__362096411 =
   {
     archivedAt : ?Int;
     attestDocId : ?Nat;
+    attestFileId : ?Nat;
     attestSharedAt : ?Int;
     brokerOrgId : ?OrgId__17031398;
     createdAt : Int;
@@ -990,6 +999,7 @@ type Insurance__362096411 =
     periodFrom : ?Day__162369424;
     periodTo : ?Day__162369424;
     policyRef : Text;
+    rev : Nat;
     status : InsuranceStatus__524959026;
     updatedAt : Int;
     updatedBy : PersonId__967516914;
@@ -4150,6 +4160,7 @@ type SiteMeeting__426068199 =
     id : Nat;
     note : Text;
     number : Nat;
+    rev : Nat;
     taskIds : [Nat];
     updatedAt : Int;
     updatedBy : PersonId__239248111;
@@ -4167,6 +4178,7 @@ type SiteMeeting__96235682 =
     id : Nat;
     note : Text;
     number : Nat;
+    rev : Nat;
     taskIds : [Nat];
     updatedAt : Int;
     updatedBy : PersonId__967516914;

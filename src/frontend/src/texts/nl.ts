@@ -3095,19 +3095,19 @@ export const nl = {
       docs: "Documenten", addFile: "Document toevoegen", fileKind: "Soort document", kindsDoc: { verzekering: "Polis, vragenlijst, bemiddelingsfiche of vervaldagbericht", attest: "Attest voor de klant" },
       attest: "Attest", share: "Delen met de klant", unshare: "Niet meer delen", shared: "Gedeeld met de klant", premium: "Werfwaarde en premie",
       workValue: "Werfwaarde (excl. btw)", rate: "Tarief (‰)", rateHelp: (r: string, m: string) => `Standaard ${r} ‰, minimum ${m}`, minimum: "Minimum", taxes: "Taksen", paid: "Premie betaald",
-      premiumNet: "Premie excl. taksen", noPremium: "Geen premie berekend (tarief of werfwaarde ontbreekt)", note: "Notitie", saved: "Bewaard", pick: "Kies",
+      premiumNet: "Premie excl. taksen", rateChanged: (old: string) => `Tarief gewijzigd: de bewaarde premie (${old}) wijkt af van de berekening met het huidige tarief. Bewaar opnieuw om ze te herrekenen.`, sheetPdf: "Gegevens voor de verzekering (PDF)", archiveAsk: (k: string) => `${k} archiveren? Ze verdwijnt uit de lijst; de documenten blijven in het dossier.`, noPremium: "Geen premie berekend (tarief of werfwaarde ontbreekt)", note: "Notitie", saved: "Bewaard", pick: "Kies",
     },
     meeting: {
       title: "Werfvergadering", none: "Nog geen werfvergadering.", add: "Werfvergadering toevoegen", number: (n: bigint) => `Vergadering ${n}`, day: "Datum",
       attendees: "Aanwezigen (één per lijn)", report: "Verslag van de architect", points: "Actiepunten", pointsHelp: "Elk actiepunt wordt een taak in de planning; de firma ziet ze in Mijn week.",
-      addPoint: "Punt toevoegen", what: "Wat", who: "Wie", when: "Tegen", open: "open", done: "klaar", notInTeam: "werkt nog niet mee op deze werf", note: "Notitie", archive: "Archiveren", saved: "Bewaard",
+      addPoint: "Punt toevoegen", what: "Wat", who: "Wie", when: "Tegen", open: "open", done: "klaar", notInTeam: "werkt nog niet mee op deze werf", note: "Notitie", archive: "Archiveren", saved: "Bewaard", archiveAsk: (n: bigint) => `Vergadering ${n} archiveren? De actiepunten blijven als taken in de planning.`,
     },
     handover: {
       title: "Oplevering", none: "Nog geen oplevering.", add: "Oplevering toevoegen", kind: "Soort", kinds: { provisional: "Voorlopige oplevering", final: "Definitieve oplevering" },
-      day: "Datum", attendees: "Aanwezigen (één per lijn)", pv: "PV van de architect", signed: "Getekend stuk", points: "Restpunten", pointsHelp: "Elk restpunt wordt een taak voor de firma in de planning.",
+      day: "Datum", attendees: "Aanwezigen (één per lijn)", docNote: "Opmerking op het document (de klant ziet die)", docNoteHelp: "Staat op het opleveringsdocument voor de klant en de architect.", noteHelp: "De interne notitie komt nooit in het document.", pv: "PV van de architect", signed: "Getekend stuk", points: "Restpunten", pointsHelp: "Elk restpunt wordt een taak voor de firma in de planning.",
       status: { planned: "Gepland", done: "Afgerond", withRemarks: "Afgerond met opmerkingen" }, openPoints: (n: bigint) => (n === 0n ? "geen openstaande restpunten" : `${n} restpunt(en) open`),
       finish: "Document maken en afronden", finishHelp: "Het opleveringsdocument (PDF, zonder bedragen) ligt daarna vast onder een controlecode.", code: "Controlecode",
-      share: "Delen met de klant", unshare: "Niet meer delen", shared: "Gedeeld met de klant", open: "Document openen", note: "Notitie", saved: "Bewaard", finished: "Afgerond",
+      share: "Delen met de klant", unshare: "Niet meer delen", shared: "Gedeeld met de klant", open: "Document openen", note: "Interne notitie", saved: "Bewaard", finished: "Afgerond",
       dayNeeded: "Geef eerst de datum van de oplevering.",
     },
     sheets: {

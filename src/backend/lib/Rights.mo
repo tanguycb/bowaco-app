@@ -96,7 +96,9 @@ module {
     // technische fiches van een werf zien (interne rollen die de werf zien; zonder werf: interne rollen); #editSiteAdmin = ze bijhouden
     // (admin, calculator, de werfleider van die werf; zonder werf: de jaarpolis en de bibliotheek van fiches: admin, calculator).
     // Werfwaarde en premie volgen #readCosts (admin, calculator) en gaan enkel via update-calls met auditregel.
-    #readSiteAdmin; #editSiteAdmin;
+    // Planningstaken (actiepunten, restpunten) maken en een vergadering of oplevering bewaren of afronden vraagt #editWork (admin, werfleider
+    // van die werf), niet de calculator. #readHandoverDoc = de architect (lid van de werf) opent het AFGERONDE opleveringsdocument, zonder bedragen.
+    #readSiteAdmin; #editSiteAdmin; #readHandoverDoc;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -300,6 +302,7 @@ module {
       case (#clientMinMeer) has(p, #klant) or has(p, #architect);
       // 2c.8 (R45, R46): werfadministratie en oplevering. De klant ziet enkel wat kantoor deelde (clientSiteAdmin, #clientQuote).
       case (#readSiteAdmin) switch work { case null internal(p); case (?w) workExists(ctx, w) and internal(p) and seesWork(ctx, p, w) };
+      case (#readHandoverDoc) on(func w = memberAs(ctx, p, w, #architect));
       case (#editSiteAdmin) switch work { case null admin or calc; case (?w) workExists(ctx, w) and (admin or calc or leaderOn(ctx, p, w)) };
       // R27
       case (#readConfidentialContact) admin or calc;

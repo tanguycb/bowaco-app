@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ExternalBlob, HandoverKind, HandoverStatus, type HandoverView, type MeetingView, type PointInput, type PointView, type WorkView } from "../backend";
-import { Button, Sheet, useToast } from "../design";
+import { Button, Confirm, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, inputToDay, todayDay, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -60,10 +60,11 @@ function MeetingForm({ w, cur, onClose }: { w: bigint; cur?: MeetingView; onClos
   const [f, setF] = useState({ day: dayToInput(cur?.day ?? todayDay()), att: (cur?.attendees ?? []).join("\n"), note: cur?.note ?? "" });
   const [file, setFile] = useState<{ id: bigint; name: string } | null>(cur?.fileId !== undefined ? { id: cur.fileId, name: cur.fileName } : null);
   const [rows, setRows] = useState<PointRow[]>([]);
+  const [opId] = useState(() => crypto.randomUUID()); // review L9: een herhaalde bewaring maakt geen tweede vergadering
   const up = useMutation({ mutationFn: async (x: File) => ({ id: await uploadPlain(actor!, x, w), name: x.name }), onSuccess: setFile, onError: (e) => toast.show({ kind: "error", text: errText(e) }) });
   const save = useMutation({
-    mutationFn: async () => unwrap(await actor!.saveMeeting(w, { id: cur?.id, day: inputToDay(f.day) ?? todayDay(), attendees: lines(f.att), fileId: file?.id, note: f.note, addPoints: toPoints(rows) })),
-    onSuccess: (r) => { toast.show({ kind: r.warnings.length ? "error" : "ok", text: r.warnings.length ? r.warnings.join(" ") : M.saved }); void qc.invalidateQueries({ queryKey: ["meetings"] }); void qc.invalidateQueries({ queryKey: ["plan"] }); onClose(); },
+    mutationFn: async () => unwrap(await actor!.saveMeeting(w, { id: cur?.id, opId: cur ? "" : opId, rev: cur?.rev ?? 0n, day: inputToDay(f.day) ?? todayDay(), attendees: lines(f.att), fileId: file?.id, note: f.note, addPoints: toPoints(rows) })),
+    onSuccess: (r) => { toast.show({ kind: r.warnings.length ? "info" : "ok", text: r.warnings.length ? r.warnings.join(" ") : M.saved }); void qc.invalidateQueries({ queryKey: ["meetings"] }); void qc.invalidateQueries({ queryKey: ["plan"] }); onClose(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   return (
@@ -85,6 +86,7 @@ export function WorkMeetings({ w }: { w: WorkView }) {
   const toast = useToast();
   const q = useQuery({ queryKey: ["meetings", String(w.id)], queryFn: () => actor!.listMeetings(w.id), enabled: !!actor && !isFetching, retry: 0 });
   const [edit, setEdit] = useState<MeetingView | "new" | null>(null);
+  const [ask, setAsk] = useState<MeetingView | null>(null);
   const openFile = useOpenFile(w.id);
   const arch = useMutation({ mutationFn: async (id: bigint) => unwrap(await actor!.archiveMeeting(id)), onSuccess: () => void qc.invalidateQueries({ queryKey: ["meetings"] }), onError: (e) => toast.show({ kind: "error", text: errText(e) }) });
   return (
@@ -97,13 +99,14 @@ export function WorkMeetings({ w }: { w: WorkView }) {
             <li key={String(m.id)} className="a-doc" style={{ display: "block" }}>
               <div className="a-row"><b>{M.number(m.number)} · {fmtDayNum(m.day)}</b><span className="bw-muted">{m.attendees.join(", ")}</span>
                 {m.fileId !== undefined && <button className="a-link" onClick={() => openFile(m.fileId!)}>{m.fileName}</button>}
-                <Button variant="quiet" onClick={() => setEdit(m)}>{t.siteAdmin.insurance.edit}</Button><Button variant="quiet" onClick={() => arch.mutate(m.id)}>{M.archive}</Button></div>
+                <Button variant="quiet" onClick={() => setEdit(m)}>{t.siteAdmin.insurance.edit}</Button><Button variant="quiet" onClick={() => setAsk(m)}>{M.archive}</Button></div>
               {m.points.length > 0 && <Points points={m.points} />}
             </li>
           ))}
         </ul>
       ))}
       <Button onClick={() => setEdit("new")}>{M.add}</Button>
+      <Confirm open={ask !== null} title={M.archive} text={ask ? M.archiveAsk(ask.number) : ""} confirmLabel={M.archive} busy={arch.isPending} onClose={() => setAsk(null)} onConfirm={() => ask && arch.mutate(ask.id, { onSuccess: () => setAsk(null) })} />
       {edit && <MeetingForm w={w.id} cur={edit === "new" ? undefined : edit} onClose={() => setEdit(null)} />}
     </section>
   );
@@ -114,14 +117,15 @@ function HandoverForm({ w, cur, onClose }: { w: bigint; cur?: HandoverView; onCl
   const qc = useQueryClient();
   const toast = useToast();
   const locked = cur?.finishedAt !== undefined;
-  const [f, setF] = useState({ kind: cur?.kind ?? HandoverKind.provisional, day: dayToInput(cur?.day ?? todayDay()), att: (cur?.attendees ?? []).join("\n"), note: cur?.note ?? "" });
+  const [f, setF] = useState({ kind: cur?.kind ?? HandoverKind.provisional, day: dayToInput(cur?.day ?? todayDay()), att: (cur?.attendees ?? []).join("\n"), note: cur?.note ?? "", docNote: cur?.docNote ?? "" });
   const [pv, setPv] = useState<{ id: bigint; name: string } | null>(cur?.pvFileId !== undefined ? { id: cur.pvFileId, name: cur.pvFileName } : null);
   const [signed, setSigned] = useState<{ id: bigint; name: string } | null>(cur?.signedFileId !== undefined ? { id: cur.signedFileId, name: cur.signedFileName } : null);
   const [rows, setRows] = useState<PointRow[]>([]);
+  const [opId] = useState(() => crypto.randomUUID());
   const up = useMutation({ mutationFn: async (a: { x: File; to: "pv" | "signed" }) => ({ to: a.to, id: await uploadPlain(actor!, a.x, w), name: a.x.name }), onSuccess: (r) => (r.to === "pv" ? setPv : setSigned)({ id: r.id, name: r.name }), onError: (e) => toast.show({ kind: "error", text: errText(e) }) });
   const save = useMutation({
-    mutationFn: async () => unwrap(await actor!.saveHandover(w, { id: cur?.id, kind: f.kind, day: inputToDay(f.day), attendees: lines(f.att), pvFileId: pv?.id, signedFileId: signed?.id, note: f.note, addPoints: toPoints(rows) })),
-    onSuccess: (r) => { toast.show({ kind: r.warnings.length ? "error" : "ok", text: r.warnings.length ? r.warnings.join(" ") : H.saved }); void qc.invalidateQueries({ queryKey: ["handovers"] }); void qc.invalidateQueries({ queryKey: ["plan"] }); onClose(); },
+    mutationFn: async () => unwrap(await actor!.saveHandover(w, { id: cur?.id, opId: cur ? "" : opId, rev: cur?.rev ?? 0n, kind: f.kind, day: inputToDay(f.day), attendees: lines(f.att), pvFileId: pv?.id, signedFileId: signed?.id, note: f.note, docNote: f.docNote, addPoints: toPoints(rows) })),
+    onSuccess: (r) => { toast.show({ kind: r.warnings.length ? "info" : "ok", text: r.warnings.length ? r.warnings.join(" ") : H.saved }); void qc.invalidateQueries({ queryKey: ["handovers"] }); void qc.invalidateQueries({ queryKey: ["plan"] }); onClose(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   return (
@@ -133,7 +137,10 @@ function HandoverForm({ w, cur, onClose }: { w: bigint; cur?: HandoverView; onCl
         <div><span className="bw-label">{H.pv}: </span>{pv ? <b>{pv.name}</b> : "—"} {!locked && <FileButton label={H.pv} busy={up.isPending} onFile={(x) => up.mutate({ x, to: "pv" })} />}</div>
         <div><span className="bw-label">{H.signed}: </span>{signed ? <b>{signed.name}</b> : "—"} <FileButton label={H.signed} busy={up.isPending} onFile={(x) => up.mutate({ x, to: "signed" })} /></div>
         <PointRows rows={rows} setRows={setRows} help={H.pointsHelp} />
+        <Field label={H.docNote}><textarea className="bw-input" rows={2} disabled={locked} value={f.docNote} onChange={(e) => setF({ ...f, docNote: e.target.value })} /></Field>
+        <p className="bw-muted">{H.docNoteHelp}</p>
         <Field label={H.note}><textarea className="bw-input" rows={2} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></Field>
+        <p className="bw-muted">{H.noteHelp}</p>
       </div>
     </Sheet>
   );
@@ -153,13 +160,19 @@ export function WorkHandovers({ w }: { w: WorkView }) {
     mutationFn: async (h: HandoverView) => {
       if (h.day === undefined) throw new Error(H.dayNeeded);
       const d = unwrap(await actor!.handoverDoc(h.id));
-      const data = { kind: d.kind as "provisional" | "final", workCode: d.workCode, workName: d.workName, address: d.address, client: d.clientName, architect: d.architectName, day: fmtDayNum(d.day), attendees: d.attendees, points: d.points.map((p) => ({ title: p.title, firm: p.orgName, due: fmtDayNum(p.day), done: p.done })), note: d.note, madeOn: fmtDayNum(todayDay()) };
+      const data = { kind: d.kind as "provisional" | "final", workCode: d.workCode, workName: d.workName, address: d.address, client: d.clientName, architect: d.architectName, day: fmtDayNum(d.day), dayNum: d.day !== undefined ? Number(d.day) : null, attendees: d.attendees, points: d.points.map((p) => ({ title: p.title, who: p.who, due: fmtDayNum(p.day), dueNum: Number(p.day), done: p.done })), docNote: d.docNote, madeOn: fmtDayNum(todayDay()) };
       const [{ handoverPdf, handoverCode }, { loadPdfFonts }] = await Promise.all([import("../pdf/oplevering.ts"), import("../pdf/fonts.ts")]);
       const code = await handoverCode(data);
       const bytes = await handoverPdf(data, await loadPdfFonts(), code);
       const name = `oplevering-${d.workCode}-${d.kind}.pdf`;
       const fid = unwrap(await actor!.addFile(name, "application/pdf", BigInt(bytes.length), ExternalBlob.fromBytes(new Uint8Array(bytes), "application/pdf", name), w.id, false));
-      return unwrap(await actor!.finishHandover(h.id, fid, code));
+      // Review L9: weigert het afronden (andere code, intussen gewijzigd), dan wordt de opgeladen PDF weer weggehaald: geen wees-bestand.
+      try {
+        return unwrap(await actor!.finishHandover(h.id, fid, code));
+      } catch (e) {
+        await actor!.archiveFile(fid).catch(() => undefined);
+        throw e;
+      }
     },
     onSuccess: () => { toast.show({ kind: "ok", text: H.finished }); refresh(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),

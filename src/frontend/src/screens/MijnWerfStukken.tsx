@@ -1,4 +1,4 @@
-// Mijn werf (klant), stap 2c.8: het verzekeringsattest en het opleveringsdocument die kantoor met de klant deelde. Niets anders:
+// Mijn werf (klant en architect), stap 2c.8: het verzekeringsattest en het opleveringsdocument die kantoor met de klant deelde. Niets anders:
 // geen verzekeraar, geen polis, geen premie, geen werfwaarde, geen aankoopprijzen (de backend stuurt ze niet mee).
 import { useQuery } from "@tanstack/react-query";
 import { HandoverKind } from "../backend";
@@ -12,6 +12,7 @@ export function ClientSiteDocs({ workId }: { workId: bigint }) {
   const { actor, isFetching } = useBackend();
   const q = useQuery({ queryKey: ["clientSiteAdmin", String(workId)], queryFn: () => actor!.clientSiteAdmin(workId), enabled: !!actor && !isFetching, retry: 0 });
   const d = q.data;
+  if (q.error) return null; // geen toegang (bv. een klant van een andere firma): het blok verdwijnt
   const link = (name: string, url: string | undefined) => (url ? <a className="a-link" href={url} target="_blank" rel="noopener noreferrer">{name}</a> : <span>{name}</span>);
   return (
     <section className="a-section" data-testid="client-site-docs">

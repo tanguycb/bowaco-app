@@ -6,7 +6,8 @@
 // Zonder React en zonder backend-imports: Node draait dit bestand rechtstreeks.
 import type { PdfFonts } from "./offerte.ts";
 
-export type HandoverPdfPoint = { title: string; firm: string; due: string; done: boolean };
+// who = het vakgebied van de firma ("onderaannemer schrijnwerk"), nooit de firmanaam; dueNum = de dag als getal (voor de controlecode).
+export type HandoverPdfPoint = { title: string; who: string; due: string; dueNum: number; done: boolean };
 export type HandoverPdfData = {
   kind: "provisional" | "final";
   workCode: string;
@@ -15,9 +16,10 @@ export type HandoverPdfData = {
   client: string;
   architect: string;
   day: string; // "12.11.2026"
+  dayNum: number | null;
   attendees: string[];
   points: HandoverPdfPoint[];
-  note: string;
+  docNote: string; // de opmerking OP het document; de interne notitie van de oplevering komt hier nooit
   madeOn: string;
 };
 
@@ -26,10 +28,10 @@ export const kindLabel = (k: "provisional" | "final") => (k === "provisional" ? 
 /** De vaste tekst waarover de controlecode loopt: elke regel van het document, zonder opmaak. */
 export function handoverText(d: HandoverPdfData): string {
   return [
-    kindLabel(d.kind), `werf ${d.workCode} ${d.workName}`, d.address, `bouwheer ${d.client}`, `architect ${d.architect}`, `datum ${d.day}`,
+    kindLabel(d.kind), `werf ${d.workCode} ${d.workName}`, d.address, `bouwheer ${d.client}`, `architect ${d.architect}`, `datum ${d.dayNum ?? ""}`,
     `aanwezigen ${d.attendees.join(", ")}`,
-    ...d.points.map((p, i) => `restpunt ${i + 1}: ${p.title} | ${p.firm} | ${p.due} | ${p.done ? "afgewerkt" : "open"}`),
-    `opmerking ${d.note}`,
+    ...d.points.map((p, i) => `restpunt ${i + 1}: ${p.title} | ${p.who} | ${p.dueNum} | ${p.done ? "afgewerkt" : "open"}`),
+    `opmerking ${d.docNote}`,
   ].join("\n");
 }
 
@@ -123,19 +125,19 @@ export async function handoverPdf(d: HandoverPdfData, fonts: PdfFonts, code: str
   d.points.forEach((p, i) => {
     need(30);
     para(`${i + 1}. ${p.title}`, F.m, 9.5, INK, 13);
-    para(`${p.firm || "BOWACO"} · uiterlijk ${p.due} · ${p.done ? "afgewerkt" : "open"}`, F.r, 8.5, GRAY, 12, ML + 14, CW - 14);
+    para(`${p.who || "BOWACO"} · uiterlijk ${p.due} · ${p.done ? "afgewerkt" : "open"}`, F.r, 8.5, GRAY, 12, ML + 14, CW - 14);
     y -= 3;
   });
-  if (d.note.trim()) { y -= 6; para("Opmerking", F.m, 10, INK, 14); para(d.note, F.r, 9.5); }
+  if (d.docNote.trim()) { y -= 6; para("Opmerking", F.m, 10, INK, 14); para(d.docNote, F.r, 9.5); }
   y -= 16;
   need(100);
-  const half = CW / 2;
-  text("Voor BOWACO", ML, y, F.m, 9.5); text("Voor de bouwheer", ML + half, y, F.m, 9.5);
+  const third = CW / 3;
+  const names = ["Voor BOWACO", "Voor de bouwheer", "Voor de architect"];
+  names.forEach((nm, k) => text(nm, ML + k * third, y, F.m, 9.5));
   y -= 50;
-  page.drawLine({ start: { x: ML, y }, end: { x: ML + half - 30, y }, thickness: 0.6, color: col(LINE2) });
-  page.drawLine({ start: { x: ML + half, y }, end: { x: W - MR, y }, thickness: 0.6, color: col(LINE2) });
+  names.forEach((_, k) => page.drawLine({ start: { x: ML + k * third, y }, end: { x: ML + (k + 1) * third - 14, y }, thickness: 0.6, color: col(LINE2) }));
   y -= 12;
-  text("naam, datum, handtekening", ML, y, F.r, 7.5, GRAY); text("naam, datum, handtekening", ML + half, y, F.r, 7.5, GRAY);
+  names.forEach((_, k) => text("naam, datum, handtekening", ML + k * third, y, F.r, 7.5, GRAY));
   const n = pages.length;
   pages.forEach((p, i) => {
     page = p;
