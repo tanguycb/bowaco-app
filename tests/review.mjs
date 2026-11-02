@@ -922,13 +922,21 @@ if (local && !process.env.ZONDER_KLOK) {
   const netDir = process.env.BOWACO_NET || join(KEYDIR, "net");
   const d = JSON.parse(readFileSync(join(netDir, ".icp/cache/networks/local/descriptor.json"), "utf8"));
   const base = `http://127.0.0.1:${d["pocketic-config-port"]}/instances/${d["pocketic-instance-id"]}`;
-  const now = BigInt((await (await fetch(`${base}/read/get_time`)).json()).nanos_since_epoch);
+  // PocketIC antwoordt soms zonder tijd terwijl het net een tik verwerkt: een paar keer opnieuw vragen.
+  const netTime = async () => {
+    for (let k = 0; k < 8; k++) {
+      try { const j = await (await fetch(`${base}/read/get_time`)).json(); if (j && j.nanos_since_epoch !== undefined) return BigInt(j.nanos_since_epoch); } catch { /* opnieuw */ }
+      await new Promise((r) => setTimeout(r, 750));
+    }
+    throw new Error("de tijd van het net is niet te lezen");
+  };
+  const now = await netTime();
   // 2 uur verder (venster voorbij), daarna een paar tikken van de timer (elke 10 min) laten lopen.
   await fetch(`${base}/update/set_time`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nanos_since_epoch: Number(now + 2n * 3_600_000_000_000n) }) });
   await new Promise((r) => setTimeout(r, 1500));
   let after = mid;
   for (let i = 0; i < 6 && after >= mid; i++) {
-    const t = BigInt((await (await fetch(`${base}/read/get_time`)).json()).nanos_since_epoch);
+    const t = await netTime();
     await fetch(`${base}/update/set_time`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nanos_since_epoch: Number(t + 11n * 60_000_000_000n) }) });
     await new Promise((r) => setTimeout(r, 1500));
     const a = await backend("proef-admin", cid);
