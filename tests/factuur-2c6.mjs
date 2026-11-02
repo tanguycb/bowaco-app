@@ -8,8 +8,10 @@
 //                                                eerste nummer, creditnota-reeks), btw 6/21/verlegd met de teksten, weigering bij een
 //                                                ontbrekende vermelding, factuur uit een vorderingsstaat en uit de min-meerstaat (reeds
 //                                                gefactureerd nooit dubbel), betalingen, rechten (werfleider, klant, andere klant, OA,
-//                                                architect), .did-controle, rekentest browser = server (FACT_RONDES, standaard 200) en als
-//                                                LAATSTE de jaarwissel (verzet de klok van het eigen net naar 1 januari).
+//                                                architect), .did-controle, rekentest browser = server (FACT_RONDES, standaard 200); 2c.6b: UBL uit een
+//                                                uitgereikte factuur, kwartaallijst, herinnering; als LAATSTE de jaarwissel
+//                                                (verzet de klok van het eigen net naar 1 januari) met de herinnering bij een
+//                                                vervallen factuur.
 //   node tests/factuur-2c6.mjs <canister> na-herstel   na een herstel (migratiecheck): de tellers staan op het hoogste nummer, de
 //                                                volgende factuur krijgt het volgende nummer (geen gat, geen dubbel).
 // Enkel VERZONNEN gegevens: firma's "Proef … 2c6", gemeente Lindegem, postcode 9993, nummers zonder betekenis.
@@ -104,6 +106,101 @@ if (mode !== "na-herstel") {
   const r4 = readPdf(await factuurPdf(voorbeeldFactuur({ kindText: "Creditnota", number: "CN 2026-001", creditOf: "2026-153", creditOfDay: 20_758n, paymentRef: "", lines: [{ kind: "werk", group: "01 Proef", description: "Proefpost", qtyMilli: -1000n, unit: "ff", unitCents: 10_000n, amountCents: -10_000n, vatBp: 600n, baseCents: null, pctBp: null }] }), F), "cn.pdf");
   const t4 = flat(r4);
   check("(A2) PDF creditnota: nummer CN, 'Bij factuur 2026-153', negatief totaal, geen betaalopdracht", t4.includes("CN 2026-001") && t4.includes("BIJ FACTUUR") && t4.includes("2026-153") && t4.includes("Totaal creditnota") && !t4.includes("Te betalen uiterlijk"));
+}
+
+// A3 (2c.6b). De UBL (Peppol BIS Billing 3.0 / EN 16931): verplichte velden en kloppende sommen, gelezen met de XML-lezer van Python
+// (xml.etree, enkel lezen). Geen externe validator, geen verzending.
+const PYX = `
+import json, sys, xml.etree.ElementTree as ET
+ns = {"cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2", "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"}
+r = ET.parse(sys.argv[1]).getroot()
+t = lambda p: [e.text for e in r.findall(p, ns)]
+lines = r.findall("cac:InvoiceLine", ns) + r.findall("cac:CreditNoteLine", ns)
+q = lambda l: (l.find("cbc:InvoicedQuantity", ns) if l.find("cbc:InvoicedQuantity", ns) is not None else l.find("cbc:CreditedQuantity", ns))
+out = {"root": r.tag.split("}")[1], "customization": t("cbc:CustomizationID"), "profile": t("cbc:ProfileID"), "id": t("cbc:ID"), "issue": t("cbc:IssueDate"), "due": t("cbc:DueDate"),
+  "type": t("cbc:InvoiceTypeCode") + t("cbc:CreditNoteTypeCode"), "currency": t("cbc:DocumentCurrencyCode"), "buyerRef": t("cbc:BuyerReference"), "billingRef": t("cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID"),
+  "sellerEndpoint": t("cac:AccountingSupplierParty/cac:Party/cbc:EndpointID"), "sellerName": t("cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName"), "sellerVat": t("cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"), "sellerCountry": t("cac:AccountingSupplierParty/cac:Party/cac:PostalAddress/cac:Country/cbc:IdentificationCode"),
+  "buyerEndpoint": t("cac:AccountingCustomerParty/cac:Party/cbc:EndpointID"), "buyerName": t("cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName"), "buyerVat": t("cac:AccountingCustomerParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"), "buyerCountry": t("cac:AccountingCustomerParty/cac:Party/cac:PostalAddress/cac:Country/cbc:IdentificationCode"),
+  "payCode": t("cac:PaymentMeans/cbc:PaymentMeansCode"), "payId": t("cac:PaymentMeans/cbc:PaymentID"), "iban": t("cac:PaymentMeans/cac:PayeeFinancialAccount/cbc:ID"),
+  "taxTotal": t("cac:TaxTotal/cbc:TaxAmount"), "sub": [{"base": s.find("cbc:TaxableAmount", ns).text, "tax": s.find("cbc:TaxAmount", ns).text, "cat": s.find("cac:TaxCategory/cbc:ID", ns).text, "pct": s.find("cac:TaxCategory/cbc:Percent", ns).text, "reason": [e.text for e in s.findall("cac:TaxCategory/cbc:TaxExemptionReasonCode", ns)]} for s in r.findall("cac:TaxTotal/cac:TaxSubtotal", ns)],
+  "lineExt": t("cac:LegalMonetaryTotal/cbc:LineExtensionAmount"), "taxExcl": t("cac:LegalMonetaryTotal/cbc:TaxExclusiveAmount"), "taxIncl": t("cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount"), "payable": t("cac:LegalMonetaryTotal/cbc:PayableAmount"),
+  "lines": [{"qty": q(l).text, "unit": q(l).get("unitCode"), "amount": l.find("cbc:LineExtensionAmount", ns).text, "price": l.find("cac:Price/cbc:PriceAmount", ns).text, "cat": l.find("cac:Item/cac:ClassifiedTaxCategory/cbc:ID", ns).text, "pct": l.find("cac:Item/cac:ClassifiedTaxCategory/cbc:Percent", ns).text, "name": l.find("cac:Item/cbc:Name", ns).text} for l in lines]}
+print(json.dumps(out))
+`;
+const readUbl = (xml, name) => {
+  const f = join(tmp, name);
+  writeFileSync(f, xml);
+  const r = spawnSync("python3", ["-c", PYX, f], { encoding: "utf8", cwd: tmp });
+  if (r.status !== 0) throw new Error(`XML: ${r.stderr.slice(0, 300)}`);
+  return JSON.parse(r.stdout);
+};
+const cents = (s) => { const neg = s.startsWith("-"); const [i, d = ""] = s.replace("-", "").split("."); const v = BigInt(i) * 100n + BigInt((d + "00").slice(0, 2)); return neg ? -v : v; };
+const milli = (s) => { const neg = s.startsWith("-"); const [i, d = ""] = s.replace("-", "").split("."); const v = BigInt(i) * 1000n + BigInt((d + "000").slice(0, 3)); return neg ? -v : v; };
+/** De controles van EN 16931 / Peppol BIS 3.0 die de app zelf kan doen: verplichte velden en de sommen (BR-CO-10/13/15, BR-S-08/09, BR-27, R120). */
+export function ublProblems(u, expect) {
+  const p = [];
+  const one = (k) => { if (!u[k] || u[k].length !== 1 || !String(u[k][0]).trim()) p.push(`ontbreekt: ${k}`); };
+  for (const k of ["customization", "profile", "id", "issue", "type", "currency", "buyerRef", "sellerEndpoint", "sellerName", "sellerVat", "sellerCountry", "buyerEndpoint", "buyerName", "buyerCountry", "taxTotal", "lineExt", "taxExcl", "taxIncl", "payable"]) one(k);
+  if (u.customization[0] !== "urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0") p.push("CustomizationID");
+  if (u.profile[0] !== "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0") p.push("ProfileID");
+  if (u.currency[0] !== "EUR") p.push("munt");
+  if (u.root === "Invoice" && (u.due.length !== 1 || u.payCode.length !== 1 || u.iban.length !== 1)) p.push("vervaldag of betaalwijze");
+  if (u.root === "CreditNote" && u.billingRef.length !== 1) p.push("verwijzing naar de factuur");
+  if (u.lines.length === 0) p.push("geen regels");
+  const sumLines = u.lines.reduce((a, l) => a + cents(l.amount), 0n);
+  if (sumLines !== cents(u.lineExt[0])) p.push(`BR-CO-10 Σ regels ${sumLines} ≠ ${u.lineExt[0]}`);
+  if (cents(u.taxExcl[0]) !== cents(u.lineExt[0])) p.push("BR-CO-13");
+  const sumTax = u.sub.reduce((a, s) => a + cents(s.tax), 0n);
+  if (sumTax !== cents(u.taxTotal[0])) p.push("BR-CO-14 Σ btw");
+  if (cents(u.taxIncl[0]) !== cents(u.taxExcl[0]) + cents(u.taxTotal[0])) p.push("BR-CO-15");
+  if (cents(u.payable[0]) !== cents(u.taxIncl[0])) p.push("te betalen");
+  for (const s of u.sub) {
+    const base = u.lines.filter((l) => l.cat === s.cat && l.pct === s.pct).reduce((a, l) => a + cents(l.amount), 0n);
+    if (base !== cents(s.base)) p.push(`BR-S-08 maatstaf ${s.cat} ${s.pct}`);
+    const exp = SC.pctOf(cents(s.base), BigInt(Math.round(Number(s.pct) * 100)));
+    if (exp !== cents(s.tax)) p.push(`BR-S-09 btw ${s.pct} %`);
+    if (s.cat === "AE" && (s.reason.length !== 1 || u.buyerVat.length !== 1)) p.push("BR-AE: reden en btw-nummer van de klant");
+  }
+  for (const l of u.lines) {
+    if (cents(l.price) < 0n) p.push("BR-27 negatieve prijs");
+    const d = SC.lineAmount(milli(l.qty), cents(l.price)) - cents(l.amount);
+    if (d > 1n || d < -1n) p.push(`R120 regel ${l.name}`);
+  }
+  if (expect && cents(u.payable[0]) !== expect) p.push(`te betalen ${u.payable[0]} ≠ PDF ${expect}`);
+  return p;
+}
+if (mode !== "na-herstel") {
+  const { ublXml } = await import("../src/frontend/src/sales/ubl.ts");
+  const toUbl = (d, credit = false) => ({ number: d.number, credit, issueDay: d.issueDay, dueDay: d.dueDay, serviceDay: d.serviceDay, serviceTo: d.serviceTo, issuer: d.issuer, buyer: { ...d.buyer, vat: d.buyer.vat || "BE0987654321", kbo: d.buyer.kbo }, workCode: d.workCode, quoteRefs: d.quoteRefs, lines: d.lines, vatLines: d.vatLines, netCents: d.netCents, vatCents: d.vatCents, totalCents: d.totalCents, mentions: d.mentions, paymentRef: d.paymentRef, paymentDays: d.paymentDays, creditOf: d.creditOf, creditOfDay: d.creditOfDay, scheme: "0208" });
+  const d1 = voorbeeldFactuur();
+  const u1 = readUbl(ublXml(toUbl(d1)), "factuur.xml");
+  const p1 = ublProblems(u1, d1.totalCents);
+  check("(A3) UBL factuur (60 regels, 6 %): verplichte velden, Σ regels = netto, btw per tarief, totaal = PDF", p1.length === 0 && u1.root === "Invoice" && u1.lines.length === 60 && u1.payId[0] === d1.paymentRef, p1.join(" | "));
+  const d2 = voorbeeldFactuur({ reverse: true, lines: [{ kind: "werk", group: "01 Proef", description: "Proefpost verlegd", qtyMilli: 2500n, unit: "m2", unitCents: 12_345n, amountCents: SC.lineAmount(2500n, 12_345n), vatBp: 0n, baseCents: null, pctBp: null }, { kind: "aftrek", group: "Reeds gefactureerd", description: "Reeds gefactureerd: proef", qtyMilli: 1000n, unit: "ff", unitCents: -10_000n, amountCents: -10_000n, vatBp: 0n, baseCents: null, pctBp: null }] });
+  const u2 = readUbl(ublXml(toUbl(d2)), "verlegd.xml");
+  const p2 = ublProblems(u2, d2.totalCents);
+  check("(A3) UBL btw verlegd: categorie AE met de vrijstellingsreden en het btw-nummer van de klant; aftrekregel = negatieve hoeveelheid, positieve prijs", p2.length === 0 && u2.sub.length === 1 && u2.sub[0].cat === "AE" && u2.lines[1].qty.startsWith("-") && !u2.lines[1].price.startsWith("-"), p2.join(" | "));
+  const d3 = voorbeeldFactuur({ kindText: "Creditnota", number: "CN 2026-001", creditOf: "2026-153", creditOfDay: 20_758n, paymentRef: "", lines: [{ kind: "werk", group: "01 Proef", description: "Proefpost", qtyMilli: -1000n, unit: "ff", unitCents: 10_000n, amountCents: -10_000n, vatBp: 600n, baseCents: null, pctBp: null }] });
+  const u3 = readUbl(ublXml(toUbl(d3, true)), "cn.xml");
+  const p3 = ublProblems(u3, -d3.totalCents);
+  check("(A3) UBL creditnota: <CreditNote> 381 met verwijzing naar de factuur, positieve bedragen", p3.length === 0 && u3.root === "CreditNote" && u3.type[0] === "381" && u3.billingRef[0] === "2026-153" && !u3.payable[0].startsWith("-"), p3.join(" | "));
+  const bad = ublProblems({ ...u1, lineExt: ["1.00"] }, null);
+  check("(A3) de toets ziet een fout totaal (zelftest)", bad.some((x) => x.startsWith("BR-CO-10")));
+  const { quarterCsv, CSV_HEAD } = await import("../src/frontend/src/sales/csv.ts");
+  const rows = [
+    { number: "2026-153", series: "F", kind: "voorschot", issueDay: 20_758n, dueDay: 20_773n, clientName: "Proef Klant; Lijster", clientVat: "", workCode: "P-FA1", analyticCode: "P-FA1", vatLines: [{ vatBp: 600n, reverse: false, baseCents: 100_005n, vatCents: 6_000n }], netCents: 100_005n, vatCents: 6_000n, totalCents: 106_005n, paidDay: 20_760n, creditOf: "" },
+    { number: "2026-154", series: "F", kind: "vrij", issueDay: 20_759n, dueDay: 20_774n, clientName: "Proef Bedrijf Spreeuw", clientVat: "BE0987654321", workCode: "P-FC1", analyticCode: "P-FC1", vatLines: [{ vatBp: 0n, reverse: true, baseCents: 250_000n, vatCents: 0n }], netCents: 250_000n, vatCents: 0n, totalCents: 250_000n, paidDay: null, creditOf: "" },
+    { number: "CN 2026-001", series: "CN", kind: "creditnota", issueDay: 20_760n, dueDay: 20_760n, clientName: "Proef Klant; Lijster", clientVat: "", workCode: "P-FA1", analyticCode: "P-FA1", vatLines: [{ vatBp: 2100n, reverse: false, baseCents: -10_000n, vatCents: -2_100n }], netCents: -10_000n, vatCents: -2_100n, totalCents: -12_100n, paidDay: null, creditOf: "2026-153" },
+  ];
+  const csv = quarterCsv(rows);
+  const ls = csv.replace(/^﻿/, "").trim().split("\r\n");
+  check("(A4) kwartaallijst-CSV: kop met werfcode en btw per tarief, één regel per factuur, puntkomma en decimale komma, BOM", csv.startsWith("﻿") && ls.length === 4 && ls[0] === CSV_HEAD.join(";") && ls[1].includes(";1000,05;60,00;0,00;0,00;0,00;1000,05;60,00;1060,05;2026-11-03;") && ls[1].includes('"Proef Klant; Lijster"'), ls[1]);
+  check("(A4) verlegd in een eigen kolom, creditnota negatief met 'bij factuur'", ls[2].includes(";2500,00;2500,00;0,00;2500,00;;") && ls[3].endsWith(";-121,00;;2026-153") && ls[3].includes(";-100,00;-21,00;"), `${ls[2]} | ${ls[3]}`);
+}
+if (mode !== "na-herstel") {
+  const r5 = readPdf(await factuurPdf(voorbeeldFactuur({ reminder: { level: 1, day: 20_790n, text: "Proef: kosteloze herinnering met een termijn van 14 dagen.", openCents: 50_000n, paidCents: 0n } }), fonts()), "herinnering.pdf");
+  const t5 = flat(r5);
+  check("(A2) PDF herinnering: 'Herinnering 1', het openstaande bedrag met de vervaldag, de tekst uit Beheer, de factuur erbij", t5.includes("HERINNERING 1") && t5.includes("Openstaand") && t5.includes("kosteloze herinnering") && t5.includes("2026-153"));
 }
 
 // ── B. Door de backend ──────────────────────────────────────────────────
@@ -541,6 +638,43 @@ let VS;
   for (const id of drafts.values()) ok(await calc.cancelSalesDraft(id, "proef 2c6: rekentest"));
 }
 
+// B15 (2c.6b). UBL uit een echte uitgereikte factuur (bedrijf, btw verlegd): verplichte velden, sommen, bedragen = de vastgelegde factuur;
+// stand "UBL gemaakt"; een particulier krijgt geen UBL (PDF volstaat).
+const { ublXml } = await import("../src/frontend/src/sales/ubl.ts");
+const ublOf = (f, credit = false) => {
+  const a = (x) => (x ? { street: x.street, number: x.number, zip: x.zip, city: x.city, country: x.country } : null);
+  return { number: f.number, credit, issueDay: f.issueDay, dueDay: f.dueDay, serviceDay: un(f.serviceDay), serviceTo: un(f.serviceTo), issuer: { ...f.issuer, address: a(f.issuer.address) }, buyer: { name: f.buyer.name, address: a(un(f.buyer.address)), vat: un(f.buyer.vat) ?? "", kbo: un(f.buyer.kbo) ?? "" }, workCode: f.workCode, quoteRefs: f.quoteRefs, lines: f.lines, vatLines: f.vatLines, netCents: f.netCents, vatCents: f.vatCents, totalCents: f.totalCents, mentions: f.mentions, paymentRef: f.paymentRef, paymentDays: f.paymentDays, creditOf: un(f.creditOf), creditOfDay: un(f.creditOfDay), scheme: "0208" };
+};
+{
+  const ids = (await calc.listSales(W2)).filter((b) => b.status === "uitgereikt").map((b) => b.id);
+  const f = await read(ids[0]);
+  const u = readUbl(ublXml(ublOf(f.doc)), "echt.xml");
+  const p = ublProblems(u, f.doc.totalCents);
+  check("(B15) UBL van een uitgereikte factuur aan een bedrijf (verlegd): verplichte velden, sommen kloppen, bedrag = de vastgelegde factuur", p.length === 0 && u.id[0] === f.brief.number && u.buyerVat[0] === "BE0987654321" && u.sub[0].cat === "AE", p.join(" | "));
+  check("(B15) stand 'UBL gemaakt' (geen verzending); bij een particulier geweigerd", isOk(await calc.markSalesUbl(ids[0])) && (await read(ids[0])).brief.peppol === "ubl-gemaakt" && /btw-nummer/.test(errOf(await calc.markSalesUbl(ADV2))));
+  const fa = await read(ADV2);
+  const ua = readUbl(ublXml(ublOf({ ...fa.doc, buyer: { ...fa.doc.buyer, vat: ["BE0123456789"] } })), "adv.xml");
+  check("(B15) UBL van de voorschotfactuur (regels per hoofdstuk, 21 %): sommen kloppen, mededeling en IBAN", ublProblems(ua, fa.doc.totalCents).length === 0 && ua.payId[0] === fa.doc.paymentRef && ua.iban[0] === ISS.iban.replace(/\s/g, ""), ublProblems(ua, fa.doc.totalCents).join(" | "));
+}
+
+// B16. De kwartaallijst voor de boekhouder: elke uitgereikte factuur en creditnota van het kwartaal, met werfcode en btw per tarief,
+// de dag van de betaling; de CSV komt eruit zoals de browser ze maakt. Enkel kantoor (auditregel).
+{
+  const { quarterCsv } = await import("../src/frontend/src/sales/csv.ts");
+  const dt = new Date(Number(cDay) * 86_400_000);
+  const Q = BigInt(Math.floor(dt.getUTCMonth() / 3) + 1);
+  const rows = ok(await calc.salesQuarter(YEAR, Q));
+  const mine = rows.filter((r) => r.workCode === `P-FA${suffix}` || r.workCode === `P-FC${suffix}`);
+  const adv = rows.find((r) => r.invoiceId === ADV2);
+  check("(B16) kwartaallijst: de facturen en creditnota's van deze proef, met werfcode, klant en btw per tarief", mine.length >= 10 && mine.some((r) => r.series === "CN" && r.creditOf !== "") && mine.some((r) => r.vatLines.some((v) => v.reverse)) && adv && adv.analyticCode === `P-FA${suffix}`, `${mine.length}`);
+  const csv = quarterCsv(rows.map((r) => ({ ...r, paidDay: un(r.paidDay) })));
+  check("(B16) de CSV: één regel per factuur + de kop", csv.trim().split("\r\n").length === rows.length + 1);
+  check("(B16) werfleider, klant en OA: geen kwartaallijst; een ongeldig kwartaal geweigerd", (await denied(wl.salesQuarter(YEAR, Q))) && (await denied(klant.salesQuarter(YEAR, Q))) && (await denied(oa2.salesQuarter(YEAR, Q))) && /Kwartaal/.test(errOf(await calc.salesQuarter(YEAR, 5n))) && (await admin.auditLog(0n, 30n)).some((a) => a.action === "bekeek:kwartaallijst"));
+}
+
+// B17. Herinnering: niet vóór de vervaldag, niet bij een betaalde factuur of een creditnota (na de jaarwissel: wel bij een vervallen factuur).
+check("(B17) herinnering vóór de vervaldag: geweigerd ('Nog niet vervallen'); bij een creditnota geweigerd", /Nog niet vervallen/.test(errOf(await calc.remindSalesInvoice(ADV2, false, ""))) && /uitgereikte factuur/.test(errOf(await calc.remindSalesInvoice((await calc.listSales(W1)).find((b) => b.kind === "creditnota" && b.status === "uitgereikt").id, false, ""))));
+
 // B14 (als LAATSTE: verzet de klok van het EIGEN net). De jaarwissel: op 1 januari begint de reeks van het nieuwe jaar bij de teller die
 // de beheerder vooraf zette (of bij het startnummer); de creditnota's ook; de teller van het nieuwe jaar ligt dan vast.
 const local = /localhost|127\.0\.0\.1/.test(process.env.ICP_HOST ?? "");
@@ -576,6 +710,18 @@ if (local && !process.env.ZONDER_KLOK) {
   const rc = await issue(cj);
   check(`(B14) eerste creditnota van ${Y1}: CN ${Y1}-${String(Number(cnNext)).padStart(3, "0")} (eigen reeks, eigen jaar)`, isOk(rc) && rc.ok === `CN ${Y1}-${String(Number(cnNext)).padStart(3, "0")}`, errOf(rc) || rc.ok);
   check(`(B14) de teller van ${Y1} ligt nu vast`, /ligt vast/.test(errOf(await admin.setSalesCounter("F", Y1, 100n))));
+  // B17 (na de jaarwissel): de voorschotfactuur is vervallen → herinnering 1 (met mail in de wachtrij, testmodus) en 2; een betaalde of
+  // volledig gecrediteerde factuur krijgt er geen.
+  const cur = ok(await calc.readContract(W1));
+  const k = { estimatedAmountCents: [], priceRevision: { none: null }, guarantee: { none: null }, guaranteeBp: 0n, paymentTermDays: 15n, invoicingRhythm: { perPhase: null }, signedQuoteVersionId: [], note: "proef 2c6" };
+  ok(await calc.setContract(W1, { contract: k, clientContact: [{ name: "Proef Klant Lijster", phone: [], email: ["klant-2c6@proef.invalid"], address: [] }], notes: "Proef 2c6" }, cur.version));
+  const r1 = await calc.remindSalesInvoice(ADV2, true, "proef 2c6");
+  const r2 = await calc.remindSalesInvoice(ADV2, false, "");
+  const fa = await read(ADV2);
+  check("(B17) vervallen voorschotfactuur: herinnering 1 (mail in de wachtrij) en 2; het nummer van de herinnering loopt op", isOk(r1) && isOk(r2) && fa.reminders.length === 2 && fa.reminders[0].mailed && fa.reminders[1].level === 2n && fa.brief.reminders === 2n && fa.brief.overdue, `${errOf(r1)} ${errOf(r2)}`);
+  check("(B17) de werklijst toont de vervallen factuur met het aantal dagen te laat", ok(await calc.salesWorklist()).open.some((o) => o.brief.id === ADV2 && o.daysLate > 0n));
+  check("(B17) een volledig gecrediteerde factuur: geen herinnering", /betaald/.test(errOf(await calc.remindSalesInvoice(ADV, false, ""))));
+  check("(B17) werfleider en klant: geen herinnering", (await denied(wl.remindSalesInvoice(ADV2, false, ""))) && (await denied(klant.remindSalesInvoice(ADV2, false, ""))));
 } else console.log("· (B14) jaarwissel overgeslagen (geen eigen net of ZONDER_KLOK)");
 
 console.log(`\n${pass} ✓  ${fail} ✗`);

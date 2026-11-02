@@ -94,7 +94,7 @@ module {
 
   // De mails verstuurt de app zelf (lib/Mail.mo); geen robot mag ze leasen.
   public func isMail(kind : Text) : Bool {
-    kind == "weekplanning" or kind == "herinnering-planning" or kind == "herinnering-uren" or kind == "proef" or kind == "offerte-klant" or kind == "prijsvraag-bedankt";
+    kind == "weekplanning" or kind == "herinnering-planning" or kind == "herinnering-uren" or kind == "proef" or kind == "offerte-klant" or kind == "prijsvraag-bedankt" or kind == "factuur-herinnering";
   };
 
   // Welke robotsoort mag een opdracht leasen. Mail: "app" (die soort kan geen robot krijgen, Config.robotKinds).
@@ -285,6 +285,24 @@ module {
         outro = tx.quoteOutro;
         link = link(c, "#/mijn-offerte");
         tag = "offerte";
+      });
+    };
+    // 2c.6b (AC-21): een herinnering bij een vervallen factuur aan de klantcontact van de werf (adres vastgelegd bij het klikken);
+    // enkel de link naar de app, nooit een bedrag. Zoals de offerte: de klant is geen firma met afmelding of weekmail.
+    if (j.kind == "factuur-herinnering") {
+      let get = func(k : Text) : Text = switch (j.extra.find(func(x : (Text, Text)) : Bool = x.0 == k)) { case (?(_, v)) v; case null "" };
+      let to = get("aan");
+      if (to == "") { return #skip("geen e-mailadres") };
+      return #mail({
+        to = [{ name = get("naam"); email = to }];
+        subject = tx.remindSubject(get("nummer"));
+        preheader = tx.remindPre;
+        heading = tx.remindHeading;
+        intro = tx.remindIntro(get("naam"), get("nummer"), get("vervaldag"), get("werf"));
+        sections = [];
+        outro = tx.remindOutro;
+        link = link(c, switch (j.workId) { case (?w) "#/werven/" # w.toText() # "/facturatie"; case null "#/werven" });
+        tag = "factuur";
       });
     };
     let orgId = j.orgId ?? return #skip("geen firma");

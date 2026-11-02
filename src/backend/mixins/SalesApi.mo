@@ -25,6 +25,7 @@ import SV "../types/salesviews";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Ids "../lib/Ids";
+import Library "../lib/Library";
 import MinMeer "../lib/MinMeer";
 import Post "../lib/Post";
 import Progress "../lib/Progress";
@@ -562,6 +563,80 @@ mixin (
     #ok({ doc = f; hash = inv.hash; pay = Sales.payKey(Sales.payOf(sales, inv)); openCents = if (Sales.creditOfId(inv) != null) 0 else m.openCents });
   };
 
+  // ── 2c.6b: kwartaallijst, UBL, herinnering ────────────────────────────
+  // De kwartaallijst voor de boekhouder (AC-20, D26): elke uitgereikte factuur en creditnota met de uitreikingsdag in het kwartaal, met
+  // de werfcode als analytische code, maatstaf en btw per tarief, totaal en de dag van de betaling. De browser maakt er een CSV van
+  // en zet de PDF's (en de UBL's) erbij in één zip. Auditregel "bekeek:kwartaallijst".
+  public shared ({ caller }) func salesQuarter(year : Nat, quarter : Nat) : async Result.Result<[SV.SalesQuarterRow], Text> {
+    let p = Access.requireActive(access, caller);
+    slOfficeAny(p);
+    if (quarter < 1 or quarter > 4 or year < 2000 or year > 2200) { return #err("Kwartaal 1 tot 4 van een geldig jaar") };
+    let out = List.empty<SV.SalesQuarterRow>();
+    for (inv in sales.invoices.values().toArray().sort(func(a : Types.SalesInvoice, b : Types.SalesInvoice) : { #less; #equal; #greater } = Nat.compare(a.id, b.id)).values()) {
+      if (Sales.isIssued(inv)) {
+        switch (Sales.frozenOf(sales, inv.id)) {
+          case (?f) {
+            let (y, m) = slYearMonth(f.issueDay);
+            if (y == year and (m - 1 : Nat) / 3 + 1 == quarter) {
+              out.add({ invoiceId = inv.id; number = inv.number; series = inv.series; kind = Sales.kindKey(inv.kind); issueDay = f.issueDay; dueDay = f.dueDay; clientName = f.buyer.name; clientVat = switch (f.buyer.vat) { case (?v) v; case null "" }; workCode = f.workCode; analyticCode = f.analyticCode; vatLines = f.vatLines; netCents = f.netCents; vatCents = f.vatCents; totalCents = f.totalCents; paidDay = slPaidDay(inv); creditOf = switch (f.creditOf) { case (?x) x; case null "" } });
+            };
+          };
+          case null {};
+        };
+      };
+    };
+    Access.audit(audit, caller, ?p.id, null, "bekeek:kwartaallijst", year.toText() # " K" # quarter.toText());
+    #ok(out.toArray());
+  };
+
+  // De UBL (Peppol BIS 3.0) maakt de browser uit de vastgelegde factuur; hier enkel de stand "UBL gemaakt" (geen verzending: het
+  // toegangspunt kiest de boekhouder, AC-22). Enkel voor een klant met een btw-nummer.
+  public shared ({ caller }) func markSalesUbl(id : Nat) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    slOfficeAny(p);
+    let inv = sales.invoices.get(id) ?? return #err("Onbekende factuur");
+    slOffice(p, inv.workId);
+    if (not Sales.isIssued(inv)) { return #err("Enkel een uitgereikte factuur krijgt een UBL") };
+    let f = Sales.frozenOf(sales, id) ?? return #err("Onbekende factuur");
+    if (not f.buyer.company) { return #err("UBL enkel voor een klant met een btw-nummer (een particulier krijgt de PDF)") };
+    switch (inv.peppol) { case (#sent _) return #err("Deze factuur werd al via Peppol verstuurd"); case _ {} };
+    sales.invoices.add(id, { inv with peppol = #ublMade(Time.now()); updatedAt = Time.now(); updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, ?inv.workId, "factuur-ubl", inv.number);
+    #ok;
+  };
+
+  // Een herinnering bij een vervallen factuur (AC-21; ontwerp §7.3: eerst een kosteloze herinnering): een record met het volgnummer van
+  // de herinnering (de PDF maakt de browser) en, als kantoor dat vraagt, een mail aan de klantcontact van de werf via de postbode (enkel
+  // de link naar de app, nooit een bedrag; mail in testmodus zolang Config.mailLiveBackends leeg is).
+  public shared ({ caller }) func remindSalesInvoice(id : Nat, mail : Bool, note : Text) : async Result.Result<Nat, Text> {
+    let p = Access.requireActive(access, caller);
+    slOfficeAny(p);
+    let inv = sales.invoices.get(id) ?? return #err("Onbekende factuur");
+    slOffice(p, inv.workId);
+    if (not Sales.isIssued(inv) or Sales.creditOfId(inv) != null) { return #err("Enkel een uitgereikte factuur krijgt een herinnering") };
+    if (Sales.payOf(sales, inv) == #paid) { return #err("Deze factuur is betaald") };
+    let today = slToday();
+    let due = inv.dueDay ?? return #err("Geen vervaldag");
+    if (today <= due + Sales.reminderDays(settings)) { return #err("Nog niet vervallen (herinnering vanaf " # Sales.day(due + Sales.reminderDays(settings) + 1) # ")") };
+    if (note.size() > 300) { return #err("Notitie: hoogstens 300 tekens") };
+    let level = sales.reminders.values().filter(func(r : Types.SalesReminder) : Bool = r.invoiceId == id).size() + 1;
+    var jobId : ?Nat = null;
+    if (mail) {
+      Rights.require({ works; settings }, p, #readConfidentialContact, null);
+      let contact = switch (dossier.confidential.get(inv.workId)) { case (?c) Library.plainOf(c.clientContact); case null null };
+      let c = contact ?? return #err("Geen klantcontact bij de werf: vul naam en e-mailadres in op de werffiche");
+      let email = switch (c.email) { case (?e) { if (e.trim(#char ' ').size() > 0) e.trim(#char ' ') else return #err("Geen e-mailadres bij de klantcontact van de werf") }; case null return #err("Geen e-mailadres bij de klantcontact van de werf") };
+      let w = works.works.get(inv.workId);
+      let (jid, _) = Post.enqueue(post, ctr, "factuur-herinnering", "factuur-herinnering:" # id.toText() # ":" # level.toText(), inv.clientOrgId, null, ?inv.workId, inv.number, ?p.id, [("aan", email), ("naam", c.name), ("nummer", inv.number), ("vervaldag", Sales.day(due)), ("werf", switch w { case (?x) x.name; case null "" })]);
+      jobId := ?jid;
+    };
+    let rid = Ids.next(ctr, "salesReminder");
+    sales.reminders.add(rid, { id = rid; invoiceId = id; level; day = today; mailed = mail; jobId; note = note.trim(#char ' '); at = Time.now(); by = p.id; extra = [] });
+    // Het adres staat nooit in de auditlog (T9).
+    Access.audit(audit, caller, ?p.id, ?inv.workId, "factuur-herinnering", inv.number # " herinnering " # level.toText() # (if mail " (mail in de wachtrij)" else ""));
+    #ok(rid);
+  };
+
   // ── Hulp (prefix sl) ───────────────────────────────────────────────────
   func slMmCtx() : MinMeer.Ctx { { settings; access; org; works; dossier; plan; reports; qs = quotes; qf = quoteForms; qd = quoteDocs; starts = workStarts; ss = surveys; ps = progress; oi = oaInvoices; deals = oaDeals; pu = purchases; sales; mm = minMeer } };
   func slCtx() : Sales.Ctx { { settings; org; works; pc = MinMeer.progressCtx(slMmCtx()); mm = minMeer; sales } };
@@ -588,6 +663,25 @@ mixin (
     if (live.size() > 0) { return ("uitgereikt", live.map(func(i : Types.SalesInvoice) : Text = i.number)) };
     if (invs.any(Sales.isDraft)) { return ("ontwerp", []) };
     ("open", []);
+  };
+
+  // Jaar en maand van een dagnummer (burgerlijke datum, algoritme van H. Hinnant zoals Quotes.yearOf).
+  func slYearMonth(d : Nat) : (Nat, Nat) {
+    let z = d + 719_468;
+    let era = z / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let m = if (mp < 10) mp + 3 else mp - 9;
+    (yoe + era * 400 + (if (m <= 2) 1 else 0), m);
+  };
+  // De dag waarop de factuur volledig betaald werd (de laatste betaling), anders null.
+  func slPaidDay(inv : Types.SalesInvoice) : ?Nat {
+    if (Sales.creditOfId(inv) != null or Sales.payOf(sales, inv) != #paid) { return null };
+    var d : ?Nat = null;
+    for (x in Sales.paymentsOf(sales, inv.id).values()) { if (x.archivedAt == null) { d := switch d { case (?y) ?(if (x.day > y) x.day else y); case null ?x.day } } };
+    d;
   };
 
   func slDueDay(w : Types.Work, st : Types.BillingStep) : ?Nat {

@@ -42,6 +42,12 @@ module {
     thanksHeading : Text;
     thanksIntro : (name : Text, code : Text, title : Text) -> Text;
     thanksOutro : Text;
+    // 2c.6b (AC-21): herinnering bij een vervallen factuur; enkel de link naar de app, nooit een bedrag.
+    remindSubject : (nr : Text) -> Text;
+    remindPre : Text;
+    remindHeading : Text;
+    remindIntro : (name : Text, nr : Text, due : Text, work : Text) -> Text;
+    remindOutro : Text;
     button : Text;
     footer : (contact : Text) -> Text;
     stop : Text;
@@ -96,6 +102,11 @@ module {
     thanksHeading = "Bedankt voor uw offerte";
     thanksIntro = func(name, code, title) = (if (name == "") "Goedendag" else "Goedendag " # name) # ", bedankt voor uw offerte op prijsvraag " # code # " (" # title # "). Deze keer werd uw offerte niet gekozen. We vragen u graag opnieuw bij een volgende werf.";
     thanksOutro = "In deze mail staan bewust geen bedragen.";
+    remindSubject = func(nr) = "Herinnering: factuur " # nr # " van BOWACO";
+    remindPre = "Een factuur van BOWACO staat nog open.";
+    remindHeading = "Herinnering betaling";
+    remindIntro = func(name, nr, due, work) = (if (name == "") "Goedendag" else "Goedendag " # name) # ", factuur " # nr # " voor " # work # " was te betalen op " # due # " en staat volgens onze gegevens nog open. U vindt de factuur en de herinnering in de app, na het inloggen.";
+    remindOutro = "Is de betaling intussen gebeurd, dan mag u deze mail als niet verstuurd beschouwen. In deze mail staan bewust geen bedragen.";
     button = "Open de app";
     footer = func(c) = "Deze mail werd automatisch verstuurd door de BOWACO-app. Antwoorden op deze mail komen niet aan: bel je werfleider" # (if (c.size() > 0) " of mail naar " # c else "") # ". Je logt zelf in; deze mail bevat nooit een toegangscode.";
     stop = "Geen mails meer van de planning? Laat het BOWACO weten.";
@@ -138,6 +149,11 @@ module {
     thanksHeading = "Merci pour votre offre";
     thanksIntro = func(name, code, title) = (if (name == "") "Bonjour" else "Bonjour " # name) # ", merci pour votre offre pour la demande de prix " # code # " (" # title # "). Cette fois, votre offre n'a pas été retenue. Nous vous consulterons volontiers pour un prochain chantier.";
     thanksOutro = "Cet e-mail ne contient volontairement aucun montant.";
+    remindSubject = func(nr) = "Rappel : facture " # nr # " de BOWACO";
+    remindPre = "Une facture de BOWACO est encore ouverte.";
+    remindHeading = "Rappel de paiement";
+    remindIntro = func(name, nr, due, work) = (if (name == "") "Bonjour" else "Bonjour " # name) # ", la facture " # nr # " pour " # work # " était payable le " # due # " et reste ouverte selon nos données. Vous trouvez la facture et le rappel dans l'application, après connexion.";
+    remindOutro = "Si le paiement a entre-temps été effectué, veuillez ignorer ce message. Ce message ne contient volontairement aucun montant.";
     button = "Ouvrir l'app";
     footer = func(c) = "Cet e-mail a été envoyé automatiquement par l'app BOWACO. Les réponses à cet e-mail n'arrivent pas : appelez votre chef de chantier" # (if (c.size() > 0) " ou écrivez à " # c else "") # ". Vous vous connectez vous-même ; cet e-mail ne contient jamais de code d'accès.";
     stop = "Vous ne souhaitez plus recevoir ces e-mails de planning ? Faites-le savoir à BOWACO.";
@@ -180,6 +196,11 @@ module {
     thanksHeading = "Thank you for your quote";
     thanksIntro = func(name, code, title) = (if (name == "") "Hello" else "Hello " # name) # ", thank you for your quote for request " # code # " (" # title # "). This time your quote was not selected. We will gladly ask you again for a next site.";
     thanksOutro = "This e-mail deliberately contains no amounts.";
+    remindSubject = func(nr) = "Reminder: invoice " # nr # " from BOWACO";
+    remindPre = "An invoice from BOWACO is still open.";
+    remindHeading = "Payment reminder";
+    remindIntro = func(name, nr, due, work) = (if (name == "") "Hello" else "Hello " # name) # ", invoice " # nr # " for " # work # " was due on " # due # " and is still open according to our records. You will find the invoice and the reminder in the app after signing in.";
+    remindOutro = "If you have already paid, please disregard this message. This message deliberately contains no amounts.";
     button = "Open the app";
     footer = func(c) = "This e-mail was sent automatically by the BOWACO app. Replies to this e-mail do not arrive: call your site manager" # (if (c.size() > 0) " or write to " # c else "") # ". You sign in yourself; this e-mail never contains an access code.";
     stop = "No more schedule e-mails? Let BOWACO know.";

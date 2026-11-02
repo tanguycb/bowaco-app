@@ -2154,6 +2154,8 @@ await sec("── 2c.6 verkoopfacturen per rol (R42, R43; de rest staat in tests
   check("teller en vermeldingen: enkel de beheerder (R43); de calculator niet", (await denied(calc.setSalesCounter("F", 2026n, 1n))) && /Reeks/.test(errOf(await admin.setSalesCounter("X", 2026n, 1n))));
   check("Mijn facturen: de klant (lijst), werfleider, OA, architect en VC niet; een onbekende factuur 'Onbekende factuur'", isOk(await klant.listMySales()) && (await denied(wl.listMySales())) && (await denied(oa2.listMySales())) && (await denied(arch.listMySales())) && (await denied(vc.listMySales())) && /Onbekende factuur/.test(errOf(await klant.readMySalesInvoice(999_999n))));
   const me = async (x) => (await x.me()).caps[0];
+  for (const [n, x] of [["werfleider", wl], ...others]) check(`${n}: (2c.6b) geen kwartaallijst, geen UBL, geen herinnering`, (await denied(x.salesQuarter(2026n, 1n))) && (await denied(x.markSalesUbl(999_999n))) && (await denied(x.remindSalesInvoice(999_999n, false, ""))));
+  check("calculator (2c.6b): kwartaallijst leesbaar, een onbekende factuur 'Onbekende factuur' bij UBL en herinnering", isOk(await calc.salesQuarter(2026n, 1n)) && /Onbekende factuur/.test(errOf(await calc.markSalesUbl(999_999n))) && /Onbekende factuur/.test(errOf(await calc.remindSalesInvoice(999_999n, false, ""))));
   check("caps: kantoor sales en issueSales, de werfleider niet; de klant mySales", (await me(calc)).sales && (await me(calc)).issueSales && (await me(admin)).issueSales && !(await me(wl)).sales && !(await me(wl)).issueSales && (await me(klant)).mySales && !(await me(oa2)).mySales);
 }
 

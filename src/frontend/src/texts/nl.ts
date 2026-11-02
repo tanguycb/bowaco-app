@@ -1370,7 +1370,7 @@ export const nl = {
     queue: "Wachtrij",
     filter: { open: "Open", failed: "Mislukt", all: "Alles" } as Record<string, string>,
     noJobs: "Niets in deze lijst.",
-    kinds: { weekplanning: "weekplanning", "herinnering-planning": "herinnering planning", "herinnering-uren": "herinnering uren", proef: "proefmail", "offerte-klant": "offerte aan de klant" } as Record<string, string>,
+    kinds: { weekplanning: "weekplanning", "herinnering-planning": "herinnering planning", "herinnering-uren": "herinnering uren", proef: "proefmail", "offerte-klant": "offerte aan de klant", "prijsvraag-bedankt": "bedankt aan een OA", "factuur-herinnering": "herinnering factuur" } as Record<string, string>,
     week: "week van",
     attempts: (n: number) => `${n} ${n === 1 ? "poging" : "pogingen"}`,
     addresses: (n: number) => `${n} ${n === 1 ? "adres" : "adressen"}`,

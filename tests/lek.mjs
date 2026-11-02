@@ -512,6 +512,10 @@ const table = {
   salesWorklist: [["admin", "calculator"], () => []],
   listMySales: [["klant"], () => []],
   readMySalesInvoice: [["klant"], () => [X]],
+  // 2c.6b: kwartaallijst, UBL gemaakt, herinnering (kantoor).
+  salesQuarter: [["admin", "calculator"], () => [2026n, 9n]],
+  markSalesUbl: [["admin", "calculator"], () => [X]],
+  remindSalesInvoice: [["admin", "calculator"], () => [X, false, ""]],
   makeExtraWorkQuote: [["admin", "calculator"], () => [B, [], ""]],
   // 2c.8: werfadministratie en oplevering (R45, R46). Lezen: interne rollen die de werf zien; bewaren: kantoor en de werfleider van de werf;
   // werfwaarde en premie: kantoor (update-calls); de klant leest enkel zijn eigen werf (clientSiteAdmin); een onbekend id: voor iedereen "Geen toegang".
