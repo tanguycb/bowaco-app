@@ -2526,6 +2526,7 @@ export const nl = {
     what: "Wat wil de klant?",
     whatPh: "bv. badkamer en zolder renoveren",
     codeHelp: "De werfcode is meestal het offertenummer (bv. 2026-231).",
+    codeAuto: (c: string) => `Laat de code leeg voor de volgende werfcode (${c}), of typ zelf een code.`,
     made: "Aanvraag genoteerd: werf in de fase Aanvraag",
     needCode: "Geef de werfcode (meestal het offertenummer)",
     sameAddr: "De klant woont op dit adres (adres van de klant = werfadres)",
@@ -3081,6 +3082,44 @@ export const nl = {
     followNow: (e: string, d: string) => `Tarief van de firma: ${e} per uur vanaf ${d}`,
   },
   // 2c.7: aankoopfacturen zoals ze binnenkomen (OA en leverancier, meerdere werven, uren per dag, voorschot, betaalkorting).
+  // 2c.8: werfadministratie en oplevering (verzekering, werfvergadering, oplevering, technische fiches).
+  siteAdmin: {
+    title: "Verzekering, vergadering en oplevering",
+    insurance: {
+      title: "Verzekering", none: "Nog geen verzekering voor deze werf.", add: "Verzekering toevoegen", edit: "Bewerken", archive: "Archiveren",
+      kind: "Soort", kinds: { rc10: "Sub-polis abonnement RC10", ba10: "BA10 per werf", abr: "ABR", other: "Andere" }, otherName: "Naam van de soort",
+      insurer: "Verzekeraar", broker: "Makelaar", noneChosen: "—", policy: "Polisnummer", from: "Loopt van", to: "tot", status: "Stand",
+      statuses: { toDeclare: "Nog aan te geven", declared: "Aangegeven", insured: "Verzekerd", notNeeded: "Niet nodig" }, declaredOn: "Aangegeven op", reason: "Reden",
+      declareBy: (d: string) => `Aangifte uiterlijk ${d} (15 dagen na de start)`, noStart: "Geen startdatum: de uiterste dag volgt zodra de werf een start heeft.",
+      state: { "te-laat": "Te laat", vandaag: "Vandaag de laatste dag", binnenkort: "Binnen 5 dagen", ruim: "", "": "" } as Record<string, string>,
+      docs: "Documenten", addFile: "Document toevoegen", fileKind: "Soort document", kindsDoc: { verzekering: "Polis, vragenlijst, bemiddelingsfiche of vervaldagbericht", attest: "Attest voor de klant" },
+      attest: "Attest", share: "Delen met de klant", unshare: "Niet meer delen", shared: "Gedeeld met de klant", premium: "Werfwaarde en premie",
+      workValue: "Werfwaarde (excl. btw)", rate: "Tarief (‰)", rateHelp: (r: string, m: string) => `Standaard ${r} ‰, minimum ${m}`, minimum: "Minimum", taxes: "Taksen", paid: "Premie betaald",
+      premiumNet: "Premie excl. taksen", noPremium: "Geen premie berekend (tarief of werfwaarde ontbreekt)", note: "Notitie", saved: "Bewaard", pick: "Kies",
+    },
+    meeting: {
+      title: "Werfvergadering", none: "Nog geen werfvergadering.", add: "Werfvergadering toevoegen", number: (n: bigint) => `Vergadering ${n}`, day: "Datum",
+      attendees: "Aanwezigen (één per lijn)", report: "Verslag van de architect", points: "Actiepunten", pointsHelp: "Elk actiepunt wordt een taak in de planning; de firma ziet ze in Mijn week.",
+      addPoint: "Punt toevoegen", what: "Wat", who: "Wie", when: "Tegen", open: "open", done: "klaar", notInTeam: "werkt nog niet mee op deze werf", note: "Notitie", archive: "Archiveren", saved: "Bewaard",
+    },
+    handover: {
+      title: "Oplevering", none: "Nog geen oplevering.", add: "Oplevering toevoegen", kind: "Soort", kinds: { provisional: "Voorlopige oplevering", final: "Definitieve oplevering" },
+      day: "Datum", attendees: "Aanwezigen (één per lijn)", pv: "PV van de architect", signed: "Getekend stuk", points: "Restpunten", pointsHelp: "Elk restpunt wordt een taak voor de firma in de planning.",
+      status: { planned: "Gepland", done: "Afgerond", withRemarks: "Afgerond met opmerkingen" }, openPoints: (n: bigint) => (n === 0n ? "geen openstaande restpunten" : `${n} restpunt(en) open`),
+      finish: "Document maken en afronden", finishHelp: "Het opleveringsdocument (PDF, zonder bedragen) ligt daarna vast onder een controlecode.", code: "Controlecode",
+      share: "Delen met de klant", unshare: "Niet meer delen", shared: "Gedeeld met de klant", open: "Document openen", note: "Notitie", saved: "Bewaard", finished: "Afgerond",
+      dayNeeded: "Geef eerst de datum van de oplevering.",
+    },
+    sheets: {
+      title: "Technische fiches (PID)", none: "Nog geen fiches in de bibliotheek (Beheer).", pick: "Fiches voor het postinterventiedossier van deze werf", saved: "Bewaard",
+      library: "Technische fiches", material: "Materiaalsoort", sheetTitle: "Titel", file: "Bestand (PDF)", supplier: "Leverancier", add: "Fiche toevoegen", archive: "Archiveren",
+    },
+    settings: {
+      title: "Werfadministratie", codeP: "Nieuwe werven krijgen een werfcode P.nnn", codePHelp: "Bestaande codes blijven. Bij een nieuwe werf laat u de code leeg.", next: (c: string) => `Volgende code: ${c}`,
+      rates: "Premie per soort (‰ van de werfwaarde, met minimum)", rate: "Tarief (‰)", minimum: "Minimum (€)", save: "Bewaren", saved: "Bewaard", annual: "Jaarpolis (abonnement)", annualNone: "Geen jaarpolis ingevoerd.",
+    },
+    client: { title: "Verzekering en oplevering", attest: (k: string) => `Verzekeringsattest ${k}`, handover: (k: string) => k, code: "Controlecode", none: "Er is nog niets gedeeld." },
+  },
   aankoop: {
     tabParts: "Per werf",
     tabPurchases: "Aankoopfacturen",

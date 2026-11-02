@@ -32,6 +32,7 @@ import QuoteDocs "../lib/QuoteDocs";
 import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
 import WorkStart "../lib/WorkStart";
+import SiteAdmin "../lib/SiteAdmin";
 
 mixin (
   settings : Types.SettingsState,
@@ -212,7 +213,9 @@ mixin (
     let workId : Nat = switch (t.workId) {
       case (?w) w;
       case null {
-        let (code, name, asSub) = switch (i.target) { case (#newWork n) (n.code, n.name, n.asSub); case (#existing) ("", "", false) };
+        let (code0, name, asSub) = switch (i.target) { case (#newWork n) (n.code, n.name, n.asSub); case (#existing) ("", "", false) };
+        // 2c.8 (AC-25): geen code + instelling "werfcode P.nnn" = de volgende code uit de teller (verbruikt bij het maken).
+        let code = if (code0.trim(#char ' ').size() == 0 and SiteAdmin.codeP(settings)) SiteAdmin.takeWorkCode(settings, works) else code0;
         let id = Ids.next(ctr, "work");
         let parentId : ?Nat = if asSub { switch (src.parentId) { case (?x) ?x; case null ?src.id } } else null;
         let nw : Types.Work = {
@@ -534,8 +537,10 @@ mixin (
         if (not Rights.may(ctx, p, #createWork, null)) { return #err("Geen toegang: een nieuwe werf maken mag u niet") };
         if (check) {
           if (Access.cleanText(n.name, Config.maxName) == null) { return #err("Naam van de nieuwe werf: 1 tot " # Config.maxName.toText() # " tekens") };
-          let code = Access.cleanText(n.code, Config.maxShort) ?? return #err("Code van de nieuwe werf: 1 tot " # Config.maxShort.toText() # " tekens");
-          if (works.works.values().any(func w = w.code == code)) { return #err("Werfcode " # code # " bestaat al") };
+          if (n.code.trim(#char ' ').size() > 0 or not SiteAdmin.codeP(settings)) {
+            let code = Access.cleanText(n.code, Config.maxShort) ?? return #err("Code van de nieuwe werf: 1 tot " # Config.maxShort.toText() # " tekens");
+            if (works.works.values().any(func w = w.code == code)) { return #err("Werfcode " # code # " bestaat al") };
+          };
         };
         ignore q;
         #ok({ workId = null; address = src.address; plannedStart = null; cal = WorkStart.companyCal(plan) });

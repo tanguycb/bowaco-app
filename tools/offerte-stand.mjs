@@ -224,6 +224,39 @@ if (typeof who.admin.readMinMeer === "function") {
   stand.minMeerInhoud = Object.fromEntries((await chunkOf("mmFrozen")).map(([k, v]) => [String(k), v]));
   stand.minMeerInstellingen = await res(who.admin.minMeerSettings());
 }
+// 2c.8: de werfadministratie (enkel als de code ze kent): per werf verzekeringen, werfvergaderingen, opleveringen, de fichekeuze en
+// de klantweergave, wie ze mag lezen, werfwaarde en premie (update-call met auditregel), de bibliotheek van fiches en de instellingen.
+if (typeof who.admin.listInsurances === "function") {
+  stand.werfadmin = {};
+  stand.werfadminRechten = {};
+  for (const w of await who.admin.listWorks()) {
+    const rec = {
+      verzekeringen: await res(who.admin.listInsurances([w.id], true)),
+      vergaderingen: await res(who.admin.listMeetings(w.id)),
+      opleveringen: await res(who.admin.listHandovers(w.id)),
+      fiches: await res(who.admin.workTechSheets(w.id)),
+    };
+    const ids = (rec.verzekeringen.ok ?? []).map((x) => x.id);
+    rec.premies = {};
+    for (const id of ids) rec.premies[String(id)] = await res(who.admin.readInsuranceConf(id));
+    if (ids.length || rec.vergaderingen.ok?.length || rec.opleveringen.ok?.length || rec.fiches.ok?.length) stand.werfadmin[String(w.id)] = rec;
+    if (ids.length) {
+      const per = {};
+      for (const rol of ["calculator", "werfleider", "architect", "oa", "klant", "vc"]) per[rol] = { lijst: allowed(await res(who[rol].listInsurances([w.id], false))), premie: allowed(await res(who[rol].readInsuranceConf(ids[0]))), vergaderingen: allowed(await res(who[rol].listMeetings(w.id))), klant: allowed(await res(who[rol].clientSiteAdmin(w.id))) };
+      stand.werfadminRechten[String(w.id)] = per;
+    }
+  }
+  stand.klantWeergave = await res(who.klant.clientSiteAdmin((await who.admin.listWorks())[0]?.id ?? 0n));
+  // Als object per id: een nieuwe jaarpolis of fiche telt bij de vergelijking niet, een gewijzigde wel.
+  const perId = (r) => (r.ok ? Object.fromEntries(r.ok.map((x) => [String(x.id), x])) : r);
+  stand.jaarpolissen = perId(await res(who.admin.listInsurances([], true)));
+  stand.ficheBibliotheek = perId(await res(who.admin.listTechSheets(true)));
+  // Zonder nextCode: de volgende werfcode verandert zodra er een werf bijkomt (geen wijziging van wat bestond).
+  const wi = await res(who.admin.siteAdminSettings());
+  stand.werfadminInstellingen = wi.ok ? { ok: { codeP: wi.ok.codeP, rates: wi.ok.rates } } : wi;
+  stand.werfadminExport = {};
+  for (const k of ["insurances", "siteMeetings", "handovers", "techSheets", "workSheets", "siteNotices", "insuranceConf"]) stand.werfadminExport[k] = Object.fromEntries((await chunkOf(k)).map((x, i) => [String(Array.isArray(x) ? x[0] : x.id ?? i), x]));
+}
 const ex = await who.admin.exportIntern();
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;
 delete stand.telling.notifications; // leesacties kunnen meldingen maken

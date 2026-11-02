@@ -2250,6 +2250,91 @@ module {
     versionsByWork : Map.Map<Nat, [Nat]>; // werf → versies (index)
   };
 
+  // ── Werfadministratie en oplevering (stap 2c.8, ontwerp 2c §4.8, migratie 7) ──
+  // Nieuw domein `siteAdmin`: verzekeringen per werf (intern) met werfwaarde en premie apart (VERTROUWELIJK), werfvergaderingen,
+  // opleveringen en de bibliotheek van technische fiches. Actiepunten en restpunten zijn gewone taken van de planning
+  // (Task.templateKey = ?"actiepunt" / ?"restpunt"): daar verandert niets aan. Types liggen vast zodra dit op een blijvende canister staat.
+  public type InsuranceKind = { #rc10Sub; #ba10; #abr; #other : Text };
+  public type InsuranceStatus = { #toDeclare; #declared : Day; #insured; #notNeeded : Text };
+  // klasse: intern. Een verzekering van een werf (workId = null: de jaarpolis, in Beheer). Aangifte uiterlijk 15 dagen na de start.
+  public type Insurance = {
+    id : Nat;
+    workId : ?WorkId;
+    kind : InsuranceKind;
+    insurerOrgId : ?OrgId; // firma van soort "andere" met vakgebied verzekeraar (⚖10)
+    brokerOrgId : ?OrgId; // idem makelaar
+    policyRef : Text;
+    periodFrom : ?Day;
+    periodTo : ?Day;
+    declareBy : ?Day; // laatst berekende uiterste aangifte (start + 15); wordt bij elke ronde en opslag herrekend zolang niet aangegeven
+    status : InsuranceStatus;
+    documentIds : [Nat]; // documenten van 1.1 (vragenlijst, polis, bemiddelingsfiche, vervaldagbericht, attest)
+    attestDocId : ?Nat; // het attest voor de klant (een van de documenten)
+    attestSharedAt : ?Int; // kantoor deelde het attest met de klant (Mijn werf)
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+  // klasse: vertrouwelijk. Werfwaarde en premie. rateMilli = ‰ in duizendsten (3,04 ‰ = 3040).
+  public type InsuranceConf = { insuranceId : Nat; workValueCents : ?Int; rateMilli : ?Nat; minPremiumCents : ?Int; premiumNetCents : ?Int; taxesCents : ?Int; paid : Bool; extra : Extra };
+  // klasse: intern. Een werfvergadering; de actiepunten zijn taken (taskIds).
+  public type SiteMeeting = {
+    id : Nat;
+    workId : WorkId;
+    number : Nat; // per werf, uit settings.sequences
+    day : Day;
+    attendees : [Text]; // namen en firma's
+    fileId : ?Nat; // het verslag van de architect
+    taskIds : [Nat];
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+  public type HandoverKind = { #provisional; #final };
+  public type HandoverStatus = { #planned; #done; #withRemarks };
+  // klasse: intern. Een oplevering; de restpunten zijn taken per OA (taskIds). Afgerond = het opleveringsdocument (PDF) ligt vast onder een controlecode.
+  public type Handover = {
+    id : Nat;
+    workId : WorkId;
+    kind : HandoverKind;
+    day : ?Day;
+    status : HandoverStatus;
+    attendees : [Text];
+    pvFileId : ?Nat; // het PV van de architect
+    taskIds : [Nat]; // restpunten
+    signedFileId : ?Nat; // het getekende document
+    docFileId : ?Nat; // het opleveringsdocument (PDF) voor de klant, vast bij afronden
+    controlCode : ?Text; // sha-256 (hex) van dat document
+    finishedAt : ?Int;
+    sharedAt : ?Int; // kantoor deelde het document met de klant
+    note : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+  // klasse: intern. Een technische fiche (bibliotheek in Beheer, per werf aan te vinken voor het PID).
+  public type TechSheet = { id : Nat; materialKey : Text; title : Text; fileId : Nat; supplierOrgId : ?OrgId; createdAt : Int; createdBy : PersonId; archivedAt : ?Int; extra : Extra };
+  public type SiteAdminState = {
+    insurances : Map.Map<Nat, Insurance>;
+    insuranceConf : Map.Map<Nat, Confidential<InsuranceConf>>; // vertrouwelijk; sleutel = verzekering
+    meetings : Map.Map<Nat, SiteMeeting>;
+    handovers : Map.Map<Nat, Handover>;
+    techSheets : Map.Map<Nat, TechSheet>;
+    workSheets : Map.Map<Nat, [Nat]>; // werf → fiches voor het PID
+    notices : Map.Map<Text, Int>; // verstuurde meldingen (één keer per ding): sleutel → tijdstip
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

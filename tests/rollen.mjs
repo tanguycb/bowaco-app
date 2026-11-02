@@ -510,7 +510,7 @@ check("werfleider kan de documentsoorten niet wijzigen", await rejects(wl.setDoc
 check("een interne rol als 'wie levert' geweigerd", "err" in (await admin.setDocKind({ ...kind, deliverer: "werfleider" })));
 check("admin voegt een documentsoort toe (instelbaar, A5)", isOk(await admin.setDocKind(kind)));
 const kinds = await admin.listDocKinds(false);
-check("de standaardlijst blijft erbij (21 + 1)", kinds.length === 22 && kinds.some((k) => k.key === "keuring-lift"), `${kinds.length}`);
+check("de standaardlijst blijft erbij (28 + 1: 2c.8 voegde 7 vaste soorten toe)", kinds.length === 29 && kinds.some((k) => k.key === "keuring-lift"), `${kinds.length}`);
 check("nieuwe verplichte soort staat meteen op de checklist", "yes" in lineOf(await admin.getDossier(A), "keuring-lift").applies);
 check("admin archiveert de soort → weg van de checklist", isOk(await admin.setDocKind({ ...kind, archived: true })) && !lineOf(await admin.getDossier(A), "keuring-lift"));
 check("OA leest de documentsoorten niet (intern)", await rejects(oa.listDocKinds(false)));
@@ -2116,6 +2116,24 @@ await sec("── 2c.5 min-meerstaat per rol (R41; de rest staat in tests/minmee
   check("antwoorden op een versie: enkel de klant (onbekende versie); de architect niet", /Onbekende versie/.test(errOf(await klant.answerMyMinMeer(999_999n, "", true, ""))) && (await denied(arch.answerMyMinMeer(999_999n, "", true, ""))));
   const me = async (x) => (await x.me()).caps[0];
   check("caps: kantoor minMeer, de werfleider niet; de klant en de architect myMinMeer", (await me(calc)).minMeer && !(await me(wl)).minMeer && (await me(klant)).myMinMeer && (await me(arch)).myMinMeer && !(await me(oa2)).myMinMeer);
+}
+
+await sec("── 2c.8 werfadministratie en oplevering per rol (R45, R46; de rest staat in tests/werfadmin-2c8.mjs)");
+{
+  const others = [["architect", arch], ["OA", oa2], ["klant", klant], ["veiligheidscoördinator", vc], ["anoniem", anon]];
+  const caps = async (x) => (await x.me()).caps[0];
+  const insIn = { id: [], workId: [A], kind: { rc10Sub: null }, insurerOrgId: [], brokerOrgId: [], policyRef: "PR-2C8", periodFrom: [], periodTo: [], status: { toDeclare: null }, note: "" };
+  const ir = await calc.saveInsurance(insIn);
+  check("calculator maakt een verzekering op werf A", isOk(ir), errOf(ir));
+  const iid = ir.ok;
+  check("admin leest de verzekering van werf A; de werfleider (lid van A) ook", (await admin.listInsurances([A], false)).length >= 1 && (await wl.listInsurances([A], false)).length >= 1);
+  for (const [n, x] of others) check(`${n}: verzekering, vergadering, oplevering en fiches lezen en bewaren geweigerd`, (await denied(x.listInsurances([A], false))) && (await denied(x.listMeetings(A))) && (await denied(x.listHandovers(A))) && (await denied(x.listTechSheets(false))) && (await denied(x.saveInsurance(insIn))));
+  check("de werfleider ziet werfwaarde en premie niet (update-calls geweigerd)", (await denied(wl.readInsuranceConf(iid))) && (await denied(wl.saveInsuranceConf(iid, { workValueCents: [1000n], rateMilli: [], minPremiumCents: [], taxesCents: [], paid: false }))));
+  check("calculator en admin lezen de premie (update-call met auditregel bekeek:verzekering)", isOk(await calc.readInsuranceConf(iid)) && isOk(await admin.readInsuranceConf(iid)) && (await admin.auditLog(0n, 40n)).some((l) => l.action === "bekeek:verzekering"));
+  check("de werfleider van werf A bewaart een vergadering; de bibliotheek van fiches enkel kantoor", isOk(await wl.saveMeeting(A, { id: [], day: 20_000n, attendees: [], fileId: [], note: "", addPoints: [] })) && (await denied(wl.saveTechSheet({ id: [], materialKey: "x", title: "x", fileId: 1n, supplierOrgId: [] }))));
+  check("klant: geen werfadministratie van kantoor; de klantweergave bestaat (leeg zolang niets gedeeld is)", (await denied(klant.listInsurances([A], false))) && Array.isArray((await klant.clientSiteAdmin(A)).attests));
+  check("enkel de beheerder bewaart de instellingen en draait de ronde", (await denied(calc.saveSiteAdminSettings({ codeP: false, rates: [] }))) && (await denied(wl.scanSiteAdmin())) && (await denied(calc.scanSiteAdmin())));
+  check("caps: siteAdmin voor interne rollen, editSiteAdmin voor kantoor, myWorks voor de klant", (await caps(wl)).siteAdmin && !(await caps(wl)).editSiteAdmin && (await caps(calc)).editSiteAdmin && (await caps(klant)).myWorks);
 }
 
 await sec("── afzetten (R16, T7)");

@@ -132,6 +132,9 @@ export function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => v
   const W = t.wervenFase;
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: !!actor && !isFetching });
   const clients = (orgs.data ?? []).filter((o) => o.kind === OrgKind.client).sort((a, b) => a.name.localeCompare(b.name, "nl"));
+  // 2c.8 (AC-25): staat "werfcode P.nnn" aan, dan mag de code leeg blijven en geeft de app de volgende uit de teller.
+  const nextCode = useQuery({ queryKey: ["nextWorkCode"], queryFn: () => actor!.nextWorkCode(), enabled: !!actor && !isFetching && caps.createWork });
+  const autoCode = nextCode.data ?? undefined;
   const [mode, setMode] = useState<"new" | "existing">("new");
   const [f, setF] = useState({ client: "", clientName: "", email: "", phone: "", code: "", name: "", street: "", number: "", zip: "", city: "", vat: 600 });
   // Chrome-test 2b.3: zonder adres blokkeert de controle vóór verzending ("De klant heeft geen volledig adres"); bij een
@@ -144,7 +147,7 @@ export function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => v
   const [madeOrg, setMadeOrg] = useState<bigint | null>(null);
   const save = useMutation({
     mutationFn: async () => {
-      if (!f.code.trim()) throw new Error(W.needCode);
+      if (!f.code.trim() && !autoCode) throw new Error(W.needCode);
       if (!(f.name.trim() || autoName)) throw new Error(W.needAddress);
       let clientOrgId: bigint;
       if (mode === "existing") {
@@ -208,10 +211,10 @@ export function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => v
         <Field label={t.werven.city}><input className="bw-input" value={f.city} onChange={set("city")} /></Field>
         {mode === "new" && madeOrg === null && <label className="a-check"><input type="checkbox" checked={sameAddr} onChange={(e) => setSameAddr(e.target.checked)} />{W.sameAddr}</label>}
         <div className="a-grid2">
-          <Field label={t.werven.code}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} placeholder="2026-231" /></Field>
+          <Field label={t.werven.code}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} placeholder={autoCode ?? "2026-231"} /></Field>
           <Field label={t.werven.vat}><Choice label={t.werven.vat} value={f.vat} onChange={(v) => setF({ ...f, vat: v })} options={[{ value: 600, label: "6 %" }, { value: 2100, label: "21 %" }]} /></Field>
         </div>
-        <p className="bw-muted">{W.codeHelp}</p>
+        <p className="bw-muted">{autoCode ? W.codeAuto(autoCode) : W.codeHelp}</p>
         <Field label={t.werven.name}><input className="bw-input" value={f.name} onChange={set("name")} placeholder={autoName || W.whatPh} maxLength={80} /></Field>
         {save.error && <p className="a-err" role="alert">{errText(save.error)}</p>}
       </div>
@@ -221,7 +224,9 @@ export function NewRequest({ caps, onClose, go }: { caps: Caps; onClose: () => v
 
 /** Nieuwe werf, of een deelwerf van `parent` (zelfde adres, klant en btw als vertrekpunt). */
 export function NewWork({ onClose, parent, go }: { onClose: () => void; parent?: WorkView; go?: (to: string) => void }) {
-  const { actor } = useBackend();
+  const { actor, isFetching } = useBackend();
+  const nextCode = useQuery({ queryKey: ["nextWorkCode"], queryFn: () => actor!.nextWorkCode(), enabled: !!actor && !isFetching });
+  const autoCode = nextCode.data ?? undefined;
   const qc = useQueryClient();
   const toast = useToast();
   const [f, setF] = useState({
@@ -252,9 +257,10 @@ export function NewWork({ onClose, parent, go }: { onClose: () => void; parent?:
     <Sheet title={parent ? `${t.werven.newSub} · ${parent.code}` : t.werven.new} open onClose={onClose} side footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button></>}>
       <div className="a-form">
         <div className="a-grid2">
-          <Field label={t.werven.code}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} placeholder="2026-231" /></Field>
+          <Field label={t.werven.code}><input className="bw-input bw-mono" value={f.code} onChange={set("code")} placeholder={autoCode ?? "2026-231"} /></Field>
           <Field label={t.werven.vat}><Choice label={t.werven.vat} value={f.vat} onChange={(v) => setF({ ...f, vat: v })} options={[{ value: 600, label: "6 %" }, { value: 2100, label: "21 %" }]} /></Field>
         </div>
+        {autoCode && <p className="bw-muted">{t.wervenFase.codeAuto(autoCode)}</p>}
         <Field label={t.werven.name}><input className="bw-input" value={f.name} onChange={set("name")} /></Field>
         <div className="a-grid3">
           <Field label={t.werven.street}><input className="bw-input" value={f.street} onChange={set("street")} /></Field>

@@ -22,12 +22,14 @@ import { WieWerktMee } from "./Toegang";
 import { Afspraken } from "./Afspraken";
 import { WorkPermits } from "./Vergunningen";
 import { WorkAdmin } from "./Werfadministratie";
+import { WorkSiteAdmin } from "./Werfbeheer";
 import { PendingStarts } from "./WerfStart";
 import { OpmetingWerf } from "./Opmeting";
 import { MyStatements, WorkStatements } from "./Vorderingen";
 import { WorkOaInvoices } from "./OaFacturen";
 import { WorkHourClaims, WorkPurchases } from "./Aankoop";
 import { MyQuotes } from "./MijnOfferte";
+import { ClientSiteDocs } from "./MijnWerfStukken";
 import { WorkTenders } from "./Prijsvragen";
 import { WorkOaQuotes } from "./OaOffertes";
 import { MyMinMeer, WorkMinMeer } from "./MinMeer";
@@ -179,7 +181,7 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
   const id = w.id;
   switch (tab.key) {
     case "overzicht":
-      return client || !caps.readTeam ? <ExternOverzicht w={w} caps={caps} go={go} client={client} /> : <Overzicht w={w} caps={caps} go={go} fase={fase} />;
+      return client || !caps.readTeam ? <><ExternOverzicht w={w} caps={caps} go={go} client={client} />{client && caps.myWorks && <ClientSiteDocs workId={w.id} />}</> : <Overzicht w={w} caps={caps} go={go} fase={fase} />;
     case "offerte": {
       if (client) return <MyQuotes go={go} embedded workName={w.name} />;
       // 2c.2/2c.3: subtabbladen Versies · Prijsvragen · OA-offertes (interne rollen; de werfleider ziet enkel firma's, stand en deadline).
@@ -246,6 +248,7 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
         <div className="a-tabbody">
           <WorkPermits w={w} fallback={none} />
           <WorkAdmin w={w} />
+          <WorkSiteAdmin w={w} />
         </div>
       );
     case "documenten":

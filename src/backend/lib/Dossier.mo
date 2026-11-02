@@ -161,7 +161,9 @@ module {
   // De geldende lijst: wat de admin instelde, anders de standaardlijst (VOORLOPIG, A5). Gesorteerd.
   public func kinds(s : Types.SettingsState, withArchived : Bool) : [Views.DocKindView] {
     let own = s.lookups.entries().filter(func((k, _) : (Text, Types.Lookup)) : Bool = isKindKey(k)).map(func((_, l) : (Text, Types.Lookup)) : Views.DocKindView = kindFromLookup(l)).toArray();
-    let all = if (own.size() == 0) defaultKinds() else own;
+    // 2c.8: heeft de admin de lijst al aangepast (dan geldt zijn lijst), dan komen de vaste soorten die 2c.8 toevoegde er toch bij als
+    // ze ontbreken (een lookup, geen migratie); een soort die hij zelf bewerkte of archiveerde blijft zoals hij ze zette.
+    let all = if (own.size() == 0) defaultKinds() else own.concat(defaultKinds().filter(func(d : Views.DocKindView) : Bool = Config.lateDocKinds().any(func k = k == d.key) and own.find(func o = o.key == d.key) == null));
     all.filter(func k = withArchived or not k.archived).sort(func(a, b) = Nat.compare(a.order, b.order));
   };
 

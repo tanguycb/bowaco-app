@@ -77,6 +77,9 @@ module {
     hourClaims : Bool; // 2c.7: uren van OA's bevestigen (werfleider van de werf, beheerder)
     minMeer : Bool; // 2c.5: de min-meerstaat bewerken, versies maken en delen (admin, calculator)
     myMinMeer : Bool; // 2c.5: gedeelde versies van de min-meerstaat (klant; architect met de grant vorderingsstaten, per werf)
+    siteAdmin : Bool; // 2c.8: werfadministratie (verzekering, vergadering, oplevering, fiches) zien: interne rollen
+    editSiteAdmin : Bool; // 2c.8: de bibliotheek van technische fiches en de jaarpolis beheren (admin, calculator)
+    myWorks : Bool; // 2c.8: de klant ziet het gedeelde attest en opleveringsdocument in Mijn werf
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
 
@@ -903,6 +906,12 @@ module {
     mmOverrides : [Types.MmOverride];
     mmVersions : [Types.MmVersion];
     mmAnswers : [Types.MmAnswer];
+    insurances : [Types.Insurance]; // 2c.8 (intern: zonder werfwaarde en premie)
+    siteMeetings : [Types.SiteMeeting];
+    handovers : [Types.Handover];
+    techSheets : [Types.TechSheet];
+    workSheets : [(Nat, [Nat])];
+    siteNotices : [(Text, Int)];
   };
 
   // 1.9: keuzelijst in ruwe vorm (export en herstel).
@@ -1036,6 +1045,13 @@ module {
     #mmPrices : [(Nat, Types.Confidential<Types.MmEntryPrice>)]; // 2c.5 (vertrouwelijk)
     #mmRegieRates : [(Nat, Types.Confidential<[Types.MmRegieRate]>)];
     #mmFrozen : [(Nat, Types.Confidential<Types.MmFrozen>)];
+    #insurances : [Types.Insurance]; // 2c.8 (intern)
+    #siteMeetings : [Types.SiteMeeting];
+    #handovers : [Types.Handover];
+    #techSheets : [Types.TechSheet];
+    #workSheets : [(Nat, [Nat])];
+    #siteNotices : [(Text, Int)];
+    #insuranceConf : [(Nat, Types.Confidential<Types.InsuranceConf>)]; // 2c.8 (vertrouwelijk: werfwaarde en premie)
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
 
@@ -1073,6 +1089,7 @@ module {
     mmPrices : [(Nat, Types.Confidential<Types.MmEntryPrice>)]; // 2c.5: prijzen van de regels, regietarief per werf, inhoud van de versies
     mmRegieRates : [(Nat, Types.Confidential<[Types.MmRegieRate]>)];
     mmFrozen : [(Nat, Types.Confidential<Types.MmFrozen>)];
+    insuranceConf : [(Nat, Types.Confidential<Types.InsuranceConf>)]; // 2c.8: werfwaarde en premie van de verzekeringen
   };
 
   // ── Import van de bestaande planning (1.5) ──────────────────────────────

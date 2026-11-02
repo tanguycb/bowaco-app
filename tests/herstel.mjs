@@ -55,7 +55,7 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices", "quoteFormInfos", "quoteVersionForms", "quoteSubgroups", "quoteLineForms", "textBlocks", "quoteSentExtras", "tenders", "tenderItems", "tenderInvites", "oaQuotes", "agreements", "oaContractTemplates", "orgDocs", "dealNotices", "purchases", "hourClaims", "mmEntries", "mmOverrides", "mmVersions", "mmAnswers"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices", "quoteFormInfos", "quoteVersionForms", "quoteSubgroups", "quoteLineForms", "textBlocks", "quoteSentExtras", "tenders", "tenderItems", "tenderInvites", "oaQuotes", "agreements", "oaContractTemplates", "orgDocs", "dealNotices", "purchases", "hourClaims", "mmEntries", "mmOverrides", "mmVersions", "mmAnswers", "insurances", "siteMeetings", "handovers", "techSheets", "workSheets", "siteNotices"];
   // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
   const SIZE = { purchaseAmounts: 50, libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10, oaInvoiceAmounts: 50, textBlocks: 50, quoteSentExtras: 20, quoteVersionTerms: 100, tenderItems: 100, oaQuoteAmounts: 50, oaQuoteDrafts: 50, oaContractTemplates: 10, agreementFrozen: 10, agreementTerms: 50, mmFrozen: 5, mmEntries: 200, mmPrices: 200 };
   const partOpt = async (k) => { try { return await part(k, SIZE[k] ?? 500); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
@@ -81,6 +81,8 @@ async function exportAll(cid, dir) {
   for (const k of ["purchaseAmounts", "oaAdvances"]) vertrouwelijk[k] = await partOpt(k);
   // 2c.5: de prijzen van de regels van de min-meerstaat, het regietarief per werf en de vastgelegde inhoud van de versies.
   for (const k of ["mmPrices", "mmRegieRates", "mmFrozen"]) vertrouwelijk[k] = await partOpt(k);
+  // 2c.8: werfwaarde en premie van de verzekeringen.
+  for (const k of ["insuranceConf"]) vertrouwelijk[k] = await partOpt(k);
   // 2.12 (review M1): de tellers als ALLERLAATSTE: op een levende canister kan tussen twee stukken nog een staat verstuurd of
   // een record gemaakt worden; een teller die ouder is dan de records geeft na een herstel hetzelfde nummer nog eens.
   intern.counters = await part("counters");
@@ -269,6 +271,13 @@ async function restoreAll(cid, dir) {
   await send("mmPrices", vertrouwelijk.mmPrices ?? [], 200);
   await send("mmRegieRates", vertrouwelijk.mmRegieRates ?? [], 100);
   await send("mmFrozen", vertrouwelijk.mmFrozen ?? [], 5);
+  await send("insurances", intern.insurances ?? [], 200);
+  await send("siteMeetings", intern.siteMeetings ?? [], 200);
+  await send("handovers", intern.handovers ?? [], 200);
+  await send("techSheets", intern.techSheets ?? [], 200);
+  await send("workSheets", intern.workSheets ?? [], 200);
+  await send("siteNotices", intern.siteNotices ?? [], 300);
+  await send("insuranceConf", vertrouwelijk.insuranceConf ?? [], 100);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -394,6 +403,12 @@ function normalize(intern, vertrouwelijk, audit) {
     mmOverrides: byKey(intern.mmOverrides ?? [], (x) => x.key),
     mmVersions: byKey(intern.mmVersions ?? [], id),
     mmAnswers: byKey(intern.mmAnswers ?? [], (x) => x.versionId),
+    insurances: byKey(intern.insurances ?? [], id),
+    siteMeetings: byKey(intern.siteMeetings ?? [], id),
+    handovers: byKey(intern.handovers ?? [], id),
+    techSheets: byKey(intern.techSheets ?? [], id),
+    workSheets: byKey(intern.workSheets ?? [], (x) => x[0]),
+    siteNotices: byKey(intern.siteNotices ?? [], (x) => x[0]),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),
@@ -423,6 +438,7 @@ function normalize(intern, vertrouwelijk, audit) {
     "vertrouwelijk.mmPrices": byKey(vertrouwelijk.mmPrices ?? [], (x) => x[0]),
     "vertrouwelijk.mmRegieRates": byKey(vertrouwelijk.mmRegieRates ?? [], (x) => x[0]),
     "vertrouwelijk.mmFrozen": byKey(vertrouwelijk.mmFrozen ?? [], (x) => x[0]),
+    "vertrouwelijk.insuranceConf": byKey(vertrouwelijk.insuranceConf ?? [], (x) => x[0]),
     audit,
   };
   return out;

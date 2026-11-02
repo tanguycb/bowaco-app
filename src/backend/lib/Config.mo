@@ -104,9 +104,19 @@ module {
       ("pv-definitieve-oplevering", "PV definitieve oplevering", "optioneel", "bowaco", false, false),
       ("oa-offerte", "Offerte onderaannemer", "optioneel", "bowaco", false, true),
       ("oa-factuur", "Factuur onderaannemer", "optioneel", "bowaco", false, true),
+      // 2c.8: vaste soorten erbij (lookups, geen migratie): wat de werfadministratie en de oplevering bewaren.
+      ("verzekering-attest", "Verzekeringsattest (voor de klant)", "optioneel", "bowaco", false, false),
+      ("werfvergadering-verslag", "Verslag werfvergadering", "optioneel", "bowaco", false, false),
+      ("min-meer", "Min-meerstaat", "optioneel", "bowaco", false, false),
+      ("getekend-document", "Getekend document", "optioneel", "bowaco", false, false),
+      ("mail", "Mail", "optioneel", "bowaco", false, false),
+      ("opleveringsdocument", "Opleveringsdocument (PDF voor de klant)", "optioneel", "bowaco", false, false),
+      ("technische-fiche", "Technische fiche", "optioneel", "bowaco", false, false),
       ("andere", "Ander document", "optioneel", "bowaco", false, false),
     ];
   };
+  // 2c.8: de vaste documentsoorten die later bijkwamen; ze verschijnen ook bij een admin die de lijst al aanpaste.
+  public func lateDocKinds() : [Text] { ["verzekering-attest", "werfvergadering-verslag", "min-meer", "getekend-document", "mail", "opleveringsdocument", "technische-fiche"] };
   public func docRules() : [Text] { ["altijd", "btw6", "30bis", "checkinatwork", "vc", "oplevering", "optioneel"] };
   public let maxDocKinds : Nat = 60;
   public let maxDocsPerWork : Nat = 500;
@@ -547,4 +557,11 @@ module {
   // Enkel voor de testbouw van tests/lokaal.sh (die zet dit op true, zoals de testhash): dan telt elke canister als live,
   // zodat de rollentest het pad "testmodus uit → echte adressen" kan bewijzen. tools/meetlat.mjs weigert een upload met true.
   public let mailLiveAnyCanister : Bool = false;
+
+  // 2c.8: grenzen van de werfadministratie (begrensd, T17).
+  public let maxInsurances : Nat = 2_000;
+  public let maxMeetingsPerWork : Nat = 300;
+  public let maxPointsPerCall : Nat = 20;
+  public let maxAttendees : Nat = 30;
+  public let maxTechSheets : Nat = 1_000;
 };

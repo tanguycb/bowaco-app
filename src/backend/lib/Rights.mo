@@ -92,6 +92,11 @@ module {
     // versies, delen, meerwerkofferte (admin, calculator); #proposeMinMeer = een regel voorstellen zonder prijs (ook de werfleider
     // van die werf, zoals R26); #clientMinMeer = "gedeelde versies" (de klant, de architect: per werf beslist minMeerScope).
     #readMinMeer; #editMinMeer; #proposeMinMeer; #clientMinMeer;
+    // 2c.8 (R45, R46): werfadministratie. #readSiteAdmin = de verzekering (zonder premie), werfvergaderingen, opleveringen en
+    // technische fiches van een werf zien (interne rollen die de werf zien; zonder werf: interne rollen); #editSiteAdmin = ze bijhouden
+    // (admin, calculator, de werfleider van die werf; zonder werf: de jaarpolis en de bibliotheek van fiches: admin, calculator).
+    // Werfwaarde en premie volgen #readCosts (admin, calculator) en gaan enkel via update-calls met auditregel.
+    #readSiteAdmin; #editSiteAdmin;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -293,6 +298,9 @@ module {
       case (#editMinMeer) admin or calc;
       case (#proposeMinMeer) on(func w = admin or calc or leaderOn(ctx, p, w));
       case (#clientMinMeer) has(p, #klant) or has(p, #architect);
+      // 2c.8 (R45, R46): werfadministratie en oplevering. De klant ziet enkel wat kantoor deelde (clientSiteAdmin, #clientQuote).
+      case (#readSiteAdmin) switch work { case null internal(p); case (?w) workExists(ctx, w) and internal(p) and seesWork(ctx, p, w) };
+      case (#editSiteAdmin) switch work { case null admin or calc; case (?w) workExists(ctx, w) and (admin or calc or leaderOn(ctx, p, w)) };
       // R27
       case (#readConfidentialContact) admin or calc;
       // R17
@@ -713,6 +721,9 @@ module {
       hourClaims = p.archivedAt == null and (has(p, #admin) or has(p, #werfleider));
       minMeer = may(ctx, p, #editMinMeer, null);
       myMinMeer = may(ctx, p, #clientMinMeer, null);
+      siteAdmin = may(ctx, p, #readSiteAdmin, null);
+      editSiteAdmin = may(ctx, p, #editSiteAdmin, null);
+      myWorks = has(p, #klant);
       home = home(p);
     };
   };

@@ -1,5 +1,6 @@
 // Instellingen (R17): werfleider ziet alles, geldigheid van codes, drempels en documentsoorten (1.1),
 // bedrijfskalender en planningsjablonen (1.3) en de robots (R28).
+import { WerfadminBeheer } from "./BeheerWerfadmin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Principal } from "@icp-sdk/core/principal";
@@ -192,6 +193,7 @@ export function OaFactuurAdmin() {
       )}
     </section>
     <PurchaseAdmin />
+    <WerfadminBeheer />
     </>
   );
 }

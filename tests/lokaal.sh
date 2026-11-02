@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Alles lokaal op het EIGEN testnet (tests/net, poort 8041; raakt het gedeelde :8000 nooit):
-# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → offerte 2c.1 → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → OA-offertes 2c.3 → afspraken 2c.4 → aankoop 2c.7 → min-meer 2c.5 → prijsvraag 2c.2 (verzet de klok: als laatste) → gateway.
+# bouwen → lege canister (reinstall) + nep-maildienst → rollentest → lektestrobot → review → posten → offertes → rekentests → offerte 2c.1 → werfstart → opmeting → vorderingsstaten → OA-facturen → mailproef → OA-offertes 2c.3 → afspraken 2c.4 → aankoop 2c.7 → min-meer 2c.5 → werfadmin 2c.8 → prijsvraag 2c.2 (verzet de klok: als laatste) → gateway.
 #   zsh tests/lokaal.sh            (start het net als het nog niet draait)
 set -e
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -115,5 +115,8 @@ node tests/aankoop-2c7.mjs "$cid"
 # 2c.5: de min-meerstaat (offerte met korting, opmeting, regie aan het werftarief met datum, raming afgerekend, kosten / 0,8, regels met
 # akkoord, meerwerkofferte vanaf € 1.000, werfleider zonder bedragen, versies onder een controlecode, klant en architect, rekentest).
 node tests/minmeer-2c5.mjs "$cid"
+# 2c.8: werfadministratie en oplevering (aangifte start + 15 dagen met meldingen, premie met minimum, attest voor de klant, werfvergadering en
+# oplevering met actie- en restpunten als taken, opleveringsdocument onder een controlecode, fiches, werfcode P.nnn, export). Vóór de klokproef.
+node tests/werfadmin-2c8.mjs "$cid"
 node tests/prijsvraag-2c2.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

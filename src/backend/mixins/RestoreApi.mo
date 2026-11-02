@@ -33,6 +33,7 @@ import Tenders "../lib/Tenders";
 import OaDeals "../lib/OaDeals";
 import Purchase "../lib/Purchase";
 import MinMeer "../lib/MinMeer";
+import SiteAdmin "../lib/SiteAdmin";
 import Reports "../lib/Reports";
 
 mixin (
@@ -64,6 +65,7 @@ mixin (
   oaDeals : Types.OaDealState,
   purchases : Types.PurchaseState,
   minMeer : Types.MinMeerState,
+  siteAdmin : Types.SiteAdminState,
   robot : Types.RobotState,
   audit : Types.AuditState,
   ctr : Types.Counters,
@@ -122,7 +124,7 @@ mixin (
 
   // Leeg = nog nooit geclaimd en geen gegevens (de auditlog telt niet mee: een foute poging staat er ook in).
   func rsEmpty() : Bool {
-    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0 and tenders.tenders.size() == 0 and tenders.oaQuotes.size() == 0 and oaDeals.rates.size() == 0 and oaDeals.agreements.size() == 0 and oaDeals.orgDocs.size() == 0 and oaDeals.templates.size() == 0 and purchases.purchases.size() == 0 and purchases.claims.size() == 0 and minMeer.entries.size() == 0 and minMeer.versions.size() == 0;
+    not access.bootstrapUsed and access.persons.size() == 0 and access.links.size() == 0 and org.orgs.size() == 0 and works.works.size() == 0 and files.files.size() == 0 and plan.tasks.size() == 0 and reports.reports.size() == 0 and robot.robots.size() == 0 and permits.permits.size() == 0 and permits.municipalities.size() == 0 and post.jobs.size() == 0 and mail.log.size() == 0 and wadm.checks.size() == 0 and wadm.declarations.size() == 0 and library.chapters.size() == 0 and library.items.size() == 0 and library.costs.size() == 0 and quotes.quotes.size() == 0 and workStarts.starts.size() == 0 and surveys.surveys.size() == 0 and progress.statements.size() == 0 and oaInvoices.invoices.size() == 0 and quoteForms.textBlocks.size() == 0 and quoteForms.classes.size() == 0 and tenders.tenders.size() == 0 and tenders.oaQuotes.size() == 0 and oaDeals.rates.size() == 0 and oaDeals.agreements.size() == 0 and oaDeals.orgDocs.size() == 0 and oaDeals.templates.size() == 0 and purchases.purchases.size() == 0 and purchases.claims.size() == 0 and minMeer.entries.size() == 0 and minMeer.versions.size() == 0 and siteAdmin.insurances.size() == 0 and siteAdmin.meetings.size() == 0 and siteAdmin.handovers.size() == 0 and siteAdmin.techSheets.size() == 0;
   };
 
   func rsNoContact() : Types.Contact { { name = ""; phone = null; email = null; address = null } };
@@ -325,6 +327,13 @@ mixin (
       case (#mmPrices xs) { for ((id, x) in xs.values()) { minMeer.prices.add(id, x) }; xs.size() };
       case (#mmRegieRates xs) { for ((id, x) in xs.values()) { minMeer.regieRates.add(id, x) }; xs.size() };
       case (#mmFrozen xs) { for ((id, x) in xs.values()) { minMeer.frozen.add(id, x) }; xs.size() };
+      case (#insurances xs) { for (x in xs.values()) { siteAdmin.insurances.add(x.id, x) }; xs.size() };
+      case (#siteMeetings xs) { for (x in xs.values()) { siteAdmin.meetings.add(x.id, x) }; xs.size() };
+      case (#handovers xs) { for (x in xs.values()) { siteAdmin.handovers.add(x.id, x) }; xs.size() };
+      case (#techSheets xs) { for (x in xs.values()) { siteAdmin.techSheets.add(x.id, x) }; xs.size() };
+      case (#workSheets xs) { for ((id, x) in xs.values()) { siteAdmin.workSheets.add(id, x) }; xs.size() };
+      case (#siteNotices xs) { for ((k, x) in xs.values()) { siteAdmin.notices.add(k, x) }; xs.size() };
+      case (#insuranceConf xs) { for ((id, x) in xs.values()) { siteAdmin.insuranceConf.add(id, x) }; xs.size() };
     };
   };
 
@@ -530,6 +539,12 @@ mixin (
     MinMeer.rebuildIndex(minMeer);
     rsAtLeast("mmEntry", rsMaxKey(minMeer.entries));
     rsAtLeast("mmVersion", rsMaxKey(minMeer.versions));
+    // 2c.8: tellers van de werfadministratie; de nummerreeksen (werfcode P.nnn, vergaderingen per werf) minstens zo hoog als wat bestaat.
+    rsAtLeast("insurance", rsMaxKey(siteAdmin.insurances));
+    rsAtLeast("meeting", rsMaxKey(siteAdmin.meetings));
+    rsAtLeast("handover", rsMaxKey(siteAdmin.handovers));
+    rsAtLeast("techSheet", rsMaxKey(siteAdmin.techSheets));
+    SiteAdmin.rebuildSequences(settings, works, siteAdmin);
   };
 
   func rsSummary() : Views.RestoreSummary {

@@ -16,6 +16,7 @@ import Ids "../lib/Ids";
 import Rights "../lib/Rights";
 import Dossier "../lib/Dossier";
 import Wadm "../lib/Wadm";
+import SiteAdmin "../lib/SiteAdmin";
 
 mixin (
   settings : Types.SettingsState,
@@ -47,7 +48,9 @@ mixin (
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #createWork, null);
     let name = Access.cleanText(i.name, Config.maxName) ?? return #err("Naam: 1 tot " # Config.maxName.toText() # " tekens");
-    let code = Access.cleanText(i.code, Config.maxShort) ?? return #err("Code: 1 tot " # Config.maxShort.toText() # " tekens");
+    // 2c.8 (AC-25): leeg + instelling "werfcode P.nnn" = de volgende code uit de teller; verbruikt pas bij het maken (geen gaten).
+    let auto = i.code.trim(#char ' ').size() == 0 and SiteAdmin.codeP(settings);
+    var code = if auto SiteAdmin.peekWorkCode(settings, works) else (Access.cleanText(i.code, Config.maxShort) ?? return #err("Code: 1 tot " # Config.maxShort.toText() # " tekens"));
     if (works.works.values().any(func w = w.code == code)) { return #err("Code bestaat al") };
     if (i.vatBp != 600 and i.vatBp != 2100) { return #err("Btw-tarief: 6 of 21 %") };
     switch (Access.addressError(i.address)) { case (?e) return #err(e); case null {} };
@@ -56,6 +59,7 @@ mixin (
     };
     switch (parentError(i.parentId, null)) { case (?e) return #err(e); case null {} };
     switch (leaderError(i.leaderPersonId)) { case (?e) return #err(e); case null {} };
+    if auto { code := SiteAdmin.takeWorkCode(settings, works) };
     let id = Ids.next(ctr, "work");
     let w : Types.Work = {
       id;
