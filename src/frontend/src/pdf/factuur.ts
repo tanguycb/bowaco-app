@@ -35,6 +35,7 @@ export type FactuurPdfData = {
   netCents: bigint;
   vatCents: bigint;
   totalCents: bigint;
+  retentionCents?: bigint; // review M4: inhouding als waarborg (vorderingsstaat); de factuur blijft op het volle bedrag
   mentions: string[];
   paymentRef: string;
   creditOf: string | null;
@@ -307,6 +308,12 @@ export async function factuurPdf(d: FactuurPdfData, fonts: PdfFonts): Promise<Ui
   page.drawRectangle({ x: TX - 6, y: y - 6, width: W - MR - TX + 6, height: 20, color: col(SUNK) });
   text(d.creditOf ? "Totaal creditnota" : "Te betalen", TX, y, F.b, 10.5); right(eur(d.totalCents), X.amount, y, F.monoB, 11);
   y -= 30;
+  const held = d.retentionCents ?? 0n;
+  if (held !== 0n) {
+    need(30);
+    text("waarvan ingehouden als waarborg", TX, y, F.r, 9, GRAY); right(eur(held), X.amount, y, F.mono, 9, GRAY); y -= 13;
+    text("nu te betalen", TX, y, F.m, 9.5); right(eur(d.totalCents - held), X.amount, y, F.monoB, 9.5); y -= 18;
+  }
 
   // ── Betaling en vermeldingen ──
   if (!d.creditOf) {

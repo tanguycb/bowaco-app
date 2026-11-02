@@ -4202,6 +4202,7 @@ type SalesFrozen__277626740 =
     paymentRef : Text;
     previous : [SalesPrevious__526069484];
     quoteRefs : [Text];
+    retentionCents : Int;
     serviceDay : ?Day__11500223;
     serviceTo : ?Day__11500223;
     title : Text;
@@ -4234,6 +4235,7 @@ type SalesFrozen__535818849 =
     paymentRef : Text;
     previous : [SalesPrevious__1030327258];
     quoteRefs : [Text];
+    retentionCents : Int;
     serviceDay : ?Day__162369424;
     serviceTo : ?Day__162369424;
     title : Text;

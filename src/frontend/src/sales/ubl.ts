@@ -44,14 +44,18 @@ export const unitCode = (u: string) => UNIT[u.trim().toLowerCase()] ?? "C62";
 
 function party(tag: "AccountingSupplierParty" | "AccountingCustomerParty", p: { name: string; address: Addr; vat: string; kbo: string; email?: string }, scheme: string): string {
   const a = p.address;
-  const vat = p.vat.replace(/[\s.]/g, "").toUpperCase();
-  const id = enterprise(p.kbo, p.vat);
+  const vat = p.vat.replace(/[\s.-]/g, "").toUpperCase();
+  // Review M3: het Belgische ondernemingsnummer (schema 0208) enkel voor een Belgische partij; anders het btw-nummer met de landcode
+  // (schema 9925; een buitenlandse klant wordt vóór het uitreiken geweigerd, dit is enkel een vangnet).
+  const be = vat === "" || vat.startsWith("BE");
+  const id = be ? enterprise(p.kbo, p.vat) : vat;
+  const sch = be ? scheme : "9925";
   return `<cac:${tag}><cac:Party>`
-    + `<cbc:EndpointID schemeID="${esc(scheme)}">${esc(id)}</cbc:EndpointID>`
+    + `<cbc:EndpointID schemeID="${esc(sch)}">${esc(id)}</cbc:EndpointID>`
     + `<cac:PartyName><cbc:Name>${esc(p.name)}</cbc:Name></cac:PartyName>`
     + `<cac:PostalAddress><cbc:StreetName>${esc(`${a?.street ?? ""} ${a?.number ?? ""}`.trim())}</cbc:StreetName><cbc:CityName>${esc(a?.city ?? "")}</cbc:CityName><cbc:PostalZone>${esc(a?.zip ?? "")}</cbc:PostalZone><cac:Country><cbc:IdentificationCode>${country(a)}</cbc:IdentificationCode></cac:Country></cac:PostalAddress>`
     + (vat ? `<cac:PartyTaxScheme><cbc:CompanyID>${esc(vat)}</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>` : "")
-    + `<cac:PartyLegalEntity><cbc:RegistrationName>${esc(p.name)}</cbc:RegistrationName>${id ? `<cbc:CompanyID schemeID="${esc(scheme)}">${esc(id)}</cbc:CompanyID>` : ""}</cac:PartyLegalEntity>`
+    + `<cac:PartyLegalEntity><cbc:RegistrationName>${esc(p.name)}</cbc:RegistrationName>${id && be ? `<cbc:CompanyID schemeID="${esc(scheme)}">${esc(id)}</cbc:CompanyID>` : ""}</cac:PartyLegalEntity>`
     + (p.email ? `<cac:Contact><cbc:ElectronicMail>${esc(p.email)}</cbc:ElectronicMail></cac:Contact>` : "")
     + `</cac:Party></cac:${tag}>`;
 }
@@ -73,7 +77,9 @@ export function ublXml(d: UblInput): string {
   out.push(`<cbc:IssueDate>${day(d.issueDay)}</cbc:IssueDate>`);
   if (!d.credit) out.push(`<cbc:DueDate>${day(d.dueDay)}</cbc:DueDate>`);
   out.push(d.credit ? `<cbc:CreditNoteTypeCode>381</cbc:CreditNoteTypeCode>` : `<cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>`);
-  for (const m of d.mentions) if (m.trim()) out.push(`<cbc:Note>${esc(m)}</cbc:Note>`);
+  // Review L2: alle vermeldingen in één Note (Peppol: hoogstens één opmerking op documentniveau).
+  const notes = d.mentions.filter((m) => m.trim());
+  if (notes.length) out.push(`<cbc:Note>${esc(notes.join(" | "))}</cbc:Note>`);
   out.push(`<cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>`);
   out.push(`<cbc:BuyerReference>${esc(d.workCode || d.number)}</cbc:BuyerReference>`);
   if (d.serviceDay !== null) out.push(`<cac:InvoicePeriod><cbc:StartDate>${day(d.serviceDay)}</cbc:StartDate><cbc:EndDate>${day(d.serviceTo ?? d.serviceDay)}</cbc:EndDate></cac:InvoicePeriod>`);
@@ -86,6 +92,9 @@ export function ublXml(d: UblInput): string {
     out.push(`<cac:PaymentMeans><cbc:PaymentMeansCode name="Credit transfer">30</cbc:PaymentMeansCode>${d.paymentRef ? `<cbc:PaymentID>${esc(d.paymentRef)}</cbc:PaymentID>` : ""}<cac:PayeeFinancialAccount><cbc:ID>${esc(d.issuer.iban.replace(/\s/g, ""))}</cbc:ID>${d.issuer.bic ? `<cac:FinancialInstitutionBranch><cbc:ID>${esc(d.issuer.bic)}</cbc:ID></cac:FinancialInstitutionBranch>` : ""}</cac:PayeeFinancialAccount></cac:PaymentMeans>`);
     out.push(`<cac:PaymentTerms><cbc:Note>${esc(`Te betalen binnen ${Number(d.paymentDays)} dagen, uiterlijk op ${day(d.dueDay)}`)}</cbc:Note></cac:PaymentTerms>`);
   }
+  // Review M2: ook een creditnota draagt betaalvoorwaarden (BR-CO-25: een positief te betalen bedrag vraagt een vervaldag of
+  // betaalvoorwaarden), op hun plaats vóór TaxTotal.
+  if (d.credit) out.push(`<cac:PaymentTerms><cbc:Note>${esc(`Creditnota bij factuur ${d.creditOf ?? ""}${d.creditOfDay !== null ? ` van ${day(d.creditOfDay)}` : ""}`)}</cbc:Note></cac:PaymentTerms>`);
   out.push(`<cac:TaxTotal><cbc:TaxAmount currencyID="EUR">${amt(sg * d.vatCents)}</cbc:TaxAmount>`);
   for (const v of d.vatLines) {
     out.push(`<cac:TaxSubtotal><cbc:TaxableAmount currencyID="EUR">${amt(sg * v.baseCents)}</cbc:TaxableAmount><cbc:TaxAmount currencyID="EUR">${amt(sg * v.vatCents)}</cbc:TaxAmount><cac:TaxCategory><cbc:ID>${cat(v)}</cbc:ID><cbc:Percent>${pctTxt(v.vatBp)}</cbc:Percent>${v.reverse ? `<cbc:TaxExemptionReasonCode>VATEX-EU-AE</cbc:TaxExemptionReasonCode><cbc:TaxExemptionReason>Verlegging van heffing</cbc:TaxExemptionReason>` : ""}<cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal>`);

@@ -13,6 +13,7 @@ module {
     paymentText : Text;
     footerText : Text;
     reminderText : Text;
+    creditText : Text; // review M1: bij een creditnota aan een btw-plichtige
     reminderDays : Nat;
     issuerOnly : Bool;
     firstSeqF : Nat;
@@ -30,6 +31,7 @@ module {
     paymentText : Text;
     footerText : Text;
     reminderText : Text;
+    creditText : Text; // review M1: bij een creditnota aan een btw-plichtige
     reminderDays : Nat;
     issuerOnly : Bool;
     firstSeqF : Nat;
@@ -119,6 +121,7 @@ module {
     payments : [SalesPaymentView];
     paidCents : Int;
     creditedCents : Int;
+    retentionCents : Int; // review M4: inhouding als waarborg (buiten "open")
     openCents : Int;
     reminders : [Types.SalesReminder];
     calcVersion : Nat;

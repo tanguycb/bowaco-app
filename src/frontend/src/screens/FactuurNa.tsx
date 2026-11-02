@@ -50,7 +50,7 @@ export function SalesAfter({ v, onOpen }: { v: SalesFullView; onOpen: (id: bigin
         </table>
       </div>
       <Totals tot={v.totals} />
-      {!credit && <p>{T.totals.paid}: {fmtEuro(v.paidCents)} · {T.totals.credited}: {fmtEuro(v.creditedCents)} · <b>{T.totals.open}: {fmtEuro(v.openCents)}</b> ({T.pay[b.pay] ?? b.pay})</p>}
+      {!credit && <p>{T.totals.paid}: {fmtEuro(v.paidCents)} · {T.totals.credited}: {fmtEuro(v.creditedCents)}{v.retentionCents !== 0n ? ` · ${T.totals.retention}: ${fmtEuro(v.retentionCents)}` : ""} · <b>{T.totals.open}: {fmtEuro(v.openCents)}</b> ({T.pay[b.pay] ?? b.pay})</p>}
       <div className="a-row" style={{ flexWrap: "wrap", gap: 6 }}>
         <Button onClick={() => void downloadFactuurPdf(pdfData(v.doc, v.hash, false))}>{T.pdf}</Button>
         <SalesExtra v={v} onDone={refresh} />
@@ -70,12 +70,12 @@ export function SalesAfter({ v, onOpen }: { v: SalesFullView; onOpen: (id: bigin
             </div>
           ))}
           {undo !== null && <div className="a-row" style={{ gap: 6 }}><input className="bw-input" aria-label={T.cancelReason} placeholder={T.cancelReason} value={undoWhy} onChange={(e) => setUndoWhy(e.target.value)} /><Button variant="danger" disabled={undoWhy.trim().length < 5} busy={unpay.isPending} onClick={() => unpay.mutate()}>{T.payUndo}</Button></div>}
-          {v.openCents > 0n && (
+          {v.openCents + v.retentionCents > 0n && (
             <div className="a-row" style={{ gap: 6, flexWrap: "wrap", marginTop: 6 }}>
               <input className="bw-input" type="date" aria-label={T.payDay} value={payDay} onChange={(e) => setPayDay(e.target.value)} />
               <input className="bw-input" inputMode="decimal" aria-label={T.payAmount} placeholder={fmtEuro(v.openCents)} value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
               <input className="bw-input" aria-label={T.payHow} value={payHow} onChange={(e) => setPayHow(e.target.value)} />
-              <Button variant="primary" disabled={!amount || amount > v.openCents} busy={pay.isPending} onClick={() => pay.mutate()}>{T.payment}</Button>
+              <Button variant="primary" disabled={!amount || amount > v.openCents + v.retentionCents} busy={pay.isPending} onClick={() => pay.mutate()}>{T.payment}</Button>
             </div>
           )}
         </div>

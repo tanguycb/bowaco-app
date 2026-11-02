@@ -1065,7 +1065,7 @@ module {
     #salesFrozen : [(Nat, Types.Confidential<Types.SalesFrozen>)];
     #salesPayments : [(Nat, Types.Confidential<Types.SalesPayment>)];
   };
-  public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)] };
+  public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)]; warnings : [Text] };
 
   public type ExportConfidential = {
     at : Int;

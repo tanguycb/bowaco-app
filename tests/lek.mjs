@@ -495,7 +495,7 @@ const table = {
   // 2c.6 (R42, R43): verkoopfacturen. Kantoor (admin, calculator) alles; de werfleider enkel "voorschot betaald"; de klant zijn eigen
   // uitgereikte facturen; teller en vermeldingen enkel de beheerder. Onbekende ids: een gewone fout voor wie mag (geen "Geen toegang").
   salesSettings: [["admin", "calculator"], () => []],
-  saveSalesSettings: [ADMIN, () => [{ issuer: { name: "", legalForm: "", address: { street: "", number: "", zip: "", city: "", country: "" }, vat: "", kbo: "", rpr: "", email: "", phone: "", website: "", iban: "", bic: "" }, paymentDays: 0n, vat6Text: "", reverseText: "", paymentText: "", footerText: "", reminderText: "", reminderDays: 0n, issuerOnly: false, firstSeqF: 100n, firstSeqCN: 1n, planBp: [], peppolScheme: "" }]],
+  saveSalesSettings: [ADMIN, () => [{ issuer: { name: "", legalForm: "", address: { street: "", number: "", zip: "", city: "", country: "" }, vat: "", kbo: "", rpr: "", email: "", phone: "", website: "", iban: "", bic: "" }, paymentDays: 0n, vat6Text: "", reverseText: "", creditText: "", paymentText: "", footerText: "", reminderText: "", reminderDays: 0n, issuerOnly: false, firstSeqF: 100n, firstSeqCN: 1n, planBp: [], peppolScheme: "" }]],
   setSalesCounter: [ADMIN, () => ["X", 0n, 0n]],
   readSalesPlan: [["admin", "calculator"], () => [B]],
   saveSalesPlan: [["admin", "calculator"], () => [B, 999n, []]],

@@ -34,6 +34,7 @@ export function pdfData(f: SalesFrozen, hash: string, draft: boolean): FactuurPd
     netCents: f.netCents,
     vatCents: f.vatCents,
     totalCents: f.totalCents,
+    retentionCents: f.retentionCents,
     mentions: f.mentions,
     paymentRef: f.paymentRef,
     creditOf: f.creditOf ?? null,

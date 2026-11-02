@@ -72,14 +72,14 @@ if (mode !== "na-herstel") {
 }
 
 // Een verzonnen factuur voor de PDF en de UBL (geen echte firma, geen echt nummer).
-const ISS = { name: "BOWACO (proef)", legalForm: "bv", address: { street: "Proefweg", number: "6", zip: "9993", city: "Lindegem", country: "BE" }, vat: "BE0123456789", kbo: "0123.456.789", rpr: "RPR Proefstad, afdeling Lindegem", email: "kantoor@proef.invalid", phone: "", website: "proef.invalid", iban: "BE49 9990 0000 0171", bic: "PROFBEBB" };
+const ISS = { name: "BOWACO (proef)", legalForm: "bv", address: { street: "Proefweg", number: "6", zip: "9993", city: "Lindegem", country: "BE" }, vat: "BE0123456749", kbo: "0123.456.749", rpr: "RPR Proefstad, afdeling Lindegem", email: "kantoor@proef.invalid", phone: "", website: "proef.invalid", iban: "BE49 9990 0000 0171", bic: "PROFBEBB" };
 export function voorbeeldFactuur(o = {}) {
   const line = (i) => ({ kind: i === 30 ? "herziening" : "werk", group: `0${(i % 3) + 1} Proefhoofdstuk ${(i % 3) + 1}`, description: i === 7 ? "Proefpost met een zeer lange omschrijving ".repeat(12) : `Proefpost ${i}`, qtyMilli: i % 4 === 0 ? 1000n : BigInt(1500 * i + 1000), unit: i % 4 === 0 ? "ff" : "m2", unitCents: 12_345n, amountCents: i % 4 === 0 ? 12_345n : SC.lineAmount(BigInt(1500 * i + 1000), 12_345n), vatBp: 600n, baseCents: i % 5 === 0 ? 1_000_000n : null, pctBp: i % 5 === 0 ? 5000n : null });
   const lines = o.lines ?? Array.from({ length: 60 }, (_, i) => line(i));
   const tt = SC.totals(lines, !!o.reverse);
   return {
     number: "2026-153", kindText: "Voorschotfactuur", draft: false, issueDay: 20_758n, serviceDay: null, serviceTo: null, dueDay: 20_773n, paymentDays: 15n,
-    issuer: ISS, buyer: { name: "Proef Klant Lijster 2c6", address: { street: "Proefdreef", number: "9", zip: "9993", city: "Lindegem", country: "BE" }, vat: o.reverse ? "BE0987654321" : "", kbo: "", company: !!o.reverse },
+    issuer: ISS, buyer: { name: "Proef Klant Lijster 2c6", address: { street: "Proefdreef", number: "9", zip: "9993", city: "Lindegem", country: "BE" }, vat: o.reverse ? "BE0987654394" : "", kbo: "", company: !!o.reverse },
     workCode: "P-FA1", workName: "Proefwerf facturen 2c6", workAddress: { street: "Proefweg", number: "12", zip: "9993", city: "Lindegem", country: "BE" }, analyticCode: "P-FA1", quoteRefs: ["2026/412 v1"],
     title: "Voorschot 50 %", note: "", lines, previous: [{ number: "2026-150", day: 20_700n, cents: 100_000n, revisionCents: 0n }],
     vatLines: tt.vatLines, netCents: tt.netCents, vatCents: tt.vatCents, totalCents: tt.totalCents,
@@ -100,7 +100,7 @@ if (mode !== "na-herstel") {
   check("(A2) PDF: reeds gefactureerd ter info en de prijsherziening als eigen regel", t1.includes("REEDS GEFACTUREERD OP DEZE WERF") && t1.includes("2026-150"));
   const r2 = readPdf(await factuurPdf(voorbeeldFactuur({ reverse: true, lines: [{ kind: "werk", group: "01 Proef", description: "Proefpost verlegd", qtyMilli: 1000n, unit: "ff", unitCents: 50_000n, amountCents: 50_000n, vatBp: 0n, baseCents: null, pctBp: null }] }), F), "verlegd.pdf");
   const t2 = flat(r2);
-  check("(A2) PDF btw verlegd: btw-nummer van de klant, 'btw verlegd (0 %)', de vermelding; één bladzijde", t2.includes("BE0987654321") && t2.includes("btw verlegd (0 %)") && t2.includes("Verlegging van heffing") && r2.pages.length === 1);
+  check("(A2) PDF btw verlegd: btw-nummer van de klant, 'btw verlegd (0 %)', de vermelding; één bladzijde", t2.includes("BE0987654394") && t2.includes("btw verlegd (0 %)") && t2.includes("Verlegging van heffing") && r2.pages.length === 1);
   const r3 = readPdf(await factuurPdf(voorbeeldFactuur({ draft: true, number: "", paymentRef: "", lines: [] }), F), "ontwerp.pdf");
   check("(A2) PDF ontwerp: 'ONTWERP' en 'nog geen factuur', geen nummer", flat(r3).includes("ONTWERP") && flat(r3).includes("nog geen factuur"));
   const r4 = readPdf(await factuurPdf(voorbeeldFactuur({ kindText: "Creditnota", number: "CN 2026-001", creditOf: "2026-153", creditOfDay: 20_758n, paymentRef: "", lines: [{ kind: "werk", group: "01 Proef", description: "Proefpost", qtyMilli: -1000n, unit: "ff", unitCents: 10_000n, amountCents: -10_000n, vatBp: 600n, baseCents: null, pctBp: null }] }), F), "cn.pdf");
@@ -121,6 +121,7 @@ out = {"root": r.tag.split("}")[1], "customization": t("cbc:CustomizationID"), "
   "type": t("cbc:InvoiceTypeCode") + t("cbc:CreditNoteTypeCode"), "currency": t("cbc:DocumentCurrencyCode"), "buyerRef": t("cbc:BuyerReference"), "billingRef": t("cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID"),
   "sellerEndpoint": t("cac:AccountingSupplierParty/cac:Party/cbc:EndpointID"), "sellerName": t("cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName"), "sellerVat": t("cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"), "sellerCountry": t("cac:AccountingSupplierParty/cac:Party/cac:PostalAddress/cac:Country/cbc:IdentificationCode"),
   "buyerEndpoint": t("cac:AccountingCustomerParty/cac:Party/cbc:EndpointID"), "buyerName": t("cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName"), "buyerVat": t("cac:AccountingCustomerParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID"), "buyerCountry": t("cac:AccountingCustomerParty/cac:Party/cac:PostalAddress/cac:Country/cbc:IdentificationCode"),
+  "terms": t("cac:PaymentTerms/cbc:Note"), "notes": t("cbc:Note"), "order": [c.tag.split("}")[1] for c in r], "sellerScheme": [e.get("schemeID") for e in r.findall("cac:AccountingSupplierParty/cac:Party/cbc:EndpointID", ns)], "buyerScheme": [e.get("schemeID") for e in r.findall("cac:AccountingCustomerParty/cac:Party/cbc:EndpointID", ns)],
   "payCode": t("cac:PaymentMeans/cbc:PaymentMeansCode"), "payId": t("cac:PaymentMeans/cbc:PaymentID"), "iban": t("cac:PaymentMeans/cac:PayeeFinancialAccount/cbc:ID"),
   "taxTotal": t("cac:TaxTotal/cbc:TaxAmount"), "sub": [{"base": s.find("cbc:TaxableAmount", ns).text, "tax": s.find("cbc:TaxAmount", ns).text, "cat": s.find("cac:TaxCategory/cbc:ID", ns).text, "pct": s.find("cac:TaxCategory/cbc:Percent", ns).text, "reason": [e.text for e in s.findall("cac:TaxCategory/cbc:TaxExemptionReasonCode", ns)]} for s in r.findall("cac:TaxTotal/cac:TaxSubtotal", ns)],
   "lineExt": t("cac:LegalMonetaryTotal/cbc:LineExtensionAmount"), "taxExcl": t("cac:LegalMonetaryTotal/cbc:TaxExclusiveAmount"), "taxIncl": t("cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount"), "payable": t("cac:LegalMonetaryTotal/cbc:PayableAmount"),
@@ -146,6 +147,10 @@ export function ublProblems(u, expect) {
   if (u.currency[0] !== "EUR") p.push("munt");
   if (u.root === "Invoice" && (u.due.length !== 1 || u.payCode.length !== 1 || u.iban.length !== 1)) p.push("vervaldag of betaalwijze");
   if (u.root === "CreditNote" && u.billingRef.length !== 1) p.push("verwijzing naar de factuur");
+  // Review M2/L2: betaalvoorwaarden bij een creditnota (BR-CO-25) vóór TaxTotal; hoogstens één Note op documentniveau.
+  if (u.root === "CreditNote" && u.terms.length !== 1) p.push("BR-CO-25 betaalvoorwaarden bij de creditnota");
+  if (u.terms.length && u.order.indexOf("PaymentTerms") > u.order.indexOf("TaxTotal")) p.push("PaymentTerms na TaxTotal");
+  if (u.notes.length > 1) p.push("meer dan één Note");
   if (u.lines.length === 0) p.push("geen regels");
   const sumLines = u.lines.reduce((a, l) => a + cents(l.amount), 0n);
   if (sumLines !== cents(u.lineExt[0])) p.push(`BR-CO-10 Σ regels ${sumLines} ≠ ${u.lineExt[0]}`);
@@ -171,7 +176,7 @@ export function ublProblems(u, expect) {
 }
 if (mode !== "na-herstel") {
   const { ublXml } = await import("../src/frontend/src/sales/ubl.ts");
-  const toUbl = (d, credit = false) => ({ number: d.number, credit, issueDay: d.issueDay, dueDay: d.dueDay, serviceDay: d.serviceDay, serviceTo: d.serviceTo, issuer: d.issuer, buyer: { ...d.buyer, vat: d.buyer.vat || "BE0987654321", kbo: d.buyer.kbo }, workCode: d.workCode, quoteRefs: d.quoteRefs, lines: d.lines, vatLines: d.vatLines, netCents: d.netCents, vatCents: d.vatCents, totalCents: d.totalCents, mentions: d.mentions, paymentRef: d.paymentRef, paymentDays: d.paymentDays, creditOf: d.creditOf, creditOfDay: d.creditOfDay, scheme: "0208" });
+  const toUbl = (d, credit = false) => ({ number: d.number, credit, issueDay: d.issueDay, dueDay: d.dueDay, serviceDay: d.serviceDay, serviceTo: d.serviceTo, issuer: d.issuer, buyer: { ...d.buyer, vat: d.buyer.vat || "BE0987654394", kbo: d.buyer.kbo }, workCode: d.workCode, quoteRefs: d.quoteRefs, lines: d.lines, vatLines: d.vatLines, netCents: d.netCents, vatCents: d.vatCents, totalCents: d.totalCents, mentions: d.mentions, paymentRef: d.paymentRef, paymentDays: d.paymentDays, creditOf: d.creditOf, creditOfDay: d.creditOfDay, scheme: "0208" });
   const d1 = voorbeeldFactuur();
   const u1 = readUbl(ublXml(toUbl(d1)), "factuur.xml");
   const p1 = ublProblems(u1, d1.totalCents);
@@ -189,13 +194,19 @@ if (mode !== "na-herstel") {
   const { quarterCsv, CSV_HEAD } = await import("../src/frontend/src/sales/csv.ts");
   const rows = [
     { number: "2026-153", series: "F", kind: "voorschot", issueDay: 20_758n, dueDay: 20_773n, clientName: "Proef Klant; Lijster", clientVat: "", workCode: "P-FA1", analyticCode: "P-FA1", vatLines: [{ vatBp: 600n, reverse: false, baseCents: 100_005n, vatCents: 6_000n }], netCents: 100_005n, vatCents: 6_000n, totalCents: 106_005n, paidDay: 20_760n, creditOf: "" },
-    { number: "2026-154", series: "F", kind: "vrij", issueDay: 20_759n, dueDay: 20_774n, clientName: "Proef Bedrijf Spreeuw", clientVat: "BE0987654321", workCode: "P-FC1", analyticCode: "P-FC1", vatLines: [{ vatBp: 0n, reverse: true, baseCents: 250_000n, vatCents: 0n }], netCents: 250_000n, vatCents: 0n, totalCents: 250_000n, paidDay: null, creditOf: "" },
+    { number: "2026-154", series: "F", kind: "vrij", issueDay: 20_759n, dueDay: 20_774n, clientName: "Proef Bedrijf Spreeuw", clientVat: "BE0987654394", workCode: "P-FC1", analyticCode: "P-FC1", vatLines: [{ vatBp: 0n, reverse: true, baseCents: 250_000n, vatCents: 0n }], netCents: 250_000n, vatCents: 0n, totalCents: 250_000n, paidDay: null, creditOf: "" },
     { number: "CN 2026-001", series: "CN", kind: "creditnota", issueDay: 20_760n, dueDay: 20_760n, clientName: "Proef Klant; Lijster", clientVat: "", workCode: "P-FA1", analyticCode: "P-FA1", vatLines: [{ vatBp: 2100n, reverse: false, baseCents: -10_000n, vatCents: -2_100n }], netCents: -10_000n, vatCents: -2_100n, totalCents: -12_100n, paidDay: null, creditOf: "2026-153" },
   ];
   const csv = quarterCsv(rows);
   const ls = csv.replace(/^﻿/, "").trim().split("\r\n");
   check("(A4) kwartaallijst-CSV: kop met werfcode en btw per tarief, één regel per factuur, puntkomma en decimale komma, BOM", csv.startsWith("﻿") && ls.length === 4 && ls[0] === CSV_HEAD.join(";") && ls[1].includes(";1000,05;60,00;0,00;0,00;0,00;1000,05;60,00;1060,05;2026-11-03;") && ls[1].includes('"Proef Klant; Lijster"'), ls[1]);
   check("(A4) verlegd in een eigen kolom, creditnota negatief met 'bij factuur'", ls[2].includes(";2500,00;2500,00;0,00;2500,00;;") && ls[3].endsWith(";-121,00;;2026-153") && ls[3].includes(";-100,00;-21,00;"), `${ls[2]} | ${ls[3]}`);
+  // Review M6: een (verzonnen) firmanaam die met = begint, wordt geen formule in Excel; bedragen blijven getallen.
+  const inj = quarterCsv([{ ...rows[0], clientName: '=HYPERLINK("http://proef.invalid","proef")', workCode: "+P-FA1", totalCents: -12_100n }]).replace(/^\uFEFF/, "").trim().split("\r\n")[1];
+  check("(A4) formule-injectie: tekstcellen met = + - @ krijgen ' vooraan en aanhalingstekens; een negatief bedrag blijft een getal", inj.includes('"\'=HYPERLINK(""http://proef.invalid"",""proef"")"') && inj.includes(`;"'+P-FA1";`) && inj.includes(";-121,00;"), inj);
+  // Review M3: een buitenlandse partij krijgt in de UBL het schema 9925 met het btw-nummer (vangnet: het uitreiken weigert al).
+  const uf = readUbl(ublXml(toUbl(voorbeeldFactuur({ buyer: { name: "Proef Klant Koekoek 2c6", address: { street: "Proefstraat", number: "1", zip: "9999", city: "Proefstad", country: "NL" }, vat: "NL000099998B57", kbo: "", company: false } }))), "buitenland.xml");
+  check("(A3) UBL: BOWACO met schema 0208 en het ondernemingsnummer; een buitenlandse klant met schema 9925 en het btw-nummer", uf.sellerScheme[0] === "0208" && uf.sellerEndpoint[0] === "0123456749" && uf.buyerScheme[0] === "9925" && uf.buyerEndpoint[0] === "NL000099998B57", S([uf.sellerScheme, uf.buyerScheme, uf.buyerEndpoint]));
 }
 if (mode !== "na-herstel") {
   const r5 = readPdf(await factuurPdf(voorbeeldFactuur({ reminder: { level: 1, day: 20_790n, text: "Proef: kosteloze herinnering met een termijn van 14 dagen.", openCents: 50_000n, paidCents: 0n } }), fonts()), "herinnering.pdf");
@@ -226,7 +237,7 @@ const settingsNow = async () => await admin.salesSettings();
 const cDay = (await settingsNow()).today;
 const YEAR = BigInt(new Date(Number(cDay) * 86_400_000).getUTCFullYear());
 const issuerIn = { name: ISS.name, legalForm: ISS.legalForm, address: ISS.address, vat: ISS.vat, kbo: ISS.kbo, rpr: ISS.rpr, email: ISS.email, phone: ISS.phone, website: ISS.website, iban: ISS.iban, bic: ISS.bic };
-const setIn = (o = {}) => ({ issuer: issuerIn, paymentDays: 15n, vat6Text: "", reverseText: "", paymentText: "", footerText: "Proef: algemene voorwaarden op aanvraag.", reminderText: "", reminderDays: 0n, issuerOnly: false, firstSeqF: 100n, firstSeqCN: 1n, planBp: [5000n, 2400n, 2600n], peppolScheme: "0208", ...o });
+const setIn = (o = {}) => ({ issuer: issuerIn, paymentDays: 15n, vat6Text: "", reverseText: "", creditText: "", paymentText: "", footerText: "Proef: algemene voorwaarden op aanvraag.", reminderText: "", reminderDays: 0n, issuerOnly: false, firstSeqF: 100n, firstSeqCN: 1n, planBp: [5000n, 2400n, 2600n], peppolScheme: "0208", ...o });
 const seqOf = (nr) => BigInt(nr.split("-").pop());
 const counterOf = async (series, year = YEAR) => (await settingsNow()).counters.find((c) => c.series === series && c.year === year);
 // Hoe de browser een ontwerp bewaart: hij rekent het totaal met sales/calc.ts.
@@ -292,6 +303,7 @@ const KLANTORG = un(KLANT.orgId);
 const WLID = (await wl.me()).person[0].id;
 const addr = { street: "Proefweg", number: "12", zip: "9993", city: "Lindegem", country: "BE" };
 check("(B0) instellingen: een ongeldig IBAN geweigerd; de verzonnen gegevens van BOWACO bewaard (enkel de beheerder)", /IBAN/.test(errOf(await admin.saveSalesSettings(setIn({ issuer: { ...issuerIn, iban: "BE00 1234 5678 9012" } })))) && isOk(await admin.saveSalesSettings(setIn())) && (await denied(calc.saveSalesSettings(setIn()))));
+check("(B0) review M3/L3: een ondernemingsnummer zonder geldig controlegetal, een btw-nummer zonder BE en een Peppol-schema van 2 cijfers: geweigerd", /Ondernemingsnummer/.test(errOf(await admin.saveSalesSettings(setIn({ issuer: { ...issuerIn, kbo: "0123.456.789" } })))) && /Btw-nummer/.test(errOf(await admin.saveSalesSettings(setIn({ issuer: { ...issuerIn, vat: "NL0123456749" } })))) && /Peppol-schema/.test(errOf(await admin.saveSalesSettings(setIn({ peppolScheme: "02" })))) && isOk(await admin.saveSalesSettings(setIn())));
 const newWork = async (code, clientOrgId, vatBp = 2100n) => {
   const W = ok(await admin.createWork({ code, name: `Proefwerf facturen 2c6 ${code}`, address: addr, parentId: [], clientOrgId: opt(clientOrgId), architectOrgId: [], leaderPersonId: [WLID], vatBp })).id;
   ok(await admin.setWorkStatus(W, { quoting: null }));
@@ -376,6 +388,9 @@ let lastNr = firstNr;
   const f = await read(id);
   check("(B3) RPR ontbreekt: uitreiken geweigerd met de reden, het ontwerp toont de blokkering", /Niet uitgereikt: .*RPR/.test(errOf(r)) && f.findings.some((x) => x.block && x.key === "afzender-rpr"), errOf(r));
   check("(B3) de teller bleef staan (geen nummer verbruikt), het ontwerp heeft geen nummer", (await counterOf("F")).last === before && f.brief.number === "");
+  ok(await admin.saveSalesSettings(setIn({ issuer: { ...issuerIn, email: "", website: "" } })));
+  const rE = await issue(id);
+  check("(B3) review L1: e-mail en website van BOWACO ontbreken: geweigerd met de reden, geen nummer", /E-mailadres/.test(errOf(rE)) && /Website/.test(errOf(rE)) && (await counterOf("F")).last === before, errOf(rE));
   ok(await admin.saveSalesSettings(setIn()));
   const r2 = await issue(id);
   check("(B3) na het aanvullen: het volgende nummer, zonder gat", isOk(r2) && seqOf(r2.ok) === seqOf(lastNr) + 1n, `${lastNr} → ${errOf(r2) || r2.ok}`);
@@ -416,7 +431,7 @@ let lastNr = firstNr;
 }
 
 // B6. Btw: 6 % met de vaste tekst (uit Beheer), 21 %, 0 % verlegd enkel bij een klant met btw-nummer, gemengd per regel.
-const SPREEUW = (await admin.listOrgs(false)).find((o) => o.name.startsWith("Proef Bedrijf Spreeuw 2c6"))?.id ?? ok(await admin.createOrg({ kind: { client: null }, name: `Proef Bedrijf Spreeuw 2c6 ${suffix}`, kbo: ["0987654321"], vat: ["BE0987654321"], aliases: [], trades: [], address: [{ street: "Proefdreef", number: "21", zip: "9993", city: "Lindegem", country: "BE" }], notes: "Verzonnen proefbedrijf (2c.6)" })).id;
+const SPREEUW = (await admin.listOrgs(false)).find((o) => o.name.startsWith("Proef Bedrijf Spreeuw 2c6"))?.id ?? ok(await admin.createOrg({ kind: { client: null }, name: `Proef Bedrijf Spreeuw 2c6 ${suffix}`, kbo: ["0987654394"], vat: ["BE0987654394"], aliases: [], trades: [], address: [{ street: "Proefdreef", number: "21", zip: "9993", city: "Lindegem", country: "BE" }], notes: "Verzonnen proefbedrijf (2c.6)" })).id;
 const W2 = await newWork(`P-FC${suffix}`, SPREEUW, 2100n);
 {
   ok(await admin.saveSalesSettings(setIn({ vat6Text: "Proef: vaste vermelding bij 6 % (2c6)." })));
@@ -435,13 +450,33 @@ const W2 = await newWork(`P-FC${suffix}`, SPREEUW, 2100n);
   const iB = await freeDraft(W2, [{ description: "Proef verlegd bedrijf 2c6", unitCents: 250_000n }], { reverse: null });
   const rB = await issue(iB);
   const fB = await read(iB);
-  check("(B6) btw verlegd bij een bedrijf: 0 %, geen btw, totaal = netto, de vermelding 'Verlegging van heffing', btw-nummer van de klant", isOk(rB) && fB.doc.vatLines.length === 1 && fB.doc.vatLines[0].reverse && fB.doc.vatCents === 0n && fB.doc.totalCents === 250_000n && fB.doc.mentions.some((m) => m.startsWith("Verlegging van heffing")) && un(fB.doc.buyer.vat) === "BE0987654321" && fB.brief.company, errOf(rB));
+  check("(B6) btw verlegd bij een bedrijf: 0 %, geen btw, totaal = netto, de vermelding 'Verlegging van heffing', btw-nummer van de klant", isOk(rB) && fB.doc.vatLines.length === 1 && fB.doc.vatLines[0].reverse && fB.doc.vatCents === 0n && fB.doc.totalCents === 250_000n && fB.doc.mentions.some((m) => m.startsWith("Verlegging van heffing")) && un(fB.doc.buyer.vat) === "BE0987654394" && fB.brief.company, errOf(rB));
   const iM = await freeDraft(W1, [{ description: "Proef deel 6 % 2c6", unitCents: 10_005n, vatBp: 600n }, { description: "Proef deel 21 % 2c6", unitCents: 20_000n, vatBp: 2100n }], { mixed: null });
   const fM = await read(iM);
   check("(B6) gemengd: twee btw-blokken (6 % en 21 %), btw op het totaal per tarief", fM.doc.vatLines.length === 2 && fM.doc.vatLines[0].vatCents === 600n && fM.doc.vatLines[1].vatCents === 4_200n && fM.totals.totalCents === 30_005n + 4_800n, S(fM.doc.vatLines));
   check("(B6) een ander tarief (12 %): geweigerd bij het bewaren", /6 % of 21 %/.test(errOf(await calc.saveSalesDraft(iM, fM.brief.rev, draftIn(fM, { vat: { rate: 1200n } })))));
   ok(await calc.cancelSalesDraft(iM, "proef 2c6: enkel gelezen"));
   lastNr = (await read(iB)).brief.number;
+}
+
+// B6b. Review M3: een buitenlandse klant (btw-nummer zonder BE) → uitreiken geweigerd. Review M1/L4/L6: een creditnota aan een bedrijf
+// draagt de vermelding over de terug te storten btw, de koper van de vastgelegde factuur en geen blok "reeds gefactureerd".
+{
+  const KOEKOEK = (await admin.listOrgs(false)).find((o) => o.name.startsWith("Proef Klant Koekoek 2c6"))?.id ?? ok(await admin.createOrg({ kind: { client: null }, name: `Proef Klant Koekoek 2c6 ${suffix}`, kbo: [], vat: ["NL000099998B57"], aliases: [], trades: [], address: [{ street: "Proefstraat", number: "1", zip: "9999", city: "Proefstad", country: "NL" }], notes: "Verzonnen buitenlandse proefklant (2c.6)" })).id;
+  const WK = await newWork(`P-FK${suffix}`, KOEKOEK);
+  const ik = await freeDraft(WK, [{ description: "Proef buitenland 2c6", unitCents: 10_000n }], { reverse: null });
+  check("(B6b) buitenlandse klant: geweigerd ('vraag de boekhouder'); geen bedrijf voor de UBL", /Buitenlandse klant/.test(errOf(await issue(ik))) && !(await read(ik)).brief.company);
+  ok(await calc.cancelSalesDraft(ik, "proef 2c6: buitenland"));
+  const inv = (await calc.listSales(W2)).find((b) => b.status === "uitgereikt" && b.kind === "vrij");
+  const org = (await admin.listOrgs(false)).find((o) => o.id === SPREEUW);
+  const upd = (name) => admin.updateOrg(org.id, { kind: org.kind, name, kbo: org.kbo, vat: org.vat, aliases: org.aliases, trades: org.trades, address: org.address, notes: org.notes });
+  ok(await upd(`${org.name} (nieuwe naam)`));
+  try {
+    const cn = ok(await calc.newSalesInvoice(W2, { credit: { invoiceId: inv.id, full: true } }));
+    const rc = await issue(cn);
+    const f = await read(cn);
+    check("(B6b) creditnota aan een bedrijf: vermelding 'terug te storten aan de Staat', koper van de factuur (niet de nieuwe naam), geen 'reeds gefactureerd'", isOk(rc) && f.doc.mentions.some((m) => m.includes("terug te storten aan de Staat")) && f.doc.buyer.name === org.name && f.doc.previous.length === 0, `${errOf(rc)} ${f.doc.buyer.name}`);
+  } finally { ok(await upd(org.name)); }
 }
 
 // B7. Creditnota's in een eigen reeks (⚖7): volledig en deels; een uitgereikte factuur wordt nooit gewist.
@@ -460,6 +495,7 @@ let ADV2;
   const a2 = await read(ADV);
   const cnF = await read(cn);
   check("(B7) de factuur blijft (gecrediteerd, met verwijzing); de creditnota vermeldt 'Creditnota bij factuur …' en geen betaalopdracht", a2.brief.pay === "gecrediteerd" && a2.brief.credits.includes(expCN) && a2.openCents === 0n && cnF.doc.mentions[0].startsWith(`Creditnota bij factuur ${advF.brief.number}`) && un(cnF.doc.creditOf) === advF.brief.number && cnF.doc.paymentRef === "", S(a2.brief));
+  check("(B7) creditnota aan een particulier: geen vermelding over terug te storten btw, geen blok 'reeds gefactureerd'", !cnF.doc.mentions.some((m) => m.includes("terug te storten")) && cnF.doc.previous.length === 0);
   check("(B7) nog eens volledig crediteren: geweigerd", /al volledig gecrediteerd/.test(errOf(await calc.newSalesInvoice(W1, { credit: { invoiceId: ADV, full: true } }))));
   check("(B7) de schijf Voorschot is weer open (de factuur is gecrediteerd)", ok(await calc.readSalesPlan(W1)).steps[0].status === "open");
   ADV2 = ok(await calc.newSalesInvoice(W1, { step: { key: "voorschot", minMeerVersionId: [] } }));
@@ -513,6 +549,10 @@ let VS;
   check("(B9) een tweede factuur voor dezelfde staat: geweigerd", /bestaat al een factuur/.test(errOf(await calc.newSalesInvoice(PV.wid, { progress: n }))));
   const r = await issue(id);
   check("(B9) uitgereikt; de staat staat op 'gefactureerd' met het factuurnummer", isOk(r) && ok(await calc.progressInvoiceData(n)).billing === "gefactureerd", errOf(r));
+  // Review M4: de inhouding als waarborg van de staat (5 % in het contract van de proefwerf): de factuur op het volle bedrag, de
+  // vermelding "waarvan … ingehouden", een waarschuwing in het ontwerp, en "open" zonder de inhouding (geen vervallen bedrag erdoor).
+  const fi = await read(id);
+  check("(B9) review M4: inhouding waarborg = die van de staat; factuur op het volle bedrag; vermelding; open = totaal − inhouding; waarschuwing in het ontwerp", VS.totals.retentionCents > 0n && fi.doc.retentionCents === VS.totals.retentionCents && fi.retentionCents === VS.totals.retentionCents && fi.doc.totalCents === VS.totals.totalCents && fi.doc.mentions.some((m) => m.includes("ingehouden als waarborg")) && fi.openCents === fi.doc.totalCents - VS.totals.retentionCents && d.findings.some((x) => x.key === "waarborg" && !x.block), S([VS.totals.retentionCents, fi.doc.totalCents, fi.openCents]));
   const mm = ok(await calc.readMinMeer(PV.wid));
   const invs = mm.invoiced;
   check("(B9) min-meerstaat: reeds gefactureerd = de factuur (werk = periode, herziening apart); de staat telt niet nog eens", invs.length === 1 && invs[0].title === `factuur ${r.ok}` && invs[0].cents === VS.totals.periodCents && invs[0].revisionCents === VS.totals.revisionCents && mm.totals.invoicedCents === VS.totals.periodCents && MC.recheck(mm).ok, S(invs));
@@ -544,6 +584,29 @@ let VS;
   const v3 = ok(await calc.readMinMeer(PV.wid));
   check("(B10) slot uit de nieuwe versie uitgereikt (de slotschijf); daarna nog te factureren € 0 (reeds gefactureerd = aanneemsom + saldo)", isOk(r2) && v3.totals.toInvoiceCents === 0n && v3.totals.invoicedCents === v3.totals.contractCents && (await read(s2)).brief.planStepKey[0] === "slot", `${errOf(r2)} ${S(v3.totals)}`);
   check("(B10) de slotschijf staat in het schema op 'uitgereikt'", ok(await calc.readSalesPlan(PV.wid)).steps.find((s) => s.key === "slot").status === "uitgereikt");
+}
+
+// B10b. Review M5: de totaalrem. Voorschot 50 % + een vorderingsstaat (factuur) + de slotschijf 26 % komt boven aanneemsom + saldo:
+// de schijf wordt geweigerd (geen nummer); de factuur uit de vorderingsstaat ging door.
+{
+  const P2 = await proefVordering({ admin, calc, wl }, { prefix: `P-FT${suffix}`, titleSuffix: " 2c6 totaalrem", model: false });
+  const adv = ok(await calc.newSalesInvoice(P2.wid, { step: { key: "voorschot", minMeerVersionId: [] } }));
+  check("(B10b) voorschot 50 % uitgereikt", isOk(await issue(adv)));
+  const n = ok(await calc.newProgress(P2.wid));
+  const view = ok(await calc.readProgressStatement(n));
+  const met = view.lines.find((l) => l.q.title === "Proef metselwerk binnenmuur (2.10)");
+  ok(await saveAs(calc, n, new Map([[String(met.q.root), { cumPctBp: 10_000n }]])));
+  const f = ok(await calc.readProgressStatement(n));
+  ok(await calc.sendProgress(n, f.brief.rev, f.totals.totalCents, "proef 2c6: totaalrem"));
+  ok(await calc.setProgressReady(n));
+  const pi = ok(await calc.newSalesInvoice(P2.wid, { progress: n }));
+  check("(B10b) de factuur uit de vorderingsstaat (metselwerk volledig) gaat door", isOk(await issue(pi)));
+  const slot = ok(await calc.newSalesInvoice(P2.wid, { step: { key: "slot", minMeerVersionId: [] } }));
+  const before = (await counterOf("F")).last;
+  const rs = await issue(slot);
+  const fs = await read(slot);
+  check("(B10b) slotschijf 26 % daarbovenop: geweigerd ('meer dan aanneemsom + saldo'), geen nummer verbruikt; in het ontwerp een blokkering", /meer dan aanneemsom/.test(errOf(rs)) && (await counterOf("F")).last === before && fs.findings.some((x) => x.key === "totaal-boven-aanneemsom" && x.block), errOf(rs));
+  ok(await calc.cancelSalesDraft(slot, "proef 2c6: totaalrem"));
 }
 
 // B11. Rechten (R42): de werfleider enkel "voorschot betaald" (geen bedrag); de klant enkel zijn UITGEREIKTE facturen (geen ontwerpen),
@@ -650,10 +713,10 @@ const ublOf = (f, credit = false) => {
   const f = await read(ids[0]);
   const u = readUbl(ublXml(ublOf(f.doc)), "echt.xml");
   const p = ublProblems(u, f.doc.totalCents);
-  check("(B15) UBL van een uitgereikte factuur aan een bedrijf (verlegd): verplichte velden, sommen kloppen, bedrag = de vastgelegde factuur", p.length === 0 && u.id[0] === f.brief.number && u.buyerVat[0] === "BE0987654321" && u.sub[0].cat === "AE", p.join(" | "));
+  check("(B15) UBL van een uitgereikte factuur aan een bedrijf (verlegd): verplichte velden, sommen kloppen, bedrag = de vastgelegde factuur", p.length === 0 && u.id[0] === f.brief.number && u.buyerVat[0] === "BE0987654394" && u.sub[0].cat === "AE", p.join(" | "));
   check("(B15) stand 'UBL gemaakt' (geen verzending); bij een particulier geweigerd", isOk(await calc.markSalesUbl(ids[0])) && (await read(ids[0])).brief.peppol === "ubl-gemaakt" && /btw-nummer/.test(errOf(await calc.markSalesUbl(ADV2))));
   const fa = await read(ADV2);
-  const ua = readUbl(ublXml(ublOf({ ...fa.doc, buyer: { ...fa.doc.buyer, vat: ["BE0123456789"] } })), "adv.xml");
+  const ua = readUbl(ublXml(ublOf({ ...fa.doc, buyer: { ...fa.doc.buyer, vat: ["BE0123456749"] } })), "adv.xml");
   check("(B15) UBL van de voorschotfactuur (regels per hoofdstuk, 21 %): sommen kloppen, mededeling en IBAN", ublProblems(ua, fa.doc.totalCents).length === 0 && ua.payId[0] === fa.doc.paymentRef && ua.iban[0] === ISS.iban.replace(/\s/g, ""), ublProblems(ua, fa.doc.totalCents).join(" | "));
 }
 
@@ -693,6 +756,11 @@ if (local && !process.env.ZONDER_KLOK) {
   for (let i = 0; i < 6 && t === null; i++) { const j = await (await fetch(`${base}/read/get_time`)).json().catch(() => ({})); if (j && j.nanos_since_epoch !== undefined) t = BigInt(j.nanos_since_epoch); else await new Promise((res) => setTimeout(res, 5000)); }
   if (t === null) throw new Error("PocketIC gaf geen tijd terug");
   const target = BigInt(Date.UTC(Number(Y1), 0, 1, 9, 0, 0)) * 1_000_000n; // 1 januari 10:00 Belgische tijd
+  // Twee maanden vooruit kost de canister op het eigen net veel cycles (opslag): vooraf bijvullen, anders kan de klokjob vallen en
+  // werken de herinneringen van de latere proeven (prijsvraag-2c2 B15) niet meer (zoals prijsvraag-2c2 vóór zijn 91 dagen doet).
+  const { Principal } = await import("../tools/lib.mjs");
+  const topUp = async () => { const r = await fetch(`${base}/update/add_cycles`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ canister_id: Buffer.from(Principal.fromText(cid).toUint8Array()).toString("base64"), amount: 100_000_000_000_000 }) }); if (!r.ok) console.log(`· bijvullen: ${r.status}`); };
+  await topUp();
   if (target > t) {
     let r = null;
     for (let i = 0; i < 10; i++) { r = await fetch(`${base}/update/set_time`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nanos_since_epoch: Number(target) }) }); if (r.status !== 409) break; await new Promise((res) => setTimeout(res, 2000)); }
@@ -701,6 +769,7 @@ if (local && !process.env.ZONDER_KLOK) {
     const { resync } = await import("../tools/lib.mjs");
     await resync(admin, calc, wl, oa2, klant, arch);
   }
+  await topUp();
   const today1 = (await settingsNow()).today;
   check(`(B14) de klok van het eigen net staat op 1 januari ${Y1}`, new Date(Number(today1) * 86_400_000).getUTCFullYear() === Number(Y1) && Number(today1) * 86_400_000 === Date.UTC(Number(Y1), 0, 1), String(today1));
   const j1 = await freeDraft(W1, [{ description: "Proef eerste factuur nieuw jaar 2c6", unitCents: 10_000n }]);

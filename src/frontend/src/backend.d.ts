@@ -6586,6 +6586,7 @@ export interface RestoreSummary {
     tasks: bigint;
     audit: bigint;
     persons: bigint;
+    warnings: Array<string>;
     counters: Array<[string, bigint]>;
     reports: bigint;
     works: bigint;
@@ -7386,6 +7387,7 @@ export interface SalesFrozen {
     totalCents: bigint;
     vatCents: bigint;
     invoiceId: bigint;
+    retentionCents: bigint;
     lines: Array<SalesLine>;
     extra: Extra;
     serviceDay?: Day;
@@ -7412,6 +7414,7 @@ export interface SalesFullView {
     payments: Array<SalesPaymentView>;
     hash: string;
     note: string;
+    retentionCents: bigint;
     lines: Array<SalesLine>;
     serviceDay?: bigint;
     totals: SalesTotals;
@@ -7635,6 +7638,7 @@ export interface SalesSent {
 }
 export interface SalesSettingsInput {
     firstSeqF: bigint;
+    creditText: string;
     planBp: Array<bigint>;
     issuer: SalesIssuer;
     reminderDays: bigint;
@@ -7651,6 +7655,7 @@ export interface SalesSettingsInput {
 export interface SalesSettingsView {
     firstSeqF: bigint;
     today: bigint;
+    creditText: string;
     planBp: Array<bigint>;
     issuer: SalesIssuer;
     reminderDays: bigint;

@@ -556,7 +556,8 @@ mixin (
     // 2c.6: de indexen van de facturen (per werf, betalingen per factuur, nummer → factuur, laatste factuurdatum per reeks) uit de
     // records zelf; dan de tellers ALS LAATSTE: de nummerteller per reeks en jaar (settings.sequences "factuur:<reeks>:<jaar>") is
     // minstens het hoogste uitgereikte nummer, zodat de volgende factuur na een herstel het volgende nummer krijgt (geen gat, geen dubbel).
-    Sales.rebuildIndex(sales);
+    let dupNumbers = Sales.rebuildIndex(sales);
+    if (dupNumbers.size() > 0) { settings.values.add("herstel.dubbelFactuurnummer", Text.join(dupNumbers.values(), ", ")) };
     rsAtLeast("sales", rsMaxKey(sales.invoices));
     rsAtLeast("salesPayment", rsMaxKey(sales.payments));
     rsAtLeast("salesReminder", rsMaxKey(sales.reminders));
@@ -578,6 +579,8 @@ mixin (
       files = files.files.size();
       audit = audit.log.size();
       counters = ctr.entries().toArray();
+      // Review L7: wat na het herstel nagekeken moet worden (bv. een factuurnummer dat twee keer voorkomt).
+      warnings = switch (settings.values.get("herstel.dubbelFactuurnummer")) { case (?t) ["Factuurnummer meer dan één keer: " # t]; case null [] };
     };
   };
 };

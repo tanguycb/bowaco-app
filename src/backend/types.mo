@@ -2432,6 +2432,7 @@ module {
     netCents : Int;
     vatCents : Int;
     totalCents : Int;
+    retentionCents : Int;
     mentions : [Text];
     paymentRef : Text;
     creditOf : ?Text;

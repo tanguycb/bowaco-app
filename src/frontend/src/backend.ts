@@ -6630,6 +6630,7 @@ export interface RestoreSummary {
     tasks: bigint;
     audit: bigint;
     persons: bigint;
+    warnings: Array<string>;
     counters: Array<[string, bigint]>;
     reports: bigint;
     works: bigint;
@@ -7430,6 +7431,7 @@ export interface SalesFrozen {
     totalCents: bigint;
     vatCents: bigint;
     invoiceId: bigint;
+    retentionCents: bigint;
     lines: Array<SalesLine>;
     extra: Extra;
     serviceDay?: Day;
@@ -7456,6 +7458,7 @@ export interface SalesFullView {
     payments: Array<SalesPaymentView>;
     hash: string;
     note: string;
+    retentionCents: bigint;
     lines: Array<SalesLine>;
     serviceDay?: bigint;
     totals: SalesTotals;
@@ -7679,6 +7682,7 @@ export interface SalesSent {
 }
 export interface SalesSettingsInput {
     firstSeqF: bigint;
+    creditText: string;
     planBp: Array<bigint>;
     issuer: SalesIssuer;
     reminderDays: bigint;
@@ -7695,6 +7699,7 @@ export interface SalesSettingsInput {
 export interface SalesSettingsView {
     firstSeqF: bigint;
     today: bigint;
+    creditText: string;
     planBp: Array<bigint>;
     issuer: SalesIssuer;
     reminderDays: bigint;
@@ -22112,6 +22117,7 @@ function from_candid_record_n1447(_uploadFile: (file: ExternalBlob) => Promise<U
     payments: Array<_SalesPaymentView>;
     hash: string;
     note: string;
+    retentionCents: bigint;
     lines: Array<_SalesLine>;
     serviceDay: [] | [bigint];
     totals: _SalesTotals;
@@ -22132,6 +22138,7 @@ function from_candid_record_n1447(_uploadFile: (file: ExternalBlob) => Promise<U
     payments: Array<SalesPaymentView>;
     hash: string;
     note: string;
+    retentionCents: bigint;
     lines: Array<SalesLine>;
     serviceDay?: bigint;
     totals: SalesTotals;
@@ -22153,6 +22160,7 @@ function from_candid_record_n1447(_uploadFile: (file: ExternalBlob) => Promise<U
         payments: value.payments,
         hash: value.hash,
         note: value.note,
+        retentionCents: value.retentionCents,
         lines: from_candid_vec_n265(_uploadFile, _downloadFile, value.lines),
         serviceDay: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.serviceDay)),
         totals: value.totals,
@@ -28369,6 +28377,7 @@ function from_candid_record_n726(_uploadFile: (file: ExternalBlob) => Promise<Ui
     totalCents: bigint;
     vatCents: bigint;
     invoiceId: bigint;
+    retentionCents: bigint;
     lines: Array<_SalesLine>;
     extra: _Extra;
     serviceDay: [] | [_Day];
@@ -28399,6 +28408,7 @@ function from_candid_record_n726(_uploadFile: (file: ExternalBlob) => Promise<Ui
     totalCents: bigint;
     vatCents: bigint;
     invoiceId: bigint;
+    retentionCents: bigint;
     lines: Array<SalesLine>;
     extra: Extra;
     serviceDay?: Day;
@@ -28430,6 +28440,7 @@ function from_candid_record_n726(_uploadFile: (file: ExternalBlob) => Promise<Ui
         totalCents: value.totalCents,
         vatCents: value.vatCents,
         invoiceId: value.invoiceId,
+        retentionCents: value.retentionCents,
         lines: from_candid_vec_n265(_uploadFile, _downloadFile, value.lines),
         extra: value.extra,
         serviceDay: record_opt_to_undefined(from_candid_opt_n44(_uploadFile, _downloadFile, value.serviceDay)),
@@ -40063,6 +40074,7 @@ function to_candid_record_n1570(_uploadFile: (file: ExternalBlob) => Promise<Uin
     totalCents: bigint;
     vatCents: bigint;
     invoiceId: bigint;
+    retentionCents: bigint;
     lines: Array<SalesLine>;
     extra: Extra;
     serviceDay?: Day;
@@ -40093,6 +40105,7 @@ function to_candid_record_n1570(_uploadFile: (file: ExternalBlob) => Promise<Uin
     totalCents: bigint;
     vatCents: bigint;
     invoiceId: bigint;
+    retentionCents: bigint;
     lines: Array<_SalesLine>;
     extra: _Extra;
     serviceDay: [] | [_Day];
@@ -40124,6 +40137,7 @@ function to_candid_record_n1570(_uploadFile: (file: ExternalBlob) => Promise<Uin
         totalCents: value.totalCents,
         vatCents: value.vatCents,
         invoiceId: value.invoiceId,
+        retentionCents: value.retentionCents,
         lines: to_candid_vec_n1571(_uploadFile, _downloadFile, value.lines),
         extra: value.extra,
         serviceDay: value.serviceDay ? candid_some(value.serviceDay) : candid_none(),

@@ -112,7 +112,7 @@ function SettingsForm({ s }: { s: SalesSettingsView }) {
   const toast = useToast();
   const S = T.settings;
   const [iss, setIss] = useState<Record<string, string>>({ name: s.issuerName, legalForm: s.issuer.legalForm, street: s.issuer.address.street, number: s.issuer.address.number, zip: s.issuer.address.zip, city: s.issuer.address.city, country: s.issuer.address.country, vat: s.issuer.vat, kbo: s.issuer.kbo, rpr: s.issuer.rpr, email: s.issuer.email, phone: s.issuer.phone, website: s.issuer.website, iban: s.issuer.iban, bic: s.issuer.bic });
-  const [txt, setTxt] = useState({ vat6Text: s.vat6Text, reverseText: s.reverseText, paymentText: s.paymentText, footerText: s.footerText, reminderText: s.reminderText });
+  const [txt, setTxt] = useState({ vat6Text: s.vat6Text, reverseText: s.reverseText, creditText: s.creditText, paymentText: s.paymentText, footerText: s.footerText, reminderText: s.reminderText });
   const [num, setNum] = useState({ paymentDays: String(s.paymentDays), reminderDays: String(s.reminderDays), firstSeqF: String(s.firstSeqF), firstSeqCN: String(s.firstSeqCN), peppolScheme: s.peppolScheme });
   const [plan, setPlan] = useState(s.planBp.map((b) => fmtBp(b).replace(" %", "")).join(" / "));
   const [only, setOnly] = useState(s.issuerOnly);
@@ -146,7 +146,7 @@ function SettingsForm({ s }: { s: SalesSettingsView }) {
         <label>{S.plan}<input className="bw-input" value={plan} onChange={(e) => setPlan(e.target.value)} /></label>
       </div>
       <label className="a-check"><input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} /> {S.issuerOnly}</label>
-      {(["vat6Text", "reverseText", "paymentText", "footerText", "reminderText"] as const).map((k) => <label key={k}>{S[k]}<textarea className="bw-input" rows={k === "vat6Text" || k === "reverseText" || k === "reminderText" ? 4 : 2} value={txt[k]} onChange={(e) => setTxt({ ...txt, [k]: e.target.value })} /></label>)}
+      {(["vat6Text", "reverseText", "creditText", "paymentText", "footerText", "reminderText"] as const).map((k) => <label key={k}>{S[k]}<textarea className="bw-input" rows={k === "vat6Text" || k === "reverseText" || k === "reminderText" ? 4 : 2} value={txt[k]} onChange={(e) => setTxt({ ...txt, [k]: e.target.value })} /></label>)}
       <Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{T.save}</Button>
       <h3 className="bw-h3">{S.counters}</h3>
       <p className="bw-muted">{S.counterLead}</p>

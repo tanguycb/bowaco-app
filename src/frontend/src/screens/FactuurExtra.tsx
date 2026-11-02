@@ -43,13 +43,15 @@ export function SalesExtra({ v, onDone }: { v: SalesFullView; onDone: () => void
     onError: fail,
   });
   const remind = useMutation({
+    // Review L5: eerst de PDF maken (lukt dat niet, dan ontstaat er geen herinnering en geen mail), dan het record en de mail.
     mutationFn: async () => {
-      unwrap(await actor!.remindSalesInvoice(v.brief.id, mail, ""));
       const s = await actor!.salesSettings();
       const { factuurPdf } = await import("../pdf/factuur.ts");
       const { loadPdfFonts } = await import("../pdf/fonts.ts");
       const d = { ...pdfData(v.doc, v.hash, false), reminder: { level: v.reminders.length + 1, day: v.today, text: s.reminderText, openCents: v.openCents, paidCents: v.paidCents } };
-      download(await factuurPdf(d, await loadPdfFonts()), `Herinnering ${safeName(v.doc.number)}.pdf`, "application/pdf");
+      const bytes = await factuurPdf(d, await loadPdfFonts());
+      unwrap(await actor!.remindSalesInvoice(v.brief.id, mail, ""));
+      download(bytes, `Herinnering ${safeName(v.doc.number)}.pdf`, "application/pdf");
     },
     onSuccess: () => { toast.show({ kind: "ok", text: T.reminder }); onDone(); },
     onError: fail,

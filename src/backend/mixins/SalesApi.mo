@@ -77,6 +77,7 @@ mixin (
       paymentText = Sales.paymentText(settings);
       footerText = Sales.footerText(settings);
       reminderText = Sales.reminderText(settings);
+      creditText = Sales.creditText(settings);
       reminderDays = Sales.reminderDays(settings);
       issuerOnly = Sales.issuerOnly(settings);
       firstSeqF = Sales.firstSeq(settings, "F");
@@ -98,11 +99,16 @@ mixin (
     var sum = 0;
     for (x in i.planBp.values()) { sum += x };
     if (i.planBp.size() != 3 or sum != 10_000) { return #err("Standaardschema: drie schijven, samen 100 %") };
-    for (t in [i.vat6Text, i.reverseText, i.paymentText, i.footerText, i.reminderText].values()) { if (t.size() > 3_000) { return #err("Een vermelding is hoogstens 3.000 tekens") } };
+    for (t in [i.vat6Text, i.reverseText, i.paymentText, i.footerText, i.reminderText, i.creditText].values()) { if (t.size() > 3_000) { return #err("Een vermelding is hoogstens 3.000 tekens") } };
     let iss = i.issuer;
     let fields : [(Text, Text)] = [("name", iss.name), ("legalForm", iss.legalForm), ("street", iss.address.street), ("number", iss.address.number), ("zip", iss.address.zip), ("city", iss.address.city), ("country", iss.address.country), ("vat", iss.vat), ("kbo", iss.kbo), ("rpr", iss.rpr), ("email", iss.email), ("phone", iss.phone), ("website", iss.website), ("iban", iss.iban), ("bic", iss.bic)];
     for ((k, v) in fields.values()) { if (v.size() > 200) { return #err("Gegevens van BOWACO: hoogstens 200 tekens per veld") } };
     if (iss.iban.trim(#char ' ').size() > 0 and not slIbanOk(iss.iban)) { return #err("Rekeningnummer: geen geldig IBAN (controlegetal)") };
+    // Review M3/L3: ondernemingsnummer (10 cijfers, mod 97), btw-nummer (BE + dat nummer) en het Peppol-schema (4 cijfers).
+    if (iss.kbo.trim(#char ' ').size() > 0 and not Sales.kboOk(iss.kbo)) { return #err("Ondernemingsnummer: 10 cijfers met een geldig controlegetal") };
+    if (iss.vat.trim(#char ' ').size() > 0 and not Sales.beVatOk(iss.vat)) { return #err("Btw-nummer: BE gevolgd door het ondernemingsnummer (10 cijfers)") };
+    let sch = i.peppolScheme.trim(#char ' ');
+    if (sch.size() != 4 or Sales.digitsOf(sch).size() != 4) { return #err("Peppol-schema: 4 cijfers (0208 voor het Belgische ondernemingsnummer)") };
     for ((k, v) in fields.values()) { settings.values.add("sales.issuer." # k, v.trim(#char ' ')) };
     settings.values.add("sales.paymentDays", i.paymentDays.toText());
     settings.values.add("sales.text.vat6", i.vat6Text);
@@ -110,6 +116,7 @@ mixin (
     settings.values.add("sales.text.payment", i.paymentText);
     settings.values.add("sales.text.footer", i.footerText);
     settings.values.add("sales.text.reminder", i.reminderText);
+    settings.values.add("sales.text.credit", i.creditText);
     settings.values.add("sales.reminderDays", i.reminderDays.toText());
     settings.values.add("sales.issuerOnly", if (i.issuerOnly) "ja" else "nee");
     settings.values.add("sales.firstSeq.F", i.firstSeqF.toText());
@@ -142,6 +149,7 @@ mixin (
     slOffice(p, workId);
     let w = works.works.get(workId) ?? return #err("Onbekende werf");
     let b = Sales.base(slCtx(), workId) ?? return #err("Nog geen getekende offerte op deze werf");
+    if (not Sales.baseOk(b)) { return #err(slBaseErr(b)) };
     Access.audit(audit, caller, ?p.id, ?workId, "bekeek:facturatieschema", w.code);
     #ok(slPlanView(workId, b, Sales.planOf(slCtx(), workId)));
   };
@@ -151,6 +159,7 @@ mixin (
     let p = Access.requireActive(access, caller);
     slOffice(p, workId);
     let b = Sales.base(slCtx(), workId) ?? return #err("Nog geen getekende offerte op deze werf");
+    if (not Sales.baseOk(b)) { return #err(slBaseErr(b)) };
     let old = Sales.planOf(slCtx(), workId);
     if (version != old.version) { return #err("Iemand anders bewaarde het schema intussen; laad opnieuw") };
     let ns : [Types.BillingStep] = steps.map(func(s : SV.BillingStepInput) : Types.BillingStep = { key = s.key.trim(#char ' '); title = s.title.trim(#char ' '); pctBp = s.pctBp; when = s.when; chapterPct = s.chapterPct.filter(func(x : Types.BillingChapterPct) : Bool = b.chapters.any(func(ch : Text) : Bool = ch == x.chapter)); quoteIds = [] });
@@ -216,6 +225,7 @@ mixin (
     switch src {
       case (#step s) {
         let b = Sales.base(c, workId) ?? return #err("Nog geen getekende offerte op deze werf");
+        if (not Sales.baseOk(b)) { return #err(slBaseErr(b)) };
         let pl = Sales.planOf(c, workId);
         var idx = 0;
         var found : ?Types.BillingStep = null;
@@ -450,7 +460,7 @@ mixin (
     if (day > slToday()) { return #err("De dag van de betaling ligt in de toekomst") };
     if (how.size() > 80 or note.size() > 300) { return #err("Hoe of notitie te lang") };
     let m = Sales.money(sales, inv);
-    if (cents > m.openCents) { return #err("Meer dan wat openstaat (" # Sales.euro(m.openCents) # ")") };
+    if (cents > m.dueCents) { return #err("Meer dan wat openstaat (" # Sales.euro(m.dueCents) # ")") };
     let pid = Ids.next(ctr, "salesPayment");
     sales.payments.add(pid, #plain({ id = pid; invoiceId = id; day; cents; how = how.trim(#char ' '); note = note.trim(#char ' '); at = Time.now(); by = p.id; archivedAt = null; archivedBy = null; archiveReason = "" }));
     Sales.addIdx(sales.paymentsByInvoice, id, pid);
@@ -615,6 +625,7 @@ mixin (
     slOffice(p, inv.workId);
     if (not Sales.isIssued(inv) or Sales.creditOfId(inv) != null) { return #err("Enkel een uitgereikte factuur krijgt een herinnering") };
     if (Sales.payOf(sales, inv) == #paid) { return #err("Deze factuur is betaald") };
+    if (Sales.money(sales, inv).openCents <= 0) { return #err("Enkel de inhouding als waarborg staat nog open: geen herinnering") };
     let today = slToday();
     let due = inv.dueDay ?? return #err("Geen vervaldag");
     if (today <= due + Sales.reminderDays(settings)) { return #err("Nog niet vervallen (herinnering vanaf " # Sales.day(due + Sales.reminderDays(settings) + 1) # ")") };
@@ -684,6 +695,10 @@ mixin (
     d;
   };
 
+  func slBaseErr(b : Sales.Base) : Text {
+    "De getekende offerte " # b.qlabel # " rekent nu anders dan bij het versturen (" # Sales.euro(b.subtotal) # " in plaats van " # Sales.euro(switch (b.sentSubtotal) { case (?x) x; case null 0 }) # "): meld het aan de beheerder";
+  };
+
   func slDueDay(w : Types.Work, st : Types.BillingStep) : ?Nat {
     switch (st.when) { case (#beforeStart) w.plannedStart; case (#onDay d) ?d; case _ null };
   };
@@ -705,17 +720,45 @@ mixin (
   // De controle van lib/Sales.mo, plus wat de min-meerstaat vraagt: de slotfactuur volgt een versie die nog klopt met wat intussen
   // gefactureerd werd (anders zou ze dubbel aanrekenen).
   func slFindings(inv : Types.SalesInvoice, pre : Types.SalesFrozen, today : Nat) : [Sales.Finding] {
-    let fs = Sales.findings(slCtx(), inv, pre, today);
+    let out = List.fromArray<Sales.Finding>(Sales.findings(slCtx(), inv, pre, today));
+    let add = func(k : Text, t : Text, b : Bool) { out.add({ key = k; text = t; block = b }) };
     switch (inv.kind) {
       case (#minMeer vid) {
         switch (slMmVersion(inv.workId, vid)) {
-          case (#ok((_, fr))) { if (fr.totals.invoicedCents != slInvoicedNow(inv.workId)) { return fs.concat([{ key = "min-meer-verouderd"; text = "Sinds deze min-meerversie werd er gefactureerd: maak eerst een nieuwe versie van de min-meerstaat"; block = true }]) } };
-          case (#err e) { return fs.concat([{ key = "min-meer"; text = e; block = true }]) };
+          case (#ok((_, fr))) { if (fr.totals.invoicedCents != slInvoicedNow(inv.workId)) { add("min-meer-verouderd", "Sinds deze min-meerversie werd er gefactureerd: maak eerst een nieuwe versie van de min-meerstaat", true) } };
+          case (#err e) { add("min-meer", e, true) };
+        };
+      };
+      case (#advance or #interim or #final) {
+        // Review L9: de regels van een schijf zijn die van het schema en de getekende offerte van nu (anders: opnieuw maken).
+        switch (inv.planStepKey, Sales.base(slCtx(), inv.workId)) {
+          case (?k, ?b) {
+            if (not Sales.baseOk(b)) { add("offerte-gewijzigd", slBaseErr(b), true) } else {
+              let fresh = Sales.stepLines(b, Sales.planOf(slCtx(), inv.workId), k, 0) ?? [];
+              let cur = Sales.draftLines(sales, inv.id);
+              let same = fresh.size() == cur.size() and Array.tabulate<Bool>(fresh.size(), func i = fresh[i].ref == cur[i].ref and fresh[i].amountCents == cur[i].amountCents).all(func(x : Bool) : Bool = x);
+              if (Sales.isDraft(inv) and not same) { add("schijf-gewijzigd", "Het schema of de getekende offerte veranderde sinds dit ontwerp: laad opnieuw en maak het ontwerp opnieuw", true) };
+            };
+          };
+          case _ {};
         };
       };
       case _ {};
     };
-    fs;
+    // Review M5: de totaalrem. Het werk van alle uitgereikte facturen (zonder prijsherziening, min de creditnota's) plus deze factuur
+    // mag niet boven de aanneemsom + het saldo van de min-meerstaat: een schijf wordt geweigerd, de rest krijgt een waarschuwing.
+    if (Sales.creditOfId(inv) == null and Sales.isDraft(inv)) {
+      var mine : Int = 0;
+      for (l in pre.lines.values()) { if (l.kind != #revision) { mine += l.amountCents } };
+      var done : Int = 0;
+      for (x in Sales.invoicedItems(sales, inv.workId).0.values()) { done += x.cents };
+      let cap = MinMeer.build(slMmCtx(), inv.workId, today).totals.contractCents;
+      if (cap > 0 and done + mine > cap) {
+        let step = switch (inv.kind) { case (#advance or #interim or #final) true; case _ false };
+        add("totaal-boven-aanneemsom", "Samen gefactureerd " # Sales.euro(done + mine) # " (deze factuur " # Sales.euro(mine) # ") is meer dan aanneemsom + saldo min-meer " # Sales.euro(cap), step);
+      };
+    };
+    out.toArray();
   };
 
   func slFull(inv : Types.SalesInvoice) : SV.SalesFullView {
@@ -741,6 +784,7 @@ mixin (
       payments = Sales.paymentsOf(sales, inv.id).map(func(x : Types.SalesPayment) : SV.SalesPaymentView = { id = x.id; day = x.day; cents = x.cents; how = x.how; note = x.note; at = x.at; byName = Access.personName(access, x.by); archived = x.archivedAt != null; archiveReason = x.archiveReason });
       paidCents = m.paidCents;
       creditedCents = m.creditedCents;
+      retentionCents = m.retentionCents;
       openCents = if (Sales.isIssued(inv) and Sales.creditOfId(inv) == null) m.openCents else 0;
       reminders = sales.reminders.values().filter(func(r : Types.SalesReminder) : Bool = r.invoiceId == inv.id).toArray();
       calcVersion = SalesCalc.version;

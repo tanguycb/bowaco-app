@@ -27,6 +27,11 @@ const day = (d: N) => new Date(Number(d) * 86_400_000).toISOString().slice(0, 10
 const abs = (x: bigint) => (x < 0n ? -x : x);
 export const eurCsv = (c: bigint) => `${c < 0n ? "-" : ""}${abs(c) / 100n},${String(abs(c) % 100n).padStart(2, "0")}`;
 const cell = (s: string) => (/[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+// Review M6: een tekstcel die met = + - @ tab of CR begint, zou Excel als formule lezen: een ' vooraan en tussen aanhalingstekens.
+export const textCell = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `"'${s.replace(/"/g, '""')}"` : cell(s));
+
+// De kolommen met tekst (nummer, reeks, soort, klant, btw-nummer, werfcode, analytische code, bij factuur); de rest zijn data en bedragen.
+const TEXT_COLS = new Set([0, 1, 2, 5, 6, 7, 8, 18]);
 
 export function quarterCsv(rows: QuarterRow[]): string {
   const lines = [CSV_HEAD.join(";")];
@@ -40,7 +45,7 @@ export function quarterCsv(rows: QuarterRow[]): string {
       r.number, r.series, r.kind, day(r.issueDay), day(r.dueDay), r.clientName, r.clientVat, r.workCode, r.analyticCode,
       eurCsv(sum(v6, "baseCents")), eurCsv(sum(v6, "vatCents")), eurCsv(sum(v21, "baseCents")), eurCsv(sum(v21, "vatCents")), eurCsv(sum(vr, "baseCents")),
       eurCsv(r.netCents), eurCsv(r.vatCents), eurCsv(r.totalCents), r.paidDay === null ? "" : day(r.paidDay), r.creditOf,
-    ].map((x) => cell(String(x))).join(";"));
+    ].map((x, i) => (TEXT_COLS.has(i) ? textCell(String(x)) : cell(String(x)))).join(";"));
   }
   return "﻿" + lines.join("\r\n") + "\r\n";
 }

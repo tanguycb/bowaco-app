@@ -40,6 +40,8 @@ module {
   public let vat6Default = "Btw-tarief: bij gebrek aan schriftelijke betwisting binnen een termijn van één maand vanaf de ontvangst van de factuur, wordt de klant geacht te erkennen dat (1) de werken worden verricht aan een woning waarvan de eerste ingebruikneming heeft plaatsgevonden in een kalenderjaar dat ten minste tien jaar voorafgaat aan de datum van de eerste factuur met betrekking tot die werken, (2) de woning, na uitvoering van die werken, uitsluitend of hoofdzakelijk als privéwoning wordt gebruikt en (3) de werken worden verstrekt en gefactureerd aan een eindverbruiker. Wanneer minstens één van die voorwaarden niet is voldaan, zal het normale btw-tarief van 21 % van toepassing zijn en is de afnemer ten aanzien van die voorwaarden aansprakelijk voor de betaling van de verschuldigde belasting, interesten en geldboeten.";
   public let reverseDefault = "Verlegging van heffing. Bij gebrek aan schriftelijke betwisting binnen een termijn van één maand vanaf de ontvangst van de factuur, wordt de afnemer geacht te erkennen dat hij een belastingplichtige is gehouden tot de indiening van periodieke aangiften. Indien die voorwaarde niet vervuld is, is de afnemer ten aanzien van die voorwaarde aansprakelijk voor de betaling van de verschuldigde belasting, interesten en geldboeten.";
   public let paymentDefault = "Gelieve bij de betaling de gestructureerde mededeling te gebruiken.";
+  // Review M1: bij een creditnota aan een btw-plichtige (KB nr. 1 art. 4 §1); VOORLOPIG, na te kijken door de boekhouder.
+  public let creditDefault = "Btw terug te storten aan de Staat in de mate waarin ze oorspronkelijk in aftrek werd gebracht.";
   public let reminderDefault = "Wij stellen vast dat deze factuur nog niet (volledig) betaald is. Wij vragen u vriendelijk het openstaande bedrag binnen 14 dagen te betalen. Deze herinnering is kosteloos. Is de betaling intussen gebeurd, dan mag u deze herinnering als niet verstuurd beschouwen.";
 
   public func text(s : Types.SettingsState, key : Text, dflt : Text) : Text {
@@ -76,6 +78,7 @@ module {
   public func paymentText(s : Types.SettingsState) : Text { text(s, "sales.text.payment", paymentDefault) };
   public func footerText(s : Types.SettingsState) : Text { raw(s, "sales.text.footer") };
   public func reminderText(s : Types.SettingsState) : Text { text(s, "sales.text.reminder", reminderDefault) };
+  public func creditText(s : Types.SettingsState) : Text { text(s, "sales.text.credit", creditDefault) };
   // Een herinnering kan vanaf zoveel dagen na de vervaldag (standaard 0: de dag na de vervaldag).
   public func reminderDays(s : Types.SettingsState) : Nat { natSetting(s, "sales.reminderDays", 0, 365) };
   // ⚖6: "enkel de beheerder reikt uit" (standaard uit: beheerder en calculator).
@@ -127,20 +130,26 @@ module {
   };
 
   // Bedragen van een uitgereikte factuur: totaal, gecrediteerd (uitgereikte creditnota's, positief), betaald, open.
-  public type Money = { totalCents : Int; creditedCents : Int; paidCents : Int; openCents : Int };
+  // Review M4: een inhouding als waarborg (uit de vorderingsstaat) blijft buiten "open": de factuur staat op het volle bedrag, maar
+  // de inhouding is nog niet te betalen (geen vervallen bedrag, geen herinnering). dueCents = alles wat nog niet betaald is (incl. de
+  // inhouding), openCents = wat nu te betalen is.
+  public type Money = { totalCents : Int; creditedCents : Int; paidCents : Int; retentionCents : Int; dueCents : Int; openCents : Int };
   public func money(s : Types.SalesState, inv : Types.SalesInvoice) : Money {
     let total = switch (frozenOf(s, inv.id)) { case (?f) f.totalCents; case null 0 };
+    let retention = switch (frozenOf(s, inv.id)) { case (?f) f.retentionCents; case null 0 };
     var credited : Int = 0;
     for (cn in creditsOf(s, inv).values()) { if (isIssued(cn)) { switch (frozenOf(s, cn.id)) { case (?f) credited -= f.totalCents; case null {} } } };
     var paid : Int = 0;
     for (p in paymentsOf(s, inv.id).values()) { if (p.archivedAt == null) { paid += p.cents } };
-    { totalCents = total; creditedCents = credited; paidCents = paid; openCents = total - credited - paid };
+    let due = total - credited - paid;
+    let held = if (due <= 0) 0 else if (retention < due) retention else due;
+    { totalCents = total; creditedCents = credited; paidCents = paid; retentionCents = retention; dueCents = due; openCents = due - held };
   };
   // Betaalstatus: een creditnota vraagt geen betaling (#paid); een factuur is betaald als niets meer openstaat.
   public func payOf(s : Types.SalesState, inv : Types.SalesInvoice) : Types.SalesPay {
     if (creditOfId(inv) != null) { return #paid };
     let m = money(s, inv);
-    if (m.openCents <= 0) #paid else if (m.paidCents != 0 or m.creditedCents != 0) #partial else #open;
+    if (m.dueCents <= 0) #paid else if (m.paidCents != 0 or m.creditedCents != 0 or m.openCents <= 0) #partial else #open;
   };
   // Volledig gecrediteerd: de uitgereikte creditnota's dekken het hele bedrag.
   public func fullyCredited(s : Types.SalesState, inv : Types.SalesInvoice) : Bool {
@@ -159,7 +168,9 @@ module {
   public func peppolKey(p : Types.SalesPeppol) : Text { switch p { case (#notNeeded) "niet-nodig"; case (#ublMade _) "ubl-gemaakt"; case (#sent _) "verstuurd" } };
 
   // ── De getekende offerte: hoofdstukken, korting, netto per hoofdstuk ──────
-  public type Base = { version : Types.QuoteVersion; qlabel : Text; chapters : [Text]; sells : [Int]; nets : [Int]; gross : Int; discount : Int; subtotal : Int; vatBp : Nat };
+  // sentSubtotal = het subtotaal dat bij het versturen vastlag (QuoteSent); review L8: rekent de offerte nu anders, dan weigert de API.
+  public type Base = { version : Types.QuoteVersion; qlabel : Text; chapters : [Text]; sells : [Int]; nets : [Int]; gross : Int; discount : Int; subtotal : Int; vatBp : Nat; sentSubtotal : ?Int };
+  public func baseOk(b : Base) : Bool { switch (b.sentSubtotal) { case (?x) x == b.subtotal; case null true } };
 
   public func chapterText(ch : Types.QuoteChapter) : Text { (ch.code # " " # ch.title).trim(#char ' ') };
 
@@ -169,7 +180,7 @@ module {
     let t = comp.totals;
     let sells = t.chapters.map(func(x : { chapter : Nat; sell : Int; cost : Int; sellWithCost : Int; noPrice : Nat }) : Int = x.sell);
     let qlabel = switch (c.pc.qs.quotes.get(v.quoteId)) { case (?q) q.number # " v" # v.version.toText(); case null "?" };
-    ?{ version = v; qlabel; chapters = comp.chapters.map(chapterText); sells; nets = SalesCalc.netChapters(sells, t.discount); gross = t.gross; discount = t.discount; subtotal = t.subtotal; vatBp = v.vatBp };
+    ?{ version = v; qlabel; chapters = comp.chapters.map(chapterText); sells; nets = SalesCalc.netChapters(sells, t.discount); gross = t.gross; discount = t.discount; subtotal = t.subtotal; vatBp = v.vatBp; sentSubtotal = switch (v.sent) { case (?x) ?x.subtotalCents; case null null } };
   };
 
   // ── Het facturatieschema ─────────────────────────────────────────────────
@@ -320,6 +331,19 @@ module {
     (out.toArray(), covered.toArray());
   };
 
+  // ── Nummers van ondernemingen (review M3/L3) ──────────────────────────────
+  public func digitsOf(t : Text) : Text { Text.fromIter(t.chars().filter(func(ch : Char) : Bool = ch >= '0' and ch <= '9')) };
+  public func compact(t : Text) : Text { Text.fromIter(t.chars().filter(func(ch : Char) : Bool = ch != ' ' and ch != '.' and ch != '-')).toUpper() };
+  // Belgisch ondernemingsnummer: 10 cijfers, de laatste twee = 97 − (de eerste acht mod 97).
+  public func kboOk(t : Text) : Bool {
+    let d = digitsOf(t);
+    if (d.size() != 10) { return false };
+    let n = switch (Nat.fromText(d)) { case (?x) x; case null return false };
+    (97 - (n / 100) % 97 : Nat) == n % 100;
+  };
+  public func isBeVat(v : Text) : Bool { compact(v).startsWith(#text "BE") };
+  public func beVatOk(v : Text) : Bool { let c = compact(v); c.startsWith(#text "BE") and digitsOf(c).size() == 10 and c.size() == 12 and kboOk(c) };
+
   // ── Wat bij het uitreiken vastligt (§7.2) ─────────────────────────────────
   public func buyerOf(c : Ctx, orgId : ?Nat) : Types.SalesBuyer {
     switch orgId {
@@ -327,7 +351,8 @@ module {
         switch (c.org.orgs.get(id)) {
           case (?o) {
             let vat = switch (o.vat) { case (?v) { if (v.trim(#char ' ').size() > 0) ?v.trim(#char ' ') else null }; case null null };
-            { orgId = ?id; name = o.name; address = o.address; vat; kbo = o.kbo; company = vat != null };
+            // Review M3: "bedrijf" (UBL, btw verlegd) enkel met een Belgisch btw-nummer; een buitenlands nummer blokkeert (findings).
+            { orgId = ?id; name = o.name; address = o.address; vat; kbo = o.kbo; company = switch vat { case (?v) isBeVat(v); case null false } };
           };
           case null { { orgId = ?id; name = ""; address = null; vat = null; kbo = null; company = false } };
         };
@@ -365,8 +390,18 @@ module {
       case (?o) { switch (c.sales.invoices.get(o)) { case (?x) { mentions.add("Creditnota bij factuur " # x.number # (switch (x.issueDay) { case (?d) " van " # day(d); case null "" }) # "."); (?x.number, x.issueDay) }; case null (null, null) } };
       case null (null, null);
     };
+    // Review L4: de koper van een creditnota is die van de vastgelegde factuur (niet de firmafiche van vandaag).
+    let buyer = switch (creditOfId(inv)) { case (?o) { switch (frozenOf(c.sales, o)) { case (?of) of.buyer; case null buyerOf(c, inv.clientOrgId) } }; case null buyerOf(c, inv.clientOrgId) };
+    // Review M4: de inhouding als waarborg van de vorderingsstaat: de factuur blijft op het volle bedrag (ook de btw), de vermelding
+    // zegt hoeveel ingehouden wordt; "open" laat ze buiten (money).
+    let retention : Int = switch (inv.kind) {
+      case (#progress sid) { switch (c.pc.ps.statements.get(sid), Progress.frozenOf(c.pc.ps, sid)) { case (?st, ?pf) { if (pf.totals.retentionCents > 0) { mentions.add("Waarvan " # euro(pf.totals.retentionCents) # " ingehouden als waarborg tot de oplevering (vorderingsstaat " # st.code # "); nu te betalen " # euro(t.totalCents - pf.totals.retentionCents) # ".") }; pf.totals.retentionCents }; case _ 0 } };
+      case _ 0;
+    };
     if (uses6(lines, inv.vat)) { mentions.add(vat6Text(c.settings)) };
     if (reverseOf(inv.vat)) { mentions.add(reverseText(c.settings)) };
+    // Review M1: bij een creditnota aan een btw-plichtige de vermelding over de btw die terug te storten is.
+    if (creditOf != null and buyer.company) { mentions.add(creditText(c.settings)) };
     if (creditOf == null) { mentions.add(paymentText(c.settings)) };
     if (footerText(c.settings).trim(#char ' ').size() > 0) { mentions.add(footerText(c.settings)) };
     let quoteRefs = switch (base(c, inv.workId)) { case (?b) [b.qlabel]; case null [] };
@@ -380,7 +415,7 @@ module {
       dueDay = if (creditOf != null) issueDay else issueDay + inv.paymentDays;
       paymentDays = if (creditOf != null) 0 else inv.paymentDays;
       issuer = issuer(c.settings);
-      buyer = buyerOf(c, inv.clientOrgId);
+      buyer;
       workCode = switch w { case (?x) x.code; case null "" };
       workName = switch w { case (?x) x.name; case null "" };
       workAddress = switch w { case (?x) x.address; case null { { street = ""; number = ""; zip = ""; city = ""; country = "" } } };
@@ -388,11 +423,13 @@ module {
       quoteRefs;
       title = inv.title;
       lines;
-      previous = previousOf(c.sales, inv);
+      // Review L6: geen blok "reeds gefactureerd" op een creditnota.
+      previous = if (creditOf != null) [] else previousOf(c.sales, inv);
       vatLines = t.vatLines;
       netCents = t.netCents;
       vatCents = t.vatCents;
       totalCents = t.totalCents;
+      retentionCents = retention;
       mentions = mentions.toArray();
       paymentRef = if (seq == 0 or creditOf != null) "" else SalesCalc.paymentRef(if (inv.series == "CN") 2 else 1, Quotes.yearOf(issueDay), seq);
       creditOf;
@@ -421,10 +458,24 @@ module {
     if (blank(i.kbo)) block("afzender-kbo", "Ondernemingsnummer ontbreekt" # where);
     if (blank(i.rpr)) block("afzender-rpr", "RPR en ondernemingsrechtbank ontbreken" # where);
     if (blank(i.iban)) block("afzender-rekening", "Rekeningnummer ontbreekt" # where);
+    // Review L1: e-mail en website (vennootschapswetboek) zoals de andere vermeldingen; review M3/L3: nummers nagekeken (mod 97).
+    if (blank(i.email)) block("afzender-email", "E-mailadres van BOWACO ontbreekt" # where);
+    if (blank(i.website)) block("afzender-website", "Website van BOWACO ontbreekt" # where);
+    if (not blank(i.kbo) and not kboOk(i.kbo)) block("afzender-kbo-fout", "Ondernemingsnummer van BOWACO klopt niet (10 cijfers, controlegetal)" # where);
+    if (not blank(i.vat) and not beVatOk(i.vat)) block("afzender-btw-fout", "Btw-nummer van BOWACO klopt niet (BE + 10 cijfers, controlegetal)" # where);
     let b = fr.buyer;
     if (b.orgId == null) { block("klant", "De werf heeft geen klant: kies de klant op de werffiche") } else {
       if (blank(b.name)) block("klant-naam", "Naam van de klant ontbreekt");
       if (not addrOk(b.address)) block("klant-adres", "Adres van de klant ontbreekt (firmafiche: straat, postcode, gemeente)");
+      // Review M3: een buitenlandse klant (btw-nummer zonder BE) valt buiten deze regels (intracommunautair, geen binnenlandse verlegging).
+      switch (b.vat) {
+        case (?v) {
+          if (not isBeVat(v)) { block("klant-buitenland", "Buitenlandse klant: vraag de boekhouder (geen binnenlandse verlegging)") }
+          else if (not beVatOk(v)) { block("klant-btw-fout", "Btw-nummer van de klant klopt niet (BE + 10 cijfers, controlegetal; firmafiche)") };
+        };
+        case null {};
+      };
+      switch (b.kbo) { case (?k) { if (not blank(k) and not kboOk(k)) block("klant-kbo-fout", "Ondernemingsnummer van de klant klopt niet (firmafiche)") }; case null {} };
     };
     switch (inv.vat) {
       case (#rate r) { if (r != 600 and r != 2100) block("btw-tarief", "Btw-tarief: 6 % of 21 %, of btw verlegd") };
@@ -433,6 +484,8 @@ module {
     };
     if (uses6(fr.lines, inv.vat) and blank(vat6Text(c.settings))) block("btw-6-tekst", "De vermelding bij 6 % ontbreekt" # where);
     if (reverseOf(inv.vat) and blank(reverseText(c.settings))) block("btw-verlegd-tekst", "De vermelding bij btw verlegd ontbreekt" # where);
+    if (creditOfId(inv) != null and b.company and blank(creditText(c.settings))) block("credit-tekst", "De vermelding bij een creditnota (terug te storten btw) ontbreekt" # where);
+    if (fr.retentionCents != 0) warn("waarborg", "Inhouding waarborg " # euro(fr.retentionCents) # ": de factuur staat op het volle bedrag (ook de btw), de inhouding blijft buiten 'open' tot ze vrijkomt (nakijken)");
     if (fr.lines.size() == 0) block("regels", "De factuur heeft geen regels");
     if (fr.netCents == 0) block("nul", "Het bedrag is € 0,00");
     let credit = creditOfId(inv);
@@ -509,7 +562,7 @@ module {
     for (p in fr.previous.values()) { out #= "P;" # fi(p.invoiceId) # f(p.number) # fi(p.day) # fi(p.cents) # fi(p.revisionCents) };
     for (v in fr.vatLines.values()) { out #= "B;" # fi(v.vatBp) # f(if (v.reverse) "verlegd" else "-") # fi(v.baseCents) # fi(v.vatCents) };
     for (m in fr.mentions.values()) { out #= "M;" # f(m) };
-    out # "T;" # fi(fr.netCents) # fi(fr.vatCents) # fi(fr.totalCents);
+    out # "T;" # fi(fr.netCents) # fi(fr.vatCents) # fi(fr.totalCents) # fi(fr.retentionCents);
   };
 
   public func intact(s : Types.SalesState, inv : Types.SalesInvoice) : Bool {
@@ -520,7 +573,7 @@ module {
   // ── Views ────────────────────────────────────────────────────────────────
   public func overdue(s : Types.SalesState, inv : Types.SalesInvoice, today : Nat) : Bool {
     if (not isIssued(inv) or creditOfId(inv) != null) { return false };
-    switch (inv.dueDay) { case (?d) d < today and payOf(s, inv) != #paid; case null false };
+    switch (inv.dueDay) { case (?d) d < today and money(s, inv).openCents > 0; case null false };
   };
   public func brief(c : Ctx, inv : Types.SalesInvoice, today : Nat) : SV.SalesBrief {
     let creditOfTxt = switch (creditOfId(inv)) { case (?o) { switch (c.sales.invoices.get(o)) { case (?x) x.number; case null "" } }; case null "" };
@@ -549,7 +602,9 @@ module {
   };
 
   // Na een herstel: de indexen opnieuw (byWork, betalingen per factuur, nummers, laatste dag per reeks).
-  public func rebuildIndex(s : Types.SalesState) {
+  // Review L7: geeft de nummers terug die meer dan één uitgereikte factuur dragen (mag nooit; de herstelde app meldt het).
+  public func rebuildIndex(s : Types.SalesState) : [Text] {
+    let dup = List.empty<Text>();
     for (k in s.byWork.keys().toArray().values()) { s.byWork.remove(k) };
     for (k in s.paymentsByInvoice.keys().toArray().values()) { s.paymentsByInvoice.remove(k) };
     for (k in s.numbers.keys().toArray().values()) { s.numbers.remove(k) };
@@ -557,6 +612,7 @@ module {
     for (inv in s.invoices.values().toArray().sort(func(a : Types.SalesInvoice, b : Types.SalesInvoice) : { #less; #equal; #greater } = Nat.compare(a.id, b.id)).values()) {
       addIdx(s.byWork, inv.workId, inv.id);
       if (isIssued(inv)) {
+        if (s.numbers.containsKey(numberKey(inv.series, inv.number))) { dup.add(inv.number) };
         s.numbers.add(numberKey(inv.series, inv.number), inv.id);
         switch (inv.issueDay) {
           case (?d) { let k = seriesYear(inv.series, inv.year); switch (s.lastDay.get(k)) { case (?x) { if (d > x) s.lastDay.add(k, d) }; case null s.lastDay.add(k, d) } };
@@ -565,5 +621,6 @@ module {
       };
     };
     for ((pid, c) in s.payments.entries().toArray().values()) { switch (plain(c)) { case (?p) addIdx(s.paymentsByInvoice, p.invoiceId, pid); case null {} } };
+    dup.toArray();
   };
 };

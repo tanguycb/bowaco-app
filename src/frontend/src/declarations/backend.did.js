@@ -3016,6 +3016,7 @@ export const SalesFrozen = IDL.Record({
   'totalCents' : IDL.Int,
   'vatCents' : IDL.Int,
   'invoiceId' : IDL.Nat,
+  'retentionCents' : IDL.Int,
   'lines' : IDL.Vec(SalesLine),
   'extra' : Extra,
   'serviceDay' : IDL.Opt(Day),
@@ -6639,6 +6640,7 @@ export const SalesFullView = IDL.Record({
   'payments' : IDL.Vec(SalesPaymentView),
   'hash' : IDL.Text,
   'note' : IDL.Text,
+  'retentionCents' : IDL.Int,
   'lines' : IDL.Vec(SalesLine),
   'serviceDay' : IDL.Opt(IDL.Nat),
   'totals' : SalesTotals,
@@ -6913,6 +6915,7 @@ export const RestoreSummary = IDL.Record({
   'tasks' : IDL.Nat,
   'audit' : IDL.Nat,
   'persons' : IDL.Nat,
+  'warnings' : IDL.Vec(IDL.Text),
   'counters' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'reports' : IDL.Nat,
   'works' : IDL.Nat,
@@ -6971,6 +6974,7 @@ export const SalesCounterView = IDL.Record({
 export const SalesSettingsView = IDL.Record({
   'firstSeqF' : IDL.Nat,
   'today' : IDL.Nat,
+  'creditText' : IDL.Text,
   'planBp' : IDL.Vec(IDL.Nat),
   'issuer' : SalesIssuer,
   'reminderDays' : IDL.Nat,
@@ -7543,6 +7547,7 @@ export const BillingStepInput = IDL.Record({
 });
 export const SalesSettingsInput = IDL.Record({
   'firstSeqF' : IDL.Nat,
+  'creditText' : IDL.Text,
   'planBp' : IDL.Vec(IDL.Nat),
   'issuer' : SalesIssuer,
   'reminderDays' : IDL.Nat,
@@ -11738,6 +11743,7 @@ export const idlFactory = ({ IDL }) => {
     'totalCents' : IDL.Int,
     'vatCents' : IDL.Int,
     'invoiceId' : IDL.Nat,
+    'retentionCents' : IDL.Int,
     'lines' : IDL.Vec(SalesLine),
     'extra' : Extra,
     'serviceDay' : IDL.Opt(Day),
@@ -15303,6 +15309,7 @@ export const idlFactory = ({ IDL }) => {
     'payments' : IDL.Vec(SalesPaymentView),
     'hash' : IDL.Text,
     'note' : IDL.Text,
+    'retentionCents' : IDL.Int,
     'lines' : IDL.Vec(SalesLine),
     'serviceDay' : IDL.Opt(IDL.Nat),
     'totals' : SalesTotals,
@@ -15565,6 +15572,7 @@ export const idlFactory = ({ IDL }) => {
     'tasks' : IDL.Nat,
     'audit' : IDL.Nat,
     'persons' : IDL.Nat,
+    'warnings' : IDL.Vec(IDL.Text),
     'counters' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'reports' : IDL.Nat,
     'works' : IDL.Nat,
@@ -15617,6 +15625,7 @@ export const idlFactory = ({ IDL }) => {
   const SalesSettingsView = IDL.Record({
     'firstSeqF' : IDL.Nat,
     'today' : IDL.Nat,
+    'creditText' : IDL.Text,
     'planBp' : IDL.Vec(IDL.Nat),
     'issuer' : SalesIssuer,
     'reminderDays' : IDL.Nat,
@@ -16159,6 +16168,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const SalesSettingsInput = IDL.Record({
     'firstSeqF' : IDL.Nat,
+    'creditText' : IDL.Text,
     'planBp' : IDL.Vec(IDL.Nat),
     'issuer' : SalesIssuer,
     'reminderDays' : IDL.Nat,
