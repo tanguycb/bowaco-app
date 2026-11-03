@@ -73,6 +73,9 @@ const invOpen = ex.tenderInvites?.find((i) => tOpen && i.tenderId === tOpen.id);
 const invGone = ex.tenderInvites?.find((i) => tGone && i.tenderId === tGone.id);
 const oaq = ex.oaQuotes?.find((q) => tOpen && q.tenderId[0] === tOpen.id);
 if (!tOpen || !tGone || !invOpen || !invGone || !oaq) throw new Error("eerst tests/rollen.mjs draaien op deze canister (geen prijsvraag)");
+// Review L10: een OA-factuur (2.11 of een werfdeel) uit de rollentest.
+const oaInv = ex.oaInvoices?.find((i) => !("withdrawn" in i.status));
+if (!oaInv) throw new Error("eerst tests/rollen.mjs draaien op deze canister (geen OA-factuur)");
 const draftIn = { number: "N".repeat(41), quoteDay: [], validUntil: [], discountBp: [], reverse: true, lines: [], remark: "" };
 const wsIn = { target: { existing: null }, startDay: 0n, templateKey: "", leaderPersonId: [], lineSteps: [], options: [], groupDays: [], skipPermits: [], declaration: true };
 const someone = identity("proef-lek-onbekend").getPrincipal();
@@ -475,7 +478,8 @@ const table = {
   withdrawPurchase: [NONE, () => [X, 0n, ""]],
   markPurchasePaid: [NONE, () => [X, 0n, [], []]],
   // 2c.8+ B: een OA-factuur van 2.11 betaald markeren (onbekende factuur: niemand).
-  markOaInvoicePaid: [NONE, () => [X, 0n, [], []]],
+  // Review L10: met een echte OA-factuur (rev klopt niet: niets verandert), zodat de rechten per rol echt getest worden.
+  markOaInvoicePaid: [["admin", "calculator"], () => [oaInv.id, 999_999n, [], []]],
   listHourClaims: [["admin", "werfleider"], () => [[]]],
   reviewHourClaim: [NONE, () => [X, true, ""]],
   myPurchases: [NONE, () => []],
@@ -552,6 +556,7 @@ const table = {
   setWorkTechSheets: [["admin", "calculator", "werfleider"], () => [B, [X]]],
   // 2c open punten (deel A): het PID-document maakt de browser; dit zet enkel de auditregel (ongeldige tellingen = geen regel).
   recordPid: [["admin", "calculator", "werfleider"], () => [B, 100_000n, 0n, 0n]],
+  pidSheetFiles: [["admin", "calculator", "werfleider"], () => [B]],
   // 2c open punten (deel A): attestsoorten in Beheer (enkel de beheerder; lege naam / onbekende soort = geen wijziging).
   listOrgDocKinds: [ADMIN, () => []],
   addOrgDocKind: [ADMIN, () => [""]],

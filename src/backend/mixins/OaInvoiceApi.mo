@@ -257,6 +257,8 @@ mixin (
     let p = Access.requireActive(access, caller);
     let i = switch (oaInvoices.invoices.get(id)) { case (?x) x; case null return #err("Geen toegang") };
     if (Rights.oaInvoiceScope({ works; settings }, p, i.workId) != #full) { return #err("Geen toegang") };
+    // Review M3: een werfdeel van een aankoop met een creditnota erop niet betwisten.
+    switch (purchases.partOf.get(id)) { case (?pid) { if (Purchase.creditsOf(purchases, pid).size() > 0) { return #err("Op deze factuur staat een creditnota: trek eerst de creditnota in") } }; case null {} };
     if (i.status != #registered) { return #err("Enkel een geregistreerde factuur kan betwist worden (deze is " # OaInvoice.statusKey(i.status) # ")") };
     if (rev != i.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
     let why = reason.trim(#char ' ');

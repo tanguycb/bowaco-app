@@ -97,6 +97,7 @@ mixin (
     let today = Dossier.today();
     let rows = List.empty<(Nat, Nat, Nat, PV.PayRow)>();
     let whText = func(wh : Int, soc : Int, fis : Int) : Text = if (wh > 0) " · inhouding " # Progress.euro(wh) # " door te storten (RSZ " # Progress.euro(soc) # ", FOD Financiën " # Progress.euro(fis) # ")" else "";
+    let ix = Purchase.creditIndex(purchases);
     for (x in purchases.purchases.values()) {
       let a = puAmounts(x);
       if (x.status == #approved) {
@@ -108,12 +109,15 @@ mixin (
             };
           };
           case null {
-            let (soc, fis) = puWithhold(x);
+            let cs = Purchase.creditsIn(ix, x.id);
+            let (soc, fis) = puWithholdIn(x, cs);
             let wh = soc + fis;
             // Ook betaald maar de inhouding nog niet doorgestort (review H2).
             if (x.paidDay == null or (wh > 0 and x.withheldDay == null)) {
-              let (cn, ct) = Purchase.creditedSums(purchases, x.id, true, null);
-              let nums = Purchase.creditsOf(purchases, x.id).filter(func(c : Types.Purchase) : Bool = c.status == #approved).map(func(c : Types.Purchase) : Text = c.number);
+              // Review M2: enkel de creditnota's die van deze factuur afgaan (betaald: die met de betaling verrekend zijn).
+              let ded = cs.filter(func(c : Types.Purchase) : Bool = Purchase.deducts(x, c));
+              let (cn, ct) = Purchase.sumCredits(purchases, ded);
+              let nums = ded.map(func(c : Types.Purchase) : Text = c.number);
               let disc : ?Int = switch (x.discountUntil, a.discountBp) { case (?u, ?bp) { if (u >= today) ?QuoteCalc.roundDiv((a.netCents - cn) * bp, 10_000) else null }; case _ null };
               let pay = a.totalCents - ct - (switch disc { case (?d) d; case null 0 }) - wh;
               let base = switch (disc, x.discountUntil, a.discountBp) {
@@ -125,7 +129,7 @@ mixin (
               let warnings = List.empty<Text>();
               if (x.parts.size() > 0 and Purchase.partsNet(oaInvoices, x) != a.netCents) { warnings.add("som-werfdelen") };
               if (wh > 0 and x.withheldDay == null) { warnings.add("inhouding") };
-              if (Purchase.creditsOf(purchases, x.id).any(func(c : Types.Purchase) : Bool = c.status != #approved)) { warnings.add("creditnota-open") };
+              if (cs.any(func(c : Types.Purchase) : Bool = c.status != #approved)) { warnings.add("creditnota-open") };
               let k1 = switch disc { case (?_) 0; case null 1 };
               let k2 = switch (disc, x.discountUntil, x.dueDay) { case (?_, ?u, _) u; case (_, _, ?dd) dd; case _ 999_999 };
               rows.add((k1, k2, x.id, { brief = ?puBrief(x); oaInvoice = null; netCents = a.netCents - cn; totalCents = a.totalCents - ct; discountBp = a.discountBp; discountCents = disc; withholdCents = wh; creditCents = ct; credits = nums; payCents = pay; dueDay = x.dueDay; paidDay = x.paidDay; withheldDay = x.withheldDay; text; warnings = warnings.toArray() }));
@@ -258,6 +262,7 @@ mixin (
         let q = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
         for (w in puWorksOf(q).values()) { if (Rights.purchaseScope(ctx, p, w) != #full) { return #err("Geen toegang") } };
         // Review L9: ook een betwiste factuur (na verbeteren terug geregistreerd, nieuwe controle); nooit met een goedgekeurd deel.
+        if (Purchase.creditsOf(purchases, q.id).size() > 0) { return #err("Op deze factuur staat een creditnota: verbeteren kan niet meer (trek eerst de creditnota in)") };
         if (q.status != #registered and q.status != #disputed) { return #err("Enkel een geregistreerde of betwiste factuur kan verbeterd worden (deze is " # Purchase.statusKey(q.status) # ")") };
         if (rev != q.rev) { return #err("Iemand anders bewaarde deze factuur intussen; laad opnieuw") };
         for (pid in q.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.status == #approved) { return #err("Een werfdeel is al goedgekeurd: verbeteren kan niet meer") } }; case null {} } };
@@ -266,7 +271,6 @@ mixin (
     };
     // 2c.8+ B: een creditnota (creditOf) en de aankoop zelf (niet verbeteren zodra er een creditnota op staat).
     let creditOf : ?Nat = switch old { case (?q) { if (x.creditOf != q.creditOf) { return #err("Een factuur wordt geen creditnota (en omgekeerd): registreer een nieuwe") }; q.creditOf }; case null x.creditOf };
-    switch old { case (?q) { if (Purchase.creditsOf(purchases, q.id).size() > 0) { return #err("Op deze factuur staat een creditnota: verbeteren kan niet meer (trek eerst de creditnota in)") } }; case null {} };
     switch creditOf {
       case (?oid) { switch (puCheckCredit(x, oid, switch old { case (?q) ?q.id; case null null })) { case (?e) return #err(e); case null {} } };
       case null {};
@@ -359,6 +363,8 @@ mixin (
     if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
     let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
     if (x.parts.size() > 0) { return #err("Deze factuur heeft werfdelen: betwist het werfdeel (OA-facturen)") };
+    // Review M3: niet zolang er een creditnota op staat (eerst: ook bij een goedgekeurde factuur is dit de reden).
+    if (Purchase.creditsOf(purchases, x.id).size() > 0) { return #err("Op deze factuur staat een creditnota: trek eerst de creditnota in") };
     if (x.status != #registered) { return #err("Enkel een geregistreerde factuur kan betwist worden (deze is " # Purchase.statusKey(x.status) # ")") };
     if (rev != x.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
     let why = reason.trim(#char ' ');
@@ -374,11 +380,13 @@ mixin (
     let p = Access.requireActive(access, caller);
     if (not Rights.may({ works; settings }, p, #editPurchases, null)) { return #err("Geen toegang") };
     let x = switch (purchases.purchases.get(id)) { case (?y) y; case null return #err("Geen toegang") };
-    if (x.status == #approved or x.status == #withdrawn or x.status == #checking) { return #err("Deze factuur is " # Purchase.statusKey(x.status)) };
+    if (Purchase.creditsOf(purchases, x.id).size() > 0) { return #err("Op deze factuur staat een creditnota: trek eerst de creditnota in") };
+    // Review M3: een goedgekeurde creditnota mag ingetrokken worden zolang ze niet verrekend is (met de betaling of apart).
+    let openCredit = x.creditOf != null and x.status == #approved and x.paidDay == null and not Purchase.settled(x);
+    if ((x.status == #approved and not openCredit) or x.status == #withdrawn or x.status == #checking) { return #err(if (x.creditOf != null and x.status == #approved) "Deze creditnota is al verrekend: intrekken kan niet meer" else "Deze factuur is " # Purchase.statusKey(x.status)) };
     // Review M1: ook een betwiste aankoop met een goedgekeurd werfdeel niet.
     for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.status == #approved) { return #err("Een werfdeel is al goedgekeurd: intrekken kan niet meer") } }; case null {} } };
     if (rev != x.rev) { return #err("Iemand anders wijzigde deze factuur intussen; laad opnieuw") };
-    if (Purchase.creditsOf(purchases, x.id).size() > 0) { return #err("Op deze factuur staat een creditnota: trek eerst de creditnota in") };
     let why = reason.trim(#char ' ');
     if (why.size() < Config.minQuoteReason or why.size() > Config.maxQuoteReason) { return #err("Geef een reden (5 tot 300 tekens)") };
     let now = Time.now();
@@ -403,21 +411,36 @@ mixin (
     if (withheldDay != null and soc + fis == 0) { return #err("Deze factuur heeft geen inhouding") };
     // 2c.8+ B: een creditnota apart markeren kan enkel als haar factuur al betaald was (anders gaat ze af bij die betaling).
     switch (x.creditOf) {
-      case (?oid) { switch (purchases.purchases.get(oid)) { case (?o) { if (o.paidDay == null and day != null) { return #err("Deze creditnota gaat af van factuur " # o.number # ": markeer die factuur als betaald") } }; case null {} } };
+      case (?oid) {
+        switch (purchases.purchases.get(oid)) {
+          case (?o) {
+            if (Purchase.settled(x)) { return #err("Deze creditnota is verrekend met de betaling van factuur " # o.number # ": ze volgt die betaling") };
+            if (o.paidDay == null and day != null) { return #err("Deze creditnota gaat af van factuur " # o.number # ": markeer die factuur als betaald") };
+          };
+          case null {};
+        };
+      };
       case null {};
     };
     let now = Time.now();
-    purchases.purchases.add(id, { x with paidDay = day; withheldDay; rev = x.rev + 1; updatedAt = now; updatedBy = p.id });
-    // De goedgekeurde creditnota's die nog open stonden, zijn met deze betaling verrekend (en terug open als de betaling wegvalt).
+    // Review M2: de creditnota's die nog van de factuur afgingen, zijn met deze betaling verrekend (en terug open als de betaling
+    // wegvalt; een creditnota die apart verrekend werd, blijft apart). De inhouding ligt vast op het moment van de betaling.
     if (x.creditOf == null) {
       for (c in Purchase.creditsOf(purchases, x.id).values()) {
-        switch (day, c.paidDay) {
-          case (?d, null) { if (c.status == #approved) { purchases.purchases.add(c.id, { c with paidDay = ?d; extra = OaDeals.extraSet(c.extra, "verrekend", "ja"); rev = c.rev + 1; updatedAt = now; updatedBy = p.id }) } };
-          case (null, ?_) { if (OaDeals.extraGet(c.extra, "verrekend") == "ja") { purchases.purchases.add(c.id, { c with paidDay = null; extra = c.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "verrekend"); rev = c.rev + 1; updatedAt = now; updatedBy = p.id }) } };
-          case _ {};
+        switch (x.paidDay, day) {
+          case (null, ?d) { if (Purchase.deducts(x, c)) { purchases.purchases.add(c.id, { c with paidDay = ?d; extra = OaDeals.extraSet(c.extra, "verrekend", "ja"); rev = c.rev + 1; updatedAt = now; updatedBy = p.id }) } };
+          case (?_, ?d) { if (Purchase.settled(c) and c.paidDay != ?d) { purchases.purchases.add(c.id, { c with paidDay = ?d; rev = c.rev + 1; updatedAt = now; updatedBy = p.id }) } };
+          case (?_, null) { if (Purchase.settled(c)) { purchases.purchases.add(c.id, { c with paidDay = null; extra = c.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "verrekend"); rev = c.rev + 1; updatedAt = now; updatedBy = p.id }) } };
+          case (null, null) {};
         };
       };
+      switch (x.paidDay, day) {
+        case (null, ?_) { puFreezeWithhold(x, ?(soc, fis)) };
+        case (?_, null) { puFreezeWithhold(x, null) };
+        case _ {};
+      };
     };
+    purchases.purchases.add(id, { x with paidDay = day; withheldDay; rev = x.rev + 1; updatedAt = now; updatedBy = p.id });
     Access.audit(audit, caller, ?p.id, puFirstWork(x), "aankoop-betaald", puOrgName(x.orgId) # " " # x.number # ": " # (switch day { case (?d) "betaald op " # Plan.fmtDay(d); case null "niet betaald" }) # (if (soc + fis > 0) (switch withheldDay { case (?d) ", inhouding doorgestort op " # Plan.fmtDay(d); case null ", inhouding nog niet doorgestort" }) else ""));
     #ok;
   };
@@ -506,10 +529,31 @@ mixin (
   };
   // De inhouding van een aankoop (review H2): het zwaarste resultaat bij de goedgekeurde werfdelen op Σ werfdelen excl. btw.
   // 2c.8+ B: op het bedrag na de goedgekeurde creditnota's (nooit negatief).
-  func puWithhold(x : Types.Purchase) : (Int, Int) {
-    let (cn, _) = Purchase.creditedSums(purchases, x.id, true, null);
+  // Review M2: bij de betaling bevroren (PurchaseAmounts.extra "inhouding" = "<RSZ>/<FOD>", vertrouwelijk); daarna verandert een
+  // latere creditnota de inhouding niet meer. Niet betaald: op het bedrag na de creditnota's die ervan afgaan.
+  func puWithhold(x : Types.Purchase) : (Int, Int) { puWithholdIn(x, Purchase.creditsOf(purchases, x.id)) };
+  func puWithholdIn(x : Types.Purchase, cs : [Types.Purchase]) : (Int, Int) {
+    if (x.paidDay != null) { switch (puFrozenWithhold(x)) { case (?w) { return w }; case null {} } };
+    let (cn, _) = Purchase.sumCredits(purchases, cs.filter(func(c : Types.Purchase) : Bool = Purchase.deducts(x, c)));
     let b = Purchase.partsNet(oaInvoices, x) - cn;
     switch (Purchase.withholdingResult(oaInvoices, x)) { case (?r) OaInvoice.withholdingCents(r, if (b > 0) b else 0); case null (0, 0) };
+  };
+  func puFrozenWithhold(x : Types.Purchase) : ?(Int, Int) {
+    let v = OaDeals.extraGet(puAmounts(x).extra, "inhouding");
+    if (v == "") { return null };
+    let parts = v.split(#char '/').toArray();
+    if (parts.size() != 2) { return null };
+    switch (Nat.fromText(parts[0]), Nat.fromText(parts[1])) { case (?a, ?b) ?(a, b); case _ null };
+  };
+  func puFreezeWithhold(x : Types.Purchase, w : ?(Int, Int)) {
+    switch (Purchase.amountsOf(purchases, x.id)) {
+      case (?a) {
+        let rest = a.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "inhouding");
+        let extra = switch w { case (?(s, f)) rest.concat([("inhouding", Int.abs(s).toText() # "/" # Int.abs(f).toText())]); case null rest };
+        purchases.amounts.add(x.id, #plain({ a with extra }));
+      };
+      case null {};
+    };
   };
 
   // De korte vorm van een OA-factuur van 2.11 (zoals oiBrief in OaInvoiceApi) voor Te betalen.
@@ -698,11 +742,13 @@ mixin (
   func puCheckCredit(x : PV.PurchaseInput, oid : Nat, self : ?Nat) : ?Text {
     let o = switch (purchases.purchases.get(oid)) { case (?y) y; case null return ?"Onbekende factuur om te crediteren" };
     if (o.creditOf != null) { return ?"Een creditnota crediteer je niet" };
-    if (not Purchase.counts(o.status)) { return ?("Een creditnota hoort bij een factuur die meetelt (deze is " # Purchase.statusKey(o.status) # ")") };
+    // Review M3: enkel op een goedgekeurde factuur (anders blijft die vast: niet te betwisten, niet te verbeteren).
+    if (o.status != #approved) { return ?("Een creditnota hoort bij een goedgekeurde factuur (deze is " # Purchase.statusKey(o.status) # ")") };
     if (o.orgId != x.orgId or o.kind != x.kind) { return ?"Een creditnota is van dezelfde firma en soort als de factuur" };
     if (x.discountUntil != null or x.discountBp != null or x.finalWorkIds.size() > 0) { return ?"Een creditnota heeft geen betaalkorting en is geen laatste factuur" };
     if (x.netCents <= 0 or x.totalCents <= 0 or x.vatCents < 0) { return ?"Een creditnota: positieve bedragen zoals op het document (het teken volgt uit de creditnota)" };
     let oa = puAmounts(o);
+    let cs = Purchase.creditsOf(purchases, oid);
     let seen = Map.empty<Nat, ()>();
     for (l in x.lines.values()) {
       let lid = switch (l.lineId) { case (?y) y; case null return ?"Elke regel van een creditnota crediteert een regel van de factuur" };
@@ -713,11 +759,42 @@ mixin (
       if (ol.kind == #advanceDeduct) { return ?"Een aftrek van een voorschot crediteer je niet: verbeter de volgende factuur" };
       if (l.days.size() > 0) { return ?"Een creditnota heeft geen uren per dag" };
       if (l.qtyMilli < 0 or l.unitCents < 0 or l.amountCents <= 0) { return ?"Een regel van een creditnota: positieve hoeveelheid, prijs en bedrag (het teken volgt uit de creditnota)" };
-      let rest = Int.abs(ol.amountCents) - Purchase.creditedLine(purchases, oid, lid, self);
+      // Review L1: een regel van 0 of minder (korting, aftrek) crediteer je niet.
+      if (ol.amountCents <= 0) { return ?("Regel «" # ol.description # "» heeft geen positief bedrag: die crediteer je niet") };
+      let rest = ol.amountCents - Purchase.creditedLineIn(purchases, cs, lid, self);
       if (l.amountCents > rest) { return ?("Regel «" # ol.description # "»: hoogstens " # Progress.euro(rest) # " te crediteren") };
+      // Review L2: een voorschot hoogstens tot wat er nog niet van afgetrokken is.
+      if (ol.kind == #advance) {
+        switch (ol.workId, puAdvanceRoom(oid, ol.workId, lid, self)) {
+          case (?_, ?room) { if (l.amountCents > room) { return ?("Voorschot «" # ol.description # "»: hoogstens " # Progress.euro(if (room > 0) room else 0) # " te crediteren (de rest is al afgetrokken)") } };
+          case _ {};
+        };
+      };
     };
-    let (cn, _) = Purchase.creditedSums(purchases, oid, false, self);
+    let (cn, _) = Purchase.sumCredits(purchases, cs.filter(func(c : Types.Purchase) : Bool = ?c.id != self and Purchase.counts(c.status)));
     if (x.netCents > oa.netCents - cn) { return ?("De creditnota is meer dan wat van de factuur overblijft (" # Progress.euro(oa.netCents - cn) # " excl. btw)") };
+    null;
+  };
+  // Wat van het voorschot van aankoop `oid` op die werf nog niet afgetrokken is (de creditnota `self` zelf terug erbij).
+  func puAdvanceRoom(oid : Nat, workId : ?Nat, lid : Nat, self : ?Nat) : ?Int {
+    let w = switch workId { case (?x) x; case null return null };
+    for ((k, c) in purchases.advances.entries()) {
+      switch (Purchase.plain(c)) {
+        case (?a) {
+          if (a.purchaseId == oid and (switch (oaInvoices.invoices.get(k)) { case (?i) i.workId == w; case null false })) {
+            var used : Int = 0;
+            for ((_, x) in a.deducted.values()) { used += x };
+            var mine : Int = 0;
+            switch self {
+              case (?sid) { switch (Purchase.amountsOf(purchases, sid)) { case (?sa) { for (l in sa.lines.values()) { if (l.lineId == lid and l.workId == ?w) { mine += l.amountCents } } }; case null {} } };
+              case null {};
+            };
+            return ?(a.cents + mine - used);
+          };
+        };
+        case null {};
+      };
+    };
     null;
   };
   func puOrigLine(oid : Nat, lid : Nat) : Types.PurchaseLine {
@@ -767,6 +844,8 @@ mixin (
   func puFull(x : Types.Purchase) : PV.PurchaseFullView {
     let a = puAmounts(x);
     let today = Dossier.today();
+    // Review M4: de creditnota's van deze aankoop één keer opzoeken.
+    let cs = if (x.creditOf == null) Purchase.creditsOf(purchases, x.id) else [];
     // De controle van elk werfdeel (2.11 + 2c.7), één keer per werf.
     let controls = Map.empty<Nat, OaInvoice.Control>();
     for (pid in x.parts.values()) {
@@ -811,14 +890,14 @@ mixin (
           { claimId = c.id; day = c.day; persons = c.persons; slots = c.slots; pauseMin = c.pauseMin; hoursMilli = c.hoursMilli; reportPersons = rn; reportMilli = rh; diffMilli = c.hoursMilli - rh; state = Purchase.claimState(settings, reports, c); reviewNote = switch (c.review) { case (?r) r.note; case null "" }; reviewByName = switch (c.review) { case (?r) Access.personName(access, r.by); case null "" }; rateCents = dc.rateCents; rateFrom = dc.rateFrom; cents = dc.cents };
         },
       );
-      lines.add({ index = k; lineId = l.lineId; workId = l.workId; workCode = switch (l.workId) { case (?w) puWorkCode(w); case null "" }; kind = Purchase.costKey(l.kind); kindName = Purchase.costName(l.kind); root = l.root; postTitle; description = l.description; persons = l.persons; qtyMilli = l.qtyMilli; unit = l.unit; unitCents = l.unitCents; amountCents = l.amountCents; passOn = l.passOn; days; dayCents = dayTotal; agreedCents = agreed; qtyFlags = qf.map(puFlag); moneyFlags = mf.map(puFlag); creditedCents = if (x.creditOf == null) Purchase.creditedLine(purchases, x.id, l.lineId, null) else 0 });
+      lines.add({ index = k; lineId = l.lineId; workId = l.workId; workCode = switch (l.workId) { case (?w) puWorkCode(w); case null "" }; kind = Purchase.costKey(l.kind); kindName = Purchase.costName(l.kind); root = l.root; postTitle; description = l.description; persons = l.persons; qtyMilli = l.qtyMilli; unit = l.unit; unitCents = l.unitCents; amountCents = l.amountCents; passOn = l.passOn; days; dayCents = dayTotal; agreedCents = agreed; qtyFlags = qf.map(puFlag); moneyFlags = mf.map(puFlag); creditedCents = if (x.creditOf == null) Purchase.creditedLineIn(purchases, cs, l.lineId, null) else 0 });
       k += 1;
     };
     // De aankoop zelf: som, btw, totaal, bijlage (de werfdelen rekenen hun deel uit de regels).
     let (hf0, sum, expVat) = Purchase.headerFlags(x, a, org);
     let pnet = Purchase.partsNet(oaInvoices, x);
     let hf = if (x.parts.size() > 0 and pnet != a.netCents) hf0.concat(["som-werfdelen"]) else hf0;
-    let (wSoc, wFis) = puWithhold(x);
+    let (wSoc, wFis) = puWithholdIn(x, cs);
     let final = func(w : Nat) : Bool = OaDeals.extraGet(x.extra, "slot:" # w.toText()) == "ja";
     let advances = if (x.kind != #oa) [] else Purchase.worksOf(a).filterMap(
       func(w : Nat) : ?PV.PurchaseAdvanceView {
@@ -850,14 +929,14 @@ mixin (
       headerFlags = hf.map(puFlag);
       flagCount = hf.size() + lineFlags;
       lines = lines.toArray();
-      credits = Purchase.creditsOf(purchases, x.id).map(func(c : Types.Purchase) : PV.PurchaseCreditRef { let ca = puAmounts(c); { id = c.id; number = c.number; invoiceDay = c.invoiceDay; status = c.status; netCents = ca.netCents; totalCents = ca.totalCents } });
+      credits = cs.map(func(c : Types.Purchase) : PV.PurchaseCreditRef { let ca = puAmounts(c); { id = c.id; number = c.number; invoiceDay = c.invoiceDay; status = c.status; netCents = ca.netCents; totalCents = ca.totalCents } });
       advances;
       file = puFile(x.fileId);
       statement = puFile(x.oaStatementFileId);
       decision;
       attestWarnings = if (x.kind == #oa) OaDeals.attestWarnings(oaDeals, settings, org, x.orgId, today) else [];
       finalWorkIds = Purchase.worksOf(a).filter(final);
-      canEdit = (x.status == #registered or x.status == #disputed) and allRegistered and Purchase.creditsOf(purchases, x.id).size() == 0;
+      canEdit = (x.status == #registered or x.status == #disputed) and allRegistered and cs.size() == 0;
       canDecide = x.parts.size() == 0 and (x.status == #registered or x.status == #disputed);
       canPay = x.status == #approved;
     };

@@ -226,20 +226,25 @@ export function WorkSheets({ w }: { w: WorkView }) {
   });
   const ids = chosen.data ?? [];
   const sorted = [...(lib.data ?? [])];
+  // Review: zelfde recht als recordPid en setWorkTechSheets (#editSiteAdmin op de werf): beheerder, calculator, werfleider van de werf.
+  const me = useQuery({ queryKey: ["me"], queryFn: () => actor!.me(), enabled: !!actor && !isFetching });
+  // (caps.editSiteAdmin zonder werf = beheerder of calculator; w.caps.edit = beheerder of werfleider die de werf ziet.)
+  const canPid = !!me.data?.caps?.editSiteAdmin || w.caps.edit;
   // Het PID: voorblad + de gekozen fiches in één PDF (de browser voegt samen; de server krijgt enkel een auditregel).
   const [pidInfo, setPidInfo] = useState<{ pages: number; included: number; skipped: { title: string; reason: string }[] } | null>(null);
   const pid = useMutation({
     mutationFn: async () => {
       const picked = sorted.filter((x) => ids.includes(x.id));
-      const files = await actor!.listFiles(null);
+      // Review L7: enkel de bestanden van de gekozen fiches (gericht), de grootte nakijken vóór het ophalen.
+      const files = unwrap(await actor!.pidSheetFiles(w.id));
       const sheets: PidSheet[] = [];
       let total = 0;
       for (const x of picked) {
         const f = files.find((y) => y.id === x.fileId);
-        const bytes = f?.blob ? new Uint8Array(await f.blob.getBytes()) : new Uint8Array();
-        total += bytes.length;
+        total += f ? Number(f.size) : 0;
         if (total > MAX_PID_BYTES) throw new Error(S.pidTooBig);
-        sheets.push({ title: x.title, materialKey: x.materialKey, supplier: x.supplierName, fileName: x.fileName, mime: f?.mime ?? "", bytes });
+        const bytes = f?.blob ? new Uint8Array(await f.blob.getBytes()) : new Uint8Array();
+        sheets.push({ title: x.title, materialKey: x.materialKey, supplier: x.supplierName, fileName: x.fileName, mime: f?.mime ?? "", bytes, missing: !f?.blob });
       }
       const [{ buildPid }, { loadPdfFonts }] = await Promise.all([import("../pdf/pid.ts"), import("../pdf/fonts.ts")]);
       const addr = [w.address.street, w.address.number].filter(Boolean).join(" ") + (w.address.city ? `, ${w.address.zip} ${w.address.city}` : "");
@@ -260,10 +265,10 @@ export function WorkSheets({ w }: { w: WorkView }) {
           <p className="bw-muted">{S.pick}</p>
           <ul className="a-list">
             {sorted.map((x) => (
-              <li key={String(x.id)} className="a-doc"><label className="a-check"><input type="checkbox" checked={ids.includes(x.id)} disabled={set.isPending} onChange={(e) => set.mutate(e.target.checked ? [...ids, x.id] : ids.filter((i) => i !== x.id))} /><span><b>{x.materialKey}</b> · {x.title}{x.supplierName ? ` · ${x.supplierName}` : ""}</span></label></li>
+              <li key={String(x.id)} className="a-doc"><label className="a-check"><input type="checkbox" checked={ids.includes(x.id)} disabled={set.isPending || !canPid} onChange={(e) => set.mutate(e.target.checked ? [...ids, x.id] : ids.filter((i) => i !== x.id))} /><span><b>{x.materialKey}</b> · {x.title}{x.supplierName ? ` · ${x.supplierName}` : ""}</span></label></li>
             ))}
           </ul>
-          {w.caps.edit && (
+          {canPid && (
             <div className="a-row" style={{ gap: 8 }}>
               <Button icon="doc" busy={pid.isPending} disabled={ids.length === 0} onClick={() => pid.mutate()} data-testid="pid-make">{S.pidMake}</Button>
               <span className="bw-muted">{ids.length === 0 ? S.pidNone : S.pidLead}</span>

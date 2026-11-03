@@ -97,6 +97,7 @@ module {
     // technische fiches van een werf zien (interne rollen die de werf zien; zonder werf: interne rollen); #editSiteAdmin = ze bijhouden
     // (admin, calculator, de werfleider van die werf; zonder werf: de jaarpolis en de bibliotheek van fiches: admin, calculator).
     // Werfwaarde en premie volgen #readCosts (admin, calculator) en gaan enkel via update-calls met auditregel.
+    // Het PID (recordPid, pidSheetFiles: de bestanden van de gekozen fiches) = #editSiteAdmin op die werf (review 2c.8+ L7).
     // Planningstaken (actiepunten, restpunten) maken en een vergadering of oplevering bewaren of afronden vraagt #editWork (admin, werfleider
     // van die werf), niet de calculator. #readHandoverDoc = de architect (lid van de werf) opent het AFGERONDE opleveringsdocument, zonder bedragen.
     #readSiteAdmin; #editSiteAdmin; #readHandoverDoc;

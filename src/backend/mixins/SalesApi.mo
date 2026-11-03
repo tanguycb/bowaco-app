@@ -176,7 +176,8 @@ mixin (
     };
     // 2c.8+ B: de schijven van de meerwerkoffertes (zelfde record) blijven staan.
     let keep = Sales.rawPlan(slCtx(), workId).steps.filter(Sales.isExtraStep);
-    let np : Types.BillingPlan = { workId; steps = ns.concat(keep); version = old.version + 1; updatedAt = Time.now(); updatedBy = p.id; extra = old.extra };
+    // Review L4: kantoor bewaart het schema zelf: het volgt de instellingen niet meer.
+    let np : Types.BillingPlan = { workId; steps = ns.concat(keep); version = old.version + 1; updatedAt = Time.now(); updatedBy = p.id; extra = old.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "standaard") };
     sales.plans.add(workId, np);
     Access.audit(audit, caller, ?p.id, ?workId, "facturatieschema", Text.join(ns.map(func(s : Types.BillingStep) : Text = s.title # " " # Sales.pctText(s.pctBp)).values(), " · "));
     #ok(slPlanView(workId, b, Sales.planOf(slCtx(), workId)));
@@ -204,8 +205,11 @@ mixin (
         };
       };
     };
-    let others = raw.steps.filter(func(st : Types.BillingStep) : Bool = st.quoteIds != [quoteId]);
-    let np : Types.BillingPlan = { workId; steps = others.concat(ns); version = raw.version + 1; updatedAt = Time.now(); updatedBy = p.id; extra = raw.extra };
+    // Review L4: zonder eigen schema van kantoor blijft het standaardschema de instellingen volgen (enkel de meerwerkschijven bewaard).
+    let std = switch (sales.plans.get(workId)) { case (?x) Sales.followsDefault(x); case null true };
+    let others = raw.steps.filter(func(st : Types.BillingStep) : Bool = st.quoteIds != [quoteId] and (not std or Sales.isExtraStep(st)));
+    let extra = if std raw.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "standaard").concat([("standaard", "ja")]) else raw.extra;
+    let np : Types.BillingPlan = { workId; steps = others.concat(ns); version = raw.version + 1; updatedAt = Time.now(); updatedBy = p.id; extra };
     sales.plans.add(workId, np);
     Access.audit(audit, caller, ?p.id, ?workId, "facturatieschema-meerwerk", eb.qlabel # ": " # Text.join(ns.map(func(s : Types.BillingStep) : Text = s.title # " " # Sales.pctText(s.pctBp)).values(), " · "));
     #ok(slPlanView(workId, b, Sales.planOf(slCtx(), workId)));

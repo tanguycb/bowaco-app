@@ -187,14 +187,25 @@ ok(await calc.approvePurchase(CN2, (await read(CN2)).brief.rev, "proef 2c8pb"));
 }
 // Een voorschotfactuur en haar creditnota: het voorschot vermindert; de voorschotfactuur verbeteren of intrekken kan niet meer.
 const PV = ok(await calc.savePurchase(P("V", [L("voorschot", "Proef voorschot 2c8pb", 1_000n, 50_000n)]), 0n));
+check("(B1) review M3: een creditnota op een nog niet goedgekeurde factuur: geweigerd", /goedgekeurde factuur/.test(errOf(await calc.savePurchase(P("CNV0", [L("voorschot", "x", 1_000n, 1_000n, { lineId: lineOf(await read(PV), "voorschot").lineId })], { dueDay: [], creditOf: [PV] }), 0n))));
+{
+  const part = ok(await calc.readOaInvoice(un((await read(PV)).brief.works[0].partId)));
+  ok(await calc.approveOaInvoice(part.brief.id, part.brief.rev, { check: CHK }, "proef 2c8pb: voorschot goedgekeurd"));
+}
 const vv = await read(PV);
 const advW = (v) => v.advances.find((a) => a.workId === W);
 check("(B1) voorschotfactuur: voorschot € 500 op de werf", advW(vv)?.advancedCents === 50_000n, S(vv.advances));
 const CN3 = ok(await calc.savePurchase(P("CN3", [L("voorschot", "Proef voorschot crediteren 2c8pb", 1_000n, 20_000n, { lineId: lineOf(vv, "voorschot").lineId })], { dueDay: [], creditOf: [PV] }), 0n));
 check("(B1) creditnota op het voorschot (€ 200): het voorschot wordt € 300", advW(await read(PV))?.advancedCents === 30_000n && advW(await read(PV))?.restCents === 30_000n, S((await read(PV)).advances));
 check("(B1) de voorschotfactuur verbeteren of intrekken met een creditnota erop: geweigerd", /creditnota/.test(errOf(await calc.savePurchase({ ...P("V", [L("voorschot", "x", 1_000n, 50_000n)]), id: [PV] }, vv.brief.rev))) && /trek eerst de creditnota in/.test(errOf(await calc.withdrawPurchase(PV, vv.brief.rev, "proef 2c8pb: intrekken"))));
+{
+  // Review L2: een volgende factuur trekt de rest van het voorschot af (€ 300); daarna is er niets meer te crediteren op het voorschot.
+  const PD = ok(await calc.savePurchase(P("D", [L("transport", "Proef transport na voorschot 2c8pb", 1_000n, 40_000n, { u: "uur" }), L("aftrek-voorschot", "Proef aftrek voorschot 2c8pb", 1_000n, -30_000n)]), 0n));
+  check("(B1) review L2: voorschot volledig afgetrokken: een creditnota op het voorschot (€ 1) geweigerd (de rest is al afgetrokken)", /al afgetrokken/.test(errOf(await calc.savePurchase(P("CN4", [L("voorschot", "x", 1_000n, 100n, { lineId: lineOf(vv, "voorschot").lineId })], { dueDay: [], creditOf: [PV] }), 0n))), S((await read(PV)).advances));
+  ok(await calc.withdrawPurchase(PD, (await read(PD)).brief.rev, "proef 2c8pb: aftrek weg"));
+}
 ok(await calc.withdrawPurchase(CN3, (await read(CN3)).brief.rev, "proef 2c8pb: creditnota weg"));
-check("(B1) de creditnota ingetrokken: het voorschot is terug € 500; daarna de voorschotfactuur intrekken kan", advW(await read(PV))?.advancedCents === 50_000n && isOk(await calc.withdrawPurchase(PV, (await read(PV)).brief.rev, "proef 2c8pb: opruimen")));
+check("(B1) de creditnota ingetrokken: het voorschot is terug € 500", advW(await read(PV))?.advancedCents === 50_000n);
 
 // ── B2. Een OA-factuur van 2.11 (geen werfdeel) in Te betalen, met de stand betaald ──
 const oaIn = (n, cents) => ({ id: [], orgId: MEREL, workId: W, number: `PF-${sfx}-${n}`, invoiceDay: today, dueDay: [today + 20n], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [FILE], note: "proef 2c8pb", netCents: cents, vatCents: 0n, totalCents: cents, lines: [{ kind: { other: null }, root: [], description: "Proef andere kost 2c8pb", qtyMilli: 1_000n, unitCents: cents, amountCents: cents }] });
@@ -233,6 +244,78 @@ check("(B2) inhouding doorgestort: uit de lijst", !oaRow(await payRows(), F2));
   ok(await calc.markOaInvoicePaid(F1, f.brief.rev, [today], []));
 }
 
+// ── B5. Herstel na de review (M1 override, M2 inhouding en verrekenen, M3 vastlopen, L1) ──
+const approveParts = async (id, why) => { for (const w of (await read(id)).brief.works) { const pt = ok(await calc.readOaInvoice(un(w.partId))); ok(await calc.approveOaInvoice(pt.brief.id, pt.brief.rev, { check: CHK }, why)); } };
+const CR = (n, orig, lines, o = {}) => P(n, lines, { dueDay: [], creditOf: [orig], ...o });
+// M2: factuur € 10.000 (inhouding RSZ 35 % = € 3.500), betaald; daarna een creditnota van € 2.000.
+const PM2 = ok(await calc.savePurchase(P("M2", [L("container", "Proef container M2 2c8pb", 1_000n, 1_000_000n, { u: "ton" })]), 0n));
+await approveParts(PM2, "proef 2c8pb: M2");
+let vm2 = await read(PM2);
+const X2 = lineOf(vm2, "container");
+ok(await calc.markPurchasePaid(PM2, vm2.brief.rev, [today], []));
+const CM2 = ok(await calc.savePurchase(CR("CM2", PM2, [L("container", "Proef container M2 crediteren", 1_000n, 200_000n, { u: "ton", lineId: X2.lineId })]), 0n));
+ok(await calc.approvePurchase(CM2, (await read(CM2)).brief.rev, "proef 2c8pb: creditnota M2"));
+{
+  const rs = await payRows();
+  const ro = payOf(rs, PM2);
+  const rc = payOf(rs, CM2);
+  vm2 = await read(PM2);
+  check("(B5) review M2: betaald, daarna een creditnota van € 2.000: de factuur trekt ze niet af (€ 10.000), ze staat apart (€ −2.000): één keer", !!ro && !!rc && ro.creditCents === 0n && ro.totalCents === 1_000_000n && rc.payCents === -200_000n, S([ro, rc]));
+  check("(B5) review M2: de inhouding blijft die van bij de betaling (€ 3.500), in Te betalen en op de factuur", ro.withholdCents === 350_000n && vm2.withholdSocialCents === 350_000n, S([ro.withholdCents, vm2.withholdSocialCents]));
+  ok(await calc.markPurchasePaid(CM2, (await read(CM2)).brief.rev, [today], []));
+  vm2 = await read(PM2);
+  ok(await calc.markPurchasePaid(PM2, vm2.brief.rev, [], []));
+  const ro2 = payOf(await payRows(), PM2);
+  check("(B5) review M2: de betaling ongedaan: de apart verrekende creditnota gaat er niet opnieuw af (nog € 10.000), ze blijft verrekend", !!ro2 && ro2.creditCents === 0n && ro2.totalCents === 1_000_000n && un((await read(CM2)).brief.paidDay) === today, S(ro2));
+  check("(B5) review M2: een creditnota die met de betaling verrekend werd, markeer je niet apart", /verrekend met de betaling/.test(errOf(await calc.markPurchasePaid(CN1, (await read(CN1)).brief.rev, [], []))));
+}
+// M3: betwisten met een creditnota erop geweigerd; een goedgekeurde, niet verrekende creditnota intrekken mag; een verrekende niet.
+{
+  const part = un((await read(PM2)).brief.works[0].partId);
+  check("(B5) review M3: de factuur (werfdeel) betwisten met een creditnota erop: 'trek eerst de creditnota in'", /trek eerst de creditnota in/.test(errOf(await calc.disputeOaInvoice(part, 0n, "proef 2c8pb: betwisten"))));
+  check("(B5) review M3: een creditnota die verrekend is (met de betaling of apart): intrekken geweigerd", /al verrekend/.test(errOf(await calc.withdrawPurchase(CN1, (await read(CN1)).brief.rev, "proef 2c8pb"))) && /al verrekend/.test(errOf(await calc.withdrawPurchase(CM2, (await read(CM2)).brief.rev, "proef 2c8pb"))));
+  const CM3 = ok(await calc.savePurchase(CR("CM3", PM2, [L("container", "Proef container M3 crediteren", 1_000n, 50_000n, { u: "ton", lineId: X2.lineId })]), 0n));
+  ok(await calc.approvePurchase(CM3, (await read(CM3)).brief.rev, "proef 2c8pb: creditnota M3"));
+  const w3 = await calc.withdrawPurchase(CM3, (await read(CM3)).brief.rev, "proef 2c8pb: creditnota fout");
+  check("(B5) review M3: een goedgekeurde creditnota die nog niet verrekend is: intrekken kan", isOk(w3) && "withdrawn" in (await read(CM3)).brief.status, errOf(w3));
+}
+{
+  const PL = ok(await calc.savePurchase(P("L1", [L("container", "Proef container L1 2c8pb", 1_000n, 50_000n, { u: "ton" }), L("materiaal", "Proef korting L1 2c8pb", -1_000n, 5_000n, { u: "st" })]), 0n));
+  await approveParts(PL, "proef 2c8pb: L1");
+  const ml = lineOf(await read(PL), "materiaal");
+  check("(B5) review L1: een regel met een bedrag van 0 of minder (korting) crediteren: geweigerd", ml.amountCents === -5_000n && /geen positief bedrag/.test(errOf(await calc.savePurchase(CR("CL1", PL, [L("materiaal", "x", 1_000n, 5_000n, { u: "st", lineId: ml.lineId })]), 0n))), S(ml.amountCents));
+}
+
+// M1: de creditnota volgt de aanpassing van de gecrediteerde regel in de min-meerstaat (uitsluiten, hoofdstuk, doorrekenen).
+{
+  const PMM = ok(await calc.savePurchase(P("M1", [L("container", "Proef container M1 2c8pb", 1_000n, 10_000n, { u: "ton", passOn: true }), L("transport", "Proef transport M1 2c8pb", 2_000n, 5_000n, { u: "uur" })]), 0n));
+  await approveParts(PMM, "proef 2c8pb: M1");
+  const vm = await read(PMM);
+  const X = lineOf(vm, "container");
+  const Y = lineOf(vm, "transport");
+  const KX = `kost:${PMM}:${X.lineId}`;
+  const KY = `kost:${PMM}:${Y.lineId}`;
+  let m = await readMM();
+  check("(B5) review M1: een kost die niet doorgerekend wordt, staat in de min-meerstaat als 'niet doorgerekend' (telt niet)", !!rowOf(m, KY) && !rowOf(m, KY).counted && rowOf(m, KY).flags.includes("niet-doorgerekend") && rowOf(m, KX)?.counted, S(rowOf(m, KY)?.flags));
+  ok(await calc.setMinMeerOverride(W, { key: KX, exclude: true, chapter: [], passOn: false, reason: "proef 2c8pb: container niet voor de klant" }));
+  ok(await calc.setMinMeerOverride(W, { key: KY, exclude: false, chapter: ["Proef kosten 2c8pb"], passOn: true, reason: "proef 2c8pb: transport toch voor de klant" }));
+  m = await readMM();
+  const before = m.totals.extraCents;
+  const yRow = rowOf(m, KY);
+  check("(B5) review M1: X uitgesloten, Y doorgerekend naar een eigen hoofdstuk", rowOf(m, KX).excluded && !rowOf(m, KX).counted && yRow.counted && yRow.chapter === "Proef kosten 2c8pb", S([rowOf(m, KX).flags, yRow.chapter]));
+  const CMM = ok(await calc.savePurchase(CR("CM1", PMM, [L("container", "Proef container M1 crediteren", 1_000n, 10_000n, { u: "ton", lineId: X.lineId }), L("transport", "Proef transport M1 crediteren", 1_000n, 5_000n, { u: "uur", lineId: Y.lineId })]), 0n));
+  ok(await calc.approvePurchase(CMM, (await read(CMM)).brief.rev, "proef 2c8pb: creditnota M1"));
+  m = await readMM();
+  const cx = rowOf(m, `kost:${CMM}:${X.lineId}`);
+  const cy = rowOf(m, `kost:${CMM}:${Y.lineId}`);
+  check("(B5) review M1: creditnota op de uitgesloten regel X: ook uitgesloten, de min-meerstaat verandert daardoor niet", !!cx && cx.excluded && !cx.counted && !cx.inVersion, S(cx?.flags));
+  check("(B5) review M1: creditnota op Y (kantoor zette doorrekenen aan): ook doorgerekend, in hetzelfde hoofdstuk, de helft van Y eraf", !!cy && cy.counted && cy.passOn && cy.chapter === "Proef kosten 2c8pb" && 2n * cy.extraCents === -yRow.extraCents && m.totals.extraCents === before + cy.extraCents, S([cy?.extraCents, yRow.extraCents, m.totals.extraCents, before]));
+  check("(B5) review M1: een regel van een creditnota pas je niet zelf aan (ze volgt de gecrediteerde regel)", /kan niet aangepast/.test(errOf(await calc.setMinMeerOverride(W, { key: `kost:${CMM}:${Y.lineId}`, exclude: true, chapter: [], passOn: false, reason: "proef 2c8pb" }))) && !cy.overridable);
+  ok(await calc.setMinMeerOverride(W, { key: KX, exclude: false, chapter: [], passOn: false, reason: "proef 2c8pb: terug" }));
+  m = await readMM();
+  check("(B5) review M1: de uitsluiting van X weg: X en zijn creditnota tellen weer (samen 0)", rowOf(m, KX).counted && rowOf(m, `kost:${CMM}:${X.lineId}`).counted && rowOf(m, KX).extraCents + rowOf(m, `kost:${CMM}:${X.lineId}`).extraCents === 0n);
+}
+
 // ── B3. Eigen schijven voor een aanvaarde meerwerkofferte ──
 const rawEntry = (o) => ({ kind: { extra: null }, chapter: "02 Ruwbouw", root: [], description: "Proef regel 2c8pb", unit: "st", qtyMilli: 1000n, pctBp: [], day: [], approval: { pending: null }, photoFileId: [], note: "", price: [{ unitCents: [], costCents: [], marginBp: [], orgId: [], ...o.p }], ...o.e });
 const extraQuote = async (desc, cents) => {
@@ -265,6 +348,17 @@ check("(B3) een sleutel mw… in het schema van de getekende offerte: geweigerd"
 pl = ok(await calc.saveSalesExtraPlan(W, MQ1.quoteId, pl.version, [stp(K1, "Meerwerk bij akkoord", 3_000n, { onDay: x1.acceptedDay }), stp(`mw${MQ1.quoteId}-rest`, "Meerwerk rest", 7_000n, { byHand: null })]));
 x1 = pl.extraWork.find((x) => x.quoteId === MQ1.quoteId);
 check("(B3) twee eigen schijven 30/70: bewaard, de laatste neemt de rest (Σ = € 1.500)", x1.stored && x1.steps.length === 2 && x1.steps[0].stepCents + x1.steps[1].stepCents === 150_000n && x1.steps[0].stepCents === 45_000n, S(x1.steps.map((s) => s.stepCents)));
+{
+  // Review L4: het eerste meerwerkschema bevriest het standaardschema niet: dat volgt de instellingen tot kantoor het zelf bewaart.
+  const st = await admin.salesSettings();
+  const inp = (bp) => ({ issuer: st.issuer, paymentDays: st.paymentDays, vat6Text: st.vat6Text, reverseText: st.reverseText, creditText: st.creditText, paymentText: st.paymentText, footerText: st.footerText, reminderText: st.reminderText, reminderDays: st.reminderDays, issuerOnly: st.issuerOnly, firstSeqF: st.firstSeqF, firstSeqCN: st.firstSeqCN, planBp: bp, peppolScheme: st.peppolScheme });
+  ok(await admin.saveSalesSettings(inp([4_000n, 3_000n, 3_000n])));
+  const p2 = ok(await calc.readSalesPlan(W));
+  ok(await admin.saveSalesSettings(inp(st.planBp)));
+  const p3 = ok(await calc.readSalesPlan(W));
+  check("(B3) review L4: na een eigen meerwerkschema volgt het schema van de getekende offerte nog de instellingen (40/30/30, terug 50/24/26)", p2.steps.map((s) => s.pctBp).join() === "4000,3000,3000" && p3.steps.map((s) => s.pctBp).join() === st.planBp.join() && p3.extraWork.find((x) => x.quoteId === MQ1.quoteId)?.steps.length === 2, S([p2.steps.map((s) => s.pctBp), p3.steps.map((s) => s.pctBp)]));
+  pl = p3;
+}
 pl = ok(await calc.saveSalesExtraPlan(W, MQ1.quoteId, pl.version, [stp(K1, "Meerwerk bij akkoord", 10_000n, { onDay: x1.acceptedDay })]));
 pl = ok(await calc.saveSalesPlan(W, pl.version, pl.steps.map((s) => ({ key: s.key, title: s.title, pctBp: s.pctBp, when: s.when, chapterPct: s.chapterPct }))));
 x1 = pl.extraWork.find((x) => x.quoteId === MQ1.quoteId);

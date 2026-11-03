@@ -182,6 +182,8 @@ module {
     source : Text; // "OA-factuur 2026-17"
     version : Text; // de inhoud van de regel (hash): een aanpassing van kantoor geldt enkel voor deze versie (review M3)
     pending : Bool; // de factuur is nog niet goedgekeurd: een doorgerekende kost wacht (telt niet, review L7)
+    ovKey : Text; // de regel waarvan de aanpassing van kantoor geldt: zichzelf, of bij een creditnota de gecrediteerde regel (review M1)
+    ovVersion : Text;
   };
 
   // Goedgekeurd = telt; geregistreerd = wacht; betwist en ingetrokken = nooit. 2c.7: een OA-factuur die een werfdeel van een
@@ -195,7 +197,9 @@ module {
           case (?a) {
             for ((i, l) in a.lines.enumerate()) {
               if (l.kind == #other) {
-                out.add({ key = "kost:oa:" # inv.id.toText() # ":" # i.toText(); day = switch (inv.periodTo) { case (?d) d; case null inv.invoiceDay }; orgId = ?inv.orgId; kindKey = "andere"; description = l.description; qtyMilli = l.qtyMilli; unit = "st"; unitCents = l.unitCents; amountCents = l.amountCents; passOn = false; source = "OA-factuur " # inv.number; version = Text.fromIter(hash("bowaco-kost-v1|" # l.description # "|" # Int.toText(l.qtyMilli) # "|" # Int.toText(l.unitCents) # "|" # Int.toText(l.amountCents)).chars().take(16)); pending = inv.status != #approved });
+                let k = "kost:oa:" # inv.id.toText() # ":" # i.toText();
+                let v = Text.fromIter(hash("bowaco-kost-v1|" # l.description # "|" # Int.toText(l.qtyMilli) # "|" # Int.toText(l.unitCents) # "|" # Int.toText(l.amountCents)).chars().take(16));
+                out.add({ key = k; day = switch (inv.periodTo) { case (?d) d; case null inv.invoiceDay }; orgId = ?inv.orgId; kindKey = "andere"; description = l.description; qtyMilli = l.qtyMilli; unit = "st"; unitCents = l.unitCents; amountCents = l.amountCents; passOn = false; source = "OA-factuur " # inv.number; version = v; pending = inv.status != #approved; ovKey = k; ovVersion = v });
               };
             };
           };
@@ -206,13 +210,21 @@ module {
     // 2c.7: de doorrekenbare regels van de aankoopfacturen (PurchaseLine.passOn; geen posten, uren of voorschotten): sleutel
     // "kost:<aankoop>:<lineId>" (de lineId blijft bij een verbetering), bron "aankoop:<id>" (zonder firmanaam). De stand volgt het
     // werfdeel van die werf: goedgekeurd telt, geregistreerd of in controle wacht, betwist of ingetrokken staat er niet.
-    for (k in Purchase.passOnCosts(c.pu, c.oi, workId, null, null, false).values()) {
+    // Review M1: ook de regels die (nog) niet doorgerekend worden (kantoor kan ze doorrekenen); een creditnota volgt de aanpassing van
+    // de regel die ze crediteert (uitsluiten, hoofdstuk, doorrekenen), voor de versie van die regel.
+    let cl = Purchase.costLines(c.pu, c.oi, workId, null, null, false);
+    let vOf = func(k : Purchase.PassOnCost) : Text = Text.fromIter(hash("bowaco-kost-v1|" # k.description # "|" # Int.toText(k.qtyMilli) # "|" # k.unit # "|" # Int.toText(k.costCents)).chars().take(16));
+    let versions = Map.empty<Text, Text>();
+    for (k in cl.values()) { versions.add(k.key, vOf(k)) };
+    for (k in cl.values()) {
       // Een exacte eenheidsprijs als die bestaat; anders 1 × het bedrag (de regel rekent nooit een ander bedrag dan de factuur).
       // 2c.8+ B: een creditnota komt met −hoeveelheid en −bedrag (eenheidsprijs positief): de regel vermindert het meerwerk.
-      let credit = switch (c.pu.purchases.get(k.purchaseId)) { case (?x) x.creditOf != null; case null false };
+      let credit = k.origKey != "";
       let exact = (k.qtyMilli > 0 or (credit and k.qtyMilli < 0)) and (k.costCents * 1000) % k.qtyMilli == 0;
       let kind = if (Text.startsWith(k.kindKey, #text "andere")) "andere" else k.kindKey;
-      out.add({ key = k.key; day = k.day; orgId = ?k.orgId; kindKey = kind; description = k.description; qtyMilli = if exact k.qtyMilli else 0; unit = if (k.unit == "") "st" else k.unit; unitCents = if exact (k.costCents * 1000) / k.qtyMilli else k.costCents; amountCents = k.costCents; passOn = true; source = k.source; version = Text.fromIter(hash("bowaco-kost-v1|" # k.description # "|" # Int.toText(k.qtyMilli) # "|" # k.unit # "|" # Int.toText(k.costCents)).chars().take(16)); pending = k.status != #approved });
+      let v = vOf(k);
+      let (ok, ov) = if credit (k.origKey, switch (versions.get(k.origKey)) { case (?x) x; case null "" }) else (k.key, v);
+      out.add({ key = k.key; day = k.day; orgId = ?k.orgId; kindKey = kind; description = k.description; qtyMilli = if exact k.qtyMilli else 0; unit = if (k.unit == "") "st" else k.unit; unitCents = if exact (k.costCents * 1000) / k.qtyMilli else k.costCents; amountCents = k.costCents; passOn = k.passOn; source = k.source; version = v; pending = k.status != #approved; ovKey = ok; ovVersion = ov });
     };
     out.toArray();
   };
@@ -572,8 +584,11 @@ module {
     // 6. Kosten van OA's en leveranciers (costItems): doorrekenen aan kostprijs / (1 − marge). Enkel een goedgekeurde factuur telt;
     // een geregistreerde (nog niet gecontroleerde) wacht (review L7). Een aanpassing van kantoor geldt enkel voor de regel zoals ze
     // was (versie = de inhoud van de regel, review M3); is de factuur verbeterd, dan vervalt ze ("aanpassing-vervallen", nakijken).
+    // Review M1: een regel van een creditnota volgt de aanpassing van de gecrediteerde regel (zelf niet aan te passen).
+    let follow = Map.empty<Text, (Text, Text)>();
     for (k in costItems(c, workId).values()) {
-      let ovPass = switch (overrideFor(c, workId, k.key, k.version)) { case (?o) o.passOn; case null false };
+      if (k.ovKey != k.key) { follow.add(k.key, (k.ovKey, k.ovVersion)) };
+      let ovPass = switch (overrideFor(c, workId, k.ovKey, k.ovVersion)) { case (?o) o.passOn; case null false };
       let pass = k.passOn or ovPass;
       let m = costMargin(c, k.orgId, k.kindKey);
       let (q, uc) = if (k.qtyMilli == 0) (1000, k.amountCents) else (k.qtyMilli, k.unitCents);
@@ -581,16 +596,16 @@ module {
       let flags = List.empty<Text>();
       if (not pass) { flags.add("niet-doorgerekend") };
       if (pass and k.pending) { flags.add("factuur-niet-goedgekeurd") };
-      if (staleOverride(c, workId, k.key, k.version)) { flags.add("aanpassing-vervallen") };
-      rows.add({ x with day = ?k.day; orgId = k.orgId; costCents = ?uc; marginBp = ?m; passOn = pass; counted = pass and not k.pending; inVersion = pass; overridable = true; version = k.version; approval = if (pass and k.pending) "wacht (factuur nog niet goedgekeurd)" else "niet nodig"; flags = flags.toArray() });
+      if (staleOverride(c, workId, k.ovKey, k.ovVersion)) { flags.add("aanpassing-vervallen") };
+      rows.add({ x with day = ?k.day; orgId = k.orgId; costCents = ?uc; marginBp = ?m; passOn = pass; counted = pass and not k.pending; inVersion = pass; overridable = k.ovKey == k.key; version = k.version; approval = if (pass and k.pending) "wacht (factuur nog niet goedgekeurd)" else "niet nodig"; flags = flags.toArray() });
     };
 
     // 7. Wat kantoor aan een automatische regel veranderde: uitsluiten, ander hoofdstuk (enkel een aanpassing van deze werf en
     // voor deze versie van de regel).
     let done = rows.toArray().map(
       func(x : Row) : Row {
-        if (not x.overridable) { return x };
-        switch (overrideFor(c, workId, x.key, x.version)) {
+        let (ok, ov) = switch (follow.get(x.key)) { case (?y) y; case null { if (not x.overridable) { return x }; (x.key, x.version) } };
+        switch (overrideFor(c, workId, ok, ov)) {
           case (?o) {
             let y = switch (o.chapter) { case (?ch) { { x with chapter = ch; chapterFrom = x.chapter } }; case null x };
             if (o.exclude) { { y with excluded = true; counted = false; inVersion = false; flags = y.flags.concat(["uitgesloten"]); note = "uitgesloten: " # o.reason } } else y;

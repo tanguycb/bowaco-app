@@ -55,10 +55,10 @@ export function PurchaseView({ id, go }: { id: bigint; go: (to: string) => void 
         <Button icon="back" onClick={() => go("oa-facturen/aankoop")}>{t.common.back}</Button>
         {v.canEdit && <Button icon="edit" onClick={() => go(`oa-facturen/aankoop/${id}/wijzigen`)} data-testid="pu-edit">{TA.edit}</Button>}
         {v.canDecide && <Button variant="primary" icon="check" onClick={() => setSheet("approve")} data-testid="pu-approve">{TA.approve}</Button>}
-        {v.canDecide && b.status === "registered" && <Button icon="alert" onClick={() => setSheet("dispute")} data-testid="pu-dispute">{TA.dispute}</Button>}
+        {v.canDecide && b.status === "registered" && v.credits.length === 0 && <Button icon="alert" onClick={() => setSheet("dispute")} data-testid="pu-dispute">{TA.dispute}</Button>}
         {v.canPay && <Button icon="check" onClick={() => { setPayDay(dayToInput(b.paidDay ?? todayDay())); setWhDay(dayToInput(b.withheldDay)); setSheet("pay"); }} data-testid="pu-pay-mark">{TA.pay}</Button>}
-        {(b.status === "registered" || b.status === "disputed") && <Button variant="quiet" icon="close" onClick={() => setSheet("withdraw")} data-testid="pu-withdraw">{TA.withdraw}</Button>}
-        {b.creditOf === undefined && (b.status === "approved" || b.status === "registered" || b.status === "checking") && v.lines.some((l) => l.kind !== "aftrek-voorschot" && (l.amountCents < 0n ? -l.amountCents : l.amountCents) > l.creditedCents) && <Button variant="quiet" icon="plus" onClick={() => go(`oa-facturen/aankoop/nieuw?credit=${id}`)} data-testid="pu-credit">{TA.credit}</Button>}
+        {(b.status === "registered" || b.status === "disputed" || (b.creditOf !== undefined && b.status === "approved" && b.paidDay === undefined)) && <Button variant="quiet" icon="close" onClick={() => setSheet("withdraw")} data-testid="pu-withdraw">{TA.withdraw}</Button>}
+        {b.creditOf === undefined && b.status === "approved" && v.lines.some((l) => l.kind !== "aftrek-voorschot" && l.amountCents > 0n && l.amountCents > l.creditedCents) && <Button variant="quiet" icon="plus" onClick={() => go(`oa-facturen/aankoop/nieuw?credit=${id}`)} data-testid="pu-credit">{TA.credit}</Button>}
       </>}
     >
       <div className="vs-head">

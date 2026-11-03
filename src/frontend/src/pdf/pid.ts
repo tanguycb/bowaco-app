@@ -5,7 +5,7 @@
 // Zonder React en zonder backend-imports: Node draait dit bestand rechtstreeks (tests/openpunten-2c8p.mjs).
 import type { PdfFonts } from "./offerte.ts";
 
-export type PidSheet = { title: string; materialKey: string; supplier: string; fileName: string; mime: string; bytes: Uint8Array };
+export type PidSheet = { title: string; materialKey: string; supplier: string; fileName: string; mime: string; bytes: Uint8Array; missing?: boolean };
 export type PidData = { workCode: string; workName: string; address: string; madeOn: string; sheets: PidSheet[] };
 export type PidResult = {
   bytes: Uint8Array;
@@ -30,7 +30,13 @@ const IMG_MARGIN = 36;
 
 export const MAX_PID_BYTES = 40 * 1024 * 1024; // totaal van de fiches; daarboven weigert de browser het document
 
-const isPdf = (b: Uint8Array) => b.length > 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46;
+/** Review L7: de kop "%PDF" mag na wat bytes komen (sommige programma's zetten er iets voor); gezocht in de eerste 1 KB. */
+export const pdfStart = (b: Uint8Array): number => {
+  const end = Math.min(b.length - 4, 1024);
+  for (let i = 0; i <= end; i++) if (b[i] === 0x25 && b[i + 1] === 0x50 && b[i + 2] === 0x44 && b[i + 3] === 0x46) return i;
+  return -1;
+};
+const isPdf = (b: Uint8Array) => b.length > 4 && pdfStart(b) >= 0;
 const isPng = (b: Uint8Array) => b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
 const isJpg = (b: Uint8Array) => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
 
@@ -45,27 +51,31 @@ async function body(d: PidData): Promise<{ doc: Doc; counts: { sheet: PidSheet; 
   const doc = await PDFDocument.create();
   const counts: { sheet: PidSheet; pages: number; reason?: string }[] = [];
   for (const sheet of d.sheets) {
+    if (sheet.missing || sheet.bytes.length === 0) { counts.push({ sheet, pages: 0, reason: "bestand niet gevonden" }); continue; }
     const kind = pidKind(sheet.bytes);
+    if (!kind) { counts.push({ sheet, pages: 0, reason: "enkel PDF, PNG en JPEG kunnen in het PID" }); continue; }
+    // Review L7: elke fiche eerst in een eigen document dat bewaard moet kunnen worden (proef-save); pas daarna in het PID. Zo breekt
+    // één slechte fiche het document niet.
     try {
+      const piece = await PDFDocument.create();
       if (kind === "pdf") {
-        const src = await PDFDocument.load(sheet.bytes);
+        const src = await PDFDocument.load(sheet.bytes.subarray(pdfStart(sheet.bytes)));
         if (src.getPageCount() === 0) { counts.push({ sheet, pages: 0, reason: "het bestand heeft geen bladzijden" }); continue; }
-        const pages = await doc.copyPages(src, src.getPageIndices());
-        pages.forEach((p) => doc.addPage(p));
-        counts.push({ sheet, pages: pages.length });
-      } else if (kind === "png" || kind === "jpg") {
-        const img = kind === "png" ? await doc.embedPng(sheet.bytes) : await doc.embedJpg(sheet.bytes);
+        (await piece.copyPages(src, src.getPageIndices())).forEach((p) => piece.addPage(p));
+      } else {
+        const img = kind === "png" ? await piece.embedPng(sheet.bytes) : await piece.embedJpg(sheet.bytes);
         const landscape = img.width > img.height;
         const [pw, ph] = landscape ? [H, W] : [W, H];
-        const page = doc.addPage([pw, ph]);
+        const page = piece.addPage([pw, ph]);
         const k = Math.min((pw - 2 * IMG_MARGIN) / img.width, (ph - 2 * IMG_MARGIN) / img.height, 1.5);
         const w = img.width * k;
         const h = img.height * k;
         page.drawImage(img, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
-        counts.push({ sheet, pages: 1 });
-      } else {
-        counts.push({ sheet, pages: 0, reason: "enkel PDF, PNG en JPEG kunnen in het PID" });
       }
+      const ok = await PDFDocument.load(await piece.save());
+      const pages = await doc.copyPages(ok, ok.getPageIndices());
+      pages.forEach((p) => doc.addPage(p));
+      counts.push({ sheet, pages: pages.length });
     } catch {
       counts.push({ sheet, pages: 0, reason: "het bestand is beschadigd of beveiligd" });
     }
@@ -168,13 +178,13 @@ async function cover(d: PidData, fonts: PdfFonts, entries: Entry[], first: numbe
   return { bytes: await doc.save(), pages: n };
 }
 
-/** Het PID: voorblad + fiches. Het voorblad kent zijn eigen lengte vooraf niet: tot de bladzijdenummers kloppen (hoogstens drie rondes). */
+/** Het PID: voorblad + fiches. Het voorblad kent zijn eigen lengte vooraf niet: opnieuw tot het stabiel is (hoogstens tien rondes). */
 export async function buildPid(d: PidData, fonts: PdfFonts): Promise<PidResult> {
   const { PDFDocument } = await import("pdf-lib");
   const { doc, counts } = await body(d);
   let guess = 1;
   let c = await cover(d, fonts, counts, guess + 1);
-  for (let k = 0; k < 3 && c.pages !== guess; k++) { guess = c.pages; c = await cover(d, fonts, counts, guess + 1); }
+  for (let k = 0; k < 10 && c.pages !== guess; k++) { guess = c.pages; c = await cover(d, fonts, counts, guess + 1); }
   const out = await PDFDocument.create();
   const front = await PDFDocument.load(c.bytes);
   (await out.copyPages(front, front.getPageIndices())).forEach((p) => out.addPage(p));

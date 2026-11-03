@@ -93,9 +93,12 @@ mixin (
   public query ({ caller }) func listOrgDocKinds() : async [DV.OrgDocKindAdminView] {
     let p = Access.requireActive(access, caller);
     Rights.require({ works; settings }, p, #manageSettings, null);
+    // Review L9: de attesten in één doorloop tellen.
+    let used = Map.empty<Text, Nat>();
+    for (x in oaDeals.orgDocs.values()) { if (x.archivedAt == null) { used.add(x.kind, (switch (used.get(x.kind)) { case (?n) n; case null 0 }) + 1) } };
     OaDeals.allKinds(settings).map(func(k : OaDeals.KindRow) : DV.OrgDocKindAdminView = {
       key = k.key; name = k.name; fixed = k.fixed; archived = k.archived;
-      inUse = oaDeals.orgDocs.values().filter(func(x : Types.OrgDoc) : Bool = x.kind == k.key and x.archivedAt == null).toArray().size();
+      inUse = switch (used.get(k.key)) { case (?n) n; case null 0 };
     });
   };
 

@@ -74,27 +74,48 @@ module {
   public func creditsOf(d : D, origId : Nat) : [Types.Purchase] {
     d.purchases.values().filter(func(p : Types.Purchase) : Bool = p.creditOf == ?origId and p.status != #withdrawn).toArray();
   };
-  // Σ (excl. btw, incl. btw) van de creditnota's op een aankoop; onlyApproved: enkel goedgekeurde.
-  public func creditedSums(d : D, origId : Nat, onlyApproved : Bool, except : ?Nat) : (Int, Int) {
-    var net : Int = 0;
-    var tot : Int = 0;
-    for (c in creditsOf(d, origId).values()) {
-      if (?c.id != except and (if onlyApproved c.status == #approved else counts(c.status))) {
-        switch (amountsOf(d, c.id)) { case (?a) { net += a.netCents; tot += a.totalCents }; case null {} };
+  // Review M4: één doorloop per oproep: gecrediteerde aankoop → haar creditnota's (niet ingetrokken).
+  public type CreditIx = Map.Map<Nat, [Types.Purchase]>;
+  public func creditIndex(d : D) : CreditIx {
+    let ix = Map.empty<Nat, [Types.Purchase]>();
+    for (p in d.purchases.values()) {
+      switch (p.creditOf) {
+        case (?o) { if (p.status != #withdrawn) { ix.add(o, (switch (ix.get(o)) { case (?x) x; case null [] }).concat([p])) } };
+        case null {};
       };
     };
+    ix;
+  };
+  public func creditsIn(ix : CreditIx, origId : Nat) : [Types.Purchase] { switch (ix.get(origId)) { case (?x) x; case null [] } };
+  // Review M2: verrekend met de betaling van de factuur (extra "verrekend").
+  public func settled(c : Types.Purchase) : Bool { OaDeals.extraGet(c.extra, "verrekend") == "ja" };
+  // De creditnota's die van de factuur afgaan: goedgekeurd; is de factuur betaald, enkel die met die betaling verrekend zijn; anders
+  // die nog niet apart verrekend zijn (paidDay = null). Een creditnota na de betaling staat apart en telt hier niet.
+  public func deducts(orig : Types.Purchase, c : Types.Purchase) : Bool {
+    c.status == #approved and (if (orig.paidDay != null) settled(c) else c.paidDay == null);
+  };
+  // Σ (excl. btw, incl. btw) van een lijst creditnota's.
+  public func sumCredits(d : D, cs : [Types.Purchase]) : (Int, Int) {
+    var net : Int = 0;
+    var tot : Int = 0;
+    for (c in cs.values()) { switch (amountsOf(d, c.id)) { case (?a) { net += a.netCents; tot += a.totalCents }; case null {} } };
     (net, tot);
   };
+  // Σ (excl. btw, incl. btw) van de creditnota's op een aankoop; onlyApproved: enkel goedgekeurde.
+  public func creditedSums(d : D, origId : Nat, onlyApproved : Bool, except : ?Nat) : (Int, Int) {
+    sumCredits(d, creditsOf(d, origId).filter(func(c : Types.Purchase) : Bool = ?c.id != except and (if onlyApproved c.status == #approved else counts(c.status))));
+  };
   // Wat creditnota's (die meetellen, behalve `except`) van één regel van de aankoop al crediteren.
-  public func creditedLine(d : D, origId : Nat, lineId : Nat, except : ?Nat) : Int {
+  public func creditedLineIn(d : D, cs : [Types.Purchase], lineId : Nat, except : ?Nat) : Int {
     var n : Int = 0;
-    for (c in creditsOf(d, origId).values()) {
+    for (c in cs.values()) {
       if (?c.id != except and counts(c.status)) {
         switch (amountsOf(d, c.id)) { case (?a) { for (l in a.lines.values()) { if (l.lineId == lineId) { n += l.amountCents } } }; case null {} };
       };
     };
     n;
   };
+  public func creditedLine(d : D, origId : Nat, lineId : Nat, except : ?Nat) : Int { creditedLineIn(d, creditsOf(d, origId), lineId, except) };
   // De aankoop waartoe een regel telt (de creditnota telt voor die van haar aankoop) en het teken (−1 voor een creditnota).
   public func signOf(p : Types.Purchase) : Int { if (isCredit(p)) -1 else 1 };
 
@@ -343,7 +364,9 @@ module {
     var ded : Int = 0;
     for (p in purchasesOf(d, workId).values()) {
       let before = switch upTo { case (?(day, id)) p.invoiceDay < day or (p.invoiceDay == day and p.id <= id); case null true };
-      if (p.orgId == orgId and counts(p.status) and ?p.id != except and before) {
+      // Review L2: een creditnota telt enkel zolang haar factuur meetelt (zoals passOnCosts).
+      let origOk = switch (p.creditOf) { case (?o) { switch (d.purchases.get(o)) { case (?op) counts(op.status); case null false } }; case null true };
+      if (p.orgId == orgId and counts(p.status) and origOk and ?p.id != except and before) {
         switch (amountsOf(d, p.id)) {
           case (?a) { for (l in linesOfWork(a, workId).values()) { if (l.kind == #advance) { adv += signOf(p) * l.amountCents } else if (l.kind == #advanceDeduct) { ded += Int.abs(l.amountCents) } } };
           case null {};
@@ -422,8 +445,10 @@ module {
     unit : Text;
     qtyMilli : Int;
     costCents : Int; // het bedrag van de regel (kostprijs, excl. btw)
-    status : Types.PurchaseStatus; // bij een OA: de stand van het werfdeel van die werf (review M3)
+    status : Types.PurchaseStatus; // bij een OA: de stand van het werfdeel van die werf (review M3); creditnota: ook die van haar factuur
     source : Text; // "aankoop:<id>"
+    passOn : Bool; // de regel wordt doorgerekend (een creditnota: zoals de regel die ze crediteert, nu)
+    origKey : Text; // een creditnota: "kost:<factuur>:<regel>" van de gecrediteerde regel (haar aanpassing in de min-meerstaat geldt); anders ""
   };
 
   // De stand die telt voor een regel op een werf: bij een aankoop met werfdelen die van het werfdeel van die werf, anders die van de
@@ -443,25 +468,36 @@ module {
   // (bij een OA: het werfdeel van die werf); anders ook geregistreerd en in controle; nooit betwist of ingetrokken. Geen posten, geen
   // uren, geen voorschotten.
   public func passOnCosts(d : D, oi : Types.OaInvoiceState, workId : Nat, from : ?Day, to : ?Day, onlyApproved : Bool) : [PassOnCost] {
+    costLines(d, oi, workId, from, to, onlyApproved).filter(func(c : PassOnCost) : Bool = c.passOn);
+  };
+  // Alle kostenregels van één werf (ook niet doorgerekend; de min-meerstaat toont die als "niet doorgerekend", review M1).
+  public func costLines(d : D, oi : Types.OaInvoiceState, workId : Nat, from : ?Day, to : ?Day, onlyApproved : Bool) : [PassOnCost] {
     let out = List.empty<PassOnCost>();
     for (p in purchasesOf(d, workId).values()) {
       let day = switch (p.periodTo) { case (?t) t; case null p.invoiceDay };
       let inPeriod = (switch from { case (?f) day >= f; case null true }) and (switch to { case (?t) day <= t; case null true });
-      let s = statusOnWork(oi, p, workId);
+      let own = statusOnWork(oi, p, workId);
       // 2c.8+ B: een creditnota telt enkel zolang de gecrediteerde aankoop op die werf meetelt; haar regels tellen negatief (−hoeveelheid,
       // −bedrag; de eenheidsprijs blijft positief), onder haar eigen sleutel "kost:<creditnota>:<regel>" (niet dubbel met de aankoop).
-      let origOk = switch (p.creditOf) {
-        case (?o) { switch (d.purchases.get(o)) { case (?op) { let os = statusOnWork(oi, op, workId); if (onlyApproved) os == #approved else counts(os) }; case null false } };
-        case null true;
+      // Review L3: ze wacht zolang zij óf haar factuur niet goedgekeurd is. Review M1: doorrekenen volgt de gecrediteerde regel.
+      let orig : ?(Types.PurchaseStatus, Types.PurchaseAmounts) = switch (p.creditOf) {
+        case (?o) { switch (d.purchases.get(o), amountsOf(d, o)) { case (?op, ?oa) ?(statusOnWork(oi, op, workId), oa); case _ null } };
+        case null null;
       };
+      let origOk = switch (p.creditOf, orig) { case (null, _) true; case (?_, ?(os, _)) { if (onlyApproved) os == #approved else counts(os) }; case (?_, null) false };
+      let s = switch orig { case (?(os, _)) { if (own == #approved) os else own }; case null own };
       let sg = signOf(p);
       let st = origOk and (if (onlyApproved) s == #approved else counts(s));
       if (inPeriod and st) {
         switch (amountsOf(d, p.id)) {
           case (?a) {
             for (l in a.lines.values()) {
-              if (l.workId == ?workId and l.passOn and isCost(l.kind)) {
-                out.add({ key = "kost:" # p.id.toText() # ":" # l.lineId.toText(); purchaseId = p.id; lineId = l.lineId; orgId = p.orgId; number = p.number; day; kind = l.kind; kindKey = costKey(l.kind); description = l.description; unit = l.unit; qtyMilli = sg * l.qtyMilli; costCents = sg * l.amountCents; status = s; source = "aankoop:" # p.id.toText() });
+              if (l.workId == ?workId and isCost(l.kind)) {
+                let (pass, ok) = switch orig {
+                  case (?(_, oa)) { switch (oa.lines.find(func(y : Types.PurchaseLine) : Bool = y.lineId == l.lineId)) { case (?ol) (ol.passOn, "kost:" # (switch (p.creditOf) { case (?o) o.toText(); case null "" }) # ":" # l.lineId.toText()); case null (l.passOn, "") } };
+                  case null (l.passOn, "");
+                };
+                out.add({ key = "kost:" # p.id.toText() # ":" # l.lineId.toText(); purchaseId = p.id; lineId = l.lineId; orgId = p.orgId; number = p.number; day; kind = l.kind; kindKey = costKey(l.kind); description = l.description; unit = l.unit; qtyMilli = sg * l.qtyMilli; costCents = sg * l.amountCents; status = s; source = "aankoop:" # p.id.toText(); passOn = pass; origKey = ok });
               };
             };
           };

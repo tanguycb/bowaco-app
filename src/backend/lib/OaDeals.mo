@@ -221,11 +221,30 @@ module {
     base.concat(own.filter(func(k : KindRow) : Bool = base.find(func(b : KindRow) : Bool = b.key == k.key) == null));
   };
 
-  // Sleutel uit de naam: kleine letters en cijfers, de rest een streepje.
+  // Review L9: een letter met accent wordt de letter zelf (zoals NFD en de accenten weg; Motoko kent geen NFD).
+  public func plainLetter(c : Char) : Text {
+    switch c {
+      case ('à' or 'á' or 'â' or 'ã' or 'ä' or 'å' or 'À' or 'Á' or 'Â' or 'Ã' or 'Ä' or 'Å') "a";
+      case ('ç' or 'Ç') "c";
+      case ('è' or 'é' or 'ê' or 'ë' or 'È' or 'É' or 'Ê' or 'Ë') "e";
+      case ('ì' or 'í' or 'î' or 'ï' or 'Ì' or 'Í' or 'Î' or 'Ï') "i";
+      case ('ñ' or 'Ñ') "n";
+      case ('ò' or 'ó' or 'ô' or 'õ' or 'ö' or 'ø' or 'Ò' or 'Ó' or 'Ô' or 'Õ' or 'Ö' or 'Ø') "o";
+      case ('ù' or 'ú' or 'û' or 'ü' or 'Ù' or 'Ú' or 'Û' or 'Ü') "u";
+      case ('ý' or 'ÿ' or 'Ý') "y";
+      case ('æ' or 'Æ') "ae";
+      case ('œ' or 'Œ') "oe";
+      case ('ß') "ss";
+      case _ Char.toText(c);
+    };
+  };
+  // Sleutel uit de naam: kleine letters en cijfers (accenten weg), de rest een streepje.
   public func slug(name : Text) : Text {
     var out = "";
     var dash = false;
-    for (c in name.toLower().chars()) {
+    var plain = "";
+    for (c in name.chars()) { plain #= plainLetter(c) };
+    for (c in plain.toLower().chars()) {
       if ((c >= 'a' and c <= 'z') or (c >= '0' and c <= '9')) { out #= Char.toText(c); dash := false }
       else if (not dash and out != "") { out #= "-"; dash := true };
     };

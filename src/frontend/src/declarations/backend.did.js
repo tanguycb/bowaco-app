@@ -40,7 +40,7 @@ export const MyQuoteAnswered = IDL.Record({
   'status' : QuoteStatus,
   'hash' : IDL.Text,
 });
-export const Result_83 = IDL.Variant({
+export const Result_84 = IDL.Variant({
   'ok' : MyQuoteAnswered,
   'err' : IDL.Text,
 });
@@ -142,9 +142,9 @@ export const MyAttestView = IDL.Record({
   'kindName' : IDL.Text,
   'validUntil' : IDL.Opt(Day),
 });
-export const Result_94 = IDL.Variant({ 'ok' : MyAttestView, 'err' : IDL.Text });
+export const Result_95 = IDL.Variant({ 'ok' : MyAttestView, 'err' : IDL.Text });
 export const MyTenderFile = IDL.Record({ 'name' : IDL.Text, 'size' : IDL.Nat });
-export const Result_93 = IDL.Variant({ 'ok' : MyTenderFile, 'err' : IDL.Text });
+export const Result_94 = IDL.Variant({ 'ok' : MyTenderFile, 'err' : IDL.Text });
 export const Result_10 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
 export const QuoteTermsInput = IDL.Record({
   'title' : IDL.Text,
@@ -176,7 +176,7 @@ export const TenderApplyResult = IDL.Record({
   'lines' : IDL.Nat,
   'changed' : IDL.Nat,
 });
-export const Result_92 = IDL.Variant({
+export const Result_93 = IDL.Variant({
   'ok' : TenderApplyResult,
   'err' : IDL.Text,
 });
@@ -299,7 +299,7 @@ export const QuoteFinding = IDL.Record({
   'severity' : QuoteSeverity,
   'chapterIds' : IDL.Vec(IDL.Nat),
 });
-export const Result_91 = IDL.Variant({
+export const Result_92 = IDL.Variant({
   'ok' : IDL.Vec(QuoteFinding),
   'err' : IDL.Text,
 });
@@ -312,7 +312,7 @@ export const TicketInfo = IDL.Record({
   'personId' : PersonId,
   'workId' : IDL.Opt(WorkId),
 });
-export const Result_90 = IDL.Variant({ 'ok' : TicketInfo, 'err' : IDL.Text });
+export const Result_91 = IDL.Variant({ 'ok' : TicketInfo, 'err' : IDL.Text });
 export const CiawRow = IDL.Record({
   'day' : Day,
   'kbo' : IDL.Text,
@@ -340,7 +340,7 @@ export const CiawExport = IDL.Record({
   'required' : IDL.Opt(IDL.Bool),
   'workCode' : IDL.Text,
 });
-export const Result_89 = IDL.Variant({ 'ok' : CiawExport, 'err' : IDL.Text });
+export const Result_90 = IDL.Variant({ 'ok' : CiawExport, 'err' : IDL.Text });
 export const PersonView = IDL.Record({
   'id' : PersonId,
   'orgId' : IDL.Opt(OrgId),
@@ -609,11 +609,11 @@ export const TenderCompareView = IDL.Record({
   'choices' : IDL.Vec(TenderChoiceView),
   'drafts' : IDL.Vec(TenderDraftRef),
 });
-export const Result_88 = IDL.Variant({
+export const Result_89 = IDL.Variant({
   'ok' : TenderCompareView,
   'err' : IDL.Text,
 });
-export const Result_87 = IDL.Variant({
+export const Result_88 = IDL.Variant({
   'ok' : IDL.Record({ 'id' : IDL.Nat, 'warnings' : IDL.Vec(IDL.Text) }),
   'err' : IDL.Text,
 });
@@ -662,14 +662,14 @@ export const QuoteCreated = IDL.Record({
   'quoteId' : IDL.Nat,
   'number' : IDL.Text,
 });
-export const Result_86 = IDL.Variant({ 'ok' : QuoteCreated, 'err' : IDL.Text });
+export const Result_87 = IDL.Variant({ 'ok' : QuoteCreated, 'err' : IDL.Text });
 export const NewCode = IDL.Record({
   'expiresAt' : IDL.Int,
   'code' : IDL.Text,
   'inviteId' : IDL.Nat,
   'personId' : PersonId,
 });
-export const Result_75 = IDL.Variant({ 'ok' : NewCode, 'err' : IDL.Text });
+export const Result_76 = IDL.Variant({ 'ok' : NewCode, 'err' : IDL.Text });
 export const TenderAddressMode = IDL.Variant({
   'city' : IDL.Null,
   'full' : IDL.Null,
@@ -691,7 +691,7 @@ export const NewTicket = IDL.Record({
   'expiresAt' : IDL.Int,
   'ticketId' : IDL.Nat,
 });
-export const Result_85 = IDL.Variant({ 'ok' : NewTicket, 'err' : IDL.Text });
+export const Result_86 = IDL.Variant({ 'ok' : NewTicket, 'err' : IDL.Text });
 export const WorkInput = IDL.Record({
   'leaderPersonId' : IDL.Opt(PersonId),
   'clientOrgId' : IDL.Opt(OrgId),
@@ -870,7 +870,7 @@ export const DeclarationDraft = IDL.Record({
   'asbestos' : IDL.Bool,
   'portal' : IDL.Text,
 });
-export const Result_84 = IDL.Variant({
+export const Result_85 = IDL.Variant({
   'ok' : DeclarationDraft,
   'err' : IDL.Text,
 });
@@ -3447,7 +3447,7 @@ export const RestorePart = IDL.Variant({
   'workDone' : IDL.Vec(WorkDone),
   'workInfo' : IDL.Vec(WorkInfo),
 });
-export const Result_82 = IDL.Variant({ 'ok' : RestorePart, 'err' : IDL.Text });
+export const Result_83 = IDL.Variant({ 'ok' : RestorePart, 'err' : IDL.Text });
 export const ExportConfidential = IDL.Record({
   'at' : IDL.Int,
   'files' : IDL.Vec(FileView),
@@ -3633,7 +3633,7 @@ export const HandoverView = IDL.Record({
   'signedFileId' : IDL.Opt(IDL.Nat),
   'points' : IDL.Vec(PointView),
 });
-export const Result_81 = IDL.Variant({ 'ok' : HandoverView, 'err' : IDL.Text });
+export const Result_82 = IDL.Variant({ 'ok' : HandoverView, 'err' : IDL.Text });
 export const DocumentView = IDL.Record({
   'id' : IDL.Nat,
   'files' : IDL.Vec(FileView),
@@ -3805,7 +3805,7 @@ export const OaView = IDL.Record({
   'contact' : IDL.Opt(OrgContactView),
   'persons' : IDL.Vec(OaPersonView),
 });
-export const Result_80 = IDL.Variant({ 'ok' : OaView, 'err' : IDL.Text });
+export const Result_81 = IDL.Variant({ 'ok' : OaView, 'err' : IDL.Text });
 export const AssignmentView = IDL.Record({
   'id' : IDL.Nat,
   'end' : Day,
@@ -4072,7 +4072,7 @@ export const HandoverDocData = IDL.Record({
   'points' : IDL.Vec(DocPoint),
   'workCode' : IDL.Text,
 });
-export const Result_79 = IDL.Variant({
+export const Result_80 = IDL.Variant({
   'ok' : HandoverDocData,
   'err' : IDL.Text,
 });
@@ -4119,7 +4119,7 @@ export const ImportReport = IDL.Record({
   'unchanged' : IDL.Nat,
   'dryRun' : IDL.Bool,
 });
-export const Result_78 = IDL.Variant({ 'ok' : ImportReport, 'err' : IDL.Text });
+export const Result_79 = IDL.Variant({ 'ok' : ImportReport, 'err' : IDL.Text });
 export const ImportRun = IDL.Record({
   'to' : Day,
   'key' : IDL.Text,
@@ -4180,7 +4180,7 @@ export const PlanImportReport = IDL.Record({
   'workCode' : IDL.Text,
   'workCreated' : IDL.Nat,
 });
-export const Result_77 = IDL.Variant({
+export const Result_78 = IDL.Variant({
   'ok' : PlanImportReport,
   'err' : IDL.Text,
 });
@@ -4202,7 +4202,7 @@ export const InsuranceSheetData = IDL.Record({
   'endDay' : IDL.Opt(IDL.Nat),
   'workCode' : IDL.Text,
 });
-export const Result_76 = IDL.Variant({
+export const Result_77 = IDL.Variant({
   'ok' : InsuranceSheetData,
   'err' : IDL.Text,
 });
@@ -4264,7 +4264,7 @@ export const LibItemVersionView = IDL.Record({
   'version' : IDL.Nat,
   'fields' : IDL.Text,
 });
-export const Result_74 = IDL.Variant({
+export const Result_75 = IDL.Variant({
   'ok' : IDL.Vec(LibItemVersionView),
   'err' : IDL.Text,
 });
@@ -4440,7 +4440,7 @@ export const MarginClassesView = IDL.Record({
   'classes' : IDL.Vec(MarginClassView),
   'links' : IDL.Vec(MarginLinkView),
 });
-export const Result_73 = IDL.Variant({
+export const Result_74 = IDL.Variant({
   'ok' : MarginClassesView,
   'err' : IDL.Text,
 });
@@ -4576,7 +4576,7 @@ export const MySalesView = IDL.Record({
   'invoices' : IDL.Vec(MySalesRow),
   'schedule' : IDL.Vec(MyScheduleRow),
 });
-export const Result_72 = IDL.Variant({ 'ok' : MySalesView, 'err' : IDL.Text });
+export const Result_73 = IDL.Variant({ 'ok' : MySalesView, 'err' : IDL.Text });
 export const MyTenderBrief = IDL.Record({
   'ref' : IDL.Text,
   'status' : TenderInviteStatus,
@@ -4628,7 +4628,7 @@ export const OaRateView = IDL.Record({
   'kindName' : IDL.Text,
   'archivedAt' : IDL.Opt(IDL.Int),
 });
-export const Result_71 = IDL.Variant({
+export const Result_72 = IDL.Variant({
   'ok' : IDL.Vec(OaRateView),
   'err' : IDL.Text,
 });
@@ -4747,7 +4747,7 @@ export const PayRow = IDL.Record({
   'withholdCents' : IDL.Int,
   'payCents' : IDL.Int,
 });
-export const Result_70 = IDL.Variant({
+export const Result_71 = IDL.Variant({
   'ok' : IDL.Vec(PayRow),
   'err' : IDL.Text,
 });
@@ -4940,20 +4940,20 @@ export const FineResult = IDL.Record({
   'matches' : IDL.Vec(FineMatch),
   'ownTripsOnly' : IDL.Bool,
 });
-export const Result_69 = IDL.Variant({ 'ok' : FineResult, 'err' : IDL.Text });
+export const Result_70 = IDL.Variant({ 'ok' : FineResult, 'err' : IDL.Text });
 export const MailPreview = IDL.Record({
   'deliver' : IDL.Text,
   'html' : IDL.Text,
   'lang' : IDL.Text,
   'mail' : MailOut,
 });
-export const Result_68 = IDL.Variant({ 'ok' : MailPreview, 'err' : IDL.Text });
+export const Result_69 = IDL.Variant({ 'ok' : MailPreview, 'err' : IDL.Text });
 export const MmExtraQuoteMade = IDL.Record({
   'versionId' : IDL.Nat,
   'quoteId' : IDL.Nat,
   'number' : IDL.Text,
 });
-export const Result_67 = IDL.Variant({
+export const Result_68 = IDL.Variant({
   'ok' : MmExtraQuoteMade,
   'err' : IDL.Text,
 });
@@ -5225,7 +5225,7 @@ export const MmSettingsView = IDL.Record({
   'passOnByKind' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'costKinds' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
 });
-export const Result_66 = IDL.Variant({
+export const Result_67 = IDL.Variant({
   'ok' : MmSettingsView,
   'err' : IDL.Text,
 });
@@ -5454,6 +5454,10 @@ export const PermitChangeView = IDL.Record({
   'field' : IDL.Text,
   'byName' : IDL.Text,
   'from' : IDL.Text,
+});
+export const Result_66 = IDL.Variant({
+  'ok' : IDL.Vec(FileView),
+  'err' : IDL.Text,
 });
 export const RobotSeen = IDL.Record({
   'name' : IDL.Text,
@@ -8111,7 +8115,7 @@ export const idlService = IDL.Service({
       [IDL.Vec(AbsenceChangeView)],
       ['query'],
     ),
-  'acceptMyQuote' : IDL.Func([IDL.Nat, IDL.Text], [Result_83], []),
+  'acceptMyQuote' : IDL.Func([IDL.Nat, IDL.Text], [Result_84], []),
   'accessStats' : IDL.Func([], [AccessStats], ['query']),
   'addDealFile' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Nat, ExternalBlob, DealFilePurpose],
@@ -8146,12 +8150,12 @@ export const idlService = IDL.Service({
         IDL.Nat,
         ExternalBlob,
       ],
-      [Result_94],
+      [Result_95],
       [],
     ),
   'addMyTenderFile' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, ExternalBlob],
-      [Result_93],
+      [Result_94],
       [],
     ),
   'addOrgDocKind' : IDL.Func([IDL.Text], [Result_10], []),
@@ -8187,7 +8191,7 @@ export const idlService = IDL.Service({
       [Result_12],
       [],
     ),
-  'applyTenderChoices' : IDL.Func([IDL.Nat, IDL.Nat], [Result_92], []),
+  'applyTenderChoices' : IDL.Func([IDL.Nat, IDL.Nat], [Result_93], []),
   'approveOaInvoice' : IDL.Func(
       [IDL.Nat, IDL.Nat, OaProofInput, IDL.Text],
       [Result_1],
@@ -8235,30 +8239,30 @@ export const idlService = IDL.Service({
   'cancelJob' : IDL.Func([IDL.Nat], [Result_1], []),
   'cancelProgressDraft' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
   'cancelSalesDraft' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
-  'checkQuoteVersion' : IDL.Func([IDL.Nat], [Result_91], []),
-  'checkTicket' : IDL.Func([IDL.Text], [Result_90], []),
+  'checkQuoteVersion' : IDL.Func([IDL.Nat], [Result_92], []),
+  'checkTicket' : IDL.Func([IDL.Text], [Result_91], []),
   'checkinatworkExport' : IDL.Func(
       [IDL.Nat, IDL.Nat, IDL.Nat],
-      [Result_89],
+      [Result_90],
       [],
     ),
   'claimBootstrap' : IDL.Func([IDL.Text, IDL.Text], [Result_3], []),
   'clientSiteAdmin' : IDL.Func([IDL.Nat], [ClientSiteView], ['query']),
-  'compareTender' : IDL.Func([IDL.Nat], [Result_88], []),
+  'compareTender' : IDL.Func([IDL.Nat], [Result_89], []),
   'completeJob' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
   'confirmAssignment' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_1], []),
   'confirmHours' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_1], []),
   'confirmLink' : IDL.Func([IDL.Principal], [Result_1], []),
-  'createDeal' : IDL.Func([IDL.Nat, IDL.Nat], [Result_87], []),
+  'createDeal' : IDL.Func([IDL.Nat, IDL.Nat], [Result_88], []),
   'createOrg' : IDL.Func([OrgInput], [Result_4], []),
-  'createQuote' : IDL.Func([QuoteNew], [Result_86], []),
+  'createQuote' : IDL.Func([QuoteNew], [Result_87], []),
   'createRecoveryCode' : IDL.Func(
       [IDL.Nat, IDL.Nat, IDL.Text],
-      [Result_75],
+      [Result_76],
       [],
     ),
   'createTender' : IDL.Func([TenderInput], [Result_7], []),
-  'createTicket' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_85], []),
+  'createTicket' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_86], []),
   'createWork' : IDL.Func([WorkInput], [Result_2], []),
   'creditProgress' : IDL.Func([IDL.Nat, IDL.Text], [Result_7], []),
   'dashboard' : IDL.Func([IDL.Nat], [DashboardView], ['query']),
@@ -8269,23 +8273,23 @@ export const idlService = IDL.Service({
       [Result_1],
       [],
     ),
-  'declarationDraft' : IDL.Func([IDL.Nat], [Result_84], []),
-  'declineMyQuote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [Result_83], []),
+  'declarationDraft' : IDL.Func([IDL.Nat], [Result_85], []),
+  'declineMyQuote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [Result_84], []),
   'declineMyTender' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
   'dismissWorkStart' : IDL.Func([IDL.Nat, IDL.Text], [Result_8], []),
   'disputeOaInvoice' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
   'disputePurchase' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
   'endDeal' : IDL.Func([IDL.Nat, IDL.Text, IDL.Nat], [Result_1], []),
   'endMembership' : IDL.Func([IDL.Nat], [Result_1], []),
-  'exportChunk' : IDL.Func([IDL.Text, IDL.Nat, IDL.Nat], [Result_82], []),
+  'exportChunk' : IDL.Func([IDL.Text, IDL.Nat, IDL.Nat], [Result_83], []),
   'exportConfidential' : IDL.Func([], [ExportConfidential], []),
   'exportIntern' : IDL.Func([], [ExportIntern], []),
   'failJob' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text, IDL.Bool], [Result_1], []),
-  'finishHandover' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_81], []),
+  'finishHandover' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_82], []),
   'getDossier' : IDL.Func([IDL.Nat], [DossierView], ['query']),
   'getLibraryItem' : IDL.Func([IDL.Nat], [Result_25], ['query']),
   'getMeasureSurvey' : IDL.Func([IDL.Nat], [SurveyDetail], ['query']),
-  'getOa' : IDL.Func([IDL.Nat], [Result_80], ['query']),
+  'getOa' : IDL.Func([IDL.Nat], [Result_81], ['query']),
   'getPlan' : IDL.Func([IDL.Nat], [PlanView], ['query']),
   'getQuoteDocSettings' : IDL.Func([], [QuoteDocSettings], ['query']),
   'getQuoteRules' : IDL.Func([], [QuoteRulesView], ['query']),
@@ -8298,16 +8302,16 @@ export const idlService = IDL.Service({
   'getSettings' : IDL.Func([], [SettingsView], ['query']),
   'getWork' : IDL.Func([IDL.Nat], [WorkView], ['query']),
   'handleIssue' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
-  'handoverDoc' : IDL.Func([IDL.Nat], [Result_79], ['query']),
-  'importOrgs' : IDL.Func([IDL.Bool, IDL.Vec(ImportRow)], [Result_78], []),
+  'handoverDoc' : IDL.Func([IDL.Nat], [Result_80], ['query']),
+  'importOrgs' : IDL.Func([IDL.Bool, IDL.Vec(ImportRow)], [Result_79], []),
   'importPlanning' : IDL.Func(
       [IDL.Bool, IDL.Text, IDL.Text, IDL.Vec(IDL.Text), ImportBlock],
-      [Result_77],
+      [Result_78],
       [],
     ),
-  'insuranceSheet' : IDL.Func([IDL.Nat], [Result_76], []),
-  'inviteExistingPerson' : IDL.Func([ExistingInvite], [Result_75], []),
-  'invitePerson' : IDL.Func([InviteRequest], [Result_75], []),
+  'insuranceSheet' : IDL.Func([IDL.Nat], [Result_77], []),
+  'inviteExistingPerson' : IDL.Func([ExistingInvite], [Result_76], []),
+  'invitePerson' : IDL.Func([InviteRequest], [Result_76], []),
   'issueSalesInvoice' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Int], [Result_10], []),
   'leaseJobs' : IDL.Func([IDL.Nat], [IDL.Vec(JobLease)], []),
   'libraryChapters' : IDL.Func(
@@ -8315,7 +8319,7 @@ export const idlService = IDL.Service({
       [IDL.Vec(LibChapterView)],
       ['query'],
     ),
-  'libraryItemHistory' : IDL.Func([IDL.Nat], [Result_74], ['query']),
+  'libraryItemHistory' : IDL.Func([IDL.Nat], [Result_75], ['query']),
   'libraryUnits' : IDL.Func([IDL.Bool], [IDL.Vec(UnitView)], ['query']),
   'listAbsences' : IDL.Func(
       [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
@@ -8370,7 +8374,7 @@ export const idlService = IDL.Service({
       [IDL.Vec(MailLogView)],
       ['query'],
     ),
-  'listMarginClasses' : IDL.Func([], [Result_73], []),
+  'listMarginClasses' : IDL.Func([], [Result_74], []),
   'listMeasureWorks' : IDL.Func([], [IDL.Vec(MeasureWorkBrief)], ['query']),
   'listMeetings' : IDL.Func([IDL.Nat], [IDL.Vec(MeetingView)], ['query']),
   'listMembers' : IDL.Func([IDL.Nat], [IDL.Vec(MembershipView)], ['query']),
@@ -8384,7 +8388,7 @@ export const idlService = IDL.Service({
   'listMyMinMeer' : IDL.Func([], [IDL.Vec(MyMinMeerBrief)], ['query']),
   'listMyProgress' : IDL.Func([], [IDL.Vec(MyProgressBrief)], ['query']),
   'listMyQuotes' : IDL.Func([], [IDL.Vec(MyQuoteBrief)], ['query']),
-  'listMySales' : IDL.Func([], [Result_72], []),
+  'listMySales' : IDL.Func([], [Result_73], []),
   'listMyTenders' : IDL.Func([], [IDL.Vec(MyTenderBrief)], ['query']),
   'listOaInvoices' : IDL.Func(
       [IDL.Opt(IDL.Nat), IDL.Opt(OaInvoiceStatus)],
@@ -8392,7 +8396,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'listOaQuotes' : IDL.Func([IDL.Nat], [IDL.Vec(OaQuoteBrief)], ['query']),
-  'listOaRates' : IDL.Func([IDL.Nat], [Result_71], []),
+  'listOaRates' : IDL.Func([IDL.Nat], [Result_72], []),
   'listOas' : IDL.Func([OaFilter], [IDL.Vec(OaView)], ['query']),
   'listOrgDocKinds' : IDL.Func([], [IDL.Vec(OrgDocKindAdminView)], ['query']),
   'listOrgDocs' : IDL.Func([IDL.Nat], [OrgDocsView], ['query']),
@@ -8414,7 +8418,7 @@ export const idlService = IDL.Service({
       [IDL.Vec(PurchaseBrief)],
       ['query'],
     ),
-  'listPurchasesToPay' : IDL.Func([], [Result_70], []),
+  'listPurchasesToPay' : IDL.Func([], [Result_71], []),
   'listQuotes' : IDL.Func(
       [IDL.Opt(IDL.Nat), IDL.Bool],
       [IDL.Vec(QuoteSummary)],
@@ -8441,16 +8445,16 @@ export const idlService = IDL.Service({
   'listWorkStages' : IDL.Func([], [IDL.Vec(WorkStageView)], ['query']),
   'listWorks' : IDL.Func([], [IDL.Vec(WorkView)], ['query']),
   'loadLibraryStartChapters' : IDL.Func([], [Result_7], []),
-  'lookupFine' : IDL.Func([FineQuery], [Result_69], []),
+  'lookupFine' : IDL.Func([FineQuery], [Result_70], []),
   'mailPreview' : IDL.Func(
       [IDL.Text, IDL.Opt(IDL.Nat), IDL.Nat],
-      [Result_68],
+      [Result_69],
       ['query'],
     ),
   'mailQuoteToClient' : IDL.Func([IDL.Nat], [Result_1], []),
   'makeExtraWorkQuote' : IDL.Func(
       [IDL.Nat, IDL.Vec(IDL.Nat), IDL.Text],
-      [Result_67],
+      [Result_68],
       [],
     ),
   'makeMinMeerVersion' : IDL.Func(
@@ -8489,7 +8493,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'minMeerQty' : IDL.Func([IDL.Nat], [MinMeerQtyView], ['query']),
-  'minMeerSettings' : IDL.Func([], [Result_66], []),
+  'minMeerSettings' : IDL.Func([], [Result_67], []),
   'myBoard' : IDL.Func([IDL.Nat, IDL.Nat], [MyBoardView], ['query']),
   'myDay' : IDL.Func([IDL.Nat, IDL.Bool], [MyDayView], ['query']),
   'myHours' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(HoursLine)], ['query']),
@@ -8527,6 +8531,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'permitsOnSite' : IDL.Func([IDL.Nat], [IDL.Vec(PermitView)], ['query']),
+  'pidSheetFiles' : IDL.Func([IDL.Nat], [Result_66], ['query']),
   'postSettings' : IDL.Func([], [PostSettingsView], ['query']),
   'previewDependency' : IDL.Func(
       [IDL.Nat, DependencyInput],
@@ -8890,7 +8895,7 @@ export const idlFactory = ({ IDL }) => {
     'status' : QuoteStatus,
     'hash' : IDL.Text,
   });
-  const Result_83 = IDL.Variant({ 'ok' : MyQuoteAnswered, 'err' : IDL.Text });
+  const Result_84 = IDL.Variant({ 'ok' : MyQuoteAnswered, 'err' : IDL.Text });
   const AccessStats = IDL.Record({
     'pendingLinks' : IDL.Nat,
     'failuresThisHour' : IDL.Nat,
@@ -8989,9 +8994,9 @@ export const idlFactory = ({ IDL }) => {
     'kindName' : IDL.Text,
     'validUntil' : IDL.Opt(Day),
   });
-  const Result_94 = IDL.Variant({ 'ok' : MyAttestView, 'err' : IDL.Text });
+  const Result_95 = IDL.Variant({ 'ok' : MyAttestView, 'err' : IDL.Text });
   const MyTenderFile = IDL.Record({ 'name' : IDL.Text, 'size' : IDL.Nat });
-  const Result_93 = IDL.Variant({ 'ok' : MyTenderFile, 'err' : IDL.Text });
+  const Result_94 = IDL.Variant({ 'ok' : MyTenderFile, 'err' : IDL.Text });
   const Result_10 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
   const QuoteTermsInput = IDL.Record({
     'title' : IDL.Text,
@@ -9023,7 +9028,7 @@ export const idlFactory = ({ IDL }) => {
     'lines' : IDL.Nat,
     'changed' : IDL.Nat,
   });
-  const Result_92 = IDL.Variant({ 'ok' : TenderApplyResult, 'err' : IDL.Text });
+  const Result_93 = IDL.Variant({ 'ok' : TenderApplyResult, 'err' : IDL.Text });
   const OaProofInput = IDL.Variant({
     'check' : IDL.Nat,
     'exception' : IDL.Text,
@@ -9140,7 +9145,7 @@ export const idlFactory = ({ IDL }) => {
     'severity' : QuoteSeverity,
     'chapterIds' : IDL.Vec(IDL.Nat),
   });
-  const Result_91 = IDL.Variant({
+  const Result_92 = IDL.Variant({
     'ok' : IDL.Vec(QuoteFinding),
     'err' : IDL.Text,
   });
@@ -9153,7 +9158,7 @@ export const idlFactory = ({ IDL }) => {
     'personId' : PersonId,
     'workId' : IDL.Opt(WorkId),
   });
-  const Result_90 = IDL.Variant({ 'ok' : TicketInfo, 'err' : IDL.Text });
+  const Result_91 = IDL.Variant({ 'ok' : TicketInfo, 'err' : IDL.Text });
   const CiawRow = IDL.Record({
     'day' : Day,
     'kbo' : IDL.Text,
@@ -9181,7 +9186,7 @@ export const idlFactory = ({ IDL }) => {
     'required' : IDL.Opt(IDL.Bool),
     'workCode' : IDL.Text,
   });
-  const Result_89 = IDL.Variant({ 'ok' : CiawExport, 'err' : IDL.Text });
+  const Result_90 = IDL.Variant({ 'ok' : CiawExport, 'err' : IDL.Text });
   const PersonView = IDL.Record({
     'id' : PersonId,
     'orgId' : IDL.Opt(OrgId),
@@ -9444,8 +9449,8 @@ export const idlFactory = ({ IDL }) => {
     'choices' : IDL.Vec(TenderChoiceView),
     'drafts' : IDL.Vec(TenderDraftRef),
   });
-  const Result_88 = IDL.Variant({ 'ok' : TenderCompareView, 'err' : IDL.Text });
-  const Result_87 = IDL.Variant({
+  const Result_89 = IDL.Variant({ 'ok' : TenderCompareView, 'err' : IDL.Text });
+  const Result_88 = IDL.Variant({
     'ok' : IDL.Record({ 'id' : IDL.Nat, 'warnings' : IDL.Vec(IDL.Text) }),
     'err' : IDL.Text,
   });
@@ -9494,14 +9499,14 @@ export const idlFactory = ({ IDL }) => {
     'quoteId' : IDL.Nat,
     'number' : IDL.Text,
   });
-  const Result_86 = IDL.Variant({ 'ok' : QuoteCreated, 'err' : IDL.Text });
+  const Result_87 = IDL.Variant({ 'ok' : QuoteCreated, 'err' : IDL.Text });
   const NewCode = IDL.Record({
     'expiresAt' : IDL.Int,
     'code' : IDL.Text,
     'inviteId' : IDL.Nat,
     'personId' : PersonId,
   });
-  const Result_75 = IDL.Variant({ 'ok' : NewCode, 'err' : IDL.Text });
+  const Result_76 = IDL.Variant({ 'ok' : NewCode, 'err' : IDL.Text });
   const TenderAddressMode = IDL.Variant({
     'city' : IDL.Null,
     'full' : IDL.Null,
@@ -9523,7 +9528,7 @@ export const idlFactory = ({ IDL }) => {
     'expiresAt' : IDL.Int,
     'ticketId' : IDL.Nat,
   });
-  const Result_85 = IDL.Variant({ 'ok' : NewTicket, 'err' : IDL.Text });
+  const Result_86 = IDL.Variant({ 'ok' : NewTicket, 'err' : IDL.Text });
   const WorkInput = IDL.Record({
     'leaderPersonId' : IDL.Opt(PersonId),
     'clientOrgId' : IDL.Opt(OrgId),
@@ -9702,7 +9707,7 @@ export const idlFactory = ({ IDL }) => {
     'asbestos' : IDL.Bool,
     'portal' : IDL.Text,
   });
-  const Result_84 = IDL.Variant({ 'ok' : DeclarationDraft, 'err' : IDL.Text });
+  const Result_85 = IDL.Variant({ 'ok' : DeclarationDraft, 'err' : IDL.Text });
   const WorkStartDone = IDL.Record({
     'at' : IDL.Int,
     'status' : IDL.Text,
@@ -12251,7 +12256,7 @@ export const idlFactory = ({ IDL }) => {
     'workDone' : IDL.Vec(WorkDone),
     'workInfo' : IDL.Vec(WorkInfo),
   });
-  const Result_82 = IDL.Variant({ 'ok' : RestorePart, 'err' : IDL.Text });
+  const Result_83 = IDL.Variant({ 'ok' : RestorePart, 'err' : IDL.Text });
   const ExportConfidential = IDL.Record({
     'at' : IDL.Int,
     'files' : IDL.Vec(FileView),
@@ -12437,7 +12442,7 @@ export const idlFactory = ({ IDL }) => {
     'signedFileId' : IDL.Opt(IDL.Nat),
     'points' : IDL.Vec(PointView),
   });
-  const Result_81 = IDL.Variant({ 'ok' : HandoverView, 'err' : IDL.Text });
+  const Result_82 = IDL.Variant({ 'ok' : HandoverView, 'err' : IDL.Text });
   const DocumentView = IDL.Record({
     'id' : IDL.Nat,
     'files' : IDL.Vec(FileView),
@@ -12609,7 +12614,7 @@ export const idlFactory = ({ IDL }) => {
     'contact' : IDL.Opt(OrgContactView),
     'persons' : IDL.Vec(OaPersonView),
   });
-  const Result_80 = IDL.Variant({ 'ok' : OaView, 'err' : IDL.Text });
+  const Result_81 = IDL.Variant({ 'ok' : OaView, 'err' : IDL.Text });
   const AssignmentView = IDL.Record({
     'id' : IDL.Nat,
     'end' : Day,
@@ -12876,7 +12881,7 @@ export const idlFactory = ({ IDL }) => {
     'points' : IDL.Vec(DocPoint),
     'workCode' : IDL.Text,
   });
-  const Result_79 = IDL.Variant({ 'ok' : HandoverDocData, 'err' : IDL.Text });
+  const Result_80 = IDL.Variant({ 'ok' : HandoverDocData, 'err' : IDL.Text });
   const ImportPerson = IDL.Record({
     'name' : IDL.Text,
     'email' : IDL.Opt(IDL.Text),
@@ -12920,7 +12925,7 @@ export const idlFactory = ({ IDL }) => {
     'unchanged' : IDL.Nat,
     'dryRun' : IDL.Bool,
   });
-  const Result_78 = IDL.Variant({ 'ok' : ImportReport, 'err' : IDL.Text });
+  const Result_79 = IDL.Variant({ 'ok' : ImportReport, 'err' : IDL.Text });
   const ImportRun = IDL.Record({
     'to' : Day,
     'key' : IDL.Text,
@@ -12981,7 +12986,7 @@ export const idlFactory = ({ IDL }) => {
     'workCode' : IDL.Text,
     'workCreated' : IDL.Nat,
   });
-  const Result_77 = IDL.Variant({ 'ok' : PlanImportReport, 'err' : IDL.Text });
+  const Result_78 = IDL.Variant({ 'ok' : PlanImportReport, 'err' : IDL.Text });
   const InsuranceSheetData = IDL.Record({
     'workName' : IDL.Text,
     'periodFrom' : IDL.Opt(IDL.Nat),
@@ -13000,7 +13005,7 @@ export const idlFactory = ({ IDL }) => {
     'endDay' : IDL.Opt(IDL.Nat),
     'workCode' : IDL.Text,
   });
-  const Result_76 = IDL.Variant({
+  const Result_77 = IDL.Variant({
     'ok' : InsuranceSheetData,
     'err' : IDL.Text,
   });
@@ -13062,7 +13067,7 @@ export const idlFactory = ({ IDL }) => {
     'version' : IDL.Nat,
     'fields' : IDL.Text,
   });
-  const Result_74 = IDL.Variant({
+  const Result_75 = IDL.Variant({
     'ok' : IDL.Vec(LibItemVersionView),
     'err' : IDL.Text,
   });
@@ -13238,7 +13243,7 @@ export const idlFactory = ({ IDL }) => {
     'classes' : IDL.Vec(MarginClassView),
     'links' : IDL.Vec(MarginLinkView),
   });
-  const Result_73 = IDL.Variant({ 'ok' : MarginClassesView, 'err' : IDL.Text });
+  const Result_74 = IDL.Variant({ 'ok' : MarginClassesView, 'err' : IDL.Text });
   const MeasureWorkBrief = IDL.Record({
     'lessCount' : IDL.Nat,
     'pending' : IDL.Nat,
@@ -13371,7 +13376,7 @@ export const idlFactory = ({ IDL }) => {
     'invoices' : IDL.Vec(MySalesRow),
     'schedule' : IDL.Vec(MyScheduleRow),
   });
-  const Result_72 = IDL.Variant({ 'ok' : MySalesView, 'err' : IDL.Text });
+  const Result_73 = IDL.Variant({ 'ok' : MySalesView, 'err' : IDL.Text });
   const MyTenderBrief = IDL.Record({
     'ref' : IDL.Text,
     'status' : TenderInviteStatus,
@@ -13423,7 +13428,7 @@ export const idlFactory = ({ IDL }) => {
     'kindName' : IDL.Text,
     'archivedAt' : IDL.Opt(IDL.Int),
   });
-  const Result_71 = IDL.Variant({
+  const Result_72 = IDL.Variant({
     'ok' : IDL.Vec(OaRateView),
     'err' : IDL.Text,
   });
@@ -13542,7 +13547,7 @@ export const idlFactory = ({ IDL }) => {
     'withholdCents' : IDL.Int,
     'payCents' : IDL.Int,
   });
-  const Result_70 = IDL.Variant({ 'ok' : IDL.Vec(PayRow), 'err' : IDL.Text });
+  const Result_71 = IDL.Variant({ 'ok' : IDL.Vec(PayRow), 'err' : IDL.Text });
   const QuoteVersionBrief = IDL.Record({
     'id' : IDL.Nat,
     'status' : QuoteStatus,
@@ -13732,20 +13737,20 @@ export const idlFactory = ({ IDL }) => {
     'matches' : IDL.Vec(FineMatch),
     'ownTripsOnly' : IDL.Bool,
   });
-  const Result_69 = IDL.Variant({ 'ok' : FineResult, 'err' : IDL.Text });
+  const Result_70 = IDL.Variant({ 'ok' : FineResult, 'err' : IDL.Text });
   const MailPreview = IDL.Record({
     'deliver' : IDL.Text,
     'html' : IDL.Text,
     'lang' : IDL.Text,
     'mail' : MailOut,
   });
-  const Result_68 = IDL.Variant({ 'ok' : MailPreview, 'err' : IDL.Text });
+  const Result_69 = IDL.Variant({ 'ok' : MailPreview, 'err' : IDL.Text });
   const MmExtraQuoteMade = IDL.Record({
     'versionId' : IDL.Nat,
     'quoteId' : IDL.Nat,
     'number' : IDL.Text,
   });
-  const Result_67 = IDL.Variant({ 'ok' : MmExtraQuoteMade, 'err' : IDL.Text });
+  const Result_68 = IDL.Variant({ 'ok' : MmExtraQuoteMade, 'err' : IDL.Text });
   const MmExpect = IDL.Record({
     'toInvoiceCents' : IDL.Int,
     'balanceCents' : IDL.Int,
@@ -14011,7 +14016,7 @@ export const idlFactory = ({ IDL }) => {
     'passOnByKind' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'costKinds' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
   });
-  const Result_66 = IDL.Variant({ 'ok' : MmSettingsView, 'err' : IDL.Text });
+  const Result_67 = IDL.Variant({ 'ok' : MmSettingsView, 'err' : IDL.Text });
   const BoardTask = IDL.Record({
     'end' : Day,
     'status' : TaskStatus,
@@ -14238,6 +14243,7 @@ export const idlFactory = ({ IDL }) => {
     'byName' : IDL.Text,
     'from' : IDL.Text,
   });
+  const Result_66 = IDL.Variant({ 'ok' : IDL.Vec(FileView), 'err' : IDL.Text });
   const RobotSeen = IDL.Record({
     'name' : IDL.Text,
     'lastSeen' : IDL.Opt(IDL.Int),
@@ -16798,7 +16804,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(AbsenceChangeView)],
         ['query'],
       ),
-    'acceptMyQuote' : IDL.Func([IDL.Nat, IDL.Text], [Result_83], []),
+    'acceptMyQuote' : IDL.Func([IDL.Nat, IDL.Text], [Result_84], []),
     'accessStats' : IDL.Func([], [AccessStats], ['query']),
     'addDealFile' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Nat, ExternalBlob, DealFilePurpose],
@@ -16833,12 +16839,12 @@ export const idlFactory = ({ IDL }) => {
           IDL.Nat,
           ExternalBlob,
         ],
-        [Result_94],
+        [Result_95],
         [],
       ),
     'addMyTenderFile' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Nat, ExternalBlob],
-        [Result_93],
+        [Result_94],
         [],
       ),
     'addOrgDocKind' : IDL.Func([IDL.Text], [Result_10], []),
@@ -16874,7 +16880,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_12],
         [],
       ),
-    'applyTenderChoices' : IDL.Func([IDL.Nat, IDL.Nat], [Result_92], []),
+    'applyTenderChoices' : IDL.Func([IDL.Nat, IDL.Nat], [Result_93], []),
     'approveOaInvoice' : IDL.Func(
         [IDL.Nat, IDL.Nat, OaProofInput, IDL.Text],
         [Result_1],
@@ -16922,16 +16928,16 @@ export const idlFactory = ({ IDL }) => {
     'cancelJob' : IDL.Func([IDL.Nat], [Result_1], []),
     'cancelProgressDraft' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
     'cancelSalesDraft' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
-    'checkQuoteVersion' : IDL.Func([IDL.Nat], [Result_91], []),
-    'checkTicket' : IDL.Func([IDL.Text], [Result_90], []),
+    'checkQuoteVersion' : IDL.Func([IDL.Nat], [Result_92], []),
+    'checkTicket' : IDL.Func([IDL.Text], [Result_91], []),
     'checkinatworkExport' : IDL.Func(
         [IDL.Nat, IDL.Nat, IDL.Nat],
-        [Result_89],
+        [Result_90],
         [],
       ),
     'claimBootstrap' : IDL.Func([IDL.Text, IDL.Text], [Result_3], []),
     'clientSiteAdmin' : IDL.Func([IDL.Nat], [ClientSiteView], ['query']),
-    'compareTender' : IDL.Func([IDL.Nat], [Result_88], []),
+    'compareTender' : IDL.Func([IDL.Nat], [Result_89], []),
     'completeJob' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
     'confirmAssignment' : IDL.Func(
         [IDL.Nat, IDL.Bool, IDL.Text],
@@ -16940,16 +16946,16 @@ export const idlFactory = ({ IDL }) => {
       ),
     'confirmHours' : IDL.Func([IDL.Nat, IDL.Bool, IDL.Text], [Result_1], []),
     'confirmLink' : IDL.Func([IDL.Principal], [Result_1], []),
-    'createDeal' : IDL.Func([IDL.Nat, IDL.Nat], [Result_87], []),
+    'createDeal' : IDL.Func([IDL.Nat, IDL.Nat], [Result_88], []),
     'createOrg' : IDL.Func([OrgInput], [Result_4], []),
-    'createQuote' : IDL.Func([QuoteNew], [Result_86], []),
+    'createQuote' : IDL.Func([QuoteNew], [Result_87], []),
     'createRecoveryCode' : IDL.Func(
         [IDL.Nat, IDL.Nat, IDL.Text],
-        [Result_75],
+        [Result_76],
         [],
       ),
     'createTender' : IDL.Func([TenderInput], [Result_7], []),
-    'createTicket' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_85], []),
+    'createTicket' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_86], []),
     'createWork' : IDL.Func([WorkInput], [Result_2], []),
     'creditProgress' : IDL.Func([IDL.Nat, IDL.Text], [Result_7], []),
     'dashboard' : IDL.Func([IDL.Nat], [DashboardView], ['query']),
@@ -16960,15 +16966,15 @@ export const idlFactory = ({ IDL }) => {
         [Result_1],
         [],
       ),
-    'declarationDraft' : IDL.Func([IDL.Nat], [Result_84], []),
-    'declineMyQuote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [Result_83], []),
+    'declarationDraft' : IDL.Func([IDL.Nat], [Result_85], []),
+    'declineMyQuote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [Result_84], []),
     'declineMyTender' : IDL.Func([IDL.Text, IDL.Text], [Result_1], []),
     'dismissWorkStart' : IDL.Func([IDL.Nat, IDL.Text], [Result_8], []),
     'disputeOaInvoice' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
     'disputePurchase' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
     'endDeal' : IDL.Func([IDL.Nat, IDL.Text, IDL.Nat], [Result_1], []),
     'endMembership' : IDL.Func([IDL.Nat], [Result_1], []),
-    'exportChunk' : IDL.Func([IDL.Text, IDL.Nat, IDL.Nat], [Result_82], []),
+    'exportChunk' : IDL.Func([IDL.Text, IDL.Nat, IDL.Nat], [Result_83], []),
     'exportConfidential' : IDL.Func([], [ExportConfidential], []),
     'exportIntern' : IDL.Func([], [ExportIntern], []),
     'failJob' : IDL.Func(
@@ -16976,11 +16982,11 @@ export const idlFactory = ({ IDL }) => {
         [Result_1],
         [],
       ),
-    'finishHandover' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_81], []),
+    'finishHandover' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_82], []),
     'getDossier' : IDL.Func([IDL.Nat], [DossierView], ['query']),
     'getLibraryItem' : IDL.Func([IDL.Nat], [Result_25], ['query']),
     'getMeasureSurvey' : IDL.Func([IDL.Nat], [SurveyDetail], ['query']),
-    'getOa' : IDL.Func([IDL.Nat], [Result_80], ['query']),
+    'getOa' : IDL.Func([IDL.Nat], [Result_81], ['query']),
     'getPlan' : IDL.Func([IDL.Nat], [PlanView], ['query']),
     'getQuoteDocSettings' : IDL.Func([], [QuoteDocSettings], ['query']),
     'getQuoteRules' : IDL.Func([], [QuoteRulesView], ['query']),
@@ -16993,16 +16999,16 @@ export const idlFactory = ({ IDL }) => {
     'getSettings' : IDL.Func([], [SettingsView], ['query']),
     'getWork' : IDL.Func([IDL.Nat], [WorkView], ['query']),
     'handleIssue' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
-    'handoverDoc' : IDL.Func([IDL.Nat], [Result_79], ['query']),
-    'importOrgs' : IDL.Func([IDL.Bool, IDL.Vec(ImportRow)], [Result_78], []),
+    'handoverDoc' : IDL.Func([IDL.Nat], [Result_80], ['query']),
+    'importOrgs' : IDL.Func([IDL.Bool, IDL.Vec(ImportRow)], [Result_79], []),
     'importPlanning' : IDL.Func(
         [IDL.Bool, IDL.Text, IDL.Text, IDL.Vec(IDL.Text), ImportBlock],
-        [Result_77],
+        [Result_78],
         [],
       ),
-    'insuranceSheet' : IDL.Func([IDL.Nat], [Result_76], []),
-    'inviteExistingPerson' : IDL.Func([ExistingInvite], [Result_75], []),
-    'invitePerson' : IDL.Func([InviteRequest], [Result_75], []),
+    'insuranceSheet' : IDL.Func([IDL.Nat], [Result_77], []),
+    'inviteExistingPerson' : IDL.Func([ExistingInvite], [Result_76], []),
+    'invitePerson' : IDL.Func([InviteRequest], [Result_76], []),
     'issueSalesInvoice' : IDL.Func(
         [IDL.Nat, IDL.Nat, IDL.Int],
         [Result_10],
@@ -17014,7 +17020,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(LibChapterView)],
         ['query'],
       ),
-    'libraryItemHistory' : IDL.Func([IDL.Nat], [Result_74], ['query']),
+    'libraryItemHistory' : IDL.Func([IDL.Nat], [Result_75], ['query']),
     'libraryUnits' : IDL.Func([IDL.Bool], [IDL.Vec(UnitView)], ['query']),
     'listAbsences' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
@@ -17069,7 +17075,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(MailLogView)],
         ['query'],
       ),
-    'listMarginClasses' : IDL.Func([], [Result_73], []),
+    'listMarginClasses' : IDL.Func([], [Result_74], []),
     'listMeasureWorks' : IDL.Func([], [IDL.Vec(MeasureWorkBrief)], ['query']),
     'listMeetings' : IDL.Func([IDL.Nat], [IDL.Vec(MeetingView)], ['query']),
     'listMembers' : IDL.Func([IDL.Nat], [IDL.Vec(MembershipView)], ['query']),
@@ -17083,7 +17089,7 @@ export const idlFactory = ({ IDL }) => {
     'listMyMinMeer' : IDL.Func([], [IDL.Vec(MyMinMeerBrief)], ['query']),
     'listMyProgress' : IDL.Func([], [IDL.Vec(MyProgressBrief)], ['query']),
     'listMyQuotes' : IDL.Func([], [IDL.Vec(MyQuoteBrief)], ['query']),
-    'listMySales' : IDL.Func([], [Result_72], []),
+    'listMySales' : IDL.Func([], [Result_73], []),
     'listMyTenders' : IDL.Func([], [IDL.Vec(MyTenderBrief)], ['query']),
     'listOaInvoices' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Opt(OaInvoiceStatus)],
@@ -17091,7 +17097,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'listOaQuotes' : IDL.Func([IDL.Nat], [IDL.Vec(OaQuoteBrief)], ['query']),
-    'listOaRates' : IDL.Func([IDL.Nat], [Result_71], []),
+    'listOaRates' : IDL.Func([IDL.Nat], [Result_72], []),
     'listOas' : IDL.Func([OaFilter], [IDL.Vec(OaView)], ['query']),
     'listOrgDocKinds' : IDL.Func([], [IDL.Vec(OrgDocKindAdminView)], ['query']),
     'listOrgDocs' : IDL.Func([IDL.Nat], [OrgDocsView], ['query']),
@@ -17113,7 +17119,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(PurchaseBrief)],
         ['query'],
       ),
-    'listPurchasesToPay' : IDL.Func([], [Result_70], []),
+    'listPurchasesToPay' : IDL.Func([], [Result_71], []),
     'listQuotes' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Bool],
         [IDL.Vec(QuoteSummary)],
@@ -17148,16 +17154,16 @@ export const idlFactory = ({ IDL }) => {
     'listWorkStages' : IDL.Func([], [IDL.Vec(WorkStageView)], ['query']),
     'listWorks' : IDL.Func([], [IDL.Vec(WorkView)], ['query']),
     'loadLibraryStartChapters' : IDL.Func([], [Result_7], []),
-    'lookupFine' : IDL.Func([FineQuery], [Result_69], []),
+    'lookupFine' : IDL.Func([FineQuery], [Result_70], []),
     'mailPreview' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Nat), IDL.Nat],
-        [Result_68],
+        [Result_69],
         ['query'],
       ),
     'mailQuoteToClient' : IDL.Func([IDL.Nat], [Result_1], []),
     'makeExtraWorkQuote' : IDL.Func(
         [IDL.Nat, IDL.Vec(IDL.Nat), IDL.Text],
-        [Result_67],
+        [Result_68],
         [],
       ),
     'makeMinMeerVersion' : IDL.Func(
@@ -17200,7 +17206,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'minMeerQty' : IDL.Func([IDL.Nat], [MinMeerQtyView], ['query']),
-    'minMeerSettings' : IDL.Func([], [Result_66], []),
+    'minMeerSettings' : IDL.Func([], [Result_67], []),
     'myBoard' : IDL.Func([IDL.Nat, IDL.Nat], [MyBoardView], ['query']),
     'myDay' : IDL.Func([IDL.Nat, IDL.Bool], [MyDayView], ['query']),
     'myHours' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(HoursLine)], ['query']),
@@ -17242,6 +17248,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'permitsOnSite' : IDL.Func([IDL.Nat], [IDL.Vec(PermitView)], ['query']),
+    'pidSheetFiles' : IDL.Func([IDL.Nat], [Result_66], ['query']),
     'postSettings' : IDL.Func([], [PostSettingsView], ['query']),
     'previewDependency' : IDL.Func(
         [IDL.Nat, DependencyInput],

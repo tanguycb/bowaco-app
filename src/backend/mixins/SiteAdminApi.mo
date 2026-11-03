@@ -687,6 +687,27 @@ mixin (
     #ok;
   };
 
+  // Review L7: de bestanden van de fiches die voor het PID van deze werf gekozen zijn (gericht, niet alle bestanden zonder werf).
+  // Zelfde recht als recordPid. Een fiche zonder (bruikbaar) bestand komt niet terug: de browser meldt "bestand niet gevonden".
+  public query ({ caller }) func pidSheetFiles(workId : Nat) : async Result.Result<[Views.FileView], Text> {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.may({ works; settings }, p, #editSiteAdmin, ?workId)) { return saDeny() };
+    let ids = switch (siteAdmin.workSheets.get(workId)) { case (?x) x; case null [] };
+    let out = List.empty<Views.FileView>();
+    for (id in ids.values()) {
+      switch (siteAdmin.techSheets.get(id)) {
+        case (?x) {
+          switch (files.files.get(x.fileId)) {
+            case (?f) { if (f.archivedAt == null and not f.confidential and f.workId == null) { out.add(Dossier.fileView(f)) } };
+            case null {};
+          };
+        };
+        case null {};
+      };
+    };
+    #ok(out.toArray());
+  };
+
   // ── De klant (Mijn werf): enkel wat kantoor deelde; de architect: het afgeronde opleveringsdocument ──
   // Review M2: de klant moet van de firma zijn die op de werf als klant staat (zoals QuoteClientApi). Review L12: de architect (lid van de
   // werf) opent het afgeronde opleveringsdocument, zonder bedragen; hij ziet geen attest.

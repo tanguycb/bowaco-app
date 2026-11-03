@@ -40,7 +40,13 @@ const DATA = (sheets) => ({ workCode: "P.901", workName: "Proefwerf Merkebeke", 
   const d = await PDFDocument.load(r.bytes);
   check("(A1) PID: voorblad (1 bladzijde) + 2 + 3 + 1 (afbeelding als bladzijde) = 7 bladzijden, geldige PDF", d.getPageCount() === 7 && r.pages === 7, `${d.getPageCount()} blz.`);
   check("(A2) de fiches staan in de gekozen volgorde met hun eerste bladzijde (2, 4, 7)", r.included.map((x) => `${x.title}:${x.from}:${x.pages}`).join() === "Isolatie:2:2,Dakbedekking:4:3,Foto tegel:7:1", S(r.included));
-  check("(A3) een tekstbestand, een beschadigde PDF en een leeg bestand worden overgeslagen, met reden", r.skipped.length === 3 && r.skipped.find((x) => x.title === "Brochure").reason.includes("PDF, PNG en JPEG") && r.skipped.find((x) => x.title === "Kapot").reason.includes("beschadigd") && r.skipped.find((x) => x.title === "Leeg").reason.includes("PDF, PNG en JPEG"), S(r.skipped));
+  check("(A3) een tekstbestand, een beschadigde PDF en een leeg bestand worden overgeslagen, met reden", r.skipped.length === 3 && r.skipped.find((x) => x.title === "Brochure").reason.includes("PDF, PNG en JPEG") && r.skipped.find((x) => x.title === "Kapot").reason.includes("beschadigd") && r.skipped.find((x) => x.title === "Leeg").reason.includes("niet gevonden"), S(r.skipped));
+  // Review L7: bytes vóór "%PDF" (binnen de eerste 1 KB) aanvaard; een fiche zonder bestand: eigen reden; één slechte fiche breekt niets.
+  const junk = new Uint8Array(300 + a2.length);
+  junk.set(new TextEncoder().encode("X".repeat(300)));
+  junk.set(a2, 300);
+  const r8 = await buildPid(DATA([sheet("Met voorloop", junk), sheet("Zoek", new Uint8Array(), { missing: true }), sheet("Kapot", new TextEncoder().encode("rommel %PDF-1.4 kapot")), sheet("Isolatie", a3)]), fonts());
+  check("(A8) review L7: PDF met 300 bytes vóór de kop: opgenomen (2 blz.); bestand niet gevonden en beschadigd: overgeslagen met reden; de rest blijft (1 + 2 + 3)", r8.included.map((x) => `${x.title}:${x.pages}`).join() === "Met voorloop:2,Isolatie:3" && r8.skipped.find((x) => x.title === "Zoek")?.reason === "bestand niet gevonden" && /beschadigd/.test(r8.skipped.find((x) => x.title === "Kapot")?.reason ?? "") && (await PDFDocument.load(r8.bytes)).getPageCount() === 6, S([r8.included, r8.skipped]));
   check("(A4) het soort bestand volgt de inhoud, niet de naam of het opgegeven type", pidKind(a2) === "pdf" && pidKind(PNG) === "png" && pidKind(Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])) === "jpg" && pidKind(new TextEncoder().encode("x.pdf")) === null);
   const none = await buildPid(DATA([]), fonts());
   check("(A5) zonder fiches: enkel het voorblad (1 bladzijde)", (await PDFDocument.load(none.bytes)).getPageCount() === 1 && none.included.length === 0);
@@ -181,7 +187,7 @@ ok(await calc.makeOaContract(dealId, await dRev()));
 const nD1 = await nextOf(calc, W1);
 check("(B4) contract klaar om te tekenen: 1 te tekenen, met de naam van de firma", nD1.contractsToSign === 1n && nD1.contractFirm.includes("Reiger") && nD1.addendums === 0n, S(nD1));
 const nD1w = await nextOf(wl, W1);
-check("(B4) de werfleider van de werf ziet het contractfeit (zonder bedrag); OA, klant, architect en VC niet", nD1w.contractsToSign === 1n && (await Promise.all([oaDak, klant, arch, vc].map(async (x) => (await x.listWorkStages()).every((s) => s.next.contractsToSign === 0n && s.next.attestsExpired === 0n)))).every(Boolean));
+check("(B4) de werfleider van de werf ziet het contractfeit (zonder bedrag, review L6: zonder firmanaam); OA, klant, architect en VC niet", nD1w.contractsToSign === 1n && nD1w.contractFirm === "" && (await Promise.all([oaDak, klant, arch, vc].map(async (x) => (await x.listWorkStages()).every((s) => s.next.contractsToSign === 0n && s.next.attestsExpired === 0n)))).every(Boolean));
 ok(await calc.saveDealTerms(dealId, { advanceBp: 500n, paymentDays: 30n, endOfMonth: true }, await dRev()));
 const nD2 = await nextOf(calc, W1);
 check("(B4) afspraak gewijzigd na het contract: aanhangsel nodig (1), niet meer 'te tekenen'", nD2.addendums === 1n && nD2.contractsToSign === 0n, S(nD2));
@@ -196,6 +202,12 @@ const k0 = await admin.listOrgDocKinds();
 check("(B4) Beheer: de drie vaste soorten staan in de lijst (vast, niet te archiveren)", ["ba", "tienjarige", "personeel"].every((k) => k0.find((x) => x.key === k)?.fixed === true));
 const kName = `Proef RSZ 2c8p ${sfx}`;
 const kKey = ok(await admin.addOrgDocKind(kName));
+{
+  // Review L9: de sleutel behoudt de letters met een accent (é → e), geen streepje in de plaats.
+  const aKey = ok(await admin.addOrgDocKind(`Proef Attest sécurité Ölbrück ${sfx}`));
+  check("(B4) review L9: sleutel uit een naam met accenten: de letters blijven (securite, olbruck)", aKey === `proef-attest-securite-olbruck-${sfx.toLowerCase()}`, aKey);
+  ok(await admin.archiveOrgDocKind(aKey, true));
+}
 check("(B4) een soort toevoegen: de sleutel volgt de naam; ze staat in de lijst (eigen, niet vast) en in de keuzelijst van de attesten (niet verplicht)", /^proef-rsz-2c8p-/.test(kKey) && (await admin.listOrgDocKinds()).some((x) => x.key === kKey && !x.fixed && !x.archived) && (await calc.dealSetup()).docKinds.some((x) => x.key === kKey && !x.required), kKey);
 check("(B4) dezelfde naam nog eens, een lege naam, een vaste soort archiveren, een onbekende soort: geweigerd", /bestaat al/.test(errOf(await admin.addOrgDocKind(kName))) && /Naam/.test(errOf(await admin.addOrgDocKind(" "))) && /vaste soort/.test(errOf(await admin.archiveOrgDocKind("ba", true))) && /Onbekende/.test(errOf(await admin.archiveOrgDocKind("bestaat-niet", true))));
 check("(B4) enkel de beheerder beheert de soorten (calculator, werfleider, OA, klant geweigerd)", (await Promise.all([calc, wl, oaDak, klant].map((x) => denied(x.addOrgDocKind("Proef x"))))).every(Boolean) && (await denied(calc.archiveOrgDocKind(kKey, true))) && (await denied(wl.listOrgDocKinds())));
@@ -221,6 +233,21 @@ check("(B5) een OA-factuur met uren zonder werfverslag: de dag wacht op de werfl
 check("(B5) de beheerder ziet ze ook; de calculator (bevestigt geen uren), OA, klant, architect en VC niet", (await nextOf(admin, W1)).hoursOpen === nH.hoursOpen && (await Promise.all([calc, oaDak, klant, arch, vc].map(async (x) => (await x.listWorkStages()).every((s) => s.next.hoursOpen === 0n)))).every(Boolean));
 for (const c of claims.filter((c) => c.state === "te-bevestigen")) ok(await wl.reviewHourClaim(c.id, true, ""));
 check("(B5) na het bevestigen verdwijnt het feit", (await nextOf(wl, W1)).hoursOpen === 0n);
+// Review M5: modus "verschil" en een dag die klopt met het werfverslag (1 persoon, 8 u): geen vraag, dus geen kaart.
+{
+  const DK = today - 4n;
+  const KR = crypto.randomUUID();
+  const rsync = (op) => wl.reportSync([{ opId: crypto.randomUUID(), clientKey: KR, op }]);
+  const S8 = [{ fromMin: 450n, toMin: 720n }, { fromMin: 750n, toMin: 960n }];
+  await rsync({ ensure: { workId: W1, day: DK } });
+  await rsync({ attendance: { orgId: [REIGER], personId: [], names: "Proefploeg Reiger 2c8p", headcount: 1n, slots: S8, regie: true, taskId: [], note: "", replaces: [] } });
+  await rsync({ finalize: null });
+  const rk = Ld(W1, "regie", "Proef regie klopt 8 u", 8_000n, 4_600n, { u: "u", days: [dayIn(DK, 1n, S8, 0n)] });
+  const P2 = ok(await calc.savePurchase({ ...pur, number: `PA-${sfx}-2`, netCents: rk.amountCents, totalCents: rk.amountCents, lines: [rk] }, 0n));
+  const v2 = ok(await calc.readPurchase(P2));
+  const st = v2.lines[0].days.map((d) => d.state);
+  check("(B5) review M5: een dag die klopt met het werfverslag (modus verschil): geen vraag, de kaart telt hem niet", st.length === 1 && st[0] === "geen-vraag" && (await nextOf(wl, W1)).hoursOpen === 0n && (await nextOf(admin, W1)).hoursOpen === 0n, S([st, (await nextOf(wl, W1)).hoursOpen]));
+}
 
 // ── B6. Verzekering aangeven (2c.8) ──────────────────────────────────────
 const wk1 = (await admin.listWorks()).find((x) => x.id === W1);
@@ -258,6 +285,10 @@ check("(B7) het voorschot uitgereikt (betaaltermijn 1 dag): de schijf is niet me
 const f1 = ok(await calc.addFile("proef-fiche-2c8p.pdf", "application/pdf", 40_000n, fakeBlob("f"), [], false));
 const sh = ok(await calc.saveTechSheet({ id: [], materialKey: "Proefmateriaal", title: "Proef fiche 2c8p", fileId: f1, supplierOrgId: [] }));
 ok(await wl.setWorkTechSheets(W1, [sh]));
+{
+  const fw = ok(await wl.pidSheetFiles(W1));
+  check("(B8) review L7: de bestanden van de gekozen fiches (gericht): de werfleider van de werf en kantoor; OA, klant, architect, VC, anoniem niet", fw.length === 1 && fw[0].id === f1 && fw[0].size === 40_000n && isOk(await calc.pidSheetFiles(W1)) && (await Promise.all([oaDak, klant, arch, vc, anon].map((x) => denied(x.pidSheetFiles(W1))))).every(Boolean), S(fw.map((f) => f.id)));
+}
 check("(B8) de werfleider van de werf kiest de fiches en legt het PID vast (auditregel, geen bestand)", isOk(await wl.recordPid(W1, 1n, 0n, 4n)) && (await admin.auditLog(0n, 30n)).some((a) => a.action === "pid-gemaakt" && a.detail.includes("1 fiches in 4 bladzijden") && un(a.workId ?? []) === W1));
 check("(B8) een werfleider van een andere werf, OA, klant, architect, VC en anoniem: geen PID-regel; onzinnige tellingen geweigerd", (await Promise.all([oaDak, klant, arch, vc, anon].map((x) => denied(x.recordPid(W1, 1n, 0n, 4n))))).every(Boolean) && /tellingen/.test(errOf(await calc.recordPid(W1, 100_000n, 0n, 1n))));
 

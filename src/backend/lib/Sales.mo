@@ -165,7 +165,19 @@ module {
     switch k { case (#advance) "Voorschotfactuur"; case (#interim) "Tussentijdse factuur"; case (#final or #minMeer _) "Slotfactuur"; case (#progress _) "Factuur"; case (#free) "Factuur"; case (#credit _) "Creditnota" };
   };
   // 2c.8+ B: een factuur uit een schijf van een meerwerkofferte (soort #interim, sleutel "mw<offerte>-…") heet "Factuur meerwerk".
-  public func isExtraKey(k : ?Text) : Bool { switch k { case (?x) x.startsWith(#text "mw"); case null false } };
+  // Review L5: het patroon "mw<cijfers>-…"; extraKeyQuote geeft die offerte.
+  public func extraKeyQuote(k : Text) : ?Nat {
+    if (not k.startsWith(#text "mw")) { return null };
+    var digits = "";
+    var dash = false;
+    label scan for (ch in k.chars().drop(2)) {
+      if (ch >= '0' and ch <= '9') { digits #= Text.fromChar(ch) } else { dash := ch == '-'; break scan };
+    };
+    if (not dash or digits.size() == 0) null else Nat.fromText(digits);
+  };
+  public func isExtraKey(k : ?Text) : Bool { switch k { case (?x) extraKeyQuote(x) != null; case null false } };
+  // Een sleutel van een meerwerkschijf mét die offerte in quoteIds.
+  public func isExtraKeyOf(k : Text, quoteIds : [Nat]) : Bool { switch (extraKeyQuote(k)) { case (?q) quoteIds == [q]; case null false } };
   public func invKindKey(inv : Types.SalesInvoice) : Text { if (isExtraKey(inv.planStepKey) and inv.kind == #interim) "meerwerk" else kindKey(inv.kind) };
   public func invKindText(inv : Types.SalesInvoice) : Text { if (isExtraKey(inv.planStepKey) and inv.kind == #interim) "Factuur meerwerk" else kindText(inv.kind) };
   public func statusKey(s : Types.SalesStatus) : Text { switch s { case (#draft) "ontwerp"; case (#issued) "uitgereikt"; case (#draftCancelled _) "weggedaan" } };
@@ -193,10 +205,17 @@ module {
   };
   // Het schema van de getekende offerte: enkel de schijven zonder meerwerkofferte (quoteIds = []); die van een meerwerkofferte staan in
   // hetzelfde record (rawPlan) maar rekenen op hun eigen offerte (extraSteps, 2c.8+ B).
-  public func rawPlan(c : Ctx, workId : Nat) : Types.BillingPlan {
-    switch (c.sales.plans.get(workId)) { case (?p) p; case null defaultPlan(c.settings, workId) };
+  public func rawPlan(c : Ctx, workId : Nat) : Types.BillingPlan { storedPlan(c.settings, c.sales, workId) };
+  // Review L4: bewaarde enkel een meerwerkschema (extra "standaard" = "ja"), dan volgt het schema van de getekende offerte de
+  // instellingen tot kantoor het zelf bewaart.
+  public func storedPlan(s : Types.SettingsState, sales : Types.SalesState, workId : Nat) : Types.BillingPlan {
+    switch (sales.plans.get(workId)) {
+      case (?p) { if (followsDefault(p)) { { p with steps = defaultPlan(s, workId).steps.concat(p.steps.filter(isExtraStep)) } } else p };
+      case null defaultPlan(s, workId);
+    };
   };
-  public func isExtraStep(st : Types.BillingStep) : Bool { st.quoteIds.size() > 0 };
+  public func followsDefault(p : Types.BillingPlan) : Bool { p.extra.find(func((k, v) : (Text, Text)) : Bool = k == "standaard" and v == "ja") != null };
+  public func isExtraStep(st : Types.BillingStep) : Bool { st.quoteIds.size() > 0 and isExtraKeyOf(st.key, st.quoteIds) };
   public func planOf(c : Ctx, workId : Nat) : Types.BillingPlan {
     let p = rawPlan(c, workId);
     { p with steps = p.steps.filter(func(st : Types.BillingStep) : Bool = not isExtraStep(st)) };
@@ -311,7 +330,7 @@ module {
   public func extraSteps(c : Ctx, workId : Nat, qid : Nat, acceptDay : Nat) : [Types.BillingStep] { extraStepsIn(rawPlan(c, workId), qid, acceptDay) };
   // Alle schijven van een werf (getekende offerte en aanvaarde meerwerkoffertes), zonder rekenen (kaart Volgende stap).
   public func allSteps(s : Types.SettingsState, sales : Types.SalesState, qs : Types.QuotesState, qf : Types.QuoteFormState, workId : Nat, acceptDayOf : Types.QuoteVersion -> Nat) : [Types.BillingStep] {
-    let p = switch (sales.plans.get(workId)) { case (?x) x; case null defaultPlan(s, workId) };
+    let p = storedPlan(s, sales, workId);
     var out = p.steps.filter(func(st : Types.BillingStep) : Bool = not isExtraStep(st));
     for ((q, v) in extraQuotes(qs, qf, workId).values()) { out := out.concat(extraStepsIn(p, q.id, acceptDayOf(v))) };
     out;

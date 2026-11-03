@@ -23,6 +23,7 @@ import OaDeals "../lib/OaDeals";
 import OaQuotes "../lib/OaQuotes";
 import Post "../lib/Post";
 import Progress "../lib/Progress";
+import Purchase "../lib/Purchase";
 import Rights "../lib/Rights";
 import Sales "../lib/Sales";
 import Tenders "../lib/Tenders";
@@ -91,7 +92,8 @@ mixin (
     let today = Post.local(Time.now()).day;
     if (internal) {
       for (c in purchases.claims.values()) {
-        if (c.review == null and snClaimOpen(c)) { hours.add(c.workId, (switch (hours.get(c.workId)) { case (?n) n; case null 0 }) + 1) };
+        // Review M5: enkel wat echt een vraag is (modus "verschil": een dag die klopt niet), zoals listHourClaims.
+        if (snClaimOpen(c) and Purchase.claimState(settings, reports, c) == "te-bevestigen") { hours.add(c.workId, (switch (hours.get(c.workId)) { case (?n) n; case null 0 }) + 1) };
       };
       for (i in siteAdmin.insurances.values()) {
         switch (i.workId, i.declareBy) {
@@ -166,7 +168,8 @@ mixin (
       for (a in OaDeals.agreementsOf(oaDeals, id).values()) {
         switch (a.status) {
           case (#ended _) {};
-          case (#toSign) { if (toSign == 0) { firm := snOrgName(a.orgId) }; toSign += 1 };
+          // Review L6: de firmanaam enkel voor kantoor (dealScope #full), niet voor de werfleider.
+          case (#toSign) { if (toSign == 0 and Rights.dealScope(ctx, p, id) == #full) { firm := snOrgName(a.orgId) }; toSign += 1 };
           case (#draft) { if (a.contractVersion > 0) { addendums += 1 } };
           case (#signed) {};
         };

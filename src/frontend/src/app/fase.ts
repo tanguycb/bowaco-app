@@ -149,7 +149,8 @@ export type Stap = { key: keyof typeof t.stap; action: StapActie | null; data?: 
 /** Dagen vooruit waarbinnen "verzekering aangeven" op de kaart komt (de uiterste dag zelf staat in de zin). */
 export const DECLARE_WINDOW = 14;
 
-const dayNow = () => BigInt(Math.floor(Date.now() / 86_400_000));
+// Review L8: de lokale dag (zoals todayDay in util.ts en Post.local in de backend), niet de UTC-dag.
+const dayNow = () => { const n = new Date(); return BigInt(Math.floor(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) / 86_400_000)); };
 
 /**
  * 2c-open punten, deel A: de nieuwe stappen van de kaart. Volgorde: wat geld kost of wettelijk vastzit gaat voor (vervallen factuur,

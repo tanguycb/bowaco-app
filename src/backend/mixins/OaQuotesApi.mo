@@ -255,13 +255,16 @@ mixin (
       };
       case null {};
     };
-    for (c in tenders.choices.values()) {
-      switch c {
-        case (#plain(x)) { if (x.oaQuoteId == ?q.id and x.appliedVersionId != null) { return #err("Deze offerte is al overgenomen in een offerte van de klant: trek ze niet in") } };
-        case _ {};
+    // Review L9: gericht zoeken (de keuzes van die prijsvraag, de afspraken van die werf en firma).
+    switch tender {
+      case (?t) {
+        for (x in OaQuotes.choicesOf(tenders, t).values()) {
+          if (x.oaQuoteId == ?q.id and x.appliedVersionId != null) { return #err("Deze offerte is al overgenomen in een offerte van de klant: trek ze niet in") };
+        };
       };
+      case null {};
     };
-    for (a in oaDeals.agreements.values()) {
+    for (a in OaDeals.agreementsOf(oaDeals, q.workId).values()) {
       if (a.oaQuoteIds.find(func(x : Nat) : Bool = x == q.id) != null) {
         switch (a.status) { case (#ended _) {}; case _ { return #err("Een afspraak met deze firma verwijst naar de offerte: wijzig eerst de afspraak") } };
       };
