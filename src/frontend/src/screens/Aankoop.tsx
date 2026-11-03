@@ -8,7 +8,7 @@ import { useState } from "react";
 import { PurchaseStatus, type Caps, type HourClaimView } from "../backend";
 import { Button, Icon, useToast } from "../design";
 import { t } from "../texts/nl";
-import { errText, fmtDayNum, fmtEuro, fmtTime, unwrap, useBackend } from "../util";
+import { dayToInput, errText, fmtDayNum, fmtEuro, fmtTime, inputToDay, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page } from "./common";
 import { fmtQty } from "./Offertes";
 import { TabBar } from "./Tabs";
@@ -65,10 +65,13 @@ export function PurchaseList({ caps, go }: { caps: Caps; go: (to: string) => voi
 }
 
 // ── Te betalen ─────────────────────────────────────────────────────────────
+// Aankoopfacturen (na hun goedgekeurde creditnota's), een creditnota apart als haar factuur al betaald was (negatief), en de OA-facturen
+// van 2.11 die geen werfdeel zijn: die markeert men hier betaald (een aankoop in haar eigen scherm).
 export function PayList({ caps, go }: { caps: Caps; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
   const q = useQuery({ queryKey: ["purchasesToPay"], queryFn: async () => unwrap(await actor!.listPurchasesToPay()), enabled: !!actor && !isFetching, staleTime: 0, gcTime: 0 });
   const rows = q.data ?? [];
+  const [open, setOpen] = useState<bigint | null>(null);
   return (
     <Page label={t.oaFacturen.label} title={TA.payTitle}>
       <PurchaseTabs caps={caps} go={go} active="pay" />
@@ -77,19 +80,63 @@ export function PayList({ caps, go }: { caps: Caps; go: (to: string) => void }) 
       {q.data && rows.length === 0 && <EmptyState title={TA.payNone} text="" />}
       {rows.length > 0 && (
         <ul className="a-list" data-testid="pu-pay">
-          {rows.map((r) => (
-            <li key={String(r.brief.id)}>
-              <button type="button" className="a-list__btn" onClick={() => go(`oa-facturen/aankoop/${r.brief.id}`)}>
-                <span className="a-tag bw-mono">{r.brief.number}</span>
-                <span className="a-list__main"><b>{r.brief.orgName}</b><span className="bw-muted">{r.text}</span>{r.warnings.map((w) => <span key={w} className="a-tag a-tag--warn">{TA.payWarnings[w] ?? w}</span>)}</span>
-                <span className="bw-mono">{fmtEuro(r.payCents)}</span>
-                <Icon name="next" size={18} />
-              </button>
-            </li>
-          ))}
+          {rows.map((r) => {
+            const b = r.brief;
+            const oi = r.oaInvoice;
+            const key = b ? `p${b.id}` : `o${oi?.id}`;
+            return (
+              <li key={key}>
+                <button type="button" className="a-list__btn" onClick={() => (b ? go(`oa-facturen/aankoop/${b.id}`) : oi && setOpen(open === oi.id ? null : oi.id))}>
+                  <span className="a-tag bw-mono">{b ? b.number : oi?.number}</span>
+                  <span className="a-list__main">
+                    <b>{b ? b.orgName : oi?.orgName}</b>
+                    <span className="bw-muted">{oi ? `${TA.payOa} · ${oi.workCode} · ` : ""}{r.text}</span>
+                    {r.warnings.map((w) => <span key={w} className="a-tag a-tag--warn">{TA.payWarnings[w] ?? w}</span>)}
+                  </span>
+                  <span className="bw-mono">{fmtEuro(r.payCents)}</span>
+                  <Icon name={b ? "next" : open === oi?.id ? "close" : "receipt"} size={18} />
+                </button>
+                {oi && open === oi.id && <OaPayPanel row={r} onDone={() => { setOpen(null); void q.refetch(); }} />}
+              </li>
+            );
+          })}
         </ul>
       )}
     </Page>
+  );
+}
+
+/** Een OA-factuur van 2.11 betaald markeren (en de inhouding doorgestort), in de lijst zelf. */
+function OaPayPanel({ row, onDone }: { row: { oaInvoice?: { id: bigint; rev: bigint; invoiceDay: bigint }; paidDay?: bigint; withheldDay?: bigint; withholdCents: bigint }; onDone: () => void }) {
+  const { actor } = useBackend();
+  const toast = useToast();
+  const [day, setDay] = useState(dayToInput(row.paidDay ?? todayDay()));
+  const [wday, setWday] = useState(dayToInput(row.withheldDay));
+  const [busy, setBusy] = useState(false);
+  const oi = row.oaInvoice!;
+  const save = async (paid: boolean) => {
+    setBusy(true);
+    try {
+      unwrap(await actor!.markOaInvoicePaid(oi.id, oi.rev, paid ? inputToDay(day) ?? null : null, paid && row.withholdCents > 0n ? inputToDay(wday) ?? null : null));
+      toast.show({ kind: "ok", text: TA.paidOk });
+      onDone();
+    } catch (e) {
+      toast.show({ kind: "error", text: errText(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="a-card" style={{ margin: "4px 0 8px" }} data-testid="oa-pay">
+      <div className="a-row" style={{ flexWrap: "wrap", gap: 8 }}>
+        <label className="bw-field"><span className="bw-label">{TA.pay}</span><input className="bw-input" type="date" value={day} onChange={(e) => setDay(e.target.value)} /></label>
+        {row.withholdCents > 0n && <label className="bw-field"><span className="bw-label">{TA.withheld}</span><input className="bw-input" type="date" value={wday} onChange={(e) => setWday(e.target.value)} /></label>}
+      </div>
+      <div className="a-row" style={{ gap: 8 }}>
+        <Button variant="primary" busy={busy} disabled={inputToDay(day) === undefined} onClick={() => void save(true)}>{TA.payMark}</Button>
+        {row.paidDay !== undefined && <Button busy={busy} onClick={() => void save(false)}>{TA.unpay}</Button>}
+      </div>
+    </div>
   );
 }
 

@@ -4323,13 +4323,19 @@ export interface OrgView {
     archivedAt?: bigint;
 }
 export interface PayRow {
+    credits: Array<string>;
     discountCents?: bigint;
     netCents: bigint;
+    oaInvoice?: OaInvoiceBrief;
     totalCents: bigint;
     text: string;
+    creditCents: bigint;
+    withheldDay?: bigint;
     discountBp?: bigint;
     warnings: Array<string>;
-    brief: PurchaseBrief;
+    dueDay?: bigint;
+    paidDay?: bigint;
+    brief?: PurchaseBrief;
     withholdCents: bigint;
     payCents: bigint;
 }
@@ -5149,6 +5155,7 @@ export interface PurchaseBrief {
     status: PurchaseStatus;
     hasFile: boolean;
     orgName: string;
+    creditOfNumber: string;
     invoiceDay: bigint;
     orgId: bigint;
     kind: PurchaseKind;
@@ -5163,6 +5170,7 @@ export interface PurchaseBrief {
     general: boolean;
     hasStatement: boolean;
     works: Array<PurchaseWorkRef>;
+    creditOf?: bigint;
 }
 export interface PurchaseCostView {
     day: bigint;
@@ -5178,6 +5186,14 @@ export interface PurchaseCostView {
     kindName: string;
     purchaseId: bigint;
     lineId: bigint;
+}
+export interface PurchaseCreditRef {
+    id: bigint;
+    status: PurchaseStatus;
+    invoiceDay: bigint;
+    netCents: bigint;
+    totalCents: bigint;
+    number: string;
 }
 export interface PurchaseDayView {
     day: bigint;
@@ -5213,6 +5229,7 @@ export interface PurchaseDecisionView {
 export interface PurchaseFullView {
     periodFrom?: bigint;
     headerFlags: Array<OaFlag>;
+    credits: Array<PurchaseCreditRef>;
     decision?: PurchaseDecisionView;
     discountCents?: bigint;
     withholdSocialCents: bigint;
@@ -5262,6 +5279,7 @@ export interface PurchaseInput {
     number: string;
     periodTo?: bigint;
     reverseMention: boolean;
+    creditOf?: bigint;
     vatRegime: OaVatRegime;
 }
 export interface PurchaseLine {
@@ -5310,6 +5328,7 @@ export interface PurchaseLineView {
     index: bigint;
     postTitle: string;
     workId?: bigint;
+    creditedCents: bigint;
     lineId: bigint;
     agreedCents?: bigint;
     passOn: boolean;
@@ -7393,6 +7412,19 @@ export interface SalesDueRow {
     draftId?: bigint;
     workCode: string;
 }
+export interface SalesExtraPlanView {
+    stored: boolean;
+    title: string;
+    discountCents: bigint;
+    vatBp: bigint;
+    acceptedDay: bigint;
+    quoteLabel: string;
+    baseOk: boolean;
+    quoteId: bigint;
+    steps: Array<SalesStepView>;
+    chapters: Array<SalesChapterNet>;
+    contractCents: bigint;
+}
 export interface SalesFactView {
     advanceDay?: bigint;
     workId: bigint;
@@ -7610,6 +7642,7 @@ export interface SalesPlanView {
     version: bigint;
     steps: Array<SalesStepView>;
     progress: Array<SalesProgressBrief>;
+    extraWork: Array<SalesExtraPlanView>;
     chapters: Array<SalesChapterNet>;
     grossCents: bigint;
     plannedStart?: bigint;
@@ -9403,6 +9436,7 @@ export interface backendInterface {
     markIntroSeen(): Promise<void>;
     markNotificationsRead(ids: Array<bigint>): Promise<void>;
     markOaContractSigned(id: bigint, version: bigint, fileId: bigint, note: string, rev: bigint): Promise<Result_1>;
+    markOaInvoicePaid(id: bigint, rev: bigint, day: bigint | null, withheldDay: bigint | null): Promise<Result_1>;
     markProgressPrepared(id: bigint): Promise<Result_1>;
     markPurchasePaid(id: bigint, rev: bigint, day: bigint | null, withheldDay: bigint | null): Promise<Result_1>;
     markSalesSent(id: bigint, how: string): Promise<Result_1>;
@@ -9540,6 +9574,7 @@ export interface backendInterface {
     saveQuoteDraft(versionId: bigint, rev: bigint, header: QuoteHeaderInput | null, chapterOps: Array<QuoteChapterOp>, lineOps: Array<QuoteLineOp>, expect: QuoteExpect): Promise<Result_17>;
     saveQuoteForm(versionId: bigint, rev: bigint, i: QuoteFormInput, expect: QuoteFormExpect): Promise<Result_16>;
     saveSalesDraft(id: bigint, rev: bigint, i: SalesDraftInput): Promise<Result_15>;
+    saveSalesExtraPlan(workId: bigint, quoteId: bigint, version: bigint, steps: Array<BillingStepInput>): Promise<Result_14>;
     saveSalesPlan(workId: bigint, version: bigint, steps: Array<BillingStepInput>): Promise<Result_14>;
     saveSalesSettings(i: SalesSettingsInput): Promise<Result_1>;
     saveSiteAdminSettings(i: SiteAdminSettingsInput): Promise<Result_13>;

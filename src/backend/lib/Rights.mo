@@ -85,7 +85,8 @@ module {
     // 2c.7 (R44): aankoopfacturen. #editPurchases = registreren, controleren, goedkeuren, betwisten, betaald markeren, te betalen
     // en doorrekenen (admin, calculator; bedragen enkel via update-calls met auditregel). #confirmHourClaims = de uren per dag op een
     // OA-factuur bevestigen (de werfleider van DIE werf, en de beheerder), zonder bedrag. De OA ziet de stand van zijn eigen facturen
-    // met de bestaande schakelaar (#ownOaInvoices, R31).
+    // met de bestaande schakelaar (#ownOaInvoices, R31). 2c.8+ B: een creditnota registreren (savePurchase met creditOf) en een
+    // OA-factuur van 2.11 betaald markeren (markOaInvoicePaid, ook purchaseScope #full op die werf) = #editPurchases.
     #editPurchases; #confirmHourClaims;
     // 2c.5 (R41): de min-meerstaat. #readMinMeer = de staat van een werf zien (minMeerScope beslist wat: admin en calculator alles,
     // de werfleider van die werf hoeveelheden en uren zonder bedrag); #editMinMeer = regels, prijzen, uitsluitingen, regietarief,
@@ -103,7 +104,8 @@ module {
     // alles, de werfleider van die werf ENKEL het feit "voorschot betaald", de klant van de werf en van zijn firma zijn UITGEREIKTE
     // facturen); #editSales = schema, ontwerpen, betalingen, creditnota, herinnering, kwartaallijst (admin, calculator; bedragen enkel via
     // update-calls met auditregel); #issueSales = uitreiken (admin en calculator, met de instelling "enkel de beheerder" ⚖6: admin);
-    // #ownSales = de klantrol: "Mijn facturen". Teller en vaste vermeldingen: #manageSettings (R43).
+    // #ownSales = de klantrol: "Mijn facturen". Teller en vaste vermeldingen: #manageSettings (R43). 2c.8+ B: de eigen schijven van een
+    // meerwerkofferte (saveSalesExtraPlan) = #editSales + #readCosts + #readSales op die werf, zoals saveSalesPlan.
     #readSales; #editSales; #issueSales; #ownSales;
   };
 

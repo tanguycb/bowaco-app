@@ -22,9 +22,11 @@ import Access "../lib/Access";
 import OaDeals "../lib/OaDeals";
 import OaQuotes "../lib/OaQuotes";
 import Post "../lib/Post";
+import Progress "../lib/Progress";
 import Rights "../lib/Rights";
 import Sales "../lib/Sales";
 import Tenders "../lib/Tenders";
+import WorkStart "../lib/WorkStart";
 
 mixin (
   settings : Types.SettingsState,
@@ -34,6 +36,8 @@ mixin (
   plan : Types.PlanState,
   reports : Types.ReportState,
   quotes : Types.QuotesState,
+  quoteForms : Types.QuoteFormState,
+  quoteDocs : Types.QuoteDocsState,
   workStarts : Types.WorkStartState,
   surveys : Types.SurveyState,
   progress : Types.ProgressState,
@@ -192,10 +196,10 @@ mixin (
         case (?w) {
           if (w.archivedAt == null and w.status != #cancelled) {
             let invs = Sales.invoicesOf(sales, id);
-            let plan = switch (sales.plans.get(id)) { case (?x) x; case null Sales.defaultPlan(settings, id) };
+            // 2c.8+ B: ook de schijven van de aanvaarde meerwerkoffertes (bij het akkoord = nu te factureren).
             var due = 0;
             var dueDay : ?Nat = null;
-            for (st in plan.steps.values()) {
+            for (st in Sales.allSteps(settings, sales, quotes, quoteForms, id, func(v : Types.QuoteVersion) : Nat = Progress.dayOf(WorkStart.acceptedAt(quoteDocs, v))).values()) {
               let mine = invs.filter(func(i : Types.SalesInvoice) : Bool = i.planStepKey == ?st.key and Sales.creditOfId(i) == null and not Sales.isCancelled(i));
               let live = mine.any(func(i : Types.SalesInvoice) : Bool = Sales.isIssued(i) and not Sales.fullyCredited(sales, i));
               if (not live) {

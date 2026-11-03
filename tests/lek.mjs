@@ -469,11 +469,13 @@ const table = {
   readPurchase: [NONE, () => [X]],
   listPurchasesToPay: [["admin", "calculator"], () => []],
   purchaseCosts: [["admin", "calculator"], () => [B]],
-  savePurchase: [["admin", "calculator"], () => [{ id: [], orgId: X, kind: { oa: null }, number: "", invoiceDay: 0n, dueDay: [], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], oaStatementFileId: [], oaStatementRef: "", note: "", netCents: 0n, vatCents: 0n, totalCents: 0n, lines: [], finalWorkIds: [] }, 0n]],
+  savePurchase: [["admin", "calculator"], () => [{ id: [], orgId: X, kind: { oa: null }, number: "", invoiceDay: 0n, dueDay: [], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], oaStatementFileId: [], oaStatementRef: "", note: "", netCents: 0n, vatCents: 0n, totalCents: 0n, lines: [], finalWorkIds: [], creditOf: [] }, 0n]],
   approvePurchase: [NONE, () => [X, 0n, ""]],
   disputePurchase: [NONE, () => [X, 0n, ""]],
   withdrawPurchase: [NONE, () => [X, 0n, ""]],
   markPurchasePaid: [NONE, () => [X, 0n, [], []]],
+  // 2c.8+ B: een OA-factuur van 2.11 betaald markeren (onbekende factuur: niemand).
+  markOaInvoicePaid: [NONE, () => [X, 0n, [], []]],
   listHourClaims: [["admin", "werfleider"], () => [[]]],
   reviewHourClaim: [NONE, () => [X, true, ""]],
   myPurchases: [NONE, () => []],
@@ -501,6 +503,8 @@ const table = {
   setSalesCounter: [ADMIN, () => ["X", 0n, 0n]],
   readSalesPlan: [["admin", "calculator"], () => [B]],
   saveSalesPlan: [["admin", "calculator"], () => [B, 999n, []]],
+  // 2c.8+ B: de eigen schijven van een meerwerkofferte (kantoor; zonder aanvaarde meerwerkofferte een gewone weigering).
+  saveSalesExtraPlan: [["admin", "calculator"], () => [B, X, 999n, []]],
   listSales: [["admin", "calculator"], () => [B]],
   salesFacts: [["admin", "werfleider", "calculator"], () => [B]],
   newSalesInvoice: [["admin", "calculator"], () => [B, { credit: { invoiceId: X, full: true } }]],

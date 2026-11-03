@@ -72,6 +72,21 @@ module {
     minMeer : [SalesMmVersionBrief];
     progress : [SalesProgressBrief];
     plannedStart : ?Nat;
+    extraWork : [SalesExtraPlanView]; // 2c.8+ B: de aanvaarde meerwerkoffertes met hun eigen schijven
+  };
+  // Een aanvaarde meerwerkofferte met haar eigen schijven (standaard één schijf van 100 % bij het akkoord van de klant).
+  public type SalesExtraPlanView = {
+    quoteId : Nat;
+    quoteLabel : Text; // "<nummer> v<versie>"
+    title : Text;
+    acceptedDay : Nat;
+    stored : Bool; // false = de standaardschijf (nog niet aangepast)
+    vatBp : Nat;
+    discountCents : Int;
+    contractCents : Int; // het subtotaal van de aanvaarde versie (na korting)
+    baseOk : Bool; // de versie rekent nog zoals bij het versturen
+    chapters : [SalesChapterNet];
+    steps : [SalesStepView];
   };
 
   // ── Facturen ──

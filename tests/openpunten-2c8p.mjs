@@ -213,7 +213,7 @@ const fileW1 = ok(await calc.addFile("proef-aankoop-2c8p.pdf", "application/pdf"
 const Ld = (workId, kind, description, qty, unit, o = {}) => ({ workId: [workId], kind, root: [], description, persons: [], qtyMilli: qty, unit: o.u ?? "", unitCents: unit, amountCents: (qty * unit + 500n) / 1000n, passOn: false, days: o.days ?? [], lineId: [], });
 const dayIn = (d, persons, slots, pauseMin = 0n) => ({ day: d, persons, slots, pauseMin });
 const regie = Ld(W1, "regie", "Proef regie 8 u", 8_000n, 4_600n, { u: "u", days: [dayIn(today - 2n, 1n, [{ fromMin: 480n, toMin: 990n }], 30n)] });
-const pur = { id: [], orgId: REIGER, kind: { oa: null }, number: `PA-${sfx}-1`, invoiceDay: today, dueDay: [today + 30n], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [fileW1], oaStatementFileId: [], oaStatementRef: "", note: "proef 2c8p", netCents: regie.amountCents, vatCents: 0n, totalCents: regie.amountCents, lines: [regie], finalWorkIds: [] };
+const pur = { id: [], orgId: REIGER, kind: { oa: null }, number: `PA-${sfx}-1`, invoiceDay: today, dueDay: [today + 30n], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [fileW1], oaStatementFileId: [], oaStatementRef: "", note: "proef 2c8p", netCents: regie.amountCents, vatCents: 0n, totalCents: regie.amountCents, lines: [regie], finalWorkIds: [], creditOf: [] };
 const P1 = ok(await calc.savePurchase(pur, 0n));
 const claims = await wl.listHourClaims([W1]);
 const nH = await nextOf(wl, W1);

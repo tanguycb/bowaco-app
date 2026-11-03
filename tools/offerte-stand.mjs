@@ -192,7 +192,11 @@ if (typeof who.admin.listPurchases === "function") {
   // Als object per id: nieuwe aankopen en dagen tellen bij de vergelijking niet, gewijzigde wel.
   const byId = (r, f) => (r.ok ? Object.fromEntries(r.ok.map((x) => [String(f(x)), x])) : r);
   stand.urenWerfleider = byId(await res(who.werfleider.listHourClaims([])), (c) => c.id);
-  stand.teBetalen = byId(await res(who.admin.listPurchasesToPay()), (r) => r.brief.id);
+  // 2c.8+ B: brief is een optie (een rij van een OA-factuur van 2.11 heeft oaInvoice): zelfde sleutel en vorm als vroeger voor een aankoop.
+  const tb = await res(who.admin.listPurchasesToPay());
+  const optOf = (x) => (Array.isArray(x) ? x[0] : x);
+  const payKey = (r) => { const b = optOf(r.brief); return b ? String(b.id) : `oa-${optOf(r.oaInvoice)?.id}`; };
+  stand.teBetalen = tb.ok ? Object.fromEntries(tb.ok.map((r) => [payKey(r), { ...r, brief: optOf(r.brief) ?? null }])) : tb;
   stand.mijnAankopen = byId(await res(who.oa.myPurchases()), (x) => x.number);
   stand.aankoopInstellingen = await res(who.admin.purchaseSettings());
   stand.aankoopBedragen = Object.fromEntries((await chunkOf("purchaseAmounts")).map(([k, v]) => [String(k), v]));
@@ -287,7 +291,17 @@ if (typeof who.admin.readSalesPlan === "function") {
   stand.factuurOntwerpen = Object.fromEntries((await chunkOf("salesDrafts")).map(([k, v]) => [String(k), v]));
   stand.factuurInstellingen = noToday(await res(who.admin.salesSettings()));
 }
+// 2c.8+ B (enkel als de code het kent): de creditnota's op aankopen, de stand betaald van de OA-facturen van 2.11 (in hun extra) en de
+// eigen schijven van de aanvaarde meerwerkoffertes per werf.
 const ex = await who.admin.exportIntern();
+if (typeof who.admin.markOaInvoicePaid === "function") {
+  stand.creditnotas = {};
+  for (const b of (await res(who.admin.listPurchases([], []))).ok ?? []) { const c = Array.isArray(b.creditOf) ? b.creditOf[0] : undefined; if (c !== undefined) stand.creditnotas[String(b.id)] = { creditOf: c, number: b.number, status: b.status, paidDay: b.paidDay }; }
+  stand.oaBetaald = {};
+  for (const i of ex.oaInvoices ?? []) { const e = Object.fromEntries(i.extra); if (e.betaald || e.doorgestort) stand.oaBetaald[String(i.id)] = { betaald: e.betaald ?? "", doorgestort: e.doorgestort ?? "" }; }
+  stand.meerwerkSchijven = {};
+  for (const w of await who.admin.listWorks()) { const r = await res(who.admin.readSalesPlan(w.id)); if (r.ok && r.ok.extraWork.length) stand.meerwerkSchijven[String(w.id)] = r.ok.extraWork; }
+}
 for (const [k, v] of Object.entries(ex)) if (Array.isArray(v)) stand.telling[k] = v.length;
 delete stand.telling.notifications; // leesacties kunnen meldingen maken
 writeFileSync(out, JSON.stringify(stand, big, 1), { mode: 0o600 });

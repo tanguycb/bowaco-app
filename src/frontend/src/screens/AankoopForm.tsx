@@ -51,6 +51,11 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
   const set = useQuery({ queryKey: ["purchaseSettings"], queryFn: () => actor!.purchaseSettings(), enabled: !!actor && !isFetching });
   const cur = useQuery({ queryKey: ["purchaseFull", String(id ?? "")], queryFn: async () => unwrap(await actor!.readPurchase(id!)), enabled: !!actor && !isFetching && id !== undefined, staleTime: 0, gcTime: 0 });
   const w0 = window.location.hash.match(/[?&]w=(\d+)/)?.[1] ?? "";
+  // 2c.8+ B: een creditnota op een aankoop (nieuw met ?credit=<id>, of verbeteren van een bestaande creditnota).
+  const c0 = window.location.hash.match(/[?&]credit=(\d+)/)?.[1];
+  const creditOf: bigint | undefined = cur.data ? cur.data.brief.creditOf : c0 ? BigInt(c0) : undefined;
+  const orig = useQuery({ queryKey: ["purchaseFull", String(creditOf ?? "")], queryFn: async () => unwrap(await actor!.readPurchase(creditOf!)), enabled: !!actor && !isFetching && creditOf !== undefined, staleTime: 0, gcTime: 0 });
+  const credit = creditOf !== undefined;
   const [f, setF] = useState({ kind: "oa", orgId: "", number: "", day: dayToInput(todayDay()), due: "", discUntil: "", discPct: "", from: "", to: "", regime: "reverse", mention: true, net: "", vat: "", total: "", note: "", statRef: "" });
   const [lines, setLines] = useState<LineForm[]>([emptyLine(w0, false)]);
   const [file, setFile] = useState<{ id: bigint; name: string } | null>(null);
@@ -67,6 +72,14 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
     setStat(v.statement ? { id: v.statement.id, name: v.statement.name } : null);
     setFinals(v.finalWorkIds.map(String));
   }, [v]);
+  const o0 = orig.data;
+  useEffect(() => {
+    if (!o0 || id !== undefined) return;
+    const b = o0.brief;
+    setF((x) => ({ ...x, kind: b.kind, orgId: String(b.orgId), due: "", discUntil: "", discPct: "", from: dayToInput(o0.periodFrom), to: dayToInput(o0.periodTo), regime: o0.vatRegime.__kind__ === "reverse" ? "reverse" : String(o0.vatRegime.normal), mention: o0.reverseMention }));
+    const abs = (c: bigint) => (c < 0n ? -c : c);
+    setLines(o0.lines.filter((l) => l.kind !== "aftrek-voorschot" && abs(l.amountCents) > l.creditedCents).map((l) => ({ work: l.workId !== undefined ? String(l.workId) : "general", kind: l.kind, root: l.root !== undefined ? String(l.root) : "", description: l.description, persons: l.persons !== undefined ? String(l.persons) : "", qty: fmtQty(l.qtyMilli), unit: l.unit, price: euroIn(l.unitCents), amount: euroIn(abs(l.amountCents) - l.creditedCents), passOn: l.passOn, days: [], lineId: l.lineId })));
+  }, [o0, id]);
   const firms = (orgs.data ?? []).filter((o) => (f.kind === "oa" ? o.kind === OrgKind.subcontractor : f.kind === "supplier" ? o.kind === OrgKind.supplier : o.kind === OrgKind.subcontractor || o.kind === OrgKind.supplier || o.kind === OrgKind.other || o.kind === OrgKind.authority));
   const kinds = KINDS.filter((k) => f.kind === "oa" || !OA_ONLY.has(k));
   const upLine = (k: number, x: Partial<LineForm>) => setLines((ls) => ls.map((l, i) => (i === k ? { ...l, ...x } : l)));
@@ -116,7 +129,8 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
       const input: PurchaseInput = {
         id, orgId: BigInt(f.orgId), kind: f.kind as PurchaseKind, number: f.number.trim(), invoiceDay: inputToDay(f.day)!, dueDay: inputToDay(f.due), discountUntil: inputToDay(f.discUntil), discountBp: discBp !== null ? BigInt(discBp) : undefined,
         periodFrom: inputToDay(f.from), periodTo: inputToDay(f.to), vatRegime: f.regime === "reverse" ? { __kind__: "reverse", reverse: null } : { __kind__: "normal", normal: BigInt(f.regime) }, reverseMention: f.regime === "reverse" ? f.mention : false,
-        fileId: file?.id, oaStatementFileId: stat?.id, oaStatementRef: f.statRef, note: f.note, netCents: net!, vatCents: vat!, totalCents: total!, lines: outs as PurchaseLineInput[], finalWorkIds: finals.filter((w) => workIds.includes(w)).map((w) => BigInt(w)),
+        fileId: file?.id, oaStatementFileId: stat?.id, oaStatementRef: f.statRef, note: f.note, netCents: net!, vatCents: vat!, totalCents: total!, lines: outs as PurchaseLineInput[], finalWorkIds: credit ? [] : finals.filter((w) => workIds.includes(w)).map((w) => BigInt(w)),
+        creditOf,
       };
       const nid = unwrap(await actor!.savePurchase(input, v ? v.brief.rev : 0n));
       toast.show({ kind: "ok", text: TA.saved });
@@ -140,12 +154,13 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
     </div>
   );
   return (
-    <Page wide label={t.oaFacturen.label} title={id ? TA.editTitle : TA.newTitle} actions={<><Button icon="back" onClick={() => go(id ? `oa-facturen/aankoop/${id}` : "oa-facturen/aankoop")}>{t.common.back}</Button><Button variant="primary" icon="check" busy={busy} disabled={!valid} onClick={() => void save()} data-testid="pu-save">{TA.save}</Button></>}>
+    <Page wide label={t.oaFacturen.label} title={credit ? TA.creditTitle(o0?.brief.number ?? "") : id ? TA.editTitle : TA.newTitle} actions={<><Button icon="back" onClick={() => go(id ? `oa-facturen/aankoop/${id}` : "oa-facturen/aankoop")}>{t.common.back}</Button><Button variant="primary" icon="check" busy={busy} disabled={!valid} onClick={() => void save()} data-testid="pu-save">{TA.save}</Button></>}>
       {id !== undefined && <Loading q={cur} />}
+      {credit && <p className="a-note" data-testid="pu-credit-lead">{TA.creditLead}</p>}
       <section className="vs-card a-form" data-testid="pu-form">
         <div className="a-grid3">
-          {fld(TA.kind, <select className="bw-input" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value, orgId: "" })} data-testid="pu-kind">{["oa", "supplier", "other"].map((k) => <option key={k} value={k}>{TA.kinds[k]}</option>)}</select>)}
-          {fld(TA.firm, <select className="bw-input" value={f.orgId} onChange={(e) => setF({ ...f, orgId: e.target.value })} data-testid="pu-org"><option value="">—</option>{firms.map((o) => <option key={String(o.id)} value={String(o.id)}>{o.name}</option>)}</select>)}
+          {fld(TA.kind, <select className="bw-input" disabled={credit} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value, orgId: "" })} data-testid="pu-kind">{["oa", "supplier", "other"].map((k) => <option key={k} value={k}>{TA.kinds[k]}</option>)}</select>)}
+          {fld(TA.firm, <select className="bw-input" disabled={credit} value={f.orgId} onChange={(e) => setF({ ...f, orgId: e.target.value })} data-testid="pu-org"><option value="">—</option>{firms.map((o) => <option key={String(o.id)} value={String(o.id)}>{o.name}</option>)}</select>)}
           {fld(TA.number, <input className="bw-input" value={f.number} onChange={(e) => setF({ ...f, number: e.target.value })} data-testid="pu-number" />)}
         </div>
         <div className="a-grid3">
@@ -153,11 +168,12 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
           {fld(TA.due, <input type="date" className="bw-input" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} />)}
           {fld(TA.periodFrom, <span className="a-row"><input type="date" className="bw-input" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /><input type="date" className="bw-input" aria-label={TA.periodTo} value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></span>)}
         </div>
-        <div className="a-grid3">
+        {!credit && <div className="a-grid3">
           {fld(TA.discountUntil, <input type="date" className="bw-input" value={f.discUntil} onChange={(e) => setF({ ...f, discUntil: e.target.value })} data-testid="pu-disc-until" />)}
           {fld(TA.discountPct, <input className="bw-input bw-num" inputMode="decimal" placeholder="1,5" value={f.discPct} onChange={(e) => setF({ ...f, discPct: e.target.value })} data-testid="pu-disc-pct" />)}
           {fld(TA.regime, <select className="bw-input" value={f.regime} onChange={(e) => setF({ ...f, regime: e.target.value })}><option value="reverse">{t.oaFacturen.regimes.reverse}</option><option value="2100">{t.oaFacturen.regimes.n21}</option><option value="600">{t.oaFacturen.regimes.n6}</option><option value="0">{t.oaFacturen.regimes.n0}</option></select>)}
-        </div>
+        </div>}
+        {credit && <div className="a-grid3">{fld(TA.regime, <select className="bw-input" value={f.regime} onChange={(e) => setF({ ...f, regime: e.target.value })}><option value="reverse">{t.oaFacturen.regimes.reverse}</option><option value="2100">{t.oaFacturen.regimes.n21}</option><option value="600">{t.oaFacturen.regimes.n6}</option><option value="0">{t.oaFacturen.regimes.n0}</option></select>)}</div>}
         {f.regime === "reverse" && <label className="a-check"><input type="checkbox" checked={f.mention} onChange={(e) => setF({ ...f, mention: e.target.checked })} /> {TA.mention}</label>}
         <div className="a-grid3">
           {fld(TA.net, <input className="bw-input bw-num" inputMode="decimal" value={f.net} onChange={(e) => setF({ ...f, net: e.target.value })} data-testid="pu-net" />)}
@@ -169,12 +185,12 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
         {f.kind === "oa" && fld(TA.statementRef, <input className="bw-input" value={f.statRef} onChange={(e) => setF({ ...f, statRef: e.target.value })} />)}
         {fld(TA.note, <textarea className="bw-input" rows={2} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />)}
       </section>
-      <LinesEditor oa={f.kind === "oa"} lines={lines} outs={outs} kinds={kinds} works={(works.data ?? []).map((w) => ({ id: String(w.id), label: `${w.code} · ${w.name}` }))} upLine={upLine} upDay={upDay} setLines={setLines} passOnDefault={set.data?.passOn ?? true} />
+      <LinesEditor credit={credit} oa={f.kind === "oa"} lines={lines} outs={outs} kinds={kinds} works={(works.data ?? []).map((w) => ({ id: String(w.id), label: `${w.code} · ${w.name}` }))} upLine={upLine} upDay={upDay} setLines={setLines} passOnDefault={set.data?.passOn ?? true} />
       <div className="a-row a-row--between">
-        <Button icon="plus" onClick={() => setLines((ls) => [...ls, emptyLine(ls[ls.length - 1]?.work || w0 || (f.kind === "oa" ? String((works.data ?? [])[0]?.id ?? "") : ""), false)])} data-testid="pu-add-line">{TA.addLine}</Button>
+        {credit ? <span /> : <Button icon="plus" onClick={() => setLines((ls) => [...ls, emptyLine(ls[ls.length - 1]?.work || w0 || (f.kind === "oa" ? String((works.data ?? [])[0]?.id ?? "") : ""), false)])} data-testid="pu-add-line">{TA.addLine}</Button>}
         <span className={`bw-mono${net !== null && sum !== net ? " a-err" : ""}`}>{TA.sumLines}: {fmtEuro(sum)}{net !== null && sum !== net ? ` ≠ ${fmtEuro(net)}` : ""}</span>
       </div>
-      {f.kind === "oa" && workIds.length > 0 && (
+      {!credit && f.kind === "oa" && workIds.length > 0 && (
         <section className="vs-section">
           {workIds.map((w) => <label key={w} className="a-check"><input type="checkbox" checked={finals.includes(w)} onChange={(e) => setFinals(e.target.checked ? [...finals, w] : finals.filter((x) => x !== w))} /> {TA.final} ({(works.data ?? []).find((x) => String(x.id) === w)?.code})</label>)}
         </section>
@@ -183,7 +199,7 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
   );
 }
 
-function LinesEditor({ oa, lines, outs, kinds, works, upLine, upDay, setLines, passOnDefault }: { oa: boolean; lines: LineForm[]; outs: (PurchaseLineInput | null)[]; kinds: string[]; works: { id: string; label: string }[]; upLine: (k: number, x: Partial<LineForm>) => void; upDay: (k: number, j: number, x: Partial<DayForm>) => void; setLines: React.Dispatch<React.SetStateAction<LineForm[]>>; passOnDefault: boolean }) {
+function LinesEditor({ credit, oa, lines, outs, kinds, works, upLine, upDay, setLines, passOnDefault }: { credit: boolean; oa: boolean; lines: LineForm[]; outs: (PurchaseLineInput | null)[]; kinds: string[]; works: { id: string; label: string }[]; upLine: (k: number, x: Partial<LineForm>) => void; upDay: (k: number, j: number, x: Partial<DayForm>) => void; setLines: React.Dispatch<React.SetStateAction<LineForm[]>>; passOnDefault: boolean }) {
   return (
     <section className="vs-section">
       <h2 className="bw-h3">{TA.lines}</h2>
@@ -195,14 +211,14 @@ function LinesEditor({ oa, lines, outs, kinds, works, upLine, upDay, setLines, p
           <div key={k} className="vs-card a-form pu-line" data-testid="pu-line">
             <div className="a-grid3">
               <label className="bw-field"><span className="bw-label">{TA.work}</span>
-                <select className="bw-input" value={l.work} onChange={(e) => upLine(k, { work: e.target.value, root: "" })} data-testid="pu-line-work">
+                <select className="bw-input" disabled={credit} value={l.work} onChange={(e) => upLine(k, { work: e.target.value, root: "" })} data-testid="pu-line-work">
                   <option value="">—</option>
                   {works.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
                   {!oa && <option value="general">{TA.general}</option>}
                 </select>
               </label>
               <label className="bw-field"><span className="bw-label">{TA.costKind}</span>
-                <select className="bw-input" value={l.kind} onChange={(e) => upLine(k, { kind: e.target.value, root: "", unit: UNITS[e.target.value] ?? "", passOn: COST.has(e.target.value) ? passOnDefault : false, days: HOURS.has(e.target.value) ? l.days : [] })} data-testid="pu-line-kind">
+                <select className="bw-input" disabled={credit} value={l.kind} onChange={(e) => upLine(k, { kind: e.target.value, root: "", unit: UNITS[e.target.value] ?? "", passOn: COST.has(e.target.value) ? passOnDefault : false, days: HOURS.has(e.target.value) ? l.days : [] })} data-testid="pu-line-kind">
                   {kinds.map((x) => <option key={x} value={x}>{TA.costKinds[x] ?? x}</option>)}
                 </select>
               </label>
@@ -217,8 +233,8 @@ function LinesEditor({ oa, lines, outs, kinds, works, upLine, upDay, setLines, p
               <label className="bw-field"><span className="bw-label">{TA.unitPrice}</span><input className="bw-input bw-num vs-input" inputMode="decimal" value={l.price} onChange={(e) => upLine(k, { price: e.target.value })} /></label>
               <label className="bw-field"><span className="bw-label">{TA.amount}</span><input className={`bw-input bw-num vs-input${o === null ? " vs-input--bad" : ""}`} inputMode="decimal" placeholder={o ? euroIn(o.amountCents) : ""} value={l.amount} onChange={(e) => upLine(k, { amount: e.target.value })} /></label>
             </div>
-            {COST.has(l.kind) && !general && <label className="a-check"><input type="checkbox" checked={l.passOn} onChange={(e) => upLine(k, { passOn: e.target.checked })} /> {TA.passOn}</label>}
-            {HOURS.has(l.kind) && !general && (
+            {COST.has(l.kind) && !general && <label className="a-check"><input type="checkbox" disabled={credit} checked={l.passOn} onChange={(e) => upLine(k, { passOn: e.target.checked })} /> {TA.passOn}</label>}
+            {HOURS.has(l.kind) && !general && !credit && (
               <div className="pu-days">
                 <span className="bw-label">{TA.days}</span>
                 {l.days.map((d, j) => (

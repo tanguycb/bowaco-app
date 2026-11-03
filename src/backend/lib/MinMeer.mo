@@ -208,7 +208,9 @@ module {
     // werfdeel van die werf: goedgekeurd telt, geregistreerd of in controle wacht, betwist of ingetrokken staat er niet.
     for (k in Purchase.passOnCosts(c.pu, c.oi, workId, null, null, false).values()) {
       // Een exacte eenheidsprijs als die bestaat; anders 1 × het bedrag (de regel rekent nooit een ander bedrag dan de factuur).
-      let exact = k.qtyMilli > 0 and (k.costCents * 1000) % k.qtyMilli == 0;
+      // 2c.8+ B: een creditnota komt met −hoeveelheid en −bedrag (eenheidsprijs positief): de regel vermindert het meerwerk.
+      let credit = switch (c.pu.purchases.get(k.purchaseId)) { case (?x) x.creditOf != null; case null false };
+      let exact = (k.qtyMilli > 0 or (credit and k.qtyMilli < 0)) and (k.costCents * 1000) % k.qtyMilli == 0;
       let kind = if (Text.startsWith(k.kindKey, #text "andere")) "andere" else k.kindKey;
       out.add({ key = k.key; day = k.day; orgId = ?k.orgId; kindKey = kind; description = k.description; qtyMilli = if exact k.qtyMilli else 0; unit = if (k.unit == "") "st" else k.unit; unitCents = if exact (k.costCents * 1000) / k.qtyMilli else k.costCents; amountCents = k.costCents; passOn = true; source = k.source; version = Text.fromIter(hash("bowaco-kost-v1|" # k.description # "|" # Int.toText(k.qtyMilli) # "|" # k.unit # "|" # Int.toText(k.costCents)).chars().take(16)); pending = k.status != #approved });
     };

@@ -597,7 +597,7 @@ let W4ref = null;
   const Lp = (workId, kind, description, qty, unit, u) => ({ workId: [workId], kind, root: [], description, persons: [], qtyMilli: qty, unit: u, unitCents: unit, amountCents: (qty * unit + 500n) / 1000n, passOn: true, days: [], lineId: [] });
   const lines = [Lp(W3, "container", "Proef container aankoop 2c5", 2_000n, 5_000n, "ton"), Lp(W4ref, "materiaal", "Proef materiaal aankoop 2c5", 1_000n, 3_000n, "st")];
   const net = lines.reduce((a, l) => a + l.amountCents, 0n);
-  const PU = ok(await calc.savePurchase({ id: [], orgId: MUS, kind: { oa: null }, number: `PU-${suffix}-1`, invoiceDay: cDay, dueDay: [cDay + 30n], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], oaStatementFileId: [], oaStatementRef: "", note: "proef 2c5", netCents: net, vatCents: 0n, totalCents: net, lines, finalWorkIds: [] }, 0n));
+  const PU = ok(await calc.savePurchase({ id: [], orgId: MUS, kind: { oa: null }, number: `PU-${suffix}-1`, invoiceDay: cDay, dueDay: [cDay + 30n], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [], oaStatementFileId: [], oaStatementRef: "", note: "proef 2c5", netCents: net, vatCents: 0n, totalCents: net, lines, finalWorkIds: [], creditOf: [] }, 0n));
   const pv = ok(await calc.readPurchase(PU));
   const part3 = un(pv.brief.works.find((x) => x.workId === W3).partId);
   const pr3 = ok(await calc.readOaInvoice(part3));

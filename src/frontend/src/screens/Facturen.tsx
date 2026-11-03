@@ -4,7 +4,7 @@
 // bedrag). De klant: Mijn werf → Facturatie (FacturenLijst.tsx). De browser rekent mee met sales/calc.ts.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { Caps, SalesBrief, SalesPlanView, SalesStepView, BillingWhen } from "../backend";
+import type { Caps, SalesBrief, SalesExtraPlanView, SalesPlanView, SalesStepView, BillingWhen } from "../backend";
 import { Button, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, unwrap, useBackend } from "../util";
@@ -40,6 +40,7 @@ function OfficeSales({ workId, caps }: { workId: bigint; caps: Caps }) {
   const list = useQuery({ queryKey: ["sales", String(workId)], queryFn: () => actor!.listSales(workId), enabled: !!actor && !isFetching });
   const [open, setOpen] = useState<bigint | null>(null);
   const [editPlan, setEditPlan] = useState(false);
+  const [editExtra, setEditExtra] = useState<SalesExtraPlanView | null>(null);
   const refresh = () => { for (const k of ["salesPlan", "sales", "minmeer"]) void qc.invalidateQueries({ queryKey: [k, String(workId)] }); };
   const make = useMutation({
     mutationFn: async (src: Parameters<NonNullable<typeof actor>["newSalesInvoice"]>[1]) => unwrap(await actor!.newSalesInvoice(workId, src)),
@@ -60,9 +61,11 @@ function OfficeSales({ workId, caps }: { workId: bigint; caps: Caps }) {
           {p.progress.filter((x) => x.billing === "klaar").map((x) => <Button key={String(x.id)} onClick={() => make.mutate({ __kind__: "progress", progress: x.id })}>{T.makeFromProgress} {x.code} ({fmtEuro(x.subtotalCents)})</Button>)}
         </div>
       )}
+      {p && p.extraWork.length > 0 && <ExtraCard p={p} onEdit={setEditExtra} onMake={(src) => make.mutate(src)} busy={make.isPending} />}
       <InvoiceList rows={list.data ?? []} onOpen={setOpen} />
       {open !== null && <FactuurSheet id={open} caps={caps} onClose={() => { setOpen(null); refresh(); }} onOpen={setOpen} />}
       {editPlan && p && <PlanSheet workId={workId} p={p} onClose={() => { setEditPlan(false); refresh(); }} />}
+      {editExtra && p && <PlanSheet workId={workId} p={p} extra={editExtra} onClose={() => { setEditExtra(null); refresh(); }} />}
     </section>
   );
 }
@@ -112,6 +115,41 @@ function PlanCard({ p, onEdit, onMake, busy }: { p: SalesPlanView; onEdit: () =>
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/** 2c.8+ B: de aanvaarde meerwerkoffertes met hun eigen schijven (standaard 100 % bij het akkoord). */
+function ExtraCard({ p, onEdit, onMake, busy }: { p: SalesPlanView; onEdit: (x: SalesExtraPlanView) => void; onMake: (src: Src) => void; busy: boolean }) {
+  return (
+    <div className="a-card" data-testid="sales-extra" style={{ marginTop: 8 }}>
+      <h3 className="bw-h3">{T.extraTitle}</h3>
+      <p className="bw-muted">{T.extraLead}</p>
+      {p.extraWork.map((x) => (
+        <div key={String(x.quoteId)} style={{ marginTop: 8 }} data-testid={`extra-${x.quoteId}`}>
+          <div className="a-row a-row--between">
+            <span><b>{x.quoteLabel}</b> {x.title} · {T.extraAccepted(fmtDayNum(x.acceptedDay))} · {fmtEuro(x.contractCents)}{x.stored ? "" : ` · ${T.extraDefault}`}</span>
+            <Button onClick={() => onEdit(x)}>{T.planEdit}</Button>
+          </div>
+          <div className="a-tablewrap">
+            <table className="a-table">
+              <thead><tr><th>{T.cols.title}</th><th>%</th><th>{T.cols.due}</th><th className="a-num">{T.cols.total}</th><th>{T.cols.status}</th><th /></tr></thead>
+              <tbody>
+                {x.steps.map((s) => (
+                  <tr key={s.key} data-testid={`step-${s.key}`}>
+                    <td>{s.title}</td>
+                    <td>{fmtBp(s.pctBp)}</td>
+                    <td>{whenText(s.when)}{s.dueDay !== undefined ? ` · ${fmtDayNum(s.dueDay)}` : ""}</td>
+                    <td className="a-num">{fmtEuro(s.stepCents)}</td>
+                    <td>{T.stepStatus[s.status] ?? s.status}{s.numbers.length ? ` · ${s.numbers.join(", ")}` : ""}</td>
+                    <td>{s.status === "open" && <Button disabled={busy || !x.baseOk} onClick={() => onMake({ __kind__: "step", step: { key: s.key } })}>{T.makeFromStep}</Button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

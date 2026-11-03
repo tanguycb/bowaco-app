@@ -22,6 +22,7 @@ import Library "Library";
 import Plan "Plan";
 import Progress "Progress";
 import QuoteDocs "QuoteDocs";
+import QuoteForms "QuoteForms";
 import Quotes "Quotes";
 import SalesCalc "SalesCalc";
 import Sha256 "mo:sha2/Sha256";
@@ -163,6 +164,10 @@ module {
   public func kindText(k : Types.SalesKind) : Text {
     switch k { case (#advance) "Voorschotfactuur"; case (#interim) "Tussentijdse factuur"; case (#final or #minMeer _) "Slotfactuur"; case (#progress _) "Factuur"; case (#free) "Factuur"; case (#credit _) "Creditnota" };
   };
+  // 2c.8+ B: een factuur uit een schijf van een meerwerkofferte (soort #interim, sleutel "mw<offerte>-…") heet "Factuur meerwerk".
+  public func isExtraKey(k : ?Text) : Bool { switch k { case (?x) x.startsWith(#text "mw"); case null false } };
+  public func invKindKey(inv : Types.SalesInvoice) : Text { if (isExtraKey(inv.planStepKey) and inv.kind == #interim) "meerwerk" else kindKey(inv.kind) };
+  public func invKindText(inv : Types.SalesInvoice) : Text { if (isExtraKey(inv.planStepKey) and inv.kind == #interim) "Factuur meerwerk" else kindText(inv.kind) };
   public func statusKey(s : Types.SalesStatus) : Text { switch s { case (#draft) "ontwerp"; case (#issued) "uitgereikt"; case (#draftCancelled _) "weggedaan" } };
   public func payKey(p : Types.SalesPay) : Text { switch p { case (#open) "open"; case (#partial) "deels"; case (#paid) "betaald" } };
   public func peppolKey(p : Types.SalesPeppol) : Text { switch p { case (#notNeeded) "niet-nodig"; case (#ublMade _) "ubl-gemaakt"; case (#sent _) "verstuurd" } };
@@ -176,12 +181,9 @@ module {
 
   public func base(c : Ctx, workId : Nat) : ?Base {
     let v = Progress.baseVersion(c.pc, workId) ?? return null;
-    let comp = Quotes.compute(c.pc.qs, c.pc.qf, v, Library.standardMargin(c.settings));
-    let t = comp.totals;
-    let sells = t.chapters.map(func(x : { chapter : Nat; sell : Int; cost : Int; sellWithCost : Int; noPrice : Nat }) : Int = x.sell);
-    let qlabel = switch (c.pc.qs.quotes.get(v.quoteId)) { case (?q) q.number # " v" # v.version.toText(); case null "?" };
-    ?{ version = v; qlabel; chapters = comp.chapters.map(chapterText); sells; nets = SalesCalc.netChapters(sells, t.discount); gross = t.gross; discount = t.discount; subtotal = t.subtotal; vatBp = v.vatBp; sentSubtotal = switch (v.sent) { case (?x) ?x.subtotalCents; case null null } };
+    ?versionBase(c, v);
   };
+
 
   // ── Het facturatieschema ─────────────────────────────────────────────────
   public func defaultPlan(s : Types.SettingsState, workId : Nat) : Types.BillingPlan {
@@ -189,8 +191,15 @@ module {
     let step = func(key : Text, title : Text, bp : Nat, w : Types.BillingWhen) : Types.BillingStep = { key; title; pctBp = bp; when = w; chapterPct = []; quoteIds = [] };
     { workId; steps = [step("voorschot", "Voorschot", p[0], #beforeStart), step("tussentijds", "Tussentijds", p[1], #byHand), step("slot", "Slot", p[2], #final)]; version = 0; updatedAt = 0; updatedBy = 0; extra = [] };
   };
-  public func planOf(c : Ctx, workId : Nat) : Types.BillingPlan {
+  // Het schema van de getekende offerte: enkel de schijven zonder meerwerkofferte (quoteIds = []); die van een meerwerkofferte staan in
+  // hetzelfde record (rawPlan) maar rekenen op hun eigen offerte (extraSteps, 2c.8+ B).
+  public func rawPlan(c : Ctx, workId : Nat) : Types.BillingPlan {
     switch (c.sales.plans.get(workId)) { case (?p) p; case null defaultPlan(c.settings, workId) };
+  };
+  public func isExtraStep(st : Types.BillingStep) : Bool { st.quoteIds.size() > 0 };
+  public func planOf(c : Ctx, workId : Nat) : Types.BillingPlan {
+    let p = rawPlan(c, workId);
+    { p with steps = p.steps.filter(func(st : Types.BillingStep) : Bool = not isExtraStep(st)) };
   };
   // Het % van een schijf voor een hoofdstuk: een eigen % voor dat hoofdstuk, anders het % van de schijf.
   public func pctFor(st : Types.BillingStep, chapter : Text) : Nat {
@@ -234,6 +243,7 @@ module {
   public func stepAmounts(b : Base, p : Types.BillingPlan) : [[Int]] { SalesCalc.stepAmounts(b.nets, pctMatrix(p, b.chapters)) };
 
   public func stepKind(st : Types.BillingStep, idx : Nat) : Types.SalesKind {
+    if (isExtraStep(st)) { return #interim };
     switch (st.when) { case (#beforeStart) #advance; case (#final) #final; case _ { if (idx == 0) #advance else #interim } };
   };
 
@@ -254,6 +264,71 @@ module {
       };
     };
     ?out.toArray();
+  };
+
+  // ── Eigen schijven voor een aanvaarde meerwerkofferte (2c.8+ B) ─────────
+  // Een aanvaarde meerwerkofferte (QuoteKind #extraWork) krijgt een eigen schema in hetzelfde BillingPlan van de werf: schijven met
+  // quoteIds = [offerte] en een sleutel "mw<offerte>-…". Zonder eigen schijven: één schijf van 100 % bij het akkoord van de klant.
+  // De schijven rekenen op de laatst aanvaarde versie van die offerte (hoofdstukken, korting naar verhouding, de laatste schijf neemt
+  // de rest), zoals het schema van de getekende offerte. De min-meerstaat telt de meerwerkofferte in de aanneemsom + saldo; de factuur
+  // van een schijf komt in "reeds gefactureerd" (invoicedItems), zodat de slotfactuur uit de min-meerstaat ze aftrekt (niet dubbel).
+  public func extraPrefix(qid : Nat) : Text { "mw" # qid.toText() # "-" };
+  public func extraQuotes(qs : Types.QuotesState, qf : Types.QuoteFormState, workId : Nat) : [(Types.Quote, Types.QuoteVersion)] {
+    let out = List.empty<(Types.Quote, Types.QuoteVersion)>();
+    for (qid in Quotes.ids(qs.byWork, workId).values()) {
+      switch (qs.quotes.get(qid)) {
+        case (?q) {
+          if (q.archivedAt == null and q.workId == workId and QuoteForms.infoOf(qf, qid).kind == #extraWork) {
+            switch (Quotes.versionsOf(qs, qid).find(func(v : Types.QuoteVersion) : Bool = v.status == #accepted)) { case (?v) out.add((q, v)); case null {} };
+          };
+        };
+        case null {};
+      };
+    };
+    out.toArray();
+  };
+  public func extraQuote(c : Ctx, workId : Nat, qid : Nat) : ?(Types.Quote, Types.QuoteVersion) {
+    extraQuotes(c.pc.qs, c.pc.qf, workId).find(func((q, _) : (Types.Quote, Types.QuoteVersion)) : Bool = q.id == qid);
+  };
+  public func versionBase(c : Ctx, v : Types.QuoteVersion) : Base {
+    let comp = Quotes.compute(c.pc.qs, c.pc.qf, v, Library.standardMargin(c.settings));
+    let t = comp.totals;
+    let sells = t.chapters.map(func(x : { chapter : Nat; sell : Int; cost : Int; sellWithCost : Int; noPrice : Nat }) : Int = x.sell);
+    let qlabel = switch (c.pc.qs.quotes.get(v.quoteId)) { case (?q) q.number # " v" # v.version.toText(); case null "?" };
+    { version = v; qlabel; chapters = comp.chapters.map(chapterText); sells; nets = SalesCalc.netChapters(sells, t.discount); gross = t.gross; discount = t.discount; subtotal = t.subtotal; vatBp = v.vatBp; sentSubtotal = switch (v.sent) { case (?x) ?x.subtotalCents; case null null } };
+  };
+  public func extraBase(c : Ctx, workId : Nat, qid : Nat) : ?Base {
+    switch (extraQuote(c, workId, qid)) { case (?(_, v)) ?versionBase(c, v); case null null };
+  };
+  // Standaard: één schijf van 100 % op de dag van het akkoord van de klant (#onDay; de types van sales blijven ongewijzigd).
+  public func defaultExtraStep(qid : Nat, acceptDay : Nat) : Types.BillingStep {
+    { key = extraPrefix(qid) # "akkoord"; title = "Meerwerk bij akkoord"; pctBp = 10_000; when = #onDay(acceptDay); chapterPct = []; quoteIds = [qid] };
+  };
+  public func extraStepsIn(p : Types.BillingPlan, qid : Nat, acceptDay : Nat) : [Types.BillingStep] {
+    let mine = p.steps.filter(func(st : Types.BillingStep) : Bool = st.quoteIds == [qid]);
+    if (mine.size() == 0) [defaultExtraStep(qid, acceptDay)] else mine;
+  };
+  public func extraSteps(c : Ctx, workId : Nat, qid : Nat, acceptDay : Nat) : [Types.BillingStep] { extraStepsIn(rawPlan(c, workId), qid, acceptDay) };
+  // Alle schijven van een werf (getekende offerte en aanvaarde meerwerkoffertes), zonder rekenen (kaart Volgende stap).
+  public func allSteps(s : Types.SettingsState, sales : Types.SalesState, qs : Types.QuotesState, qf : Types.QuoteFormState, workId : Nat, acceptDayOf : Types.QuoteVersion -> Nat) : [Types.BillingStep] {
+    let p = switch (sales.plans.get(workId)) { case (?x) x; case null defaultPlan(s, workId) };
+    var out = p.steps.filter(func(st : Types.BillingStep) : Bool = not isExtraStep(st));
+    for ((q, v) in extraQuotes(qs, qf, workId).values()) { out := out.concat(extraStepsIn(p, q.id, acceptDayOf(v))) };
+    out;
+  };
+  public func extraPlan(c : Ctx, workId : Nat, qid : Nat, acceptDay : Nat) : Types.BillingPlan {
+    { rawPlan(c, workId) with steps = extraSteps(c, workId, qid, acceptDay) };
+  };
+  // De offerte van een schijf (quoteIds = [offerte]) of null voor een schijf van de getekende offerte.
+  public func stepQuote(st : Types.BillingStep) : ?Nat { if (st.quoteIds.size() == 1) ?st.quoteIds[0] else null };
+  // Fout in het schema van een meerwerkofferte: sleutels "mw<offerte>-…", geen schijf vóór de start of slot, dan de regels van planError.
+  public func extraPlanError(qid : Nat, steps : [Types.BillingStep], chapters : [Text]) : ?Text {
+    for (st in steps.values()) {
+      if (not st.key.startsWith(#text (extraPrefix(qid)))) { return ?("Sleutel van een schijf van deze meerwerkofferte: begint met " # extraPrefix(qid)) };
+      if (st.quoteIds != [qid]) { return ?"Een schijf hoort bij deze meerwerkofferte" };
+      switch (st.when) { case (#beforeStart or #final) { return ?"Een schijf van een meerwerkofferte is op een dag (standaard de dag van het akkoord) of met de hand" }; case _ {} };
+    };
+    planError(steps, chapters);
   };
 
   // De regels uit een verzonden vorderingsstaat: het bedrag van de periode per post (werk) en de prijsherziening apart.
@@ -408,7 +483,7 @@ module {
     {
       invoiceId = inv.id;
       number;
-      kindText = kindText(inv.kind);
+      kindText = invKindText(inv);
       issueDay;
       serviceDay = inv.serviceDay;
       serviceTo = inv.serviceTo;
@@ -581,8 +656,8 @@ module {
       id = inv.id;
       workId = inv.workId;
       workCode = switch (c.works.works.get(inv.workId)) { case (?w) w.code; case null "" };
-      kind = kindKey(inv.kind);
-      kindTitle = kindText(inv.kind);
+      kind = invKindKey(inv);
+      kindTitle = invKindText(inv);
       title = inv.title;
       number = inv.number;
       status = statusKey(inv.status);

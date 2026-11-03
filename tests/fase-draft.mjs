@@ -31,7 +31,9 @@ const stamp = Date.now().toString(36).toUpperCase();
 const W = `P-FS-${stamp}`;
 const cDay = BigInt(Math.floor(Number((await admin.auditLog(0n, 1n))[0].at / 1_000_000n) / 86_400_000));
 
-const factsOf = (s, w) => ({ ...Object.fromEntries(Object.entries(s).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])), status: Object.keys(w.status)[0] });
+// Zoals bindgen: een optie ([] of [x]) wordt undefined of x, ook in de feiten van de kaart Volgende stap (s.next, 2c.8+ deel A).
+const unOpt = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Array.isArray(v) ? (v[0] && typeof v[0] === "object" && !Array.isArray(v[0]) ? unOpt(v[0]) : v[0]) : v]));
+const factsOf = (s, w) => ({ ...unOpt(s), next: s.next ? unOpt(s.next) : undefined, status: Object.keys(w.status)[0] });
 async function faseAs(x, wid) {
   const s = (await x.listWorkStages()).find((y) => y.workId === wid);
   const w = (await x.listWorks()).find((y) => y.id === wid);

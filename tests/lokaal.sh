@@ -125,5 +125,8 @@ node tests/factuur-2c6.mjs "$cid"
 # 2c open punten deel A: kaart Volgende stap per rol, Beheer (termijnen, attestsoorten), OA-offerte intrekken, PID. Ná factuur-2c6 (geeft een
 # voorschotfactuur een nummer) en vóór de klokproef van prijsvraag-2c2 (verzet de klok zelf 3 dagen vooruit).
 node tests/openpunten-2c8p.mjs "$cid"
+# 2c open punten deel B: creditnota van een OA (Te betalen en min-meerstaat omlaag, niets dubbel), OA-facturen van 2.11 in Te betalen met de
+# stand betaald, eigen schijven voor een meerwerkofferte (100 % bij het akkoord, totaalrem, slot uit de min-meerstaat zonder dubbel meerwerk).
+node tests/openpunten-2c8p-b.mjs "$cid"
 node tests/prijsvraag-2c2.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

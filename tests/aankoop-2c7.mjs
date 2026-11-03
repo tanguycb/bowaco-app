@@ -131,7 +131,7 @@ const L = (workId, kind, description, qty, unit, o = {}) => ({ workId: workId ==
 const day = (d, persons, slots, pauseMin = 0n) => ({ day: d, persons, slots, pauseMin });
 const P = (n, lines, o = {}) => {
   const net = lines.reduce((a, l) => a + l.amountCents, 0n);
-  return { id: [], orgId: REIGER, kind: { oa: null }, number: `PA-${sfx}-${n}`, invoiceDay: cDay, dueDay: [cDay + 30n], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [fileW1], oaStatementFileId: [], oaStatementRef: "", note: "proef 2c7", netCents: net, vatCents: 0n, totalCents: net, lines, finalWorkIds: [], ...o };
+  return { id: [], orgId: REIGER, kind: { oa: null }, number: `PA-${sfx}-${n}`, invoiceDay: cDay, dueDay: [cDay + 30n], discountUntil: [], discountBp: [], periodFrom: [], periodTo: [], vatRegime: { reverse: null }, reverseMention: true, fileId: [fileW1], oaStatementFileId: [], oaStatementRef: "", note: "proef 2c7", netCents: net, vatCents: 0n, totalCents: net, lines, finalWorkIds: [], creditOf: [], ...o };
 };
 const read = async (id) => ok(await calc.readPurchase(id));
 const partOf = (v, w) => v.brief.works.find((x) => x.workId === w);
@@ -268,11 +268,11 @@ check("(B7) goedgekeurd zonder reden (geen markering), met beslissing", "approve
 
 // ── B8. Te betalen: eerst wat korting geeft, dan de vervaldag; betaald markeren ──
 const pay = ok(await calc.listPurchasesToPay());
-const i1 = pay.findIndex((r) => r.brief.id === P1);
-const i5 = pay.findIndex((r) => r.brief.id === P5);
+const i1 = pay.findIndex((r) => un(r.brief)?.id === P1);
+const i5 = pay.findIndex((r) => un(r.brief)?.id === P5);
 check("(B8) te betalen: factuur 1 (korting 1,5 %) vóór de leveranciersfactuur (enkel vervaldag); de tekst noemt de dag en het bedrag", i1 >= 0 && i5 >= 0 && i1 < i5 && /1,5 %/.test(pay[i1].text) && /uiterlijk op/.test(pay[i1].text) && pay[i1].payCents === pay[i1].totalCents - un(pay[i1].discountCents), S(pay[i1]));
 check("(B8) te betalen: auditregel bekeek:te-betalen; werfleider geweigerd", (await admin.auditLog(0n, 10n)).some((a) => a.action === "bekeek:te-betalen") && (await denied(wl.listPurchasesToPay())));
-check("(B8) betaald markeren in de toekomst: geweigerd; vandaag: uit de lijst", /Betaaldag/.test(errOf(await calc.markPurchasePaid(P1, v1.brief.rev, [cDay + 10n], []))) && isOk(await calc.markPurchasePaid(P1, v1.brief.rev, [cDay], [])) && !ok(await calc.listPurchasesToPay()).some((r) => r.brief.id === P1));
+check("(B8) betaald markeren in de toekomst: geweigerd; vandaag: uit de lijst", /Betaaldag/.test(errOf(await calc.markPurchasePaid(P1, v1.brief.rev, [cDay + 10n], []))) && isOk(await calc.markPurchasePaid(P1, v1.brief.rev, [cDay], [])) && !ok(await calc.listPurchasesToPay()).some((r) => un(r.brief)?.id === P1));
 check("(B8) een niet-goedgekeurde factuur betaald markeren: geweigerd", /goedgekeurde/.test(errOf(await calc.markPurchasePaid(P2, v2.brief.rev, [cDay], []))));
 
 // ── B9. Doorrekenen aan de klant (voor de min-meerstaat van 2c.5) ──
@@ -311,7 +311,7 @@ try {
   check("(B12 H1) netto € 2.290 tegenover regels € 2.090: kopmarkering op de aankoop en op het laatste werfdeel", v7.headerFlags.some((f) => f.key === "som-regels") && part.headerFlags.some((f) => f.key === "aankoop:som-regels") && part.flagCount >= 1n, S([v7.headerFlags, part.headerFlags]));
   check("(B12 H1) het laatste werfdeel goedkeuren zonder reden: geweigerd", /markering/.test(errOf(await calc.approveOaInvoice(part.brief.id, part.brief.rev, EXC, ""))));
   ok(await calc.approveOaInvoice(part.brief.id, part.brief.rev, EXC, "proef 2c7: som van de regels nagekeken"));
-  const row = ok(await calc.listPurchasesToPay()).find((r) => r.brief.id === P7);
+  const row = ok(await calc.listPurchasesToPay()).find((r) => un(r.brief)?.id === P7);
   check("(B12 H1) te betalen: gemarkeerd 'som van de werfdelen ≠ excl. btw'", !!row && row.warnings.includes("som-werfdelen"), S(row?.warnings));
 }
 // H2: een onderaannemer is altijd een OA-factuur; inhouding op Σ werfdelen; te betalen zonder de inhouding.
@@ -327,14 +327,14 @@ check("(B12 H2) een onderaannemer als 'andere' factuur: geweigerd", /onderaannem
   for (const w of [W1, W2]) { const pv = ok(await calc.readOaInvoice(un(partOf(v6, w).partId))); ok(await calc.approveOaInvoice(pv.brief.id, pv.brief.rev, { check: chk }, "proef 2c7: inhoudingsplicht rood")); }
   v6 = await read(P6);
   check("(B12 H2) aankoop goedgekeurd: inhouding RSZ € 4.200 op € 12.000 (Σ werfdelen)", "approved" in v6.brief.status && v6.withholdSocialCents === 420_000n && v6.withholdFiscalCents === 0n, S([v6.withholdSocialCents, v6.withholdFiscalCents]));
-  let row = ok(await calc.listPurchasesToPay()).find((r) => r.brief.id === P6);
+  let row = ok(await calc.listPurchasesToPay()).find((r) => un(r.brief)?.id === P6);
   check("(B12 H2) te betalen aan de OA: € 12.000 − € 4.200 = € 7.800; de inhouding apart, gemarkeerd tot ze doorgestort is", !!row && row.withholdCents === 420_000n && row.payCents === 780_000n && row.warnings.includes("inhouding") && /door te storten/.test(row.text), S(row));
   ok(await calc.markPurchasePaid(P6, v6.brief.rev, [cDay], []));
   v6 = await read(P6);
-  row = ok(await calc.listPurchasesToPay()).find((r) => r.brief.id === P6);
+  row = ok(await calc.listPurchasesToPay()).find((r) => un(r.brief)?.id === P6);
   check("(B12 H2) betaald aan de OA, inhouding nog niet doorgestort: blijft in de lijst", !!row && row.warnings.includes("inhouding"));
   ok(await calc.markPurchasePaid(P6, v6.brief.rev, [cDay], [cDay]));
-  check("(B12 H2) inhouding doorgestort: uit de lijst", !ok(await calc.listPurchasesToPay()).some((r) => r.brief.id === P6));
+  check("(B12 H2) inhouding doorgestort: uit de lijst", !ok(await calc.listPurchasesToPay()).some((r) => un(r.brief)?.id === P6));
 }
 // M1 + M3: één werfdeel goedgekeurd, het andere betwist → intrekken en verbeteren geweigerd; doorrekenen volgt het werfdeel.
 {

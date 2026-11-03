@@ -58,6 +58,7 @@ export function PurchaseView({ id, go }: { id: bigint; go: (to: string) => void 
         {v.canDecide && b.status === "registered" && <Button icon="alert" onClick={() => setSheet("dispute")} data-testid="pu-dispute">{TA.dispute}</Button>}
         {v.canPay && <Button icon="check" onClick={() => { setPayDay(dayToInput(b.paidDay ?? todayDay())); setWhDay(dayToInput(b.withheldDay)); setSheet("pay"); }} data-testid="pu-pay-mark">{TA.pay}</Button>}
         {(b.status === "registered" || b.status === "disputed") && <Button variant="quiet" icon="close" onClick={() => setSheet("withdraw")} data-testid="pu-withdraw">{TA.withdraw}</Button>}
+        {b.creditOf === undefined && (b.status === "approved" || b.status === "registered" || b.status === "checking") && v.lines.some((l) => l.kind !== "aftrek-voorschot" && (l.amountCents < 0n ? -l.amountCents : l.amountCents) > l.creditedCents) && <Button variant="quiet" icon="plus" onClick={() => go(`oa-facturen/aankoop/nieuw?credit=${id}`)} data-testid="pu-credit">{TA.credit}</Button>}
       </>}
     >
       <div className="vs-head">
@@ -66,6 +67,13 @@ export function PurchaseView({ id, go }: { id: bigint; go: (to: string) => void 
         {v.file && <OpenConfidential fileId={v.file.id} />}
         {v.statement && <span className="bw-muted">{v.oaStatementRef || TA.statement}: <OpenConfidential fileId={v.statement.id} /></span>}
       </div>
+      {b.creditOf !== undefined && <p className="a-note" data-testid="pu-credit-of">{TA.creditOf("")}<a href={`#/oa-facturen/aankoop/${b.creditOf}`}>{b.creditOfNumber}</a></p>}
+      {v.credits.length > 0 && (
+        <div className="a-note" data-testid="pu-credits">
+          <strong>{TA.credits}: </strong>
+          {v.credits.map((c, k) => <span key={String(c.id)}>{k > 0 ? " · " : ""}<a href={`#/oa-facturen/aankoop/${c.id}`}>{c.number}</a> {fmtDayNum(c.invoiceDay)} −{fmtEuro(c.totalCents)} ({TA.status[c.status]})</span>)}
+        </div>
+      )}
       {v.decision && <p className={v.decision.approved ? "a-note" : "a-err"}>{v.decision.approved ? T.decisionOk(v.decision.byName, fmtTime(v.decision.at)) : T.decisionNo(v.decision.byName, fmtTime(v.decision.at))}{v.decision.reason ? `: ${v.decision.reason}` : ""}</p>}
       <div className="vs-top">
         <section className="vs-card" data-testid="pu-amounts">

@@ -3971,13 +3971,19 @@ export interface OrgView {
   'archivedAt' : [] | [bigint],
 }
 export interface PayRow {
+  'credits' : Array<string>,
   'discountCents' : [] | [bigint],
   'netCents' : bigint,
+  'oaInvoice' : [] | [OaInvoiceBrief],
   'totalCents' : bigint,
   'text' : string,
+  'creditCents' : bigint,
+  'withheldDay' : [] | [bigint],
   'discountBp' : [] | [bigint],
   'warnings' : Array<string>,
-  'brief' : PurchaseBrief,
+  'dueDay' : [] | [bigint],
+  'paidDay' : [] | [bigint],
+  'brief' : [] | [PurchaseBrief],
   'withholdCents' : bigint,
   'payCents' : bigint,
 }
@@ -4760,6 +4766,7 @@ export interface PurchaseBrief {
   'status' : PurchaseStatus,
   'hasFile' : boolean,
   'orgName' : string,
+  'creditOfNumber' : string,
   'invoiceDay' : bigint,
   'orgId' : bigint,
   'kind' : PurchaseKind,
@@ -4774,6 +4781,7 @@ export interface PurchaseBrief {
   'general' : boolean,
   'hasStatement' : boolean,
   'works' : Array<PurchaseWorkRef>,
+  'creditOf' : [] | [bigint],
 }
 export interface PurchaseCostView {
   'day' : bigint,
@@ -4789,6 +4797,14 @@ export interface PurchaseCostView {
   'kindName' : string,
   'purchaseId' : bigint,
   'lineId' : bigint,
+}
+export interface PurchaseCreditRef {
+  'id' : bigint,
+  'status' : PurchaseStatus,
+  'invoiceDay' : bigint,
+  'netCents' : bigint,
+  'totalCents' : bigint,
+  'number' : string,
 }
 export interface PurchaseDayView {
   'day' : bigint,
@@ -4824,6 +4840,7 @@ export interface PurchaseDecisionView {
 export interface PurchaseFullView {
   'periodFrom' : [] | [bigint],
   'headerFlags' : Array<OaFlag>,
+  'credits' : Array<PurchaseCreditRef>,
   'decision' : [] | [PurchaseDecisionView],
   'discountCents' : [] | [bigint],
   'withholdSocialCents' : bigint,
@@ -4873,6 +4890,7 @@ export interface PurchaseInput {
   'number' : string,
   'periodTo' : [] | [bigint],
   'reverseMention' : boolean,
+  'creditOf' : [] | [bigint],
   'vatRegime' : OaVatRegime,
 }
 export type PurchaseKind = { 'oa' : null } |
@@ -4924,6 +4942,7 @@ export interface PurchaseLineView {
   'index' : bigint,
   'postTitle' : string,
   'workId' : [] | [bigint],
+  'creditedCents' : bigint,
   'lineId' : bigint,
   'agreedCents' : [] | [bigint],
   'passOn' : boolean,
@@ -6220,6 +6239,19 @@ export interface SalesDueRow {
   'draftId' : [] | [bigint],
   'workCode' : string,
 }
+export interface SalesExtraPlanView {
+  'stored' : boolean,
+  'title' : string,
+  'discountCents' : bigint,
+  'vatBp' : bigint,
+  'acceptedDay' : bigint,
+  'quoteLabel' : string,
+  'baseOk' : boolean,
+  'quoteId' : bigint,
+  'steps' : Array<SalesStepView>,
+  'chapters' : Array<SalesChapterNet>,
+  'contractCents' : bigint,
+}
 export interface SalesFactView {
   'advanceDay' : [] | [bigint],
   'workId' : bigint,
@@ -6418,6 +6450,7 @@ export interface SalesPlanView {
   'version' : bigint,
   'steps' : Array<SalesStepView>,
   'progress' : Array<SalesProgressBrief>,
+  'extraWork' : Array<SalesExtraPlanView>,
   'chapters' : Array<SalesChapterNet>,
   'grossCents' : bigint,
   'plannedStart' : [] | [bigint],
@@ -7940,6 +7973,10 @@ export interface _SERVICE {
     [bigint, bigint, bigint, string, bigint],
     Result_1
   >,
+  'markOaInvoicePaid' : ActorMethod<
+    [bigint, bigint, [] | [bigint], [] | [bigint]],
+    Result_1
+  >,
   'markProgressPrepared' : ActorMethod<[bigint], Result_1>,
   'markPurchasePaid' : ActorMethod<
     [bigint, bigint, [] | [bigint], [] | [bigint]],
@@ -8108,6 +8145,10 @@ export interface _SERVICE {
     Result_16
   >,
   'saveSalesDraft' : ActorMethod<[bigint, bigint, SalesDraftInput], Result_15>,
+  'saveSalesExtraPlan' : ActorMethod<
+    [bigint, bigint, bigint, Array<BillingStepInput>],
+    Result_14
+  >,
   'saveSalesPlan' : ActorMethod<
     [bigint, bigint, Array<BillingStepInput>],
     Result_14

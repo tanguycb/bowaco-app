@@ -33,6 +33,7 @@ import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
 import Sales "../lib/Sales";
 import SalesCalc "../lib/SalesCalc";
+import WorkStart "../lib/WorkStart";
 
 mixin (
   settings : Types.SettingsState,
@@ -164,6 +165,7 @@ mixin (
     if (version != old.version) { return #err("Iemand anders bewaarde het schema intussen; laad opnieuw") };
     let ns : [Types.BillingStep] = steps.map(func(s : SV.BillingStepInput) : Types.BillingStep = { key = s.key.trim(#char ' '); title = s.title.trim(#char ' '); pctBp = s.pctBp; when = s.when; chapterPct = s.chapterPct.filter(func(x : Types.BillingChapterPct) : Bool = b.chapters.any(func(ch : Text) : Bool = ch == x.chapter)); quoteIds = [] });
     switch (Sales.planError(ns, b.chapters)) { case (?e) return #err(e); case null {} };
+    if (ns.any(func(x : Types.BillingStep) : Bool = x.key.startsWith(#text "mw"))) { return #err("Een sleutel die met mw begint, is voor de schijven van een meerwerkofferte") };
     for (st in old.steps.values()) {
       if (slStepStatus(workId, st.key).0 != "open") {
         switch (ns.find(func(x : Types.BillingStep) : Bool = x.key == st.key)) {
@@ -172,10 +174,41 @@ mixin (
         };
       };
     };
-    let np : Types.BillingPlan = { workId; steps = ns; version = old.version + 1; updatedAt = Time.now(); updatedBy = p.id; extra = [] };
+    // 2c.8+ B: de schijven van de meerwerkoffertes (zelfde record) blijven staan.
+    let keep = Sales.rawPlan(slCtx(), workId).steps.filter(Sales.isExtraStep);
+    let np : Types.BillingPlan = { workId; steps = ns.concat(keep); version = old.version + 1; updatedAt = Time.now(); updatedBy = p.id; extra = old.extra };
     sales.plans.add(workId, np);
     Access.audit(audit, caller, ?p.id, ?workId, "facturatieschema", Text.join(ns.map(func(s : Types.BillingStep) : Text = s.title # " " # Sales.pctText(s.pctBp)).values(), " · "));
-    #ok(slPlanView(workId, b, np));
+    #ok(slPlanView(workId, b, Sales.planOf(slCtx(), workId)));
+  };
+
+  // 2c.8+ B: de eigen schijven van een aanvaarde meerwerkofferte (per hoofdstuk samen 100 %; sleutels "mw<offerte>-…"). Een schijf met
+  // een factuur blijft zoals ze is. Hetzelfde record als het schema van de werf (versie gedeeld).
+  public shared ({ caller }) func saveSalesExtraPlan(workId : Nat, quoteId : Nat, version : Nat, steps : [SV.BillingStepInput]) : async Result.Result<SV.SalesPlanView, Text> {
+    let p = Access.requireActive(access, caller);
+    slOffice(p, workId);
+    let c = slCtx();
+    let b = Sales.base(c, workId) ?? return #err("Nog geen getekende offerte op deze werf");
+    let (_, ev) = Sales.extraQuote(c, workId, quoteId) ?? return #err("Geen aanvaarde meerwerkofferte van deze werf");
+    let eb = Sales.versionBase(c, ev);
+    if (not Sales.baseOk(eb)) { return #err(slBaseErr(eb)) };
+    let raw = Sales.rawPlan(c, workId);
+    if (version != raw.version) { return #err("Iemand anders bewaarde het schema intussen; laad opnieuw") };
+    let ns : [Types.BillingStep] = steps.map(func(s : SV.BillingStepInput) : Types.BillingStep = { key = s.key.trim(#char ' '); title = s.title.trim(#char ' '); pctBp = s.pctBp; when = s.when; chapterPct = s.chapterPct.filter(func(x : Types.BillingChapterPct) : Bool = eb.chapters.any(func(ch : Text) : Bool = ch == x.chapter)); quoteIds = [quoteId] });
+    switch (Sales.extraPlanError(quoteId, ns, eb.chapters)) { case (?e) return #err(e); case null {} };
+    for (st in Sales.extraSteps(c, workId, quoteId, slAcceptedDay(ev)).values()) {
+      if (slStepStatus(workId, st.key).0 != "open") {
+        switch (ns.find(func(x : Types.BillingStep) : Bool = x.key == st.key)) {
+          case (?x) { if (eb.chapters.any(func(ch : Text) : Bool = Sales.pctFor(x, ch) != Sales.pctFor(st, ch)) or x.when != st.when) { return #err("Schijf " # st.title # " heeft al een factuur: % en moment blijven") } };
+          case null { return #err("Schijf " # st.title # " heeft al een factuur en blijft in het schema") };
+        };
+      };
+    };
+    let others = raw.steps.filter(func(st : Types.BillingStep) : Bool = st.quoteIds != [quoteId]);
+    let np : Types.BillingPlan = { workId; steps = others.concat(ns); version = raw.version + 1; updatedAt = Time.now(); updatedBy = p.id; extra = raw.extra };
+    sales.plans.add(workId, np);
+    Access.audit(audit, caller, ?p.id, ?workId, "facturatieschema-meerwerk", eb.qlabel # ": " # Text.join(ns.map(func(s : Types.BillingStep) : Text = s.title # " " # Sales.pctText(s.pctBp)).values(), " · "));
+    #ok(slPlanView(workId, b, Sales.planOf(slCtx(), workId)));
   };
 
   // ── Facturen per werf (zonder bedragen) ────────────────────────────────
@@ -224,13 +257,11 @@ mixin (
     var clientOrgId = w.clientOrgId;
     switch src {
       case (#step s) {
-        let b = Sales.base(c, workId) ?? return #err("Nog geen getekende offerte op deze werf");
+        let b0 = Sales.base(c, workId) ?? return #err("Nog geen getekende offerte op deze werf");
+        if (not Sales.baseOk(b0)) { return #err(slBaseErr(b0)) };
+        // 2c.8+ B: een schijf van de getekende offerte of van een aanvaarde meerwerkofferte (eigen base en eigen schema).
+        let (b, pl, idx, st) = slFindStep(workId, s.key) ?? return #err("Onbekende schijf");
         if (not Sales.baseOk(b)) { return #err(slBaseErr(b)) };
-        let pl = Sales.planOf(c, workId);
-        var idx = 0;
-        var found : ?Types.BillingStep = null;
-        for ((i, st) in pl.steps.enumerate()) { if (st.key == s.key) { idx := i; found := ?st } };
-        let st = found ?? return #err("Onbekende schijf");
         if (slStepStatus(workId, st.key).0 != "open") { return #err("Voor schijf " # st.title # " bestaat al een factuur (ontwerp of uitgereikt)") };
         stepKey := ?st.key;
         vat := #rate(b.vatBp);
@@ -245,7 +276,7 @@ mixin (
           case null {
             kind := Sales.stepKind(st, idx);
             lines := Sales.stepLines(b, pl, st.key, b.vatBp) ?? [];
-            title := st.title # " " # Sales.pctText(st.pctBp);
+            title := st.title # " " # Sales.pctText(st.pctBp) # (if (Sales.isExtraStep(st)) " (meerwerkofferte " # b.qlabel # ")" else "");
           };
         };
       };
@@ -499,8 +530,11 @@ mixin (
       if (w.archivedAt == null and w.status != #cancelled) {
         switch (Sales.base(c, w.id)) {
           case (?b) {
-            let pl = Sales.planOf(c, w.id);
-            let am = Sales.stepAmounts(b, pl);
+            // 2c.8+ B: ook de schijven van de aanvaarde meerwerkoffertes (elk op hun eigen offerte).
+            let groups = List.singleton<(Sales.Base, Types.BillingPlan)>((b, Sales.planOf(c, w.id)));
+            for ((q, v) in Sales.extraQuotes(quotes, quoteForms, w.id).values()) { groups.add((Sales.versionBase(c, v), Sales.extraPlan(c, w.id, q.id, slAcceptedDay(v)))) };
+            for ((gb, pl) in groups.values()) {
+            let am = Sales.stepAmounts(gb, pl);
             for ((i, st) in pl.steps.enumerate()) {
               let (status, _) = slStepStatus(w.id, st.key);
               if (status != "uitgereikt") {
@@ -508,8 +542,9 @@ mixin (
                 var sum : Int = 0;
                 for (x in am[i].values()) { sum += x };
                 let draft = Sales.invoicesOf(sales, w.id).find(func(x : Types.SalesInvoice) : Bool = x.planStepKey == ?st.key and Sales.isDraft(x));
-                due.add({ workId = w.id; workCode = w.code; workName = w.name; stepKey = st.key; title = st.title; pctBp = st.pctBp; when = st.when; dueDay = d; now = (switch d { case (?x) x <= today + 7; case null st.when == #beforeStart }); stepCents = sum; draftId = switch draft { case (?x) ?x.id; case null null } });
+                due.add({ workId = w.id; workCode = w.code; workName = w.name; stepKey = st.key; title = st.title # (if (Sales.isExtraStep(st)) " (meerwerkofferte " # gb.qlabel # ")" else ""); pctBp = st.pctBp; when = st.when; dueDay = d; now = (switch d { case (?x) x <= today + 7; case null st.when == #beforeStart }); stepCents = sum; draftId = switch draft { case (?x) ?x.id; case null null } });
               };
+            };
             };
           };
           case null {};
@@ -588,7 +623,7 @@ mixin (
           case (?f) {
             let (y, m) = slYearMonth(f.issueDay);
             if (y == year and (m - 1 : Nat) / 3 + 1 == quarter) {
-              out.add({ invoiceId = inv.id; number = inv.number; series = inv.series; kind = Sales.kindKey(inv.kind); issueDay = f.issueDay; dueDay = f.dueDay; clientName = f.buyer.name; clientVat = switch (f.buyer.vat) { case (?v) v; case null "" }; workCode = f.workCode; analyticCode = f.analyticCode; vatLines = f.vatLines; netCents = f.netCents; vatCents = f.vatCents; totalCents = f.totalCents; paidDay = slPaidDay(inv); creditOf = switch (f.creditOf) { case (?x) x; case null "" } });
+              out.add({ invoiceId = inv.id; number = inv.number; series = inv.series; kind = Sales.invKindKey(inv); issueDay = f.issueDay; dueDay = f.dueDay; clientName = f.buyer.name; clientVat = switch (f.buyer.vat) { case (?v) v; case null "" }; workCode = f.workCode; analyticCode = f.analyticCode; vatLines = f.vatLines; netCents = f.netCents; vatCents = f.vatCents; totalCents = f.totalCents; paidDay = slPaidDay(inv); creditOf = switch (f.creditOf) { case (?x) x; case null "" } });
             };
           };
           case null {};
@@ -700,7 +735,26 @@ mixin (
   };
 
   func slDueDay(w : Types.Work, st : Types.BillingStep) : ?Nat {
-    switch (st.when) { case (#beforeStart) w.plannedStart; case (#onDay d) ?d; case _ null };
+    switch (st.when) {
+      case (#beforeStart) w.plannedStart;
+      case (#onDay d) ?d;
+      case _ null;
+    };
+  };
+  func slAcceptedDay(v : Types.QuoteVersion) : Nat { Progress.dayOf(WorkStart.acceptedAt(quoteDocs, v)) };
+
+  // 2c.8+ B: een schijf zoeken in het schema van de getekende offerte of in dat van een aanvaarde meerwerkofferte: (base, schema, plaats,
+  // schijf). Het schema is dat van de offerte waartoe de schijf hoort (de laatste schijf neemt de rest binnen dat schema).
+  func slFindStep(workId : Nat, key : Text) : ?(Sales.Base, Types.BillingPlan, Nat, Types.BillingStep) {
+    let c = slCtx();
+    let b = Sales.base(c, workId) ?? return null;
+    let pl = Sales.planOf(c, workId);
+    for ((i, st) in pl.steps.enumerate()) { if (st.key == key) { return ?(b, pl, i, st) } };
+    for ((q, v) in Sales.extraQuotes(quotes, quoteForms, workId).values()) {
+      let ep = Sales.extraPlan(c, workId, q.id, slAcceptedDay(v));
+      for ((i, st) in ep.steps.enumerate()) { if (st.key == key) { return ?(Sales.versionBase(c, v), ep, i, st) } };
+    };
+    null;
   };
 
   func slMmVersion(workId : Nat, vid : Nat) : Result.Result<(Types.MmVersion, Types.MmFrozen), Text> {
@@ -731,16 +785,23 @@ mixin (
       };
       case (#advance or #interim or #final) {
         // Review L9: de regels van een schijf zijn die van het schema en de getekende offerte van nu (anders: opnieuw maken).
-        switch (inv.planStepKey, Sales.base(slCtx(), inv.workId)) {
-          case (?k, ?b) {
-            if (not Sales.baseOk(b)) { add("offerte-gewijzigd", slBaseErr(b), true) } else {
-              let fresh = Sales.stepLines(b, Sales.planOf(slCtx(), inv.workId), k, 0) ?? [];
-              let cur = Sales.draftLines(sales, inv.id);
-              let same = fresh.size() == cur.size() and Array.tabulate<Bool>(fresh.size(), func i = fresh[i].ref == cur[i].ref and fresh[i].amountCents == cur[i].amountCents).all(func(x : Bool) : Bool = x);
-              if (Sales.isDraft(inv) and not same) { add("schijf-gewijzigd", "Het schema of de getekende offerte veranderde sinds dit ontwerp: laad opnieuw en maak het ontwerp opnieuw", true) };
+        // 2c.8+ B: ook een schijf van een meerwerkofferte (eigen base en schema, slFindStep).
+        switch (inv.planStepKey) {
+          case (?k) {
+            switch (slFindStep(inv.workId, k)) {
+              case (?(b, spl, _, _)) {
+                if (not Sales.baseOk(b)) { add("offerte-gewijzigd", slBaseErr(b), true) } else {
+                  let fresh = Sales.stepLines(b, spl, k, 0) ?? [];
+                  let cur = Sales.draftLines(sales, inv.id);
+                  let same = fresh.size() == cur.size() and Array.tabulate<Bool>(fresh.size(), func i = fresh[i].ref == cur[i].ref and fresh[i].amountCents == cur[i].amountCents).all(func(x : Bool) : Bool = x);
+                  if (Sales.isDraft(inv) and not same) { add("schijf-gewijzigd", "Het schema of de getekende offerte veranderde sinds dit ontwerp: laad opnieuw en maak het ontwerp opnieuw", true) };
+                };
+              };
+              // Een meerwerkofferte die niet meer aanvaard is (de getekende offerte zelf: zoals vroeger geen melding).
+              case null { if (Sales.isExtraKey(?k) and Sales.isDraft(inv)) { add("schijf-weg", "De meerwerkofferte is niet meer aanvaard: deze schijf bestaat niet meer", true) } };
             };
           };
-          case _ {};
+          case null {};
         };
       };
       case _ {};
@@ -817,6 +878,31 @@ mixin (
       minMeer = MinMeer.versionsOf(minMeer, workId).filterMap(func(v : Types.MmVersion) : ?SV.SalesMmVersionBrief = switch (MinMeer.frozenOf(minMeer, v.id)) { case (?fr) ?{ id = v.id; number = v.number; day = v.day; toInvoiceCents = fr.totals.toInvoiceCents; current = fr.totals.invoicedCents == cur }; case null null });
       progress = Progress.statementsOf(progress, workId).filterMap(func(st : Types.ProgressStatement) : ?SV.SalesProgressBrief = if (st.status != #sent or st.kind != #statement) null else switch (Progress.frozenOf(progress, st.id)) { case (?fr) ?{ id = st.id; code = st.code; billing = Progress.billingKey(st.billing); periodCents = fr.totals.periodCents; subtotalCents = fr.totals.subtotalCents }; case null null });
       plannedStart = switch w { case (?x) x.plannedStart; case null null };
+      extraWork = Sales.extraQuotes(quotes, quoteForms, workId).map(func((q, v) : (Types.Quote, Types.QuoteVersion)) : SV.SalesExtraPlanView {
+        let c = slCtx();
+        let eb = Sales.versionBase(c, v);
+        let ep = Sales.extraPlan(c, workId, q.id, slAcceptedDay(v));
+        let eam = Sales.stepAmounts(eb, ep);
+        {
+          quoteId = q.id;
+          quoteLabel = eb.qlabel;
+          title = q.title;
+          acceptedDay = slAcceptedDay(v);
+          stored = Sales.rawPlan(c, workId).steps.any(func(st : Types.BillingStep) : Bool = st.quoteIds == [q.id]);
+          vatBp = eb.vatBp;
+          discountCents = eb.discount;
+          contractCents = eb.subtotal;
+          baseOk = Sales.baseOk(eb);
+          chapters = Array.tabulate<SV.SalesChapterNet>(eb.chapters.size(), func i = { chapter = eb.chapters[i]; sellCents = eb.sells[i]; netCents = eb.nets[i] });
+          steps = Array.tabulate<SV.SalesStepView>(ep.steps.size(), func i {
+            let st = ep.steps[i];
+            var sum : Int = 0;
+            for (x in eam[i].values()) { sum += x };
+            let (status, numbers) = slStepStatus(workId, st.key);
+            { key = st.key; title = st.title; pctBp = st.pctBp; when = st.when; chapterPct = st.chapterPct; amounts = eam[i]; stepCents = sum; status; numbers; dueDay = switch w { case (?x) slDueDay(x, st); case null null } };
+          });
+        };
+      });
     };
   };
 
