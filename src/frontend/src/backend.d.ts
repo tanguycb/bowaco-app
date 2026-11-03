@@ -3619,6 +3619,27 @@ export interface NewTicket {
     expiresAt: bigint;
     ticketId: bigint;
 }
+export interface NextFacts {
+    salesDue: bigint;
+    contractFirm: string;
+    declareBy?: Day;
+    addendums: bigint;
+    hoursOpen: bigint;
+    attestDay?: Day;
+    attestsSoon: bigint;
+    attestsExpired: bigint;
+    salesLate: bigint;
+    salesDueDay?: Day;
+    tender?: NextTender;
+    contractsToSign: bigint;
+}
+export interface NextTender {
+    title: string;
+    asked: bigint;
+    answered: bigint;
+    compare: boolean;
+    deadlineDay?: Day;
+}
 export interface NotificationExport {
     id: bigint;
     kind: string;
@@ -3976,6 +3997,7 @@ export interface OaQuoteBrief {
     inviteId?: bigint;
     supersedes?: bigint;
     createdAt: bigint;
+    withdrawnShown: boolean;
     version: bigint;
     fileId?: bigint;
     number: string;
@@ -4240,6 +4262,13 @@ export interface OrgDocInput {
     note: string;
     fileId?: bigint;
     validUntil?: Day;
+}
+export interface OrgDocKindAdminView {
+    key: string;
+    fixed: boolean;
+    name: string;
+    inUse: bigint;
+    archived: boolean;
 }
 export interface OrgDocKindView {
     key: string;
@@ -8680,6 +8709,7 @@ export interface WorkStageView {
     measuredAt?: bigint;
     invoicedAt?: bigint;
     quoteSentAt?: bigint;
+    next: NextFacts;
     startPending: boolean;
     progressDraft: boolean;
     surveyOpen: boolean;
@@ -9209,6 +9239,7 @@ export interface backendInterface {
     addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_7>;
     addMyAttest(kind: string, title: string, validFrom: Day | null, validUntil: Day | null, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_94>;
     addMyTenderFile(ref: string, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_93>;
+    addOrgDocKind(name: string): Promise<Result_10>;
     addQuoteTerms(i: QuoteTermsInput): Promise<Result_7>;
     addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_1>;
     addSalesPayment(id: bigint, day: bigint, cents: bigint, how: string, note: string): Promise<Result_7>;
@@ -9233,6 +9264,7 @@ export interface backendInterface {
     archiveOaRate(id: bigint, reason: string): Promise<Result_1>;
     archiveOrg(id: bigint): Promise<Result_1>;
     archiveOrgDoc(id: bigint, reason: string): Promise<Result_1>;
+    archiveOrgDocKind(key: string, archive: boolean): Promise<Result_1>;
     archivePermit(permitId: bigint, reason: string): Promise<Result_1>;
     archivePerson(id: bigint): Promise<Result_1>;
     archiveSalesPayment(paymentId: bigint, reason: string): Promise<Result_1>;
@@ -9339,6 +9371,7 @@ export interface backendInterface {
     listOaQuotes(workId: bigint): Promise<Array<OaQuoteBrief>>;
     listOaRates(orgId: bigint): Promise<Result_71>;
     listOas(f: OaFilter): Promise<Array<OaView>>;
+    listOrgDocKinds(): Promise<Array<OrgDocKindAdminView>>;
     listOrgDocs(orgId: bigint): Promise<OrgDocsView>;
     listOrgs(includeArchived: boolean): Promise<Array<OrgView>>;
     listPermitKinds(withArchived: boolean): Promise<Array<PermitKindView>>;
@@ -9449,6 +9482,7 @@ export interface backendInterface {
     readSalesPlan(workId: bigint): Promise<Result_14>;
     readTender(tenderId: bigint): Promise<Result_36>;
     readTenderFile(ref: string, pos: bigint): Promise<Result_35>;
+    recordPid(workId: bigint, included: bigint, skipped: bigint, pages: bigint): Promise<Result_1>;
     recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_34>;
     redeemCode(code: string): Promise<Result_33>;
     registerOaQuote(i: OaQuoteInput, expectNetCents: bigint): Promise<Result_32>;
@@ -9584,6 +9618,7 @@ export interface backendInterface {
     wadmRules(): Promise<WadmRules>;
     weekBoard(q: BoardQuery): Promise<BoardView>;
     withdrawOaInvoice(id: bigint, rev: bigint, reason: string): Promise<Result_1>;
+    withdrawOaQuote(oaQuoteId: bigint, reason: string, showReason: boolean): Promise<Result_1>;
     withdrawPurchase(id: bigint, rev: bigint, reason: string): Promise<Result_1>;
     withholdingHistory(orgId: bigint): Promise<Array<WithholdingCheckView>>;
     workAdmin(workId: bigint): Promise<WorkAdminView>;

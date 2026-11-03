@@ -147,7 +147,7 @@ persistent actor Self {
   include SiteAdminApi(settings, access, org, works, files, dossier, plan, siteAdmin, audit, ctr);
 
   // 2b.3: de stand van de werf (stappenbalk en volgende stap); enkel lezen, de fase rekent de browser.
-  include StageApi(settings, access, works, plan, reports, quotes, workStarts, surveys, progress);
+  include StageApi(settings, access, org, works, plan, reports, quotes, workStarts, surveys, progress, tenders, oaDeals, oaInvoices, purchases, siteAdmin, sales);
 
   // 2b.4: het startpunt (Aan de slag, Zo werkt het voor jou); bewaard in settings.values, geen migratie.
   include StartApi(settings, access, works, audit);
@@ -162,7 +162,7 @@ persistent actor Self {
   // werf, Mijn prijsvragen van de OA, eigen PDF opladen); herinnering en "geen antwoord" in Post.tick.
   include TendersApi(settings, access, org, oa, works, files, plan, library, quotes, quoteForms, tenders, post, audit, ctr);
 
-  include OaQuotesApi(settings, access, org, oa, works, files, library, quotes, tenders, audit, ctr);
+  include OaQuotesApi(settings, access, org, oa, works, files, library, quotes, tenders, oaDeals, audit, ctr);
 
   // 2c.4: afspraken met de gekozen OA (tarieven met datum, afspraak per werf, contract uit het sjabloon, attesten; meldingen in de
   // uurlijkse ronde hieronder).

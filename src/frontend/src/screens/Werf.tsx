@@ -70,12 +70,12 @@ export function WerfDetail({ id, caps, go, tab, sub }: { id: bigint; caps: Caps;
   const fase = werfFase(facts);
   const tabs = werfTabs(caps, fase, facts);
   const cur = tabs.find((x) => x.key === tab) ?? (phone && !tab ? null : tabs[0]);
-  const open = (k: TabKey) => go(k === "overzicht" && !phone ? `werven/${id}` : `werven/${id}/${k}`);
+  const open = (k: TabKey, sub?: string) => go(k === "overzicht" && !phone ? `werven/${id}` : `werven/${id}/${k}${sub ? `/${sub}` : ""}`);
   const stap = volgendeStap(fase, facts, caps, w.caps.edit);
   const act = () => {
     const a = stap?.action;
     if (!a) return;
-    if (a.kind === "tab") open(a.tab);
+    if (a.kind === "tab") open(a.tab, a.sub);
     else if (a.kind === "report") go(`verslag/${id}/${todayDay()}`);
     else if (a.kind === "werfstart") { const p = pending.data?.[0]; if (p) go(`werfstart/${p.versionId}`); else open("offerte"); }
     else if (a.kind === "status") setToStatus(a.status);
@@ -152,9 +152,10 @@ export function WerfDetail({ id, caps, go, tab, sub }: { id: bigint; caps: Caps;
 /** De kaart "Volgende stap": één zin en één knop (prototype 2b, vraag 14). */
 function NextCard({ stap, onAct }: { stap: Stap; onAct: () => void }) {
   const S = t.stap[stap.key];
+  const detail = (t.stapDetail[stap.key] && stap.data) ? t.stapDetail[stap.key]({ ...stap.data, day: stap.data.day !== undefined ? fmtDayNum(stap.data.day) : "" }) : "";
   return (
     <section className={`a-next${stap.action ? "" : " a-next--quiet"}`} aria-label={F.next}>
-      <div className="a-next__t"><span className="bw-label">{F.next}</span><b>{S.t}</b><span className="bw-muted">{S.d}</span></div>
+      <div className="a-next__t"><span className="bw-label">{F.next}</span><b>{S.t}</b>{detail && <span data-testid="next-detail">{detail}</span>}<span className="bw-muted">{S.d}</span></div>
       {stap.action && <Button variant="primary" icon="next" onClick={onAct}>{S.b}</Button>}
     </section>
   );

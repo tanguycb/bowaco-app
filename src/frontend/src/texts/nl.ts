@@ -2504,7 +2504,30 @@ export const nl = {
     klantOfferte: { t: "Uw offerte bekijken", d: "Lees de offerte en geef uw akkoord in de app.", b: "Offerte bekijken" },
     klantVordering: { t: "Vorderingsstaten", d: "Bekijk de vorderingsstaten van uw werf.", b: "Vorderingsstaten" },
     klantWacht: { t: "Uw werf", d: "BOWACO volgt uw werf op. Hier ziet u waar ze staat.", b: "Documenten" },
+    // 2c-open punten, deel A: de nieuwe stappen (de zin met cijfers komt uit stapDetail).
+    prijsvraagKiezen: { t: "Offertes van onderaannemers vergelijken", d: "Er zijn offertes binnen op een open prijsvraag. Vergelijk ze en kies per hoofdstuk of per post.", b: "Naar de OA-offertes" },
+    prijsvraagLoopt: { t: "Prijsvraag loopt", d: "De onderaannemers antwoorden nog. Herinner wie niet antwoordde.", b: "Naar de prijsvragen" },
+    contractTekenen: { t: "Contract van de onderaannemer tekenen", d: "Een contract staat klaar om te tekenen. Laad het getekende exemplaar op bij Wie werkt mee.", b: "Naar Wie werkt mee" },
+    aanhangselNodig: { t: "Aanhangsel nodig", d: "De afspraak met een onderaannemer wijzigde na het tekenen van het contract. Maak een aanhangsel.", b: "Naar Wie werkt mee" },
+    attestVervalt: { t: "Attest van een onderaannemer vervalt", d: "Een verplicht attest vervalt binnenkort, is vervallen of ontbreekt. Vraag een nieuw attest.", b: "Naar Wie werkt mee" },
+    urenBevestigen: { t: "Uren van een onderaannemer bevestigen", d: "Een onderaannemer rekende uren aan. Bevestig per dag wie er was.", b: "Naar de uren" },
+    verzekeringAangeven: { t: "Verzekering aangeven", d: "De werf moet binnen 15 dagen na de start bij de verzekeraar aangegeven zijn.", b: "Naar de verzekering" },
+    schijfFactureren: { t: "Schijf factureren", d: "Een schijf van het facturatieschema is aan de beurt.", b: "Naar de facturen" },
+    factuurVervallen: { t: "Factuur vervallen", d: "Een uitgereikte factuur is niet betaald en de vervaldag is voorbij.", b: "Naar de facturen" },
   },
+  // De zin met cijfers onder de titel van de kaart (dag = "23.10.2026").
+  stapDetail: {
+    prijsvraagKiezen: (d: { title: string; n: number; of: number; day: string }) => `${d.title}: ${d.n} van ${d.of} antwoorden${d.day ? `, deadline ${d.day}` : ""}.`,
+    prijsvraagLoopt: (d: { title: string; n: number; of: number; day: string }) => `${d.title}: ${d.n} van ${d.of} antwoorden${d.day ? `, deadline ${d.day}` : ""}.`,
+    contractTekenen: (d: { n: number; firm: string }) => (d.n === 1 && d.firm ? `Contract met ${d.firm} tekenen.` : `${d.n} contracten te tekenen.`),
+    aanhangselNodig: (d: { n: number }) => (d.n === 1 ? "1 contract vraagt een aanhangsel." : `${d.n} contracten vragen een aanhangsel.`),
+    attestVervalt: (d: { n: number; day: string }) => `${d.n === 1 ? "1 attest" : `${d.n} attesten`}${d.day ? `, het eerste vervalt op ${d.day}` : ""}.`,
+    urenBevestigen: (d: { n: number }) => (d.n === 1 ? "1 dag met uren wacht op bevestiging." : `${d.n} dagen met uren wachten op bevestiging.`),
+    verzekeringAangeven: (d: { day: string }) => `Aangifte uiterlijk ${d.day}.`,
+    schijfFactureren: (d: { n: number; day: string }) => `${d.n === 1 ? "1 schijf" : `${d.n} schijven`}${d.day ? `, uiterlijk ${d.day}` : ""}.`,
+    factuurVervallen: (d: { n: number }) => (d.n === 1 ? "1 factuur is vervallen." : `${d.n} facturen zijn vervallen.`),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as Record<string, (d: any) => string>,
   // 2b.3: Werven met tabbladen per fase en Nieuwe aanvraag.
   wervenFase: {
     tabs: { aanvragen: "Aanvragen & offertes", lopend: "Lopend", afgerond: "Afgerond", alle: "Alle" } as Record<string, string>,
@@ -2660,6 +2683,14 @@ export const nl = {
   },
   // 2c.2: prijsvraag naar onderaannemers (kantoor, werfleider, de onderaannemer zelf).
   prijsvragen: {
+    withdraw: "Offerte intrekken",
+    withdrawLead: "BOWACO trekt deze offerte in: ze telt niet meer mee in de vergelijking en kan niet meer gekozen worden. De firma ziet \"ingetrokken door BOWACO\" en kan, zolang de prijsvraag loopt en de deadline niet voorbij is, opnieuw indienen.",
+    withdrawReason: "Reden (verplicht)",
+    withdrawShow: "De firma mag de reden zien",
+    withdrawGo: "Intrekken",
+    withdrawn: "Offerte ingetrokken",
+    withdrawnBy: (reason: string, shown: boolean) => `Ingetrokken door BOWACO: ${reason}${shown ? " (zichtbaar voor de firma)" : " (intern)"}`,
+    withdrawnOa: (reason: string) => (reason ? `Ingetrokken door BOWACO: ${reason}` : "Ingetrokken door BOWACO"),
     title: "Prijsvragen",
     label: "Offertes",
     tab: "Prijsvragen",
@@ -2849,6 +2880,7 @@ export const nl = {
   },
   // 2c.3: OA-offertes ontvangen, vergelijken, kiezen, overnemen (werf → Offerte → OA-offertes). Prijzen enkel voor kantoor.
   oaOffertes: {
+    withdrawnTag: "ingetrokken",
     title: "OA-offertes",
     lead: "Offertes van onderaannemers per prijsvraag: inlezen, vergelijken, kiezen en overnemen in de offerte. Vertrouwelijk: enkel beheerder en calculator zien prijzen.",
     leadLeader: "Wie gekozen is (wie komt werken), per hoofdstuk. Geen prijzen.",
@@ -2992,6 +3024,17 @@ export const nl = {
   },
   // 2c.4: afspraken met de gekozen OA (Wie werkt mee, firmafiche → Tarieven & attesten, Mijn contracten, Mijn attesten, Beheer).
   afspraken: {
+    kindsTitle: "Soorten attest van een onderaannemer",
+    kindsLead: "De drie vaste soorten (BA, tienjarige, personeelsverzekering) zijn verplicht voor een onderaannemer met een afspraak en blijven. Zet er soorten bij (bijvoorbeeld RSZ of Limosa); die zijn niet verplicht. Een soort archiveren verbergt ze voor nieuwe attesten; de bestaande attesten blijven staan.",
+    kindName: "Naam van de soort",
+    kindAdd: "Soort toevoegen",
+    kindAdded: "Soort toegevoegd",
+    kindFixed: "vast",
+    kindOwn: "eigen",
+    kindArchived: "gearchiveerd",
+    kindArchive: "Archiveren",
+    kindRestore: "Terugzetten",
+    kindInUse: (n: number) => (n === 0 ? "geen attesten" : n === 1 ? "1 attest" : `${n} attesten`),
     title: "Afspraken met onderaannemers",
     notIntact: "De controlecode van dit contract klopt niet meer: neem contact op met de beheerder.",
     archiveReason: "Reden van archiveren",
@@ -3114,6 +3157,9 @@ export const nl = {
     sheets: {
       title: "Technische fiches (PID)", none: "Nog geen fiches in de bibliotheek (Beheer).", pick: "Fiches voor het postinterventiedossier van deze werf", saved: "Bewaard",
       library: "Technische fiches", material: "Materiaalsoort", sheetTitle: "Titel", file: "Bestand (PDF)", supplier: "Leverancier", add: "Fiche toevoegen", archive: "Archiveren",
+      pidMake: "PID-document maken", pidLead: "Eén PDF: voorblad met de werf en de lijst van de fiches, daarna de fiches zelf. Afbeeldingen komen als bladzijde mee; andere bestanden worden overgeslagen en staan met de reden op het voorblad.",
+      pidNone: "Vink eerst fiches aan.", pidDone: "PID-document gemaakt", pidSkipped: "niet opgenomen", pidTooBig: "De gekozen fiches zijn samen groter dan 40 MB: kies er minder.",
+      pidResult: (n: number, pages: number) => `${n === 1 ? "1 fiche" : `${n} fiches`} in ${pages} bladzijden (voorblad inbegrepen).`,
     },
     settings: {
       title: "Werfadministratie", codeP: "Nieuwe werven krijgen een werfcode P.nnn", codePHelp: "Bestaande codes blijven. Bij een nieuwe werf laat u de code leeg.", next: (c: string) => `Volgende code: ${c}`,

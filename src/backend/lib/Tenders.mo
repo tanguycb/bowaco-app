@@ -230,10 +230,13 @@ module {
       supersedes = q.supersedes;
       current;
       status = q.status;
+      withdrawnShown = switch (q.status) { case (#withdrawn _) extraOf(q.extra, "intrekZichtbaar") == "ja"; case _ false };
       vatRegime = q.vatRegime;
       createdAt = q.createdAt;
     };
   };
+
+  func extraOf(x : Types.Extra, k : Text) : Text { switch (x.find(func((a, _) : (Text, Text)) : Bool = a == k)) { case (?(_, v)) v; case null "" } };
 
   func accessState(c : Ctx, id : ?Nat) : Text {
     switch id {
@@ -422,7 +425,8 @@ module {
       quoteDay = q.quoteDay;
       validUntil = q.validUntil;
       source = q.source;
-      status = q.status;
+      // De OA ziet "ingetrokken door BOWACO"; de reden enkel als kantoor die zichtbaar maakte (anders leeg).
+      status = switch (q.status) { case (#withdrawn r) #withdrawn(if (extraOf(q.extra, "intrekZichtbaar") == "ja") r else ""); case s s };
       vatRegime = q.vatRegime;
       createdAt = q.createdAt;
       netCents = switch a { case (?x) x.netCents; case null 0 };

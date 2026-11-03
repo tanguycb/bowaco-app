@@ -12,6 +12,7 @@ import { Button, Choice, Confirm, Icon, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, parseEuro, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page } from "./common";
+import { Field } from "./Werven";
 import { OpenConfidential } from "./Dossier";
 import { fmtQty } from "./Offertes";
 import { makeSheet, sheetFileName } from "../tender/sheet.ts";
@@ -337,11 +338,39 @@ export function QuoteSheet({ id, onClose }: { id: bigint; onClose: () => void })
   // Bedragen: update-call met auditregel (R38); enkel in het geheugen van dit paneel.
   const q = useQuery({ queryKey: ["oaQuote", String(id)], queryFn: async () => unwrap(await actor!.readOaQuote(id)), enabled: !!actor && !isFetching, staleTime: 0, gcTime: 0, refetchOnWindowFocus: false });
   const v = q.data;
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [wd, setWd] = useState<{ reason: string; show: boolean } | null>(null);
+  const withdrawn = v?.quote.status.__kind__ === "withdrawn";
+  const withdraw = useMutation({
+    mutationFn: async () => unwrap(await actor!.withdrawOaQuote(id, wd!.reason, wd!.show)),
+    onSuccess: () => {
+      toast.show({ kind: "ok", text: P.withdrawn });
+      for (const k of ["tender", "tenders", "oaQuotes", "oaQuote", "tenderCompare"]) void qc.invalidateQueries({ queryKey: [k] });
+      onClose();
+    },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
   return (
     <Sheet title={v ? P.quoteTitle(v.quote.orgName, Number(v.quote.version)) : P.received} open onClose={onClose} side wide footer={<Button onClick={onClose}>{t.common.close}</Button>}>
       <Loading q={q} />
       {v && (
         <>
+          {withdrawn && v.quote.status.__kind__ === "withdrawn" && (
+            <p className="a-err" role="status" data-testid="oq-withdrawn">{P.withdrawnBy(v.quote.status.withdrawn, v.quote.withdrawnShown)}</p>
+          )}
+          {!withdrawn && v.quote.current && !wd && <div><Button variant="danger" onClick={() => setWd({ reason: "", show: false })} data-testid="oq-withdraw">{P.withdraw}</Button></div>}
+          {wd && (
+            <div className="a-form" data-testid="oq-withdraw-form">
+              <p className="bw-muted">{P.withdrawLead}</p>
+              <Field label={P.withdrawReason}><textarea className="bw-input" rows={3} maxLength={300} value={wd.reason} onChange={(e) => setWd({ ...wd, reason: e.target.value })} /></Field>
+              <label className="a-row" style={{ gap: 6 }}><input type="checkbox" checked={wd.show} onChange={(e) => setWd({ ...wd, show: e.target.checked })} /> {P.withdrawShow}</label>
+              <div className="a-row" style={{ gap: 8 }}>
+                <Button variant="danger" busy={withdraw.isPending} disabled={wd.reason.trim().length < 3} onClick={() => withdraw.mutate()}>{P.withdrawGo}</Button>
+                <Button variant="quiet" onClick={() => setWd(null)}>{t.common.cancel}</Button>
+              </div>
+            </div>
+          )}
           <p className="bw-muted">{P.quoteLead}</p>
           <dl className="pv-kv">
             <dt>{P.quoteNo}</dt><dd>{v.quote.number || "–"}</dd>
@@ -824,7 +853,7 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
           <h2 className="bw-h2">{P.yourVersions}</h2>
           <ul className="a-list">
             {[...ans.versions].reverse().map((x) => (
-              <li key={String(x.version)}><span className="a-list__main"><b>{P.version(Number(x.version))}{x.number ? ` · ${x.number}` : ""}</b><span className="bw-muted">{fmtTime(x.createdAt)} · {P.source[x.source] ?? x.source}</span></span><span className="bw-mono">{fmtEuro(x.netCents)}</span></li>
+              <li key={String(x.version)}><span className="a-list__main"><b>{P.version(Number(x.version))}{x.number ? ` · ${x.number}` : ""}</b><span className="bw-muted">{fmtTime(x.createdAt)} · {P.source[x.source] ?? x.source}</span>{x.status.__kind__ === "withdrawn" && <span className="a-err" data-testid="pv-withdrawn">{P.withdrawnOa(x.status.withdrawn)}</span>}</span><span className="bw-mono">{fmtEuro(x.netCents)}</span></li>
             ))}
           </ul>
         </section>

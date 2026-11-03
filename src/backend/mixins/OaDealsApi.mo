@@ -89,6 +89,43 @@ mixin (
     { rateKinds = kinds; sources = Config.rateSources(); docKinds = odKinds(); maxAdvanceBp = Config.dealMaxAdvanceBp };
   };
 
+  // ── Attestsoorten (Beheer → Documenten; de vaste soorten blijven, de beheerder zet er soorten bij of archiveert ze) ──
+  public query ({ caller }) func listOrgDocKinds() : async [DV.OrgDocKindAdminView] {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #manageSettings, null);
+    OaDeals.allKinds(settings).map(func(k : OaDeals.KindRow) : DV.OrgDocKindAdminView = {
+      key = k.key; name = k.name; fixed = k.fixed; archived = k.archived;
+      inUse = oaDeals.orgDocs.values().filter(func(x : Types.OrgDoc) : Bool = x.kind == k.key and x.archivedAt == null).toArray().size();
+    });
+  };
+
+  public shared ({ caller }) func addOrgDocKind(name : Text) : async Result.Result<Text, Text> {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #manageSettings, null);
+    let n = Access.cleanText(name, 60) ?? return #err("Naam: 2 tot 60 tekens");
+    if (n.size() < 2) { return #err("Naam: 2 tot 60 tekens") };
+    let key = OaDeals.slug(n);
+    if (key.size() == 0 or key.size() > 40) { return #err("De naam geeft geen bruikbare sleutel: gebruik letters of cijfers") };
+    if (OaDeals.allKinds(settings).find(func(k : OaDeals.KindRow) : Bool = k.key == key) != null) { return #err("Deze soort bestaat al (ook gearchiveerd: zet ze dan terug)") };
+    let own = OaDeals.allKinds(settings).filter(func(k : OaDeals.KindRow) : Bool = not k.fixed).size();
+    if (own >= Config.maxOrgDocKinds) { return #err("Te veel eigen soorten") };
+    let row : Types.Lookup = { list = "orgDoc"; key; tag = n; order = own; var archivedAt = null; extra = [] };
+    settings.lookups.add("orgDoc:" # key, row);
+    Access.audit(audit, caller, ?p.id, null, "attestsoort-toegevoegd", key # ": " # n);
+    #ok(key);
+  };
+
+  public shared ({ caller }) func archiveOrgDocKind(key : Text, archive : Bool) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #manageSettings, null);
+    if (Config.orgDocKinds().find(func((k, _) : (Text, Text)) : Bool = k == key) != null) { return #err("Een vaste soort kan niet gearchiveerd worden") };
+    let l = settings.lookups.get("orgDoc:" # key) ?? return #err("Onbekende soort");
+    if (archive == (l.archivedAt != null)) { return #err(if archive "Al gearchiveerd" else "Niet gearchiveerd") };
+    l.archivedAt := if archive ?Time.now() else null;
+    Access.audit(audit, caller, ?p.id, null, if archive "attestsoort-gearchiveerd" else "attestsoort-teruggezet", key # ": " # l.tag);
+    #ok;
+  };
+
   // ── Tarieven van een firma met datum (firmafiche → Tarieven & attesten) ──
   public shared ({ caller }) func listOaRates(orgId : Nat) : async Result.Result<[DV.OaRateView], Text> {
     let p = Access.requireActive(access, caller);

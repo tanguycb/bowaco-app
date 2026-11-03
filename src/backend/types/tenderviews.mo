@@ -77,7 +77,8 @@ module {
     version : Nat;
     supersedes : ?Nat;
     current : Bool; // de laatste indiening van die firma op die prijsvraag
-    status : Types.OaQuoteStatus;
+    status : Types.OaQuoteStatus; // #withdrawn draagt de interne reden (enkel kantoor leest dit)
+    withdrawnShown : Bool; // kantoor maakte de reden van het intrekken zichtbaar voor de firma
     vatRegime : Types.OaVatRegime;
     createdAt : Int;
   };

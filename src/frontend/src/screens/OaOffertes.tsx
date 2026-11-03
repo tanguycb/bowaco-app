@@ -83,6 +83,7 @@ function LooseList({ workId }: { workId: bigint }) {
       <ul className="a-list">
         {rows.map((x) => (
           <li key={String(x.id)}>
+            {x.status.__kind__ === "withdrawn" && <span className="a-tag a-tag--bad">{O.withdrawnTag}</span>}
             <span className="a-list__main"><b>{x.orgName}</b><span className="bw-muted">{[x.number, fmtDayNum(x.quoteDay), x.validUntil !== undefined ? `${P.validUntil} ${fmtDayNum(x.validUntil)}` : ""].filter(Boolean).join(" · ")}</span></span>
             <Button variant="quiet" onClick={() => setOpen(x.id)}>{O.view}</Button>
           </li>
@@ -120,6 +121,7 @@ function TenderOaPanel({ s }: { s: TenderStatusView }) {
                   <span className="bw-muted">{cur ? `${O.version(Number(cur.version))} · ${O.source[cur.source] ?? cur.source}${cur.number ? ` · ${cur.number}` : ""} · ${fmtDayNum(cur.quoteDay)}${cur.validUntil !== undefined ? ` · ${P.validUntil} ${fmtDayNum(cur.validUntil)}` : ""}` : O.noAnswer}{inv.oaQuotes.length > 1 ? ` · ${O.cmpHistory(inv.oaQuotes.length - 1)}` : ""}</span>
                 </span>
                 {inv.outcome.__kind__ !== "open" && <span className="a-tag">{P.outcome[inv.outcome.__kind__]}</span>}
+                {cur?.status.__kind__ === "withdrawn" && <span className="a-tag a-tag--bad" data-testid="oq-withdrawn-tag">{O.withdrawnTag}</span>}
                 {cur && <Button variant="quiet" onClick={() => setSheet({ k: "quote", id: cur.id })}>{O.view}</Button>}
                 {isOpenT(v.status) && <Button onClick={() => setSheet({ k: "excel", inv })} data-testid="oq-excel">{O.readExcel}</Button>}
                 {isOpenT(v.status) && <Button variant="quiet" onClick={() => setSheet({ k: "hand", inv })} data-testid="oq-hand">{O.byHand}</Button>}

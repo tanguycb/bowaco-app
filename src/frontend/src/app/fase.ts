@@ -5,7 +5,7 @@
 //   • volgendeStap: de ene knop op de kaart "Volgende stap", per fase en rol.
 // VOORLOPIG: de regels volgen het prototype (BOWACO_prototype_2b.md, vraag 14); Alexis antwoordde nog niet. Wie ze aanpast,
 // past enkel FASE_EVENTS en STATUS_FLOOR aan (en de uitleg in texts/nl.ts → fase.rules).
-import type { Caps } from "../backend";
+import type { Caps, NextFacts } from "../backend";
 import { t } from "../texts/nl";
 import { isClient } from "./nav";
 
@@ -28,6 +28,8 @@ export type StageFacts = {
   progressSent?: bigint | number;
   progressDraft?: boolean;
   invoicedAt?: bigint;
+  /** Deel A van de open punten: prijsvraag, contract, attesten, uren, verzekering, schijf. Enkel tellingen en dagen, per rol gefilterd door de backend. */
+  next?: NextFacts;
 };
 
 export type Fase = {
@@ -135,14 +137,43 @@ export const stapTekst = (key: Stap["key"]) => t.stap[key];
 
 /** De rol op de kaart "Volgende stap" (uit de caps). */
 export type StapActie =
-  | { kind: "tab"; tab: TabKey }
+  | { kind: "tab"; tab: TabKey; sub?: string }
   | { kind: "report" } // werfverslag van vandaag
   | { kind: "werfstart" } // het openstaande voorstel Werf starten
   | { kind: "status"; status: "delivered" | "aftercare" }
   | { kind: "go"; to: string };
-export type Stap = { key: keyof typeof t.stap; action: StapActie | null };
+/** Gegevens voor de zin op de kaart (firma, titel, aantallen, dag als getal): de kaart zet ze om naar tekst (t.stapDetail). */
+export type StapData = { n?: number; of?: number; firm?: string; title?: string; day?: bigint };
+export type Stap = { key: keyof typeof t.stap; action: StapActie | null; data?: StapData };
 
-export function volgendeStap(f: Fase, s: StageFacts, caps: Caps, canEdit: boolean): Stap | null {
+/** Dagen vooruit waarbinnen "verzekering aangeven" op de kaart komt (de uiterste dag zelf staat in de zin). */
+export const DECLARE_WINDOW = 14;
+
+const dayNow = () => BigInt(Math.floor(Date.now() / 86_400_000));
+
+/**
+ * 2c-open punten, deel A: de nieuwe stappen van de kaart. Volgorde: wat geld kost of wettelijk vastzit gaat voor (vervallen factuur,
+ * contract, vergelijken, uren, aangifte, schijf, attest); een lopende prijsvraag enkel vóór de start. De backend geeft de feiten al per
+ * recht (werfleider: geen bedragen, dus ook geen factuurfeiten; OA en klant niets); de caps hier zijn een tweede slot.
+ */
+function nieuweStap(f: Fase, s: StageFacts, caps: Caps, today: bigint): Stap | null {
+  const n = s.next;
+  if (!n) return null;
+  const tab = (x: TabKey, sub?: string): StapActie => ({ kind: "tab", tab: x, ...(sub ? { sub } : {}) });
+  const num = (x: bigint | number) => Number(x);
+  if (caps.sales && caps.quotePrices && num(n.salesLate) > 0) return { key: "factuurVervallen", action: tab("facturatie", "facturen"), data: { n: num(n.salesLate) } };
+  if (num(n.contractsToSign) > 0) return { key: "contractTekenen", action: tab("wie"), data: { n: num(n.contractsToSign), firm: n.contractFirm } };
+  if (num(n.addendums) > 0) return { key: "aanhangselNodig", action: tab("wie"), data: { n: num(n.addendums) } };
+  if (caps.tenders && caps.quotePrices && n.tender?.compare) return { key: "prijsvraagKiezen", action: tab("offerte", "oa-offertes"), data: { title: n.tender.title, n: num(n.tender.answered), of: num(n.tender.asked), ...(n.tender.deadlineDay !== undefined ? { day: n.tender.deadlineDay } : {}) } };
+  if (caps.hourClaims && num(n.hoursOpen) > 0) return { key: "urenBevestigen", action: tab("facturatie", "aankoop"), data: { n: num(n.hoursOpen) } };
+  if (caps.siteAdmin && n.declareBy !== undefined && n.declareBy <= today + BigInt(DECLARE_WINDOW)) return { key: "verzekeringAangeven", action: tab("vergunningen"), data: { day: n.declareBy } };
+  if (caps.sales && caps.quotePrices && num(n.salesDue) > 0) return { key: "schijfFactureren", action: tab("facturatie", "facturen"), data: { n: num(n.salesDue), ...(n.salesDueDay !== undefined ? { day: n.salesDueDay } : {}) } };
+  if (num(n.attestsSoon) + num(n.attestsExpired) > 0) return { key: "attestVervalt", action: tab("wie"), data: { n: num(n.attestsSoon) + num(n.attestsExpired), ...(n.attestDay !== undefined ? { day: n.attestDay } : {}) } };
+  if (caps.tenders && caps.quotePrices && n.tender && !n.tender.compare && f.index <= 2) return { key: "prijsvraagLoopt", action: tab("offerte", "prijsvragen"), data: { title: n.tender.title, n: num(n.tender.answered), of: num(n.tender.asked), ...(n.tender.deadlineDay !== undefined ? { day: n.tender.deadlineDay } : {}) } };
+  return null;
+}
+
+export function volgendeStap(f: Fase, s: StageFacts, caps: Caps, canEdit: boolean, today: bigint = dayNow()): Stap | null {
   const tab = (x: TabKey): StapActie => ({ kind: "tab", tab: x });
   if (isClient(caps)) {
     if (f.index >= 1 && s.quoteWaiting && caps.myQuotes) return { key: "klantOfferte", action: { kind: "go", to: "mijn-offerte" } };
@@ -151,6 +182,8 @@ export function volgendeStap(f: Fase, s: StageFacts, caps: Caps, canEdit: boolea
   }
   if (!caps.readTeam) return null; // architect, OA, VC: geen kaart
   if (f.cancelled) return { key: "geannuleerd", action: null };
+  const extra = nieuweStap(f, s, caps, today);
+  if (extra) return extra;
   // Vorderingsstaten en opmeting vertrekken van een aanvaarde offerte; zonder (opdracht in regie) blijft het bij verslagen en planning.
   const prices = caps.quotePrices && caps.progress && s.acceptedAt !== undefined;
   // Meerwerk dat na het akkoord verstuurd werd en op antwoord wacht: kantoor volgt het op (review 2b.3).

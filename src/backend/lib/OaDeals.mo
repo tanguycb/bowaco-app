@@ -10,6 +10,7 @@ import Int "mo:core/Int";
 import Iter "mo:core/Iter";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Char "mo:core/Char";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Sha256 "mo:sha2/Sha256";
@@ -205,7 +206,30 @@ module {
   };
 
   public func kindLabel(s : Types.SettingsState, key : Text) : Text {
-    switch (docKinds(s).find(func k = k.key == key)) { case (?k) k.name; case null key };
+    switch (docKinds(s).find(func k = k.key == key)) {
+      case (?k) k.name;
+      // Een gearchiveerde soort blijft leesbaar bij de attesten die er al onder staan.
+      case null { switch (s.lookups.get("orgDoc:" # key)) { case (?l) l.tag; case null key } };
+    };
+  };
+
+  // Alle soorten voor Beheer: de vaste en de eigen, ook gearchiveerd.
+  public type KindRow = { key : Text; name : Text; fixed : Bool; archived : Bool };
+  public func allKinds(s : Types.SettingsState) : [KindRow] {
+    let base = Config.orgDocKinds().map(func((k, n) : (Text, Text)) : KindRow = { key = k; name = n; fixed = true; archived = false });
+    let own = s.lookups.entries().filter(func((k, _) : (Text, Types.Lookup)) : Bool = k.startsWith(#text "orgDoc:")).map(func((_, l) : (Text, Types.Lookup)) : KindRow = { key = l.key; name = l.tag; fixed = false; archived = l.archivedAt != null }).toArray();
+    base.concat(own.filter(func(k : KindRow) : Bool = base.find(func(b : KindRow) : Bool = b.key == k.key) == null));
+  };
+
+  // Sleutel uit de naam: kleine letters en cijfers, de rest een streepje.
+  public func slug(name : Text) : Text {
+    var out = "";
+    var dash = false;
+    for (c in name.toLower().chars()) {
+      if ((c >= 'a' and c <= 'z') or (c >= '0' and c <= '9')) { out #= Char.toText(c); dash := false }
+      else if (not dash and out != "") { out #= "-"; dash := true };
+    };
+    if (out.endsWith(#text "-")) { Text.fromIter(out.chars().take(out.size() - 1)) } else out;
   };
 
   public func docsOf(d : D, orgId : Nat) : [Types.OrgDoc] {
@@ -413,11 +437,12 @@ module {
     for (t in tenderIds.keys()) {
       var best : ?Types.OaQuote = null;
       for (q in ts.oaQuotes.values()) {
-        if (q.tenderId == ?t and q.orgId == orgId and q.status == #received) {
+        if (q.tenderId == ?t and q.orgId == orgId) {
           switch best { case (?b) { if (q.version > b.version) { best := ?q } }; case null { best := ?q } };
         };
       };
-      switch best { case (?b) { oq := oq.concat([b.id]) }; case null {} };
+      // Een ingetrokken laatste indiening telt niet (een oudere versie komt niet terug).
+      switch best { case (?b) { if (b.status == #received) { oq := oq.concat([b.id]) } }; case null {} };
     };
     { roots; prices; amountCents = if any ?amount else null; oaQuoteIds = oq };
   };

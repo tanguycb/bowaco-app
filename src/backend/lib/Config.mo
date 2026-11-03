@@ -533,6 +533,7 @@ module {
   public let maxRatesPerOrg : Nat = 300;
   public let maxRatesPerDeal : Nat = 100;
   public let maxOrgDocs : Nat = 200;
+  public let maxOrgDocKinds : Nat = 30; // eigen attestsoorten naast de drie vaste (Beheer → Documenten)
   public let maxContractText : Nat = 40_000;
   public func orgDocKinds() : [(Text, Text)] {
     [("ba", "Verzekering BA (burgerlijke aansprakelijkheid)"), ("tienjarige", "Tienjarige aansprakelijkheid"), ("personeel", "Personeelsverzekering (arbeidsongevallen)")];

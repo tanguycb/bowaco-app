@@ -62,8 +62,13 @@ module {
   public func current(ts : TS, t : Types.Tender) : [Types.OaQuote] {
     var out : [Types.OaQuote] = [];
     for (i in Tenders.invitesOf(ts, t.id).values()) {
-      let qs = Tenders.oaQuotesOfInvite(ts, i, t.workId).filter(func(q : Types.OaQuote) : Bool = q.status == #received);
-      if (qs.size() > 0) { out := out.concat([qs[qs.size() - 1]]) };
+      // De laatste indiening geldt; trok kantoor die in (open punt 2c.3), dan heeft de firma geen geldende offerte meer
+      // (een oudere versie komt niet terug: ze is door de firma zelf vervangen).
+      let qs = Tenders.oaQuotesOfInvite(ts, i, t.workId);
+      if (qs.size() > 0) {
+        let last = qs[qs.size() - 1];
+        if (last.status == #received) { out := out.concat([last]) };
+      };
     };
     out;
   };

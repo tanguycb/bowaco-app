@@ -206,3 +206,51 @@ export function ContractSjabloon({ caps }: { caps: Caps }) {
     </section>
   );
 }
+
+/** Beheer → Documenten: de soorten attest van een onderaannemer. De drie vaste blijven; de beheerder zet er soorten bij of archiveert ze. */
+export function AttestSoorten() {
+  const { actor, isFetching } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({ queryKey: ["orgDocKinds"], queryFn: () => actor!.listOrgDocKinds(), enabled: !!actor && !isFetching });
+  const [name, setName] = useState("");
+  const done = () => void qc.invalidateQueries({ queryKey: ["orgDocKinds"] });
+  const add = useMutation({
+    mutationFn: async () => unwrap(await actor!.addOrgDocKind(name)),
+    onSuccess: () => { setName(""); done(); toast.show({ kind: "ok", text: A.kindAdded }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  const arch = useMutation({
+    mutationFn: async (x: { key: string; archive: boolean }) => unwrap(await actor!.archiveOrgDocKind(x.key, x.archive)),
+    onSuccess: done,
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  return (
+    <section className="a-section a-form" style={{ maxWidth: 640 }} data-testid="attest-soorten">
+      <h2 className="bw-h2">{A.kindsTitle}</h2>
+      <p className="bw-muted">{A.kindsLead}</p>
+      <Loading q={q} />
+      {q.data && (
+        <ul className="a-list">
+          {q.data.map((k) => (
+            <li key={k.key}>
+              <span className="a-list__main">
+                <b>{k.name}</b>
+                <span className="a-row">
+                  <span className="a-tag">{k.fixed ? A.kindFixed : A.kindOwn}</span>
+                  {k.archived && <span className="a-tag a-tag--bad">{A.kindArchived}</span>}
+                  <span className="bw-muted">{A.kindInUse(Number(k.inUse))}</span>
+                </span>
+              </span>
+              {!k.fixed && <Button variant="quiet" busy={arch.isPending} onClick={() => arch.mutate({ key: k.key, archive: !k.archived })}>{k.archived ? A.kindRestore : A.kindArchive}</Button>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="a-row" style={{ gap: 8 }}>
+        <input className="bw-input" aria-label={A.kindName} placeholder={A.kindName} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+        <Button icon="plus" busy={add.isPending} disabled={name.trim().length < 2} onClick={() => add.mutate()}>{A.kindAdd}</Button>
+      </div>
+    </section>
+  );
+}

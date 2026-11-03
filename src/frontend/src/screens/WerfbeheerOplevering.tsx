@@ -8,6 +8,8 @@ import { Button, Confirm, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, inputToDay, todayDay, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
+import { download } from "./Prijsvragen";
+import { MAX_PID_BYTES, type PidSheet } from "../pdf/pid.ts";
 import { Field } from "./Werven";
 import { FileButton, uploadPlain, useOpenFile } from "./Werfbeheer";
 
@@ -224,6 +226,31 @@ export function WorkSheets({ w }: { w: WorkView }) {
   });
   const ids = chosen.data ?? [];
   const sorted = [...(lib.data ?? [])];
+  // Het PID: voorblad + de gekozen fiches in één PDF (de browser voegt samen; de server krijgt enkel een auditregel).
+  const [pidInfo, setPidInfo] = useState<{ pages: number; included: number; skipped: { title: string; reason: string }[] } | null>(null);
+  const pid = useMutation({
+    mutationFn: async () => {
+      const picked = sorted.filter((x) => ids.includes(x.id));
+      const files = await actor!.listFiles(null);
+      const sheets: PidSheet[] = [];
+      let total = 0;
+      for (const x of picked) {
+        const f = files.find((y) => y.id === x.fileId);
+        const bytes = f?.blob ? new Uint8Array(await f.blob.getBytes()) : new Uint8Array();
+        total += bytes.length;
+        if (total > MAX_PID_BYTES) throw new Error(S.pidTooBig);
+        sheets.push({ title: x.title, materialKey: x.materialKey, supplier: x.supplierName, fileName: x.fileName, mime: f?.mime ?? "", bytes });
+      }
+      const [{ buildPid }, { loadPdfFonts }] = await Promise.all([import("../pdf/pid.ts"), import("../pdf/fonts.ts")]);
+      const addr = [w.address.street, w.address.number].filter(Boolean).join(" ") + (w.address.city ? `, ${w.address.zip} ${w.address.city}` : "");
+      const r = await buildPid({ workCode: w.code, workName: w.name, address: addr, madeOn: fmtDayNum(todayDay()), sheets }, await loadPdfFonts());
+      unwrap(await actor!.recordPid(w.id, BigInt(r.included.length), BigInt(r.skipped.length), BigInt(r.pages)));
+      download(r.bytes, `PID-${w.code}.pdf`, "application/pdf");
+      return r;
+    },
+    onSuccess: (r) => { setPidInfo({ pages: r.pages, included: r.included.length, skipped: r.skipped.map((x) => ({ title: x.title, reason: x.reason })) }); toast.show({ kind: "ok", text: S.pidDone }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
   return (
     <section className="a-section" data-testid="sheets-block">
       <h2 className="bw-h2">{S.title}</h2>
@@ -236,6 +263,18 @@ export function WorkSheets({ w }: { w: WorkView }) {
               <li key={String(x.id)} className="a-doc"><label className="a-check"><input type="checkbox" checked={ids.includes(x.id)} disabled={set.isPending} onChange={(e) => set.mutate(e.target.checked ? [...ids, x.id] : ids.filter((i) => i !== x.id))} /><span><b>{x.materialKey}</b> · {x.title}{x.supplierName ? ` · ${x.supplierName}` : ""}</span></label></li>
             ))}
           </ul>
+          {w.caps.edit && (
+            <div className="a-row" style={{ gap: 8 }}>
+              <Button icon="doc" busy={pid.isPending} disabled={ids.length === 0} onClick={() => pid.mutate()} data-testid="pid-make">{S.pidMake}</Button>
+              <span className="bw-muted">{ids.length === 0 ? S.pidNone : S.pidLead}</span>
+            </div>
+          )}
+          {pidInfo && (
+            <div role="status" data-testid="pid-result">
+              <p>{S.pidResult(pidInfo.included, pidInfo.pages)}</p>
+              {pidInfo.skipped.length > 0 && <ul className="a-list">{pidInfo.skipped.map((x, i) => <li key={i}><span className="a-list__main"><b>{x.title}</b><span className="bw-muted">{S.pidSkipped}: {x.reason}</span></span></li>)}</ul>}
+            </div>
+          )}
         </>
       ))}
     </section>

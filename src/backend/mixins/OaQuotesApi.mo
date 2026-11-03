@@ -22,6 +22,7 @@ import Access "../lib/Access";
 import Config "../lib/Config";
 import Dossier "../lib/Dossier";
 import Ids "../lib/Ids";
+import OaDeals "../lib/OaDeals";
 import OaQuotes "../lib/OaQuotes";
 import Post "../lib/Post";
 import QuoteCalc "../lib/QuoteCalc";
@@ -42,6 +43,7 @@ mixin (
   library : Types.LibraryState,
   quotes : Types.QuotesState,
   tenders : Types.TenderState,
+  oaDeals : Types.OaDealState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -227,6 +229,58 @@ mixin (
     let how = switch (i.source) { case (#sheet) "Excel"; case (#hand) "met de hand"; case (#app) "app" };
     Access.audit(audit, caller, ?p.id, ?i.workId, "oa-offerte-geregistreerd", (switch tender { case (?t) t.code # ": "; case null "los: " }) # firm # " versie " # version.toText() # " (" # how # ", " # form # ", " # lines.size().toText() # " regels)");
     #ok({ oaQuoteId = id; version; netCents = net });
+  };
+
+  // ── Intrekken (open punt van 2c.3; kantoor met de bedragen) ──────────────
+  // Een OA-offerte intrekken met een verplichte reden. Niet meer als ze al overgenomen is in een offerte, als de prijsvraag niet
+  // meer loopt of als een afspraak ernaar verwijst; enkel de geldende (laatste) indiening. Vergelijken en kiezen negeren ze
+  // (OaQuotes.current). De OA ziet "ingetrokken door BOWACO"; de reden enkel als kantoor dat koos (extra "intrekZichtbaar").
+  // De firma mag daarna (zolang de prijsvraag loopt en de deadline niet voorbij is) opnieuw indienen = een nieuwe versie.
+  public shared ({ caller }) func withdrawOaQuote(oaQuoteId : Nat, reason : Text, showReason : Bool) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    oqRequire(p);
+    let q = tenders.oaQuotes.get(oaQuoteId) ?? return #err("Geen toegang");
+    if (not oqOffice(p, q.workId)) { return #err("Geen toegang") };
+    let why = reason.trim(#char ' ');
+    if (why.size() < 3) { return #err("Geef de reden van het intrekken (minstens 3 tekens)") };
+    if (why.size() > Config.maxQuoteReason) { return #err("Reden: hoogstens " # Config.maxQuoteReason.toText() # " tekens") };
+    switch (q.status) { case (#withdrawn _) { return #err("Deze offerte is al ingetrokken") }; case (#received) {} };
+    var tender : ?Types.Tender = null;
+    switch (q.tenderId) {
+      case (?tid) {
+        let t = tenders.tenders.get(tid) ?? return #err("Onbekende prijsvraag");
+        if (t.status != #open) { return #err("De prijsvraag is " # Tenders.statusText(t.status) # ": een offerte intrekken kan enkel zolang ze loopt") };
+        if (not OaQuotes.isCurrent(tenders, t, q.id)) { return #err("Enkel de laatste indiening van een firma kan ingetrokken worden") };
+        tender := ?t;
+      };
+      case null {};
+    };
+    for (c in tenders.choices.values()) {
+      switch c {
+        case (#plain(x)) { if (x.oaQuoteId == ?q.id and x.appliedVersionId != null) { return #err("Deze offerte is al overgenomen in een offerte van de klant: trek ze niet in") } };
+        case _ {};
+      };
+    };
+    for (a in oaDeals.agreements.values()) {
+      if (a.oaQuoteIds.find(func(x : Nat) : Bool = x == q.id) != null) {
+        switch (a.status) { case (#ended _) {}; case _ { return #err("Een afspraak met deze firma verwijst naar de offerte: wijzig eerst de afspraak") } };
+      };
+    };
+    let now = Time.now();
+    let extra = OaDeals.extraSet(OaDeals.extraSet(OaDeals.extraSet(q.extra, "intrekZichtbaar", if showReason "ja" else "nee"), "ingetrokkenOp", now.toText()), "ingetrokkenDoor", p.id.toText());
+    tenders.oaQuotes.add(q.id, { q with status = #withdrawn(why); extra });
+    // De uitnodiging staat weer open: de firma kan opnieuw indienen zolang de deadline niet voorbij is.
+    switch (q.inviteId) {
+      case (?iid) {
+        switch (tenders.invites.get(iid)) {
+          case (?inv) { if (inv.status == #received) { tenders.invites.add(iid, { inv with status = #asked; answeredAt = null }) } };
+          case null {};
+        };
+      };
+      case null {};
+    };
+    Access.audit(audit, caller, ?p.id, ?q.workId, "oa-offerte-ingetrokken", (switch tender { case (?t) t.code # ": "; case null "los: " }) # Tenders.orgName(oqCtx(), q.orgId) # " versie " # q.version.toText() # ", reden: " # why # (if showReason " (zichtbaar voor de firma)" else " (intern)"));
+    #ok;
   };
 
   // ── Vergelijken (R38: update-call, auditregel per offerte) ──────────────

@@ -241,6 +241,26 @@ module {
     progressSent : Nat; // verzonden vorderingsstaten (zonder creditnota's en gecrediteerde staten)
     progressDraft : Bool; // een vorderingsstaat in ontwerp
     invoicedAt : ?Int; // slotstaat: de eerste vorderingsstaat verzonden ná de eindopmeting
+    next : NextFacts; // 2c.9-open punten: wat de kaart Volgende stap nog kent (enkel tellingen en dagen, per rol gefilterd)
+  };
+
+  // Feiten voor de kaart "Volgende stap" (deel A van de open punten van 2c.2–2c.8). GEEN bedrag, geen prijs, geen tarief. Elk deel
+  // is leeg (0, null) voor wie het recht niet heeft: prijsvragen en facturen enkel kantoor met de bedragen (admin, calculator); de
+  // afspraken, attesten, verzekering en uren voor wie de werf in dat deel mag zien. De OA en de klant krijgen niets.
+  public type NextTender = { title : Text; asked : Nat; answered : Nat; deadlineDay : ?Types.Day; compare : Bool };
+  public type NextFacts = {
+    tender : ?NextTender; // de prijsvraag die het eerst aandacht vraagt (vergelijken gaat voor wachten)
+    contractsToSign : Nat; // afspraken met een contract klaar om te tekenen
+    contractFirm : Text; // de eerste firma daarvan (enkel zinvol bij één)
+    addendums : Nat; // getekend contract dat niet meer klopt: aanhangsel nodig
+    attestsSoon : Nat; // verplichte attesten van de OA's van deze werf die binnen 30 dagen vervallen
+    attestsExpired : Nat; // idem: vervallen of ontbrekend
+    attestDay : ?Types.Day; // de vroegste vervaldag
+    hoursOpen : Nat; // dagen met uren van een OA die de werfleider nog moet bevestigen
+    declareBy : ?Types.Day; // vroegste uiterste dag om een verzekering aan te geven (nog niet aangegeven)
+    salesDue : Nat; // schijven van het schema die nu te factureren zijn
+    salesDueDay : ?Types.Day;
+    salesLate : Nat; // uitgereikte facturen waarvan de vervaldag voorbij is en die nog open staan
   };
 
   public type WorkUpdate = {

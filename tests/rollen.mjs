@@ -2037,6 +2037,7 @@ await sec("── 2c.3 OA-offertes: vergelijken, kiezen, overnemen per rol (de r
   for (const [n, x] of others) check(`${n}: geen vergelijking, geen lijst van OA-offertes, niet kiezen of overnemen`, (await denied(x.compareTender(tB.id))) && (await denied(x.listOaQuotes(B))) && (await denied(x.saveTenderChoices(tB.id, [{ itemId: v.items[0].id, oaQuoteId: [oq.id], reason: "" }]))) && (await denied(x.applyTenderChoices(tB.id, v.versionId))));
   const loose = { inviteId: [], workId: B, orgId: orgY.ok.id, source: { hand: null }, sheetKey: "", number: "PROEF-LOS-1", quoteDay: BigInt(Math.floor(Date.now() / 86_400_000)), validUntil: [], discountBp: [], reverse: true, prices: { total: 12_345n }, remark: "", note: "", file: [] };
   for (const [n, x] of others) check(`${n}: geen OA-offerte registreren`, await denied(x.registerOaQuote(loose, 12_345n)));
+  for (const [n, x] of others) check(`${n}: een OA-offerte niet intrekken`, await denied(x.withdrawOaQuote(oq.id, "reden van de proef", false)));
   const reg = await calc.registerOaQuote(loose, 12_345n);
   check("calculator registreert een losse OA-offerte (enkel het totaal); de lijst van de werf toont ze, zonder bedrag", isOk(reg) && (await calc.listOaQuotes(B)).some((x) => x.id === reg.ok.oaQuoteId && x.tenderId.length === 0) && !JSON.stringify(await calc.listOaQuotes(B), (_, y) => (typeof y === "bigint" ? y.toString() : y)).includes("12345"));
   const pk = await calc.saveTenderChoices(tB.id, [{ itemId: v.items[0].id, oaQuoteId: [oq.id], reason: "" }]);
@@ -2126,6 +2127,8 @@ await sec("── 2c.8 werfadministratie en oplevering per rol (R45, R46; de res
   const ir = await calc.saveInsurance(insIn);
   check("calculator maakt een verzekering op werf A", isOk(ir), errOf(ir));
   const iid = ir.ok;
+  for (const [n, x] of others) check(`${n}: geen PID-regel, geen attestsoorten`, (await denied(x.recordPid(A, 1n, 0n, 3n))) && (await denied(x.listOrgDocKinds())) && (await denied(x.addOrgDocKind("Proef soort"))));
+  check("calculator en werfleider: attestsoorten beheren geweigerd (enkel de beheerder); de werfleider van A zet wel een PID-regel", (await denied(calc.addOrgDocKind("Proef soort"))) && (await denied(wl.listOrgDocKinds())) && isOk(await wl.recordPid(A, 1n, 0n, 3n)));
   check("admin leest de verzekering van werf A; de werfleider (lid van A) ook", (await admin.listInsurances([A], false)).length >= 1 && (await wl.listInsurances([A], false)).length >= 1);
   for (const [n, x] of others) check(`${n}: verzekering, vergadering, oplevering en fiches lezen en bewaren geweigerd`, (await denied(x.listInsurances([A], false))) && (await denied(x.listMeetings(A))) && (await denied(x.listHandovers(A))) && (await denied(x.listTechSheets(false))) && (await denied(x.saveInsurance(insIn))));
   check("de werfleider ziet werfwaarde en premie niet (update-calls geweigerd)", (await denied(wl.readInsuranceConf(iid))) && (await denied(wl.saveInsuranceConf(iid, { workValueCents: [1000n], rateMilli: [], minPremiumCents: [], taxesCents: [], paid: false, rev: 0n }))));
@@ -2370,10 +2373,15 @@ await sec("── 2b.3 de werf als centrum: stand van de werf (listWorkStages), 
   }
   check("listWorkStages: elke rol krijgt de stand van precies de werven die ze ziet (zelfde als listWorks)", zelfde, verschil.join(" | "));
   const velden = Object.keys((await admin.listWorkStages())[0] ?? {}).sort().join(",");
-  check("listWorkStages: enkel momenten, tellingen en vlaggen (geen bedrag, naam of inhoud)", velden === "acceptedAt,firstReportAt,invoicedAt,measuredAt,progressDraft,progressSent,quoteSentAt,quoteWaiting,startPending,startedAt,surveyOpen,tasks,workId", velden);
+  check("listWorkStages: enkel momenten, tellingen en vlaggen (geen bedrag, naam of inhoud)", velden === "acceptedAt,firstReportAt,invoicedAt,measuredAt,next,progressDraft,progressSent,quoteSentAt,quoteWaiting,startPending,startedAt,surveyOpen,tasks,workId", velden);
   const leeg = (s) => s.quoteSentAt.length + s.acceptedAt.length + s.startedAt.length + s.firstReportAt.length + s.measuredAt.length + s.invoicedAt.length === 0 && s.tasks === 0n && s.progressSent === 0n && !s.quoteWaiting && !s.startPending && !s.surveyOpen && !s.progressDraft;
   check("listWorkStages: OA, architect en VC krijgen een lege stand (niets van offertes, staten of planning)", (await Promise.all([oa2, arch, vc].map((x) => x.listWorkStages()))).every((l) => l.every(leeg)));
   check("listWorkStages: de klant krijgt geen interne vlaggen (aantal taken, ontwerp, open opmeting)", (await klant.listWorkStages()).every((s) => s.tasks === 0n && !s.progressDraft && !s.surveyOpen && !s.startPending));
+  // 2c open punten (deel A): de feiten voor de kaart Volgende stap (`next`) per rol. Geen bedragen in het .did; OA, architect, VC en klant leeg.
+  const nextLeeg = (s) => !s.next.tender.length && s.next.contractsToSign === 0n && s.next.addendums === 0n && s.next.attestsSoon === 0n && s.next.attestsExpired === 0n && s.next.hoursOpen === 0n && !s.next.declareBy.length && s.next.salesDue === 0n && s.next.salesLate === 0n && s.next.contractFirm === "";
+  check("listWorkStages.next: OA, architect, VC en de klant krijgen geen enkel feit (prijsvraag, contract, attest, uren, verzekering, factuur)", (await Promise.all([oa2, arch, vc, klant].map((x) => x.listWorkStages()))).every((l) => l.every(nextLeeg)));
+  check("listWorkStages.next: de velden zijn tellingen en dagen, nooit een bedrag of prijs", Object.keys((await admin.listWorkStages())[0].next).sort().join(",") === "addendums,attestDay,attestsExpired,attestsSoon,contractFirm,contractsToSign,declareBy,hoursOpen,salesDue,salesDueDay,salesLate,tender" && !/cents|price|prijs|amount/i.test(Object.keys((await admin.listWorkStages())[0].next).join(",")));
+  check("listWorkStages.next: de werfleider krijgt nooit een factuur- of prijsvraagfeit (geen bedragen)", (await wl.listWorkStages()).every((s) => s.next.salesDue === 0n && s.next.salesLate === 0n && !s.next.tender.length));
   check("listWorkStages: anoniem en een ongekoppelde login geweigerd", (await rejects(anon.listWorkStages())) && (await rejects(nieuw.listWorkStages())));
   const stA = (await admin.listWorkStages()).find((s) => s.workId === A);
   const ex3 = await admin.exportIntern();

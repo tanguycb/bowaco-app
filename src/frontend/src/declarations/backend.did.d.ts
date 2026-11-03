@@ -3290,6 +3290,27 @@ export interface NewTicket {
   'expiresAt' : bigint,
   'ticketId' : bigint,
 }
+export interface NextFacts {
+  'salesDue' : bigint,
+  'contractFirm' : string,
+  'declareBy' : [] | [Day],
+  'addendums' : bigint,
+  'hoursOpen' : bigint,
+  'attestDay' : [] | [Day],
+  'attestsSoon' : bigint,
+  'attestsExpired' : bigint,
+  'salesLate' : bigint,
+  'salesDueDay' : [] | [Day],
+  'tender' : [] | [NextTender],
+  'contractsToSign' : bigint,
+}
+export interface NextTender {
+  'title' : string,
+  'asked' : bigint,
+  'answered' : bigint,
+  'compare' : boolean,
+  'deadlineDay' : [] | [Day],
+}
 export interface NotificationExport {
   'id' : bigint,
   'kind' : string,
@@ -3636,6 +3657,7 @@ export interface OaQuoteBrief {
   'inviteId' : [] | [bigint],
   'supersedes' : [] | [bigint],
   'createdAt' : bigint,
+  'withdrawnShown' : boolean,
   'version' : bigint,
   'fileId' : [] | [bigint],
   'number' : string,
@@ -3880,6 +3902,13 @@ export interface OrgDocInput {
   'note' : string,
   'fileId' : [] | [bigint],
   'validUntil' : [] | [Day],
+}
+export interface OrgDocKindAdminView {
+  'key' : string,
+  'fixed' : boolean,
+  'name' : string,
+  'inUse' : bigint,
+  'archived' : boolean,
 }
 export interface OrgDocKindView {
   'key' : string,
@@ -7409,6 +7438,7 @@ export interface WorkStageView {
   'measuredAt' : [] | [bigint],
   'invoicedAt' : [] | [bigint],
   'quoteSentAt' : [] | [bigint],
+  'next' : NextFacts,
   'startPending' : boolean,
   'progressDraft' : boolean,
   'surveyOpen' : boolean,
@@ -7707,6 +7737,7 @@ export interface _SERVICE {
     [string, string, string, bigint, ExternalBlob],
     Result_93
   >,
+  'addOrgDocKind' : ActorMethod<[string], Result_10>,
   'addQuoteTerms' : ActorMethod<[QuoteTermsInput], Result_7>,
   'addRobot' : ActorMethod<[Principal, string, Array<string>], Result_1>,
   'addSalesPayment' : ActorMethod<
@@ -7740,6 +7771,7 @@ export interface _SERVICE {
   'archiveOaRate' : ActorMethod<[bigint, string], Result_1>,
   'archiveOrg' : ActorMethod<[bigint], Result_1>,
   'archiveOrgDoc' : ActorMethod<[bigint, string], Result_1>,
+  'archiveOrgDocKind' : ActorMethod<[string, boolean], Result_1>,
   'archivePermit' : ActorMethod<[bigint, string], Result_1>,
   'archivePerson' : ActorMethod<[bigint], Result_1>,
   'archiveSalesPayment' : ActorMethod<[bigint, string], Result_1>,
@@ -7867,6 +7899,7 @@ export interface _SERVICE {
   'listOaQuotes' : ActorMethod<[bigint], Array<OaQuoteBrief>>,
   'listOaRates' : ActorMethod<[bigint], Result_71>,
   'listOas' : ActorMethod<[OaFilter], Array<OaView>>,
+  'listOrgDocKinds' : ActorMethod<[], Array<OrgDocKindAdminView>>,
   'listOrgDocs' : ActorMethod<[bigint], OrgDocsView>,
   'listOrgs' : ActorMethod<[boolean], Array<OrgView>>,
   'listPermitKinds' : ActorMethod<[boolean], Array<PermitKindView>>,
@@ -7992,6 +8025,7 @@ export interface _SERVICE {
   'readSalesPlan' : ActorMethod<[bigint], Result_14>,
   'readTender' : ActorMethod<[bigint], Result_36>,
   'readTenderFile' : ActorMethod<[string, bigint], Result_35>,
+  'recordPid' : ActorMethod<[bigint, bigint, bigint, bigint], Result_1>,
   'recordWithholdingCheck' : ActorMethod<[bigint, WithholdingInput], Result_34>,
   'redeemCode' : ActorMethod<[string], Result_33>,
   'registerOaQuote' : ActorMethod<[OaQuoteInput, bigint], Result_32>,
@@ -8164,6 +8198,7 @@ export interface _SERVICE {
   'wadmRules' : ActorMethod<[], WadmRules>,
   'weekBoard' : ActorMethod<[BoardQuery], BoardView>,
   'withdrawOaInvoice' : ActorMethod<[bigint, bigint, string], Result_1>,
+  'withdrawOaQuote' : ActorMethod<[bigint, string, boolean], Result_1>,
   'withdrawPurchase' : ActorMethod<[bigint, bigint, string], Result_1>,
   'withholdingHistory' : ActorMethod<[bigint], Array<WithholdingCheckView>>,
   'workAdmin' : ActorMethod<[bigint], WorkAdminView>,

@@ -145,6 +145,7 @@ export const MyAttestView = IDL.Record({
 export const Result_94 = IDL.Variant({ 'ok' : MyAttestView, 'err' : IDL.Text });
 export const MyTenderFile = IDL.Record({ 'name' : IDL.Text, 'size' : IDL.Nat });
 export const Result_93 = IDL.Variant({ 'ok' : MyTenderFile, 'err' : IDL.Text });
+export const Result_10 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
 export const QuoteTermsInput = IDL.Record({
   'title' : IDL.Text,
   'note' : IDL.Text,
@@ -483,6 +484,7 @@ export const OaQuoteBrief = IDL.Record({
   'inviteId' : IDL.Opt(IDL.Nat),
   'supersedes' : IDL.Opt(IDL.Nat),
   'createdAt' : IDL.Int,
+  'withdrawnShown' : IDL.Bool,
   'version' : IDL.Nat,
   'fileId' : IDL.Opt(IDL.Nat),
   'number' : IDL.Text,
@@ -4221,7 +4223,6 @@ export const InviteRequest = IDL.Record({
   'phone' : IDL.Opt(IDL.Text),
   'roles' : IDL.Vec(Role),
 });
-export const Result_10 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
 export const MailTo = IDL.Record({ 'name' : IDL.Text, 'email' : IDL.Text });
 export const MailSection = IDL.Record({
   'title' : IDL.Text,
@@ -4637,6 +4638,13 @@ export const OaFilter = IDL.Record({
   'text' : IDL.Opt(IDL.Text),
   'includeArchived' : IDL.Bool,
 });
+export const OrgDocKindAdminView = IDL.Record({
+  'key' : IDL.Text,
+  'fixed' : IDL.Bool,
+  'name' : IDL.Text,
+  'inUse' : IDL.Nat,
+  'archived' : IDL.Bool,
+});
 export const OrgDocView = IDL.Record({
   'id' : IDL.Nat,
   'status' : DocStatus,
@@ -4845,6 +4853,27 @@ export const TextBlockView = IDL.Record({
   'archived' : IDL.Bool,
   'defaultOn' : IDL.Bool,
 });
+export const NextTender = IDL.Record({
+  'title' : IDL.Text,
+  'asked' : IDL.Nat,
+  'answered' : IDL.Nat,
+  'compare' : IDL.Bool,
+  'deadlineDay' : IDL.Opt(Day),
+});
+export const NextFacts = IDL.Record({
+  'salesDue' : IDL.Nat,
+  'contractFirm' : IDL.Text,
+  'declareBy' : IDL.Opt(Day),
+  'addendums' : IDL.Nat,
+  'hoursOpen' : IDL.Nat,
+  'attestDay' : IDL.Opt(Day),
+  'attestsSoon' : IDL.Nat,
+  'attestsExpired' : IDL.Nat,
+  'salesLate' : IDL.Nat,
+  'salesDueDay' : IDL.Opt(Day),
+  'tender' : IDL.Opt(NextTender),
+  'contractsToSign' : IDL.Nat,
+});
 export const WorkStageView = IDL.Record({
   'tasks' : IDL.Nat,
   'startedAt' : IDL.Opt(IDL.Int),
@@ -4852,6 +4881,7 @@ export const WorkStageView = IDL.Record({
   'measuredAt' : IDL.Opt(IDL.Int),
   'invoicedAt' : IDL.Opt(IDL.Int),
   'quoteSentAt' : IDL.Opt(IDL.Int),
+  'next' : NextFacts,
   'startPending' : IDL.Bool,
   'progressDraft' : IDL.Bool,
   'surveyOpen' : IDL.Bool,
@@ -8091,6 +8121,7 @@ export const idlService = IDL.Service({
       [Result_93],
       [],
     ),
+  'addOrgDocKind' : IDL.Func([IDL.Text], [Result_10], []),
   'addQuoteTerms' : IDL.Func([QuoteTermsInput], [Result_7], []),
   'addRobot' : IDL.Func(
       [IDL.Principal, IDL.Text, IDL.Vec(IDL.Text)],
@@ -8143,6 +8174,7 @@ export const idlService = IDL.Service({
   'archiveOaRate' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
   'archiveOrg' : IDL.Func([IDL.Nat], [Result_1], []),
   'archiveOrgDoc' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
+  'archiveOrgDocKind' : IDL.Func([IDL.Text, IDL.Bool], [Result_1], []),
   'archivePermit' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
   'archivePerson' : IDL.Func([IDL.Nat], [Result_1], []),
   'archiveSalesPayment' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
@@ -8329,6 +8361,7 @@ export const idlService = IDL.Service({
   'listOaQuotes' : IDL.Func([IDL.Nat], [IDL.Vec(OaQuoteBrief)], ['query']),
   'listOaRates' : IDL.Func([IDL.Nat], [Result_71], []),
   'listOas' : IDL.Func([OaFilter], [IDL.Vec(OaView)], ['query']),
+  'listOrgDocKinds' : IDL.Func([], [IDL.Vec(OrgDocKindAdminView)], ['query']),
   'listOrgDocs' : IDL.Func([IDL.Nat], [OrgDocsView], ['query']),
   'listOrgs' : IDL.Func([IDL.Bool], [IDL.Vec(OrgView)], ['query']),
   'listPermitKinds' : IDL.Func(
@@ -8508,6 +8541,7 @@ export const idlService = IDL.Service({
   'readSalesPlan' : IDL.Func([IDL.Nat], [Result_14], []),
   'readTender' : IDL.Func([IDL.Nat], [Result_36], ['query']),
   'readTenderFile' : IDL.Func([IDL.Text, IDL.Nat], [Result_35], []),
+  'recordPid' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat, IDL.Nat], [Result_1], []),
   'recordWithholdingCheck' : IDL.Func(
       [IDL.Nat, WithholdingInput],
       [Result_34],
@@ -8755,6 +8789,7 @@ export const idlService = IDL.Service({
   'wadmRules' : IDL.Func([], [WadmRules], ['query']),
   'weekBoard' : IDL.Func([BoardQuery], [BoardView], ['query']),
   'withdrawOaInvoice' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
+  'withdrawOaQuote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Bool], [Result_1], []),
   'withdrawPurchase' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
   'withholdingHistory' : IDL.Func(
       [IDL.Nat],
@@ -8914,6 +8949,7 @@ export const idlFactory = ({ IDL }) => {
   const Result_94 = IDL.Variant({ 'ok' : MyAttestView, 'err' : IDL.Text });
   const MyTenderFile = IDL.Record({ 'name' : IDL.Text, 'size' : IDL.Nat });
   const Result_93 = IDL.Variant({ 'ok' : MyTenderFile, 'err' : IDL.Text });
+  const Result_10 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
   const QuoteTermsInput = IDL.Record({
     'title' : IDL.Text,
     'note' : IDL.Text,
@@ -9243,6 +9279,7 @@ export const idlFactory = ({ IDL }) => {
     'inviteId' : IDL.Opt(IDL.Nat),
     'supersedes' : IDL.Opt(IDL.Nat),
     'createdAt' : IDL.Int,
+    'withdrawnShown' : IDL.Bool,
     'version' : IDL.Nat,
     'fileId' : IDL.Opt(IDL.Nat),
     'number' : IDL.Text,
@@ -12941,7 +12978,6 @@ export const idlFactory = ({ IDL }) => {
     'phone' : IDL.Opt(IDL.Text),
     'roles' : IDL.Vec(Role),
   });
-  const Result_10 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
   const MailTo = IDL.Record({ 'name' : IDL.Text, 'email' : IDL.Text });
   const MailSection = IDL.Record({
     'title' : IDL.Text,
@@ -13354,6 +13390,13 @@ export const idlFactory = ({ IDL }) => {
     'text' : IDL.Opt(IDL.Text),
     'includeArchived' : IDL.Bool,
   });
+  const OrgDocKindAdminView = IDL.Record({
+    'key' : IDL.Text,
+    'fixed' : IDL.Bool,
+    'name' : IDL.Text,
+    'inUse' : IDL.Nat,
+    'archived' : IDL.Bool,
+  });
   const OrgDocView = IDL.Record({
     'id' : IDL.Nat,
     'status' : DocStatus,
@@ -13559,6 +13602,27 @@ export const idlFactory = ({ IDL }) => {
     'archived' : IDL.Bool,
     'defaultOn' : IDL.Bool,
   });
+  const NextTender = IDL.Record({
+    'title' : IDL.Text,
+    'asked' : IDL.Nat,
+    'answered' : IDL.Nat,
+    'compare' : IDL.Bool,
+    'deadlineDay' : IDL.Opt(Day),
+  });
+  const NextFacts = IDL.Record({
+    'salesDue' : IDL.Nat,
+    'contractFirm' : IDL.Text,
+    'declareBy' : IDL.Opt(Day),
+    'addendums' : IDL.Nat,
+    'hoursOpen' : IDL.Nat,
+    'attestDay' : IDL.Opt(Day),
+    'attestsSoon' : IDL.Nat,
+    'attestsExpired' : IDL.Nat,
+    'salesLate' : IDL.Nat,
+    'salesDueDay' : IDL.Opt(Day),
+    'tender' : IDL.Opt(NextTender),
+    'contractsToSign' : IDL.Nat,
+  });
   const WorkStageView = IDL.Record({
     'tasks' : IDL.Nat,
     'startedAt' : IDL.Opt(IDL.Int),
@@ -13566,6 +13630,7 @@ export const idlFactory = ({ IDL }) => {
     'measuredAt' : IDL.Opt(IDL.Int),
     'invoicedAt' : IDL.Opt(IDL.Int),
     'quoteSentAt' : IDL.Opt(IDL.Int),
+    'next' : NextFacts,
     'startPending' : IDL.Bool,
     'progressDraft' : IDL.Bool,
     'surveyOpen' : IDL.Bool,
@@ -16700,6 +16765,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_93],
         [],
       ),
+    'addOrgDocKind' : IDL.Func([IDL.Text], [Result_10], []),
     'addQuoteTerms' : IDL.Func([QuoteTermsInput], [Result_7], []),
     'addRobot' : IDL.Func(
         [IDL.Principal, IDL.Text, IDL.Vec(IDL.Text)],
@@ -16752,6 +16818,7 @@ export const idlFactory = ({ IDL }) => {
     'archiveOaRate' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
     'archiveOrg' : IDL.Func([IDL.Nat], [Result_1], []),
     'archiveOrgDoc' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
+    'archiveOrgDocKind' : IDL.Func([IDL.Text, IDL.Bool], [Result_1], []),
     'archivePermit' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
     'archivePerson' : IDL.Func([IDL.Nat], [Result_1], []),
     'archiveSalesPayment' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
@@ -16950,6 +17017,7 @@ export const idlFactory = ({ IDL }) => {
     'listOaQuotes' : IDL.Func([IDL.Nat], [IDL.Vec(OaQuoteBrief)], ['query']),
     'listOaRates' : IDL.Func([IDL.Nat], [Result_71], []),
     'listOas' : IDL.Func([OaFilter], [IDL.Vec(OaView)], ['query']),
+    'listOrgDocKinds' : IDL.Func([], [IDL.Vec(OrgDocKindAdminView)], ['query']),
     'listOrgDocs' : IDL.Func([IDL.Nat], [OrgDocsView], ['query']),
     'listOrgs' : IDL.Func([IDL.Bool], [IDL.Vec(OrgView)], ['query']),
     'listPermitKinds' : IDL.Func(
@@ -17145,6 +17213,11 @@ export const idlFactory = ({ IDL }) => {
     'readSalesPlan' : IDL.Func([IDL.Nat], [Result_14], []),
     'readTender' : IDL.Func([IDL.Nat], [Result_36], ['query']),
     'readTenderFile' : IDL.Func([IDL.Text, IDL.Nat], [Result_35], []),
+    'recordPid' : IDL.Func(
+        [IDL.Nat, IDL.Nat, IDL.Nat, IDL.Nat],
+        [Result_1],
+        [],
+      ),
     'recordWithholdingCheck' : IDL.Func(
         [IDL.Nat, WithholdingInput],
         [Result_34],
@@ -17412,6 +17485,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_1],
         [],
       ),
+    'withdrawOaQuote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Bool], [Result_1], []),
     'withdrawPurchase' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Text], [Result_1], []),
     'withholdingHistory' : IDL.Func(
         [IDL.Nat],

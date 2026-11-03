@@ -27,6 +27,8 @@ module {
     rev : Nat;
   };
   public type OrgDocKindView = { key : Text; name : Text; required : Bool };
+  // Beheer → Documenten: de vaste soorten (niet te wijzigen) en wat de beheerder erbij zette (lookups "orgDoc:<sleutel>"), ook gearchiveerd.
+  public type OrgDocKindAdminView = { key : Text; name : Text; fixed : Bool; archived : Bool; inUse : Nat };
   public type OrgDocView = {
     id : Nat;
     orgId : Nat;

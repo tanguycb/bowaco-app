@@ -676,6 +676,17 @@ mixin (
     #ok;
   };
 
+  // Het PID-document maakt de browser (voorblad + de gekozen fiches, pdf-lib). Dit zet enkel een auditregel: wie, welke werf, hoeveel
+  // fiches erin zitten en hoeveel overgeslagen werden. Wie de fiches voor het PID mag kiezen (#editSiteAdmin op die werf: kantoor en de
+  // werfleider van de werf) mag het document maken. Geen bedrag, geen bestand.
+  public shared ({ caller }) func recordPid(workId : Nat, included : Nat, skipped : Nat, pages : Nat) : async Result.Result<(), Text> {
+    let p = Access.requireActive(access, caller);
+    if (not Rights.may({ works; settings }, p, #editSiteAdmin, ?workId)) { return saDeny() };
+    if (included > Config.maxTechSheets or skipped > Config.maxTechSheets or pages > 100_000) { return #err("Ongeldige tellingen") };
+    Access.audit(audit, caller, ?p.id, ?workId, "pid-gemaakt", included.toText() # " fiches in " # pages.toText() # " bladzijden" # (if (skipped > 0) ", " # skipped.toText() # " overgeslagen" else ""));
+    #ok;
+  };
+
   // ── De klant (Mijn werf): enkel wat kantoor deelde; de architect: het afgeronde opleveringsdocument ──
   // Review M2: de klant moet van de firma zijn die op de werf als klant staat (zoals QuoteClientApi). Review L12: de architect (lid van de
   // werf) opent het afgeronde opleveringsdocument, zonder bedragen; hij ziet geen attest.

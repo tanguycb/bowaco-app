@@ -122,5 +122,8 @@ node tests/werfadmin-2c8.mjs "$cid"
 # weigering bij een ontbrekende vermelding, factuur uit een vorderingsstaat en uit de min-meerstaat zonder dubbel, betalingen, rechten,
 # rekentest, UBL, kwartaallijst, herinnering). Verzet de klok van dit eigen net naar 1 januari (jaarwissel): vóór de prijsvraag-klokproef.
 node tests/factuur-2c6.mjs "$cid"
+# 2c open punten deel A: kaart Volgende stap per rol, Beheer (termijnen, attestsoorten), OA-offerte intrekken, PID. Ná factuur-2c6 (geeft een
+# voorschotfactuur een nummer) en vóór de klokproef van prijsvraag-2c2 (verzet de klok zelf 3 dagen vooruit).
+node tests/openpunten-2c8p.mjs "$cid"
 node tests/prijsvraag-2c2.mjs "$cid"
 ( cd gateway && node --test test/*.test.ts )

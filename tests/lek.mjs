@@ -427,6 +427,8 @@ const table = {
   registerOaQuote: [["admin", "calculator"], () => [{ inviteId: [], workId: B, orgId: X, source: { hand: null }, sheetKey: "", number: "", quoteDay: 0n, validUntil: [], discountBp: [], reverse: true, prices: { total: 0n }, remark: "", note: "", file: [] }, 0n]],
   compareTender: [["admin", "calculator"], () => [tOpen.id]],
   saveTenderChoices: [["admin", "calculator"], () => [tOpen.id, []]],
+  // 2c open punten (deel A): een OA-offerte intrekken (zonder reden = ongeldig, dus geen wijziging).
+  withdrawOaQuote: [["admin", "calculator"], () => [oaq.id, "", false]],
   applyTenderChoices: [["admin", "calculator"], () => [tOpen.id, X]],
   // 2c.4: afspraken met de gekozen OA (R40). Kantoor (admin, calculator) alles, bedragen enkel via update-calls met auditregel; de
   // werfleider van de werf de stand (listDeals); interne rollen de attesten op de firmafiche; de OA zijn eigen contracten en attesten
@@ -544,6 +546,12 @@ const table = {
   archiveTechSheet: [NONE, () => [X]],
   workTechSheets: [ON_B.filter((r) => r !== "oa"), () => [B]],
   setWorkTechSheets: [["admin", "calculator", "werfleider"], () => [B, [X]]],
+  // 2c open punten (deel A): het PID-document maakt de browser; dit zet enkel de auditregel (ongeldige tellingen = geen regel).
+  recordPid: [["admin", "calculator", "werfleider"], () => [B, 100_000n, 0n, 0n]],
+  // 2c open punten (deel A): attestsoorten in Beheer (enkel de beheerder; lege naam / onbekende soort = geen wijziging).
+  listOrgDocKinds: [ADMIN, () => []],
+  addOrgDocKind: [ADMIN, () => [""]],
+  archiveOrgDocKind: [ADMIN, () => ["bestaat-niet", true]],
   clientSiteAdmin: [NONE, () => [X]],
   scanSiteAdmin: [ADMIN, () => []],
   setQuoteArchived: [["admin", "calculator"], () => [X, true, ""]],
