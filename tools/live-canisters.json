@@ -1,6 +1,8 @@
 {
   "uitleg": "De backend-canister(s) van de ECHTE omgeving (live). tools/lib.mjs weigert hier elke test en elke testsleutel; enkel de inrichtingsidentiteit (inrichting-live) en de alleen-lezen lekcontrole mogen. Voeg het live-id toe zodra de eigenaar live zette, VÓÓR de import. Dit is NIET de lijst voor echte mail (Config.mailLiveBackends): die blijft leeg tot een apart ja van de eigenaar.",
-  "canisters": [],
+  "canisters": [
+    "4roi4-rqaaa-aaaak-qzmra-cai"
+  ],
   "demoLive": true,
   "demoLiveUitleg": "2c.9 (eigenaar 04-11): de eerste live is een demo (werf W-091 voor Alexis) en wordt daarna opnieuw geïnstalleerd. Zolang demoLive true is, mag een testsleutel (proef-*) er inloggen (tools/proef-admin-koppelen.mjs, losse oproepen); de testreeksen (tests/), wegwerpidentiteiten, stresstest, proefopbouw en proefuploads blijven geweigerd. Mail blijft uit: Config.mailLiveBackends blijft leeg. Na de herinstallatie: demoLive op false zetten (of weglaten) en het nieuwe live-id in canisters."
 }
