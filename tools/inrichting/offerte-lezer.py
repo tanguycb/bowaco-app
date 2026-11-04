@@ -54,7 +54,9 @@ def lees(pad):
     for c, (v, _) in blad[hr].items():
         k = (v or "").strip().lower()
         if k in ("beschrijving", "omschrijving", "aantal", "eenheid", "stukprijs", "eenheidsprijs", "totaal", "subtotaal", "vh"):
-            cols[{"omschrijving": "beschrijving", "eenheidsprijs": "stukprijs"}.get(k, k)] = c
+            # 2c.9: de EERSTE kolom met die kop telt; een rekenblok rechts ("Aantal", "Eenheid", "Stukprijs" nog eens)
+            # overschreef vroeger de echte kolommen (dan las de lezer de hulpberekening in plaats van de offerte).
+            cols.setdefault({"omschrijving": "beschrijving", "eenheidsprijs": "stukprijs"}.get(k, k), c)
     dc = cols.get("beschrijving", 1)
     uc = cols.get("eenheid", qc + 1)
     pc = cols.get("stukprijs", qc + 2)
@@ -78,9 +80,10 @@ def lees(pad):
         som = d.get(sc, (None, None))[1] or ""
         vh = bool(vhc and (d.get(vhc, (None, None))[0] or "").strip().upper() == "VH")
         if tekst and som.upper().startswith("SUM(") and qty is None and prijs is None:
-            m = re.match(r"SUM\(\$?[A-Z]+\$?(\d+):\$?[A-Z]+\$?(\d+)\)", som.upper().replace(" ", ""))
+            # 2c.9: ook een hoofdstuk van één regel ("=SUM(E36)").
+            m = re.match(r"SUM\(\$?[A-Z]+\$?(\d+)(?::\$?[A-Z]+\$?(\d+))?\)", som.upper().replace(" ", ""))
             if m:
-                groepen.append({"rij": r, "titel": tekst[:120], "a": int(m.group(1)), "b": int(m.group(2))})
+                groepen.append({"rij": r, "titel": tekst[:120], "a": int(m.group(1)), "b": int(m.group(2) or m.group(1))})
             continue
         if tekst and (prijs is not None or qty is not None) and not (unit and prijs is not None and qty is not None):
             onvolledig += 1  # een prijsregel zonder eenheid, aantal of bewaarde waarde: geteld, niet stil weg

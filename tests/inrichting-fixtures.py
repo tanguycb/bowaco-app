@@ -132,10 +132,10 @@ xlsx(os.path.join(ADM, "01 Offertes/2024/2024-140 Proef/2024-140 Offerte Proef.x
 })
 # Q-2023-101: een andere activiteit (klasse 4): nooit gelezen
 xlsx(os.path.join(ADM, "01 Offertes/Andere activiteit/2023-101 Proef.xlsx"), {19: K({"A": "Beschrijving", "B": "Aantal"}), 20: K({"A": "Proefpaneel", "B": 1})})
-index("BOWACO_index_offertes.csv", ["offerte_id", "nummer_in_cel", "volgnummer", "jaar_in_nummer", "importklasse", "datum_laatste", "laatste_xlsx"], [
-    {"offerte_id": "Q-2025-150", "nummer_in_cel": "2025/150", "volgnummer": "150", "jaar_in_nummer": "2025", "importklasse": "1 rijk (hoofdstukken)", "datum_laatste": "2025-05-12", "laatste_xlsx": "01 Offertes/2025/2025-150 Proef/2025-150 Offerte Proef v2.xlsx"},
+index("BOWACO_index_offertes.csv", ["offerte_id", "nummer_in_cel", "volgnummer", "jaar_in_nummer", "importklasse", "datum_laatste", "laatste_xlsx", "werf_id", "variant", "totaal_excl_btw"], [
+    {"offerte_id": "Q-2025-150", "werf_id": "W-903", "totaal_excl_btw": "4700", "nummer_in_cel": "2025/150", "volgnummer": "150", "jaar_in_nummer": "2025", "importklasse": "1 rijk (hoofdstukken)", "datum_laatste": "2025-05-12", "laatste_xlsx": "01 Offertes/2025/2025-150 Proef/2025-150 Offerte Proef v2.xlsx"},
     {"offerte_id": "Q-2025-151", "nummer_in_cel": "2025/151", "volgnummer": "151", "jaar_in_nummer": "2025", "importklasse": "1 rijk (hoofdstukken)", "datum_laatste": "2025-09-01", "laatste_xlsx": "01 Offertes/2025/2025-151 Proef/2025-151 Offerte Proef.xlsx"},
-    {"offerte_id": "Q-2025-151-raming", "nummer_in_cel": "2025/151", "volgnummer": "151", "jaar_in_nummer": "2025", "importklasse": "1 rijk (hoofdstukken)", "datum_laatste": "2025-09-02", "laatste_xlsx": "01 Offertes/2025/2025-151 Proef/2025-151 Offerte Proef (Raming).xlsx"},
+    {"offerte_id": "Q-2025-151-raming", "werf_id": "W-903", "variant": "raming", "nummer_in_cel": "2025/151", "volgnummer": "151", "jaar_in_nummer": "2025", "importklasse": "1 rijk (hoofdstukken)", "datum_laatste": "2025-09-02", "laatste_xlsx": "01 Offertes/2025/2025-151 Proef/2025-151 Offerte Proef (Raming).xlsx"},
     {"offerte_id": "Q-2025-152", "nummer_in_cel": "2025/151", "volgnummer": "152", "jaar_in_nummer": "2025", "importklasse": "1 rijk (hoofdstukken)", "datum_laatste": "2025-10-01", "laatste_xlsx": "01 Offertes/2025/2025-152 Proef/2025-152 Offerte Proef.xlsx"},
     {"offerte_id": "Q-2024-140", "nummer_in_cel": "2024/140", "volgnummer": "140", "jaar_in_nummer": "2024", "importklasse": "3 plat (prijsgeheugen)", "datum_laatste": "2024-03-04", "laatste_xlsx": "01 Offertes/2024/2024-140 Proef/2024-140 Offerte Proef.xlsx"},
     {"offerte_id": "Q-2023-101", "nummer_in_cel": "2023/101", "volgnummer": "101", "jaar_in_nummer": "2023", "importklasse": "4 andere activiteit (buiten bibliotheek)", "datum_laatste": "2023-02-02", "laatste_xlsx": "01 Offertes/Andere activiteit/2023-101 Proef.xlsx"},
@@ -159,7 +159,7 @@ docx(os.path.join(ADM, "06 Prijzen/Prijslijst per vakgebied/Gyproc/2025 - Prijsl
 
 # ── Documenten-index ──────────────────────────────────────────────────────
 kop_doc = ["doc_id", "pad", "type", "grootte_bytes", "datum", "werf_id", "categorie", "import_actie", "gevoelig"]
-index("BOWACO_index_documenten.csv", kop_doc, [
+docrijen = [
     {"doc_id": "D-00001", "pad": "00 Bedrijf en voorwaarden/01 Algemene voorwaarden/Algemene voorwaarden proef.docx", "type": "docx", "datum": "2025-01-01", "import_actie": "bron QuoteTerms (2.7), na jurist", "gevoelig": "nee"},
     {"doc_id": "D-00002", "pad": "00 Bedrijf en voorwaarden/02 Sjablonen/basisofferte PROEF.xlsx", "type": "xlsx", "datum": "2025-01-01", "import_actie": "bron invoer met de hand (sjabloon/voorwaarden)", "gevoelig": "nee"},
     {"doc_id": "D-00003", "pad": "06 Prijzen/Prijslijst per vakgebied/Gyproc/2025 - Prijslijst gyproc.docx", "type": "docx", "datum": "2025-03-31", "import_actie": "bron prijzen (handmatig, stap 5)", "gevoelig": "nee"},
@@ -168,7 +168,7 @@ index("BOWACO_index_documenten.csv", kop_doc, [
     {"doc_id": "D-00011", "pad": "02 Werven en klanten/Proefstraat 1/02. Plannen/plan.pdf", "type": "pdf", "grootte_bytes": "2000000", "werf_id": "W-901", "categorie": "plan", "import_actie": "werf-bestand (bijlage)", "gevoelig": "nee"},
     {"doc_id": "D-00012", "pad": "02 Werven en klanten/Proefstraat 1/03. Foto's/foto.heic", "type": "heic", "grootte_bytes": "3000000", "werf_id": "W-901", "categorie": "foto", "import_actie": "foto-selectie later (niet in bulk)", "gevoelig": "nee"},
     {"doc_id": "D-00013", "pad": "02 Werven en klanten/Proeflaan 2/Social security/lijst.pdf", "type": "pdf", "grootte_bytes": "1000", "werf_id": "W-902", "categorie": "werfadministratie", "import_actie": "werf-bestand (werfadministratie)", "gevoelig": "ja"},
-])
+]
 index("BOWACO_index_verkoop.csv", ["verkoop_id", "betalingstermijn"], [{"verkoop_id": "V-1", "betalingstermijn": "15 dagen na datum"}, {"verkoop_id": "V-2", "betalingstermijn": "15 dagen na datum"}, {"verkoop_id": "V-3", "betalingstermijn": "30 dagen"}])
 
 # ── Firma's: beslissingen van 1.2 en de firma-index ────────────────────────
@@ -190,10 +190,10 @@ index("BOWACO_index_firmas.csv", ["firma_id", "naam", "kbo", "aantal_facturen", 
 ])
 
 # ── Werven en planning ─────────────────────────────────────────────────────
-index("BOWACO_index_werven.csv", ["werf_id", "map", "straat", "nr", "postcode", "gemeente", "cluster_zelfde_straat", "import_voorstel", "offertes"], [
+index("BOWACO_index_werven.csv", ["werf_id", "laatste_datum_in_map", "map", "straat", "nr", "postcode", "gemeente", "cluster_zelfde_straat", "import_voorstel", "offertes"], [
     {"werf_id": "W-901", "map": "Proefstraat 1 - 9999 Proefdorp", "straat": "Proefstraat", "nr": "1", "postcode": "9999", "gemeente": "Proefdorp", "import_voorstel": "stap 3: werf aanmaken (+ planning/offerte)", "offertes": "2025-150"},
     {"werf_id": "W-902", "map": "Proeflaan 2 - Proefdorp", "straat": "Proeflaan", "nr": "2", "postcode": "", "gemeente": "Proefdorp", "cluster_zelfde_straat": "ja", "import_voorstel": "stap 3: werf aanmaken (+ planning/offerte)"},
-    {"werf_id": "W-903", "map": "Oudeproef 3 - 9999 Proefdorp", "straat": "Oudeproef", "nr": "3", "postcode": "9999", "gemeente": "Proefdorp", "import_voorstel": "stap 3 optioneel (historiek)"},
+    {"werf_id": "W-903", "laatste_datum_in_map": "2024-06-01", "map": "Oudeproef 3 - 9999 Proefdorp", "straat": "Oudeproef", "nr": "3", "postcode": "9999", "gemeente": "Proefdorp", "import_voorstel": "stap 3 optioneel (historiek)"},
     {"werf_id": "W-904", "map": "Zonproef 4", "straat": "Zonproef", "nr": "4", "import_voorstel": "niet aanmaken (andere activiteit)"},
 ])
 index("BOWACO_index_planning.csv", ["planblok_id", "rij_in_excel", "werf_id", "werf_zekerheid"], [
@@ -222,4 +222,65 @@ if werk:
 json.dump({"bron": "proef", "soorten": [{"key": "nutsaansluiting", "naam": "Aansluiting nutsvoorziening (proef)", "dagen": 30, "woorden": ["aansluiting"], "openbaarDomein": False}],
            "gemeenten": [{"naam": "Proefdorp", "postcodes": ["9999"], "procedures": [{"soort": "werfzone", "hoe": "portaal", "dagen": 21, "notitie": "Proefprocedure."}, {"soort": "nutsaansluiting", "hoe": "andere", "dagen": 30, "notitie": "Proef."}]}]},
           open(os.path.join(ROOT, "BOWACO_kennisbank_vergunningen_2b6.json"), "w"), ensure_ascii=False)
+# ── 2c.9 stap 8: één werf volledig (W-903, een historiekwerf die stap 3 niet aanmaakt) ──────────────────────
+import struct
+import subprocess
+import zlib
+
+
+def png(pad, w, h, seed):
+    os.makedirs(os.path.dirname(pad), exist_ok=True)
+    raw = b"".join(b"\x00" + b"".join(bytes(((x + seed) & 255, (y * 2) & 255, 0xE0)) for x in range(w)) for y in range(h))
+    ch = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    open(pad, "wb").write(b"\x89PNG\r\n\x1a\n" + ch(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + ch(b"IDAT", zlib.compress(raw)) + ch(b"IEND", b""))
+
+
+def jpeg_met_gps(pad, seed):
+    """Een JPEG met een (verzonnen) EXIF-blok met het woord GPS: de lezer moet het weghalen."""
+    tmp = pad + ".png"
+    png(tmp, 40, 30, seed)
+    subprocess.run(["sips", "-s", "format", "jpeg", tmp, "--out", pad], capture_output=True, check=True)
+    os.remove(tmp)
+    d = open(pad, "rb").read()
+    exif = b"Exif\x00\x00PROEF-GPS-51.0000N-3.0000E"
+    open(pad, "wb").write(d[:2] + b"\xff\xe1" + struct.pack(">H", len(exif) + 2) + exif + d[2:])
+
+
+PDF = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n"
+WM = "02 Werven en klanten/Oudeproef 3 - 9999 Proefdorp"
+w3 = []
+
+
+def bestand(doc, rel, cat, act, maak, gevoelig="nee", werfmap=True, bron_entiteit=""):
+    pad = (WM + "/" + rel) if werfmap else rel
+    full = os.path.join(ADM, pad)
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    maak(full)
+    w3.append({"doc_id": doc, "pad": pad, "type": os.path.splitext(pad)[1][1:], "grootte_bytes": str(os.path.getsize(full)), "datum": "2024-05-01", "werf_id": "W-903",
+               "categorie": cat, "import_actie": act, "gevoelig": gevoelig, "bron_entiteit": bron_entiteit})
+
+
+schrijf = lambda data: (lambda f: open(f, "wb").write(data))  # noqa: E731
+FA = "foto-selectie later (niet in bulk)"
+bestand("D-09001", "03. Foto's/20240101_Afbraak/proeffoto 1.jpg", "foto", FA, lambda f: jpeg_met_gps(f, 1))
+bestand("D-09002", "03. Foto's/20240101_Afbraak/proeffoto 2.png", "foto", FA, lambda f: png(f, 30, 20, 2))
+for i in range(52):  # 52 foto's in één map: document "(deel 1)" met 50 en "(deel 2)" met 2 (Config.maxFilesPerDoc)
+    bestand(f"D-091{i:02d}", f"03. Foto's/20240202_Ruwbouw/ruwbouw {i:02d}.png", "foto", FA, lambda f, i=i: png(f, 16, 12, 10 + i))
+bestand("D-09003", "02. Plannen/proefplan.pdf", "plan", "werf-bestand (bijlage)", schrijf(PDF))
+bestand("D-09004", "04. Min-meer/min-meer proef.xlsx", "min-meer", "werf-bestand (min-meer)", lambda f: xlsx(f, {1: K({"A": "Proef min-meer", "B": 1})}))
+bestand("D-09005", "06. Offerte OA/Pleisterwerk/Proefpleister/offerte proef.pdf", "offerte OA", "werf-bestand (OA-offerte)", schrijf(PDF + b"%pleister\n"))
+bestand("D-09006", "06. Offerte OA/Gyproc/offerte_proefplaat_2024.pdf", "offerte OA", "werf-bestand (OA-offerte)", schrijf(PDF + b"%plaat\n"))
+bestand("D-09007", "06. Offerte OA/Nuts/RE proefaansluiting.msg", "offerte OA", "werf-bestand (OA-offerte)", schrijf(b"\xd0\xcf\x11\xe0proefmail zonder persoonsgegevens"))
+bestand("D-09008", "08. Postinterventiedossier Oudeproef 3/4_garantiebewijzen/garantie proef.pdf", "overig werfdossier", "werf-bestand (overig)", schrijf(PDF + b"%garantie\n"))
+bestand("D-09009", "09. Oplevering/oplevering proef.docx", "oplevering", "werf-bestand (oplevering)", lambda f: docx(f, [("", "Proefoplevering zonder opmerkingen")]))
+bestand("D-09010", "02. Plannen/groot proefplan.pdf", "plan", "werf-bestand (bijlage)", lambda f: open(f, "wb").write(PDF + b"\0" * 25_100_000))
+bestand("D-09011", "02. Plannen/tekening.xyz", "plan", "werf-bestand (bijlage)", schrijf(b"proef"))
+bestand("D-09012", "10. Diversen/loonfiche proef.pdf", "overig werfdossier", "werf-bestand (overig)", schrijf(PDF))
+bestand("D-09013", "10. Diversen/lijst proef.pdf", "overig werfdossier", "werf-bestand (overig)", schrijf(PDF), gevoelig="ja")
+bestand("D-09014", "10. Diversen/aanwezigen proef.docx", "overig werfdossier", "werf-bestand (overig)", lambda f: docx(f, [("", "Proefpersoon 00.00.00-000.00")]))
+bestand("D-09015", "99 Dubbels en oude versies/" + WM + "/03. Foto's/20240101_Afbraak/proeffoto 2.png", "foto", "niet: dubbel of oudere versie (in 99)", lambda f: png(f, 30, 20, 2), werfmap=False)
+bestand("D-09016", "05 Verkoop en vorderingen/2024-001 Factuur proef.pdf", "factuur (oud formaat)", "historiek: niet importeren in 2b.6", schrijf(PDF + b"%factuur\n"), werfmap=False, bron_entiteit="verkoopdocument")
+index("BOWACO_index_documenten.csv", kop_doc + ["bron_entiteit"], docrijen + w3)
+index("BOWACO_index_aankoop.csv", ["aankoop_id", "firma_id", "werf_id"], [{"aankoop_id": "A-1", "firma_id": "F-001", "werf_id": "W-903"}, {"aankoop_id": "A-2", "firma_id": "F-005", "werf_id": "W-903"}])
+
 print("verzonnen documentenmap:", ROOT)

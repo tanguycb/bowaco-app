@@ -1,13 +1,17 @@
+// 2c.9: ook stap 8 (één werf, plan stap8-werf-<code>.json; --werf <code> beperkt tot die werf): werf, klant, firma's,
+// offerte (hoofdstukken, lijnen, prijzen), aantal documenten en bestanden, en een steekproef van bestanden (naam,
+// grootte, soort, vertrouwelijk, verwijzing = de hash van de opslag).
 // Stap 2b.6: steekproef na de inrichting. Neemt willekeurige rijen uit de plannen en zoekt ze terug in de app: komt wat
 // gelezen werd, volledig en ongewijzigd binnen (titel, eenheid, hoofdstuk, aankoopprijs met datum, marge, adres, KBO,
 // doorlooptijd …)? Leest enkel; schrijft niets in de app. Zelfde grens als de inrichting (echte gegevens enkel lokaal).
 //   ICP_HOST=http://localhost:8061 node tools/inrichting/steekproef.mjs --canister <id> [--n 25] [--plan map] [--seed 7]
 //                                                                        [--verslag run.csv]  (rijen met een conflict overslaan)
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 import { backend, isLiveCanister, LIVE_ID } from "../lib.mjs";
 import { leesPlan, bibliotheek, fold, dagNr } from "./lib.mjs";
+import { blobHash, refText } from "../opslag.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i < 0 ? d : (process.argv[i + 1] ?? true); };
 const cid = arg("canister");
@@ -20,7 +24,7 @@ const kies = (xs, k = n) => { const c = [...xs]; const out = []; while (c.length
 const a = await backend(arg("identity", isLiveCanister(cid) ? LIVE_ID : "proef-admin"), cid);
 let goed = 0, fout = 0;
 const check = (wat, sleutel, c, x = "") => { c ? goed++ : fout++; if (!c) console.log(`✗ ${wat} ${sleutel}${x ? `: ${x}` : ""}`); };
-const P = (f) => leesPlan(join(map, f));
+const P = (f) => (arg("werf") && !f.startsWith("stap8-") ? null : leesPlan(join(map, f))); // --werf: enkel stap 8
 const gelijk = (x, y) => String(x ?? "").trim().replace(/\s+/g, " ") === String(y ?? "").trim().replace(/\s+/g, " ");
 const conflict = new Set(arg("verslag") ? readFileSync(arg("verslag"), "utf8").split("\n").filter((l) => l.includes('"conflict"')).map((l) => l.split(";")[2]?.replace(/"/g, "")) : []);
 
@@ -118,6 +122,46 @@ if (p6) {
     const m = gem.find((x) => fold(x.name) === fold(g.naam));
     check("gemeente", g.naam, m && g.postcodes.every((z) => m.zips.includes(z)));
     for (const p of g.procedures) check("procedure", `${g.naam}:${p.soort}`, m?.procedures.some((x) => x.kind === p.soort && Number(x.leadDays) === p.dagen));
+  }
+}
+const werfPlannen = existsSync(map) ? readdirSync(map).filter((f) => /^stap8-werf-.+\.json$/.test(f) && (!arg("werf") || f === `stap8-werf-${String(arg("werf")).toUpperCase()}.json`)) : [];
+for (const f of werfPlannen) {
+  const p8 = P(f);
+  const w = p8.werf;
+  const x = (await a.listWorks()).find((y) => y.code === w.code);
+  const notes = new Map((await a.workReviewNotes()).map(([id, t]) => [id, t]));
+  check("werf (stap 8)", w.code, x && x.name === w.naam && x.address.street === w.adres.street && x.address.number === w.adres.number && x.address.zip === w.adres.zip && Number(x.vatBp) === w.vatBp && (notes.get(x.id) ?? "").includes("Nog na te kijken"), x ? `${x.name}` : "ontbreekt");
+  if (!x) continue;
+  const orgs = await a.listOrgs(true);
+  const kl = orgs.find((o) => o.name === p8.klant.name && "client" in o.kind);
+  check("klant (stap 8)", p8.klant.name, kl && x.clientOrgId[0] === kl.id);
+  for (const r of kies(p8.firmas.rijen, 8)) check("firma (stap 8)", r.key, orgs.some((o) => (r.kbo && o.kbo?.[0] === r.kbo) || fold(o.name) === fold(r.name)));
+  const qs = await a.listQuotes([x.id], true);
+  for (const o of p8.offertes) {
+    const q = qs.find((y) => y.number === o.nummer);
+    if (!q) { check("offerte (stap 8)", o.nummer, false, "ontbreekt"); continue; }
+    const v = q.versions[q.versions.length - 1];
+    const r = (await a.readQuoteVersion(v.id)).ok;
+    check("offerte (stap 8)", o.nummer, r && "draft" in r.version.status && r.lines.length === o.lijnen.length && r.chapters.length === o.hoofdstukken.length, r ? `${r.lines.length}/${o.lijnen.length} lijnen, ${r.chapters.length}/${o.hoofdstukken.length} hoofdstukken` : "");
+    const kost = new Map(r.costs.map((c) => [c.lineId, c]));
+    for (const l of kies(o.lijnen, 10)) {
+      const y = r.lines.find((z) => gelijk(z.title, l.titel) && z.qtyMilli === BigInt(l.qtyMilli) && z.unit === l.eenheid);
+      const c = y ? kost.get(y.id) : null;
+      check("offertelijn (stap 8)", `${o.nummer} ${l.titel.slice(0, 30)}`, y && (l.kostCents === null ? Number(c?.rule[0]?.price ?? -1) === l.verkoopCents : Number(c?.costCents[0] ?? -1) === l.kostCents), y ? "prijs verschilt" : "lijn niet gevonden");
+    }
+  }
+  const op = p8.bestanden.filter((b) => !b.nietOpladen);
+  const d = await a.getDossier(x.id);
+  const docsPlan = new Set(op.map((b) => `${b.soort}|${b.documentTitel}`));
+  const docsApp = d.documents.filter((y) => docsPlan.has(`${y.kind}|${y.title}`));
+  check("documenten (stap 8)", w.code, docsApp.length === docsPlan.size, `${docsApp.length}/${docsPlan.size}`);
+  const files = docsApp.flatMap((y) => y.files.map((ff) => ({ ...ff, doc: y })));
+  check("bestanden (stap 8)", w.code, files.length === op.length, `${files.length}/${op.length} in de documenten`);
+  for (const b of kies(op, 20)) {
+    const ff = files.find((y) => y.name === b.naam && Number(y.size) === b.bytes && y.doc.kind === b.soort && y.doc.title === b.documentTitel);
+    const ref = ff?.blob?.length ? refText(ff.blob[0]) : null;
+    const hash = existsSync(b.bestand) ? await blobHash(readFileSync(b.bestand), b.mime, b.naam) : null;
+    check("bestand (stap 8)", b.doc, ff && ff.mime === b.mime && ff.confidential === b.vertrouwelijk && (b.vertrouwelijk ? ref === null : ref === "!caf!" + hash), ff ? `${ff.mime} · ${ref}` : "niet gevonden");
   }
 }
 console.log(`\nsteekproef: ${goed} ✓  ${fout} ✗`);

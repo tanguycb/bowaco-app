@@ -58,6 +58,25 @@ module {
   public func allowedMime(mime : Text) : Bool {
     mime == "image/jpeg" or mime == "image/png" or mime == "image/webp" or mime == "application/pdf";
   };
+  // 2c.9: een los bestand bij een werf (addFile) mag ook een kantoorbestand zijn: de werfmappen bevatten Excel, Word,
+  // PowerPoint, Outlook-mails en tekeningen (DWG) die bij het dossier horen. De browser toont ze niet, hij laadt ze af.
+  // Attesten, tarieven en contracten (addDealFile) blijven bij allowedMime.
+  public func officeMime() : [Text] {
+    [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/vnd.ms-excel",
+      "application/msword",
+      "application/vnd.ms-outlook",
+      "application/acad",
+    ];
+  };
+  public func allowedWorkFileMime(mime : Text) : Bool {
+    if (allowedMime(mime)) { return true };
+    for (m in officeMime().vals()) { if (m == mime) { return true } };
+    false;
+  };
 
   // Timer: elke 10 min klein werk (0.2 open punt 6)
   public let timerSeconds : Nat = 600;
