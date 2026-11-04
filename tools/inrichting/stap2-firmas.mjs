@@ -5,8 +5,7 @@ import { opt } from "./lib.mjs";
 
 const UITKOMST = { created: "aangemaakt", updated: "bijgewerkt", unchanged: "overgeslagen", conflict: "conflict", invalid: "fout" };
 
-export async function stap2({ actor, plan, echt, verslag }) {
-  const S = 2;
+export async function stap2({ actor, plan, echt, verslag, S = 2 }) {
   const rows = plan.rijen.map((r) => ({ key: r.key, kind: { [r.kind]: null }, name: r.name, kbo: opt(r.kbo), vat: [], aliases: r.aliases, trades: r.trades, phone: [], email: [], website: [], notes: r.notes, persons: [] }));
   for (let i = 0; i < rows.length; i += 40) {
     const stuk = rows.slice(i, i + 40);

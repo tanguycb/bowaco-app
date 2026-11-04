@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { backend } from "../tools/lib.mjs";
+import { blobHash } from "../tools/opslag.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/inrichting.mjs <canister>");
@@ -123,6 +124,45 @@ check("firma's: twee KBO-nummers voor dezelfde naam = conflict in het verslag, n
 const gem = (await a.listMunicipalities(false)).find((m) => m.name === "Proefdorp");
 check("vergunningen: gemeente met 2 procedures en de nieuwe soort", gem?.procedures.length === 2 && (await a.listPermitKinds(false)).some((k) => k.key === "nutsaansluiting"));
 check("documenten: niets opgeladen (de opslagdienst ligt buiten het lokale net)", (await a.listFiles([w901.id])).length === 0);
+
+// ── 2c.9 stap 8: één werf volledig (W-903, een historiekwerf die stap 3 niet aanmaakt) ──────────────────
+const lw = spawnSync("python3", ["-I", join(repo, "tools/inrichting/lees-werf.py"), "--docs", docs, "--werf", "W-903", "--bron", "test"], { env, encoding: "utf8" });
+check("werf-lezer: draait zonder fout", lw.status === 0, lw.stderr.slice(0, 300));
+const p8 = plan("stap8-werf-W-903.json");
+const b8 = (d) => p8.bestanden.find((x) => x.doc === d);
+const op8 = p8.bestanden.filter((x) => !x.nietOpladen);
+check("werf-lezer: alle rijen van de werf (werfmap, dubbel in 99, factuur buiten de map); 3 geweerd (pad, index, rijksregisternummer in de inhoud)", p8.telling.indexrijen === 68 && p8.bestanden.length === 65 && p8.geweerd.map((g) => g.doc).sort().join() === "D-09012,D-09013,D-09014", JSON.stringify(p8.geweerd));
+check("werf-lezer: te groot (> 25 MB) en een onbekende soort niet op te laden, met de reden", /te groot/.test(b8("D-09010")?.nietOpladen) && /niet toegelaten/.test(b8("D-09011")?.nietOpladen) && op8.length === 63);
+check("werf-lezer: foto's als JPEG zonder EXIF (geen GPS), naam .jpg", b8("D-09002")?.naam === "proeffoto 2.jpg" && b8("D-09001")?.mime === "image/jpeg" && !readFileSync(b8("D-09001").bestand).includes("GPS"));
+check("werf-lezer: soort per categorie, PID uit de map, dubbel apart, vertrouwelijk voor OA-offerte en factuur", b8("D-09008")?.soort === "pid" && b8("D-09015")?.documentTitel.includes("dubbel") && b8("D-09005")?.vertrouwelijk && b8("D-09016")?.soort === "factuur-klant" && b8("D-09016").vertrouwelijk && b8("D-09007")?.mime === "application/vnd.ms-outlook");
+check("werf-lezer: hoogstens 50 bestanden per document (deel 1 en deel 2)", op8.filter((x) => x.documentTitel.endsWith("(deel 1)")).length === 50 && op8.filter((x) => x.documentTitel.endsWith("(deel 2)")).length === 2);
+check("werf-lezer: firma's uit de aankoop van de werf, uit een pad en uit een map van een OA-offerte; geen diensten", p8.firmas.rijen.map((r) => r.key).join() === "F-001,F-003,W-903:oa:proefpleister" && p8.firmas.nietInDeApp.some((f) => f.firma === "F-005"));
+check("werf-lezer: de offerte van de werf, de variant (raming) niet", p8.offertes.length === 1 && p8.offertes[0].nummer === "2025/150" && p8.offertes[0].lijnen.length === 5 && p8.nietAlsOfferte.some((x) => x.offerte === "Q-2025-151-raming"));
+check("werf-lezer: --bron test op een map zonder merkbestand geweigerd", spawnSync("python3", ["-I", join(repo, "tools/inrichting/lees-werf.py"), "--docs", join(tmp, "geen-proefmap"), "--werf", "W-903", "--bron", "test"], { env, encoding: "utf8" }).status !== 0);
+const r8 = (naam, extra = []) => run(naam, ["--werf", "W-903", ...extra]);
+const d8 = r8("w-droog");
+check("stap 8 droogloop: zonder fout en niets bewaard", d8.r.status === 0 && d8.tel("bestand", "zou aangemaakt worden") === 63 && d8.tel("werf", "zou aangemaakt worden") === 1 && !(await a.listWorks()).some((w) => w.code === "W-903"), d8.r.stdout.slice(-500));
+check("stap 8 droogloop: het manifest (soort, grootte, sha256, hash van de opslag, doel)", (() => { const m = readFileSync(join(tmp, "w-droog-manifest.csv"), "utf8"); return m.split("\n").length >= 66 && /D-09003.*plannen.*application\/pdf.*sha256:[0-9a-f]{64}.*dossier/.test(m); })());
+const e8 = r8("w-echt-1", ["--echt"]);
+check("stap 8 echt: zonder fout of conflict", e8.r.status === 0 && e8.rijen.filter((x) => x[4] === "fout" || x[4] === "conflict").length === 0, JSON.stringify(e8.rijen.filter((x) => x[4] === "fout")).slice(0, 400));
+const w903 = (await a.listWorks()).find((w) => w.code === "W-903");
+const ds = w903 ? await a.getDossier(w903.id) : { documents: [] };
+const fl = ds.documents.flatMap((d) => d.files.map((f) => ({ ...f, d })));
+check("stap 8 echt: werf met adres, klant (plaatshouder), aanvraag, nog na te kijken", w903?.address.street === "Oudeproef" && "request" in w903.status && w903.clientOrgId.length === 1 && (new Map((await a.workReviewNotes()).map(([i, t]) => [i, t])).get(w903.id) ?? "").startsWith("Nog na te kijken"));
+check("stap 8 echt: 12 documenten en 63 bestanden in het dossier; verwijzing = de hash van de opslag; vertrouwelijk zonder verwijzing", ds.documents.length === 12 && fl.length === 63 && (await Promise.all(fl.filter((f) => !f.confidential).map(async (f) => { const b = op8.find((x) => x.naam === f.name && x.bytes === Number(f.size) && x.documentTitel === f.d.title); return b && new TextDecoder().decode(f.blob[0]) === "!caf!" + (await blobHash(readFileSync(b.bestand), b.mime, b.naam)); }))).every(Boolean) && fl.filter((f) => f.confidential).length === 4 && fl.filter((f) => f.confidential).every((f) => !f.blob.length));
+check("stap 8 echt: Excel, Outlook en de PID als document; nieuwe soorten fotos en factuur-klant", fl.some((f) => f.mime === "application/vnd.ms-outlook") && ds.documents.some((d) => d.kind === "pid") && (await a.listDocKinds(false)).filter((k) => k.key === "fotos" || (k.key === "factuur-klant" && k.confidential)).length === 2);
+const q8 = (await a.listQuotes([w903.id], true)).find((q) => q.number === "2025/150");
+const rq = q8 ? (await a.readQuoteVersion(q8.versions[0].id)).ok : null;
+check("stap 8 echt: offerte 2025/150 als ontwerp met 2 hoofdstukken, 5 lijnen, subtotaal = de Excel (47,00 €·100)", rq && "draft" in rq.version.status && rq.chapters.length === 2 && rq.lines.length === 5 && rq.totals.subtotalCents === 470000n, rq ? `${rq.totals.subtotalCents}` : "geen offerte");
+const e8b = r8("w-echt-2", ["--echt"]);
+const nieuw8 = e8b.rijen.filter((x) => x[4] === "aangemaakt" || x[4] === "bijgewerkt");
+check("stap 8 tweede run: niets nieuw (idempotent)", e8b.r.status === 0 && nieuw8.length === 0 && e8b.tel("bestand", "overgeslagen") === 68, JSON.stringify(nieuw8).slice(0, 300));
+const sp8 = spawnSync("node", [join(repo, "tools/inrichting/steekproef.mjs"), "--canister", cid, "--plan", join(werk, "plan"), "--werf", "W-903"], { env: process.env, encoding: "utf8" });
+check("stap 8 steekproef: alles teruggevonden", sp8.status === 0, sp8.stdout.slice(-400));
+const lk8 = spawnSync("node", [join(repo, "tools/inrichting/lekcontrole.mjs"), cid, "--ids", String(Number(w903.id) + 5)], { env: process.env, encoding: "utf8" });
+check("stap 8 lekcontrole: een onbekende login ziet niets (ook niet per werf-id)", lk8.status === 0, lk8.stdout.slice(-400));
+const liveUp = spawnSync("node", ["--input-type=module", "-e", `const m = await import("${join(repo, "tools/opslag.mjs")}"); try { await m.storageClientInrichting("${cid}", "p", "proef-admin"); process.exit(1); } catch (e) { process.exit(/Geweigerd/.test(e.message) ? 0 : 2); }`], { env: { ...process.env, LIVE_CANISTERS_EXTRA: cid, JA_EIGENAAR: "1" }, encoding: "utf8" });
+check("stap 8 grens: op live laadt enkel de inrichtingsidentiteit op", liveUp.status === 0, liveUp.stderr.slice(0, 200));
 
 rmSync(tmp, { recursive: true, force: true });
 console.log(`\ninrichting: ${pass} ✓  ${fail} ✗`);

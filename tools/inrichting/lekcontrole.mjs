@@ -1,7 +1,9 @@
 // Stap 2b.6: lekcontrole op een ingerichte canister (ook met echte gegevens, enkel lokaal of na het "ja"; de enige proef die op live mag): een onbekende
 // identiteit (geen persoon, geen koppeling) roept ELKE query van de backend aan met lege of nul-argumenten. Elke oproep
 // moet geweigerd worden of leeg/zonder inhoud terugkomen; wat iets met inhoud teruggeeft, staat in de uitvoer. Leest enkel.
-//   ICP_HOST=http://localhost:8061 node tools/inrichting/lekcontrole.mjs <canister>
+//   ICP_HOST=http://localhost:8061 node tools/inrichting/lekcontrole.mjs <canister> [--ids 400]
+// 2c.9 (stap 8): daarna per werf-id 0…ids (de import van één werf): werf, dossier, bestanden, offertes, planning, leden en
+// OA-offertes met dat id; alles moet geweigerd of leeg zijn.
 import { IDL } from "@icp-sdk/core/candid";
 import { idlFactory } from "../../src/frontend/src/declarations/backend.did.js";
 import { freshBackend } from "../lib.mjs";
@@ -39,6 +41,21 @@ for (const [naam, f] of svc._fields) {
     else inhoud.push(`${naam}: ${s.slice(0, 120)}`);
   } catch { geweigerd++; }
 }
+const ids = Number(process.argv.includes("--ids") ? process.argv[process.argv.indexOf("--ids") + 1] : 400);
+let perWerf = 0;
+for (let id = 0n; id <= BigInt(ids); id++) {
+  for (const [naam, args] of [["getWork", [id]], ["getDossier", [id]], ["listFiles", [[id]]], ["listQuotes", [[id], true]], ["getPlan", [id]], ["listMembers", [id]], ["listOaQuotes", [id]], ["listTenders", [[id]]]]) {
+    if (typeof a[naam] !== "function") continue;
+    perWerf++;
+    try {
+      const r = await a[naam](...args);
+      const s = JSON.stringify(r, (_, v) => (typeof v === "bigint" ? Number(v) : v));
+      if (r === null || s === "[]" || s === "null" || /"err"/.test(s)) leegTerug++;
+      else inhoud.push(`${naam}(${id}): ${s.slice(0, 120)}`);
+    } catch { geweigerd++; }
+  }
+}
+console.log(`per werf-id 0…${ids}: ${perWerf} oproepen`);
 console.log(`queries: ${geweigerd} geweigerd · ${leegTerug} leeg of fout · ${publiek} publiek bedoeld · ${inhoud.length} met inhoud`);
 for (const x of inhoud) console.log(`  ? ${x}`);
 process.exit(inhoud.length ? 1 : 0);

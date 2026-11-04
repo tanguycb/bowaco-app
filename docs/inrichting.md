@@ -13,6 +13,7 @@ niets dubbel.
 | 5 | prijslijsten van OA's (Word) als aankoopprijzen met datum | `tools/inrichting/lees-prijslijsten.py` | `saveLibraryItem`, `addLibraryCost` |
 | 6 | vergunningen: nieuwe soorten, gemeenten en procedures met doorlooptijd | `tools/inrichting/lees-vergunningen.py` | `setPermitKind`, `saveMunicipality`, `saveProcedure` |
 | 7 | documenten van de actieve werven: **enkel de selectie** (geen upload) | `tools/inrichting/lees-documenten.py` | — |
+| 8 | **één werf volledig** (2c.9, enkel met `--werf`): werf, firma's, offerte als ontwerp, ALLE documenten | `tools/inrichting/lees-werf.py` | `setDocKind`, `setLibraryUnit`, `importOrgs`, `createOrg`, `createWork`, `createQuote`, `saveQuoteDraft`, `saveQuoteForm`, `saveDocument`, `addFile`, `attachDocumentFile` |
 
 ## Draaien
 
@@ -61,6 +62,69 @@ testsleutel) en de alleen-lezen lekcontrole mogen er.
    `lekcontrole.mjs`. Beide kiezen op live vanzelf de inrichtingsidentiteit.
 6. **Laatste stap, de eigenaar:** Team → Logins → de toegang van "Inrichting" intrekken.
 
+## Eén werf voor de demo (2c.9)
+
+Stap 8 zet ÉÉN werf volledig in de app, zodat de zaakvoerder ze in de demo van offerte tot oplevering kan naspelen.
+
+**Wat de lezer doet** (`tools/inrichting/lees-werf.py`, enkel lezen in de documentenmap; kopieën in
+`~/.bowaco/inrichting/werf/<code>/`, plan `stap8-werf-<code>.json`):
+
+- de werf uit de werf-index (code, adres uit de mapnaam, btw 6 % voorlopig, status **aanvraag**);
+- de firma's die in de documenten van de werf voorkomen: de aankoopfacturen van de werf, de firma's van de firma-index
+  waarvan de naam in een pad staat, en een map `Offerte OA/<vak>/<firma>` (onderaannemer). Geen personen. De klant heeft
+  geen naam in de indexen (privacy): een plaatshouder "Opdrachtgever <code>" met het werfadres, nog na te kijken;
+- de offerte(s) van de werf (de laatste Excel, geen variant zoals "raming") met de offerte-lezer van stap 4: hoofdstukken,
+  subgroepen, lijnen, aankoopprijs en marge (`X/0,8`), vaste prijzen. In de app als **ontwerp (versie 1)**: prijsvraag,
+  OA-offertes, overnemen, versturen en aanvaarden gebeuren in de demo zelf;
+- **alle** rijen van de documenten-index met die werf: de werfmap, de dubbels en oudere versies in "99" (een eigen document
+  "(dubbel of oudere versie)"), en de facturen en offertes die de index aan de werf koppelt;
+- documentsoort per categorie: foto → `fotos` (nieuw), plan → `plannen`, min-meer → `min-meer`, offerte OA → `oa-offerte`
+  (vertrouwelijk), factuur aan de klant → `factuur-klant` (nieuw, vertrouwelijk), aankoopfactuur → `oa-factuur`
+  (vertrouwelijk), oplevering → `pv-voorlopige-oplevering`, een map "postinterventiedossier" → `pid`, de rest → `andere`.
+  Een document per (soort, map), hoogstens 50 bestanden (daarboven "(deel 2)");
+- foto's (HEIC, JPEG, PNG) zoals de app ze oplaadt: JPEG ≤ 1600 px, 82 %, **zonder EXIF** (geen GPS);
+- **geweerd** (nooit in de app, apart geteld in het verslag): gevoelig volgens de index, een pad dat op personeelszaken,
+  lonen, rijksregister-, identiteits- of medische gegevens wijst, of een Word/Excel/Outlook met een rijksregisternummer;
+- niet opgeladen (met de reden): groter dan 25 MB (`Config.maxFileBytes`) of een soort die de app niet kent.
+  `addFile` aanvaardt sinds 2c.9 ook Excel, Word, PowerPoint, Outlook (.msg) en DWG (`Config.allowedWorkFileMime`).
+
+**Herhaalbaar:** werf op code, firma's op KBO/naam, klant op naam, offerte op nummer, document op (soort, titel), bestand op
+(document, naam, grootte) en, waar zichtbaar, op de hash van de opslag. Een tweede run maakt niets.
+
+**Lokaal** (geen opslagdienst): de droogloop schrijft het manifest (per bestand soort, grootte, sha256, hash van de opslag,
+doel in de app) naast het verslag (`…-manifest.csv`). De echte run doet alles behalve de blob: elk bestand wordt
+geregistreerd met exact de verwijzing die live krijgt (de hash van de opslag wordt zonder upload berekend, zoals
+`StorageClient.putFile`); openen kan lokaal niet.
+
+```
+python3 -I tools/inrichting/lees-werf.py --docs ~/Desktop/Split/bowaco-docs/bowaco --werf W-091
+ICP_HOST=http://localhost:<poort> node tools/inrichting.mjs --canister <id> --werf W-091              # droogloop + manifest
+ICP_HOST=http://localhost:<poort> node tools/inrichting.mjs --canister <id> --werf W-091 --echt       # bewaren (zonder blob)
+ICP_HOST=http://localhost:<poort> node tools/inrichting.mjs --canister <id> --werf W-091 --echt       # nog eens: niets nieuw
+ICP_HOST=http://localhost:<poort> node tools/inrichting/steekproef.mjs --canister <id> --werf W-091
+ICP_HOST=http://localhost:<poort> node tools/inrichting/lekcontrole.mjs <id>
+```
+
+**Op live** (na het ja van de eigenaar; live-id in `tools/live-canisters.json`; de eigenaar koppelde "Inrichting" met
+`tools/inrichting/koppelen.mjs`; het project-id staat als `project_id` in `https://<live-adres>/env.json`):
+
+```
+python3 -I tools/inrichting/lees-werf.py --docs ~/Desktop/Split/bowaco-docs/bowaco --werf W-091
+JA_EIGENAAR=1 node tools/inrichting.mjs --canister <live-id> --werf W-091 --project <project-id>                 # droogloop
+JA_EIGENAAR=1 node tools/inrichting.mjs --canister <live-id> --werf W-091 --project <project-id> --echt          # opladen
+JA_EIGENAAR=1 node tools/inrichting.mjs --canister <live-id> --werf W-091 --project <project-id> --echt          # niets nieuw
+JA_EIGENAAR=1 node tools/inrichting/steekproef.mjs --canister <live-id> --werf W-091
+node tools/inrichting/lekcontrole.mjs <live-id>
+```
+
+- Op live kiezen beide vanzelf de inrichtingsidentiteit; enkel zij mag opladen (`storageClientInrichting`). Een draft
+  krijgt nooit een echt bestand (de stap weigert het).
+- Hoogstens 3 uploads tegelijk (`--uploads 2` kan). Een logboek per canister
+  (`~/.bowaco/inrichting/werf/<code>/upload-<canister>.json`) onthoudt wat al in de opslag staat: na een fout of een
+  onderbreking gewoon dezelfde opdracht opnieuw; hij laadt niet opnieuw op en registreert enkel wat ontbreekt.
+- Daarna, de eigenaar: Team → Logins → de toegang van "Inrichting" intrekken. De testlogins (OA en klant) koppelt hij zelf
+  via "Toegang geven".
+
 ## "Nog na te kijken"
 
 Elke voorlopige keuze staat in de app: bij een werf als label met de reden (`setWorkReviewNote`; de beheerder wist het met
@@ -70,5 +134,7 @@ bij de voorwaarden als voorlopige versie, bij een hoofdstuk en een vergunningspr
 ## Test
 
 `tests/inrichting.mjs` draait alles op een **verzonnen** documentenmap (`tests/inrichting-fixtures.py`): lezers, grens,
-droogloop, echt, nog eens, en de controles in de app. Het hoort bij `tests/lokaal.sh`, net als `tests/live-grens.mjs` (de
+droogloop, echt, nog eens, en de controles in de app; sinds 2c.9 ook stap 8 op een verzonnen werfmap (W-903: foto's met
+EXIF, dubbels, te groot, onbekende soort, geweerde bestanden, 52 foto's in één map, Outlook, PID, factuur, offerte),
+met steekproef en lekcontrole. Het hoort bij `tests/lokaal.sh`, net als `tests/live-grens.mjs` (de
 weigering van live in het gereedschap, zonder netwerk).

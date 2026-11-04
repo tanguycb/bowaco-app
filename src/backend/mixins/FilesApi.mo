@@ -47,7 +47,7 @@ mixin (
     };
     if (confidential) { Rights.require(ctx, p, #readCosts, null) };
     let n = Access.cleanText(name, 200) ?? return #err("Bestandsnaam: 1 tot 200 tekens");
-    if (not Config.allowedMime(mime)) { return #err("Alleen JPEG, PNG, WebP of PDF") };
+    if (not Config.allowedWorkFileMime(mime)) { return #err("Alleen JPEG, PNG, WebP, PDF of een kantoorbestand (Excel, Word, PowerPoint, Outlook, DWG)") };
     if (size == 0 or size > Config.maxFileBytes) { return #err("Bestand te groot") };
     if (blob.size() > 200) { return #err("Het bestand klopt niet") };
     let mine = files.files.values().filter(func f = f.personId == p.id).size();
