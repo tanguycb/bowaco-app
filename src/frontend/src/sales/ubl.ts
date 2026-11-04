@@ -42,16 +42,25 @@ export const enterprise = (kbo: string, vat: string) => { const k = digits(kbo);
 const UNIT: Record<string, string> = { m2: "MTK", m3: "MTQ", lm: "MTR", m: "MTR", kg: "KGM", u: "HUR", uur: "HUR", st: "H87", stuk: "H87", ton: "TNE", dag: "DAY", d: "DAY", km: "KMT" };
 export const unitCode = (u: string) => UNIT[u.trim().toLowerCase()] ?? "C62";
 
+/** 2c.9 (schematron PEPPOL-EN16931-R008/COMMON-R043): het elektronische adres van een partij; leeg = geen Peppol-ontvanger. */
+export const endpointId = (p: { vat: string; kbo: string }) => {
+  const vat = p.vat.replace(/[\s.-]/g, "").toUpperCase();
+  return vat === "" || vat.startsWith("BE") ? enterprise(p.kbo, p.vat) : vat;
+};
+/** Waarom er geen UBL kan komen (null = kan wel): een klant zonder ondernemingsnummer (particulier) heeft geen Peppol-adres. */
+export const ublMissing = (d: { buyer: { vat?: string; kbo?: string } }): string | null =>
+  endpointId({ vat: d.buyer.vat ?? "", kbo: d.buyer.kbo ?? "" }).length >= 9 ? null : "Geen UBL: de klant heeft geen ondernemings- of btw-nummer (Peppol enkel voor bedrijven).";
+
 function party(tag: "AccountingSupplierParty" | "AccountingCustomerParty", p: { name: string; address: Addr; vat: string; kbo: string; email?: string }, scheme: string): string {
   const a = p.address;
   const vat = p.vat.replace(/[\s.-]/g, "").toUpperCase();
   // Review M3: het Belgische ondernemingsnummer (schema 0208) enkel voor een Belgische partij; anders het btw-nummer met de landcode
   // (schema 9925; een buitenlandse klant wordt vóór het uitreiken geweigerd, dit is enkel een vangnet).
   const be = vat === "" || vat.startsWith("BE");
-  const id = be ? enterprise(p.kbo, p.vat) : vat;
+  const id = endpointId(p);
   const sch = be ? scheme : "9925";
   return `<cac:${tag}><cac:Party>`
-    + `<cbc:EndpointID schemeID="${esc(sch)}">${esc(id)}</cbc:EndpointID>`
+    + (id ? `<cbc:EndpointID schemeID="${esc(sch)}">${esc(id)}</cbc:EndpointID>` : "")
     + `<cac:PartyName><cbc:Name>${esc(p.name)}</cbc:Name></cac:PartyName>`
     + `<cac:PostalAddress><cbc:StreetName>${esc(`${a?.street ?? ""} ${a?.number ?? ""}`.trim())}</cbc:StreetName><cbc:CityName>${esc(a?.city ?? "")}</cbc:CityName><cbc:PostalZone>${esc(a?.zip ?? "")}</cbc:PostalZone><cac:Country><cbc:IdentificationCode>${country(a)}</cbc:IdentificationCode></cac:Country></cac:PostalAddress>`
     + (vat ? `<cac:PartyTaxScheme><cbc:CompanyID>${esc(vat)}</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>` : "")
@@ -65,6 +74,8 @@ const pctTxt = (bp: bigint) => { const s = (Number(bp) / 100).toFixed(2); return
 
 /** Het UBL-bestand (XML-tekst). Een creditnota: <CreditNote>, alle bedragen met het omgekeerde teken (dus positief). */
 export function ublXml(d: UblInput): string {
+  const missing = ublMissing(d);
+  if (missing) throw new Error(missing);
   const sg = d.credit ? -1n : 1n;
   const doc = d.credit ? "CreditNote" : "Invoice";
   const ns = d.credit ? "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2" : "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2";

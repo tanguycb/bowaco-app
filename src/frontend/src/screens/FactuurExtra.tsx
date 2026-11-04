@@ -8,7 +8,7 @@ import { Button, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, unwrap, useBackend } from "../util";
 import { pdfData, safeName } from "../sales/adapt";
-import { ublXml, type UblInput } from "../sales/ubl";
+import { ublMissing, ublXml, type UblInput } from "../sales/ubl";
 import { quarterCsv, quarterOf } from "../sales/csv";
 import { download } from "./Prijsvragen";
 
@@ -87,7 +87,7 @@ export function QuarterExport({ today }: { today: bigint }) {
       for (const r of rows) {
         const f = unwrap(await actor!.readSalesInvoice(r.invoiceId));
         files.push({ name: `pdf/${safeName(r.number)}.pdf`, data: await factuurPdf(pdfData(f.doc, f.hash, false), fonts) });
-        if (f.doc.buyer.company) files.push({ name: `ubl/${safeName(r.number)}.xml`, data: ublXml(ublInput(f.doc, s.peppolScheme)) });
+        if (f.doc.buyer.company && !ublMissing(f.doc)) files.push({ name: `ubl/${safeName(r.number)}.xml`, data: ublXml(ublInput(f.doc, s.peppolScheme)) });
       }
       download(zipStore(files), `BOWACO facturen ${year}-K${quarter}.zip`, "application/zip");
     },

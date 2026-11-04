@@ -178,6 +178,10 @@ if (mode !== "na-herstel") {
   const { ublXml } = await import("../src/frontend/src/sales/ubl.ts");
   const toUbl = (d, credit = false) => ({ number: d.number, credit, issueDay: d.issueDay, dueDay: d.dueDay, serviceDay: d.serviceDay, serviceTo: d.serviceTo, issuer: d.issuer, buyer: { ...d.buyer, vat: d.buyer.vat || "BE0987654394", kbo: d.buyer.kbo }, workCode: d.workCode, quoteRefs: d.quoteRefs, lines: d.lines, vatLines: d.vatLines, netCents: d.netCents, vatCents: d.vatCents, totalCents: d.totalCents, mentions: d.mentions, paymentRef: d.paymentRef, paymentDays: d.paymentDays, creditOf: d.creditOf, creditOfDay: d.creditOfDay, scheme: "0208" });
   const d1 = voorbeeldFactuur();
+  // 2c.9 (schematron): een UBL enkel voor een klant met een ondernemingsnummer; een particulier wordt geweigerd (geen leeg EndpointID).
+  let part = "";
+  try { const u = toUbl(d1); ublXml({ ...u, buyer: { ...u.buyer, vat: "", kbo: "" } }); } catch (e) { part = String(e.message); }
+  check("(A3) UBL voor een particulier (geen ondernemings- of btw-nummer): geweigerd met een melding", /Geen UBL/.test(part), part);
   const u1 = readUbl(ublXml(toUbl(d1)), "factuur.xml");
   const p1 = ublProblems(u1, d1.totalCents);
   check("(A3) UBL factuur (60 regels, 6 %): verplichte velden, Σ regels = netto, btw per tarief, totaal = PDF", p1.length === 0 && u1.root === "Invoice" && u1.lines.length === 60 && u1.payId[0] === d1.paymentRef, p1.join(" | "));
