@@ -26,11 +26,14 @@ import Codes "../lib/Codes";
 import Config "../lib/Config";
 import Dossier "../lib/Dossier";
 import Ids "../lib/Ids";
+import OaDeals "../lib/OaDeals";
 import OaQuotes "../lib/OaQuotes";
 import Plan "../lib/Plan";
 import Post "../lib/Post";
+import Purchase "../lib/Purchase";
 import Quotes "../lib/Quotes";
 import Rights "../lib/Rights";
+import SiteAdmin "../lib/SiteAdmin";
 import TenderCalc "../lib/TenderCalc";
 import Tenders "../lib/Tenders";
 import WorkStart "../lib/WorkStart";
@@ -48,6 +51,13 @@ mixin (
   quoteForms : Types.QuoteFormState,
   tenders : Types.TenderState,
   post : Types.PostState,
+  dossier : Types.DossierState,
+  reports : Types.ReportState,
+  permits : Types.PermitState,
+  surveys : Types.SurveyState,
+  oaDeals : Types.OaDealState,
+  purchases : Types.PurchaseState,
+  siteAdmin : Types.SiteAdminState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -339,6 +349,7 @@ mixin (
         let r = reason.trim(#char ' ');
         if (r.size() < 3 or r.size() > Config.maxWorkStartReason) { return #err("Geef een reden (3 tot " # Config.maxWorkStartReason.toText() # " tekens)") };
         tenders.tenders.add(t.id, { next with status = #cancelled({ at = now; by = p.id; reason = r }) });
+        tnRevokeCodes(t.id, p.id, now);
         Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-geannuleerd", t.code # ": " # r);
       };
       case (#close chosen0) {
@@ -354,6 +365,7 @@ mixin (
         let (nc, nt, nm) = OaQuotes.close({ settings; access; org; oa; post; audit; ctr }, tenders, t, all, p.id, now);
         let closedT = { next with status = #closed({ at = now; by = p.id }) };
         tenders.tenders.add(t.id, closedT);
+        tnRevokeCodes(t.id, p.id, now);
         ignore OaQuotes.remember(org, library, quotes, tenders, ctr, closedT, p.id, now);
         Access.audit(audit, caller, ?p.id, ?t.workId, "prijsvraag-afgesloten", t.code # ": " # nc.toText() # " gekozen, " # nt.toText() # " bedankt, " # nm.toText() # " berichten (" # OaQuotes.thanksMode(settings) # ")");
       };
@@ -585,6 +597,31 @@ mixin (
     #ok({ name = f.name; mime = f.mime; size = f.size; blob = f.blob });
   };
 
+  // 2c.9 (review S4): bij annuleren of afsluiten vervalt elke nog open toegangscode van de uitnodigingen (wie al inlogde, houdt zijn
+  // login; de beheerder beslist daarover). Schrijft enkel in access.invites (var-veld), niet in de lijst die doorlopen wordt.
+  func tnRevokeCodes(tenderId : Nat, by : Nat, now : Int) {
+    for (i in Tenders.invitesOf(tenders, tenderId).values()) {
+      switch (i.accessCodeId) {
+        case (?c) { switch (access.invites.get(c)) { case (?inv) { if (inv.state == #open) { inv.state := #revoked({ by; at = now }) } }; case null {} } };
+        case null {};
+      };
+    };
+  };
+
+  // 2c.9 (review S1): hoort een bestand nog ergens anders bij dan het ontwerp van deze uitnodiging? (OA-offertes, andere ontwerpen,
+  // bijlagen van een prijsvraag, werfdossier, vergunningen, werfverslagen, opmetingen, afspraken/attesten, aankopen, werfadministratie.)
+  func tnFileElsewhere(fid : Nat, inviteId : Nat) : Bool {
+    if (tenders.oaQuotes.values().any(func(q : Types.OaQuote) : Bool = q.fileId == ?fid)) { return true };
+    for ((k, c) in tenders.drafts.entries()) {
+      if (k != inviteId) { switch c { case (#plain d) { if (d.fileId == ?fid) { return true } }; case (#sealed _) {} } };
+    };
+    if (tenders.tenders.values().any(func(t : Types.Tender) : Bool = t.fileIds.find(func(x : Nat) : Bool = x == fid) != null)) { return true };
+    if (dossier.documents.values().any(func(x : Types.Document) : Bool = x.fileIds.find(func(y : Nat) : Bool = y == fid) != null)) { return true };
+    if (permits.permits.values().any(func(x : Types.Permit) : Bool = x.fileIds.find(func(y : Nat) : Bool = y == fid) != null)) { return true };
+    if (reports.fileOwners.containsKey(fid) or surveys.fileOwners.containsKey(fid)) { return true };
+    OaDeals.ownedFiles(oaDeals).containsKey(fid) or Purchase.ownedFiles(purchases).containsKey(fid) or SiteAdmin.ownedFiles(siteAdmin).containsKey(fid);
+  };
+
   // R39: zijn eigen offerte als PDF opladen (vertrouwelijk aan de werf; hij ziet daarna naam en grootte, nooit de opslag-URL).
   public shared ({ caller }) func addMyTenderFile(ref : Text, name : Text, mime : Text, size : Nat, blob : Storage.ExternalBlob) : async Result.Result<TV.MyTenderFile, Text> {
     let p = Access.requireActive(access, caller);
@@ -597,18 +634,27 @@ mixin (
     if (size == 0 or size > Config.maxFileBytes) { return #err("Bestand te groot") };
     if (blob.size() > 200) { return #err("Het bestand klopt niet") };
     if (files.files.values().filter(func(f : Types.FileRef) : Bool = f.personId == p.id).size() >= Config.maxFilesPerPerson) { return #err("De opslagruimte is vol. Neem contact op met BOWACO") };
+    // 2c.9 (review S1): de opslagruimte van de FIRMA (alle logins samen: bestanden en bytes).
+    switch (OaDeals.oaUploadRoom(access, files, i.orgId, size)) { case (?e) return #err(e); case null {} };
     let now = Time.now();
     let fid = Ids.next(ctr, "file");
     let fr : Types.FileRef = { id = fid; name = n; mime; size; blob; workId = ?t.workId; confidential = true; personId = p.id; at = now; var archivedAt = null };
     files.files.add(fid, fr);
     let old = Tenders.draftOf(tenders, i.id);
     // Het vorige bestand van het ontwerp (nog niet ingediend) gaat weg; een ingediende versie houdt het hare.
+    // 2c.9 (review S1 punt 3): een vervangen ontwerpbestand dat nergens anders hoort, wordt GESCHRAPT (FileRef weg, dus de blob dood
+    // en de gateway ruimt hem op). D2 "niets wissen" geldt voor zakelijke gegevens, niet voor een vervangen ontwerpupload. Hoort het
+    // toch ergens bij (een ingediende versie, een ander domein), dan blijft het (gearchiveerd als het niet ingediend is).
     switch old {
       case (?d) {
         switch (d.fileId) {
           case (?prev) {
             let used = Tenders.oaQuotesOfInvite(tenders, i, t.workId).any(func(q : Types.OaQuote) : Bool = q.fileId == ?prev);
-            if (not used) { switch (files.files.get(prev)) { case (?f) { f.archivedAt := ?now }; case null {} } };
+            if (not used) {
+              if (tnFileElsewhere(prev, i.id)) { switch (files.files.get(prev)) { case (?f) { f.archivedAt := ?now }; case null {} } } else {
+                files.files.remove(prev);
+              };
+            };
           };
           case null {};
         };

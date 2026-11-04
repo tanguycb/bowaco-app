@@ -86,7 +86,7 @@ const libChs = await calc.libraryChapters(false);
 if (!libChs.length) ok(await calc.loadLibraryStartChapters());
 const ch0 = (await calc.libraryChapters(false))[0];
 const L2 = ok(await calc.saveLibraryItem({ id: [], chapterId: ch0.id, code: "", title: `Proef lichtpunt 2c4 ${suffix}`, text: "Verzonnen.", unit: "st", form: { vh: null }, trade: [], orgId: [MEREL], durationDays: [2n], perDayMilli: [], planStepKey: [], keywords: [], importKey: [] }, 0n));
-check("(B0) opzet: twee OA-firma's met een login zonder werf, twee werven", (await oaR.me()).person.length === 1 && (await oaM.me()).caps[0].myDeals && !(await wl.me()).caps[0].deals && (await calc.me()).caps[0].deals);
+check("(B0) opzet: twee OA-firma's met een login zonder werf (2c.9 S2: nog geen Mijn contracten zonder afspraak of lidmaatschap), twee werven", (await oaR.me()).person.length === 1 && !(await oaM.me()).caps[0].myDeals && !(await wl.me()).caps[0].deals && (await calc.me()).caps[0].deals);
 
 // B1. Tarief per firma met datum: enkel kantoor (bedragen enkel via een update-call met auditregel).
 const rateIn = (o) => ({ orgId: REIGER, kind: "regie", unit: "uur", cents: 4200n, validFrom: today - 200n, source: "offerte", ref: "proef 2c4", fileId: [], note: "", ...o });
@@ -218,6 +218,11 @@ const fSigned = ok(await calc.addDealFile("proef-getekend.pdf", "application/pdf
 const fOther = ok(await calc.addDealFile("proef-andere-afspraak.pdf", "application/pdf", 40_000n, fakeBlob("d"), { signed: dR2.id }));
 const fAttest = ok(await calc.addDealFile("proef-attest.pdf", "application/pdf", 40_000n, fakeBlob("e"), { orgDoc: MEREL }));
 check("(B7) getekend registreren met een verkeerde versie, het bewijs van een andere afspraak of een attestbestand: geweigerd", /laatste versie/.test(errOf(await calc.markOaContractSigned(dR.id, 2n, fSigned, "", rev))) && /Onbekend bestand/.test(errOf(await calc.markOaContractSigned(dR.id, 1n, fOther, "", rev))) && /Onbekend bestand/.test(errOf(await calc.markOaContractSigned(dR.id, 1n, fAttest, "", rev))));
+// 2c.9 (review S7): een attest of tarief aanvaardt enkel een bestand dat voor DIE firma opgeladen werd.
+{
+  const docIn = (orgId, fileId) => ({ orgId, kind: "ba", title: "", fileId: [fileId], validFrom: [], validUntil: [today + 100n], note: "" });
+  check("(B7) S7: saveOrgDoc voor Reiger met het attestbestand van Merel of met een getekend contract: geweigerd; saveOaRate idem", /Onbekend bestand/.test(errOf(await calc.saveOrgDoc(docIn(REIGER, fAttest)))) && /Onbekend bestand/.test(errOf(await calc.saveOrgDoc(docIn(REIGER, fSigned)))) && /Onbekend bestand/.test(errOf(await calc.saveOaRate(rateIn({ fileId: [fAttest] })))));
+}
 ok(await calc.markOaContractSigned(dR.id, 1n, fSigned, "proef: getekend terug", rev));
 const st2 = (await wl.listDeals(W1)).find((d) => d.id === dR.id);
 const sf = ok(await oaR.readMyContractFile(refR, 1n));
@@ -340,9 +345,26 @@ let SPECHTID = -1n;
   const SPECHT = await orgOf(`Proef Dak Specht 2c4 ${suffix}`);
   SPECHTID = SPECHT;
   await login(oaS, SPECHT, `Proef OA Specht ${suffix}`);
-  check("(B14) opslagpoort: een OA met een afspraak, en een OA van een firma zonder afspraak (eigen attesten) krijgen een certificaat; een onbekende login niet", (await cert(oaR)) && (await cert(oaS)) && !(await cert(vreemd)));
+  // 2c.9 (review S1, S2): zonder afspraak, lidmaatschap of open uitnodiging geen certificaat en geen Mijn attesten.
+  check("(B14) S1: opslagpoort: een OA met een afspraak krijgt een certificaat; een OA van een firma ZONDER afspraak niet; een onbekende login niet", (await cert(oaR)) && !(await cert(oaS)) && !(await cert(vreemd)));
+  check("(B14) S2: zonder afspraak: attest opladen en Mijn contracten geweigerd", (await denied(oaS.addMyAttest("ba", "", [], [today + 200n], "proef-specht.pdf", "application/pdf", 900n, fakeBlob("9")))) && (await denied(oaS.listMyContracts())));
+  ok(await calc.createDeal(W4, SPECHT));
+  check("(B14) S1: met een (ontwerp)afspraak van zijn firma: wel een certificaat", await cert(oaS));
   const sa = ok(await oaS.addMyAttest("ba", "", [], [today + 200n], "proef-specht.pdf", "application/pdf", 900n, fakeBlob("9")));
-  check("(B14) de OA zonder afspraak laadt het attest van zijn eigen firma op; Reiger ziet het niet", sa.ref.length === 16 && !(await oaR.listMyAttests()).docs.some((d) => d.ref === sa.ref) && (await oaS.listMyContracts()).length === 0);
+  check("(B14) de OA met een afspraak laadt het attest van zijn eigen firma op; Reiger ziet het niet; hij opent zijn eigen bestand (S7)", sa.ref.length === 16 && !(await oaR.listMyAttests()).docs.some((d) => d.ref === sa.ref) && (await oaS.listMyContracts()).length === 0 && ok(await oaS.readMyAttestFile(sa.ref)).name === "proef-specht.pdf");
+  // S1 punt 5: één melding per firma per dag naar kantoor.
+  ok(await oaS.addMyAttest("personeel", "", [], [today + 200n], "proef-specht-2.pdf", "application/pdf", 900n, fakeBlob("8")));
+  const nSp = (await calc.myNotifications(false)).filter((n) => n.kind === "attest" && n.text.includes(`Specht 2c4 ${suffix}`) && /laadde het attest/.test(n.text)).length;
+  check("(B14) S1: twee attesten op één dag: één melding naar kantoor", nSp === 1, String(nSp));
+  // S1 punt 2: hoogstens 50 opgeladen attesten per firma per jaar.
+  let up = 2;
+  let last = "";
+  for (let k = 0; k < 60; k++) {
+    const r = await oaS.addMyAttest("ba", "", [], [today + 200n], `proef-specht-q${k}.pdf`, "application/pdf", 10n, fakeBlob("7"));
+    if ("err" in r) { last = r.err; break; }
+    up++;
+  }
+  check("(B14) S1: quotum: 50 attesten per firma per jaar, het 51ste geweigerd", up === 50 && /dit jaar/.test(last), `${up} ${last}`);
 }
 
 // B9. .did-controle, export en een afspraak met de hand.

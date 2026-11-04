@@ -246,6 +246,12 @@ module {
     passOnBp(c.settings, kindKey);
   };
 
+  // 2c.9 (review S10): de klant ziet de kostensoort, nooit de omschrijving van de aankoopregel (daarin kan een firmanaam, een
+  // factuurnummer of een eenheidsprijs van de OA staan). Kantoor ziet de omschrijving wel.
+  public func costKindName(key : Text) : Text {
+    switch (Config.mmCostKinds().find(func((k, _) : (Text, Text)) : Bool = k == key)) { case (?(_, n)) n; case null "Andere kosten" };
+  };
+
   public func sellOf(costCents : Int, marginBp : Nat) : Int {
     switch (QuoteCalc.unitSell(?costCents, null, marginBp)) { case (?x) x; case null costCents };
   };
@@ -592,7 +598,7 @@ module {
       let pass = k.passOn or ovPass;
       let m = costMargin(c, k.orgId, k.kindKey);
       let (q, uc) = if (k.qtyMilli == 0) (1000, k.amountCents) else (k.qtyMilli, k.unitCents);
-      let x = row(k.key, "kost", k.source, "Kosten", k.kindKey # " · " # orgName(c, k.orgId) # " · " # k.description, "Kost: " # k.description, k.unit, q, sellOf(uc, m), #extra);
+      let x = row(k.key, "kost", k.source, "Kosten", k.kindKey # " · " # orgName(c, k.orgId) # " · " # k.description, "Kost: " # costKindName(k.kindKey), k.unit, q, sellOf(uc, m), #extra);
       let flags = List.empty<Text>();
       if (not pass) { flags.add("niet-doorgerekend") };
       if (pass and k.pending) { flags.add("factuur-niet-goedgekeurd") };

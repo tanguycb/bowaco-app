@@ -3,7 +3,7 @@
 // het sjabloon onder een controlecode, getekend bewijs, aanhangsel = nieuwe versie, en de attesten van een firma (de OA laadt op,
 // kantoor keurt). Rechten in lib/Rights.mo: #editDeals (admin, calculator: alles, bedragen enkel via update-calls met auditregel),
 // #readDeals/dealScope (de werfleider van de werf: afspraak, contractstatus en attesten, nooit een bedrag), #ownDeals (de OA: zijn
-// eigen contracten en attesten, met een willekeurige verwijzing in plaats van een id). Rekenen en zoeken in lib/OaDeals.mo en
+// eigen contracten en attesten, met een verwijzing in plaats van een id; geen volgnummer, toegang via de firma). Rekenen en zoeken in lib/OaDeals.mo en
 // lib/OaContract.mo. Hulpfuncties hier dragen de prefix "od" (gedeeld over alle mixins).
 import Array "mo:core/Array";
 import Int "mo:core/Int";
@@ -11,6 +11,7 @@ import Iter "mo:core/Iter";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Result "mo:core/Result";
+import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Storage "mo:caffeineai-object-storage/Storage";
@@ -148,7 +149,7 @@ mixin (
     if (i.validFrom == 0) { return #err("Kies de datum vanaf wanneer het tarief geldt") };
     if (Config.rateSources().find(func((s, _) : (Text, Text)) : Bool = s == i.source) == null) { return #err("Onbekende herkomst") };
     if (i.ref.size() > Config.maxName) { return #err("Verwijzing: hoogstens " # Config.maxName.toText() # " tekens") };
-    switch (i.fileId) { case (?f) { if (not odFileOk(p, f)) { return #err("Onbekend bestand") } }; case null {} };
+    switch (i.fileId) { case (?f) { if (not odFileOk(p, f) or not OaDeals.fileOfOrg(settings, f, i.orgId)) { return #err("Onbekend bestand") } }; case null {} };
     if (OaDeals.ratesOf(oaDeals, i.orgId, true).size() >= Config.maxRatesPerOrg) { return #err("Te veel tarieven voor deze firma") };
     let id = Ids.next(ctr, "oaRate");
     let now = Time.now();
@@ -486,7 +487,8 @@ mixin (
           case null {};
         };
       };
-      case _ {};
+      // 2c.9 (review S7): een bestand voor een tarief of attest hoort bij die firma; saveOaRate en saveOrgDoc aanvaarden enkel dat.
+      case (#rate o or #orgDoc o) { OaDeals.bindFile(settings, id, o) };
     };
     Access.audit(audit, caller, ?p.id, workId, "bestand-toegevoegd", "afspraken: " # name # " (" # size.toText() # " B, vertrouwelijk)");
     #ok(id);
@@ -526,7 +528,7 @@ mixin (
     Rights.require({ works; settings }, p, #editDeals, null);
     let o = org.orgs.get(i.orgId) ?? return #err("Onbekende firma");
     let title = switch (odDocCheck(i.kind, i.title, i.validFrom, i.validUntil, i.note)) { case (#ok x) x; case (#err e) return #err(e) };
-    switch (i.fileId) { case (?f) { if (not odFileOk(p, f)) { return #err("Onbekend bestand") } }; case null {} };
+    switch (i.fileId) { case (?f) { if (not odFileOk(p, f) or not OaDeals.fileOfOrg(settings, f, i.orgId)) { return #err("Onbekend bestand") } }; case null {} };
     if (OaDeals.docsOf(oaDeals, i.orgId).size() >= Config.maxOrgDocs) { return #err("Te veel attesten voor deze firma") };
     let id = odAddDoc(p, i.orgId, i.kind, title, i.fileId, i.validFrom, i.validUntil, i.note, true);
     Access.audit(audit, caller, ?p.id, null, "attest-nieuw", o.name # ": " # title # " geldig tot " # (switch (i.validUntil) { case (?u) Plan.fmtDay(u); case null "–" }));
@@ -563,8 +565,9 @@ mixin (
 
   // ── De OA: Mijn contracten en Mijn attesten (enkel zijn eigen firma; verwijzing in plaats van een id) ──
   func odMyOrg(p : Types.Person) : Nat {
-    Rights.require({ works; settings }, p, #ownDeals, null);
-    switch (p.orgId) { case (?o) o; case null 0 };
+    // 2c.9 (review S2, R31): enkel zolang de samenwerking loopt (actief OA-lid of een lopende afspraak van de firma).
+    if (not Rights.ownDealsOk({ works; settings }, p, oaDeals)) { Runtime.trap("Geen toegang") };
+    switch (p.orgId) { case (?o) o; case null Runtime.trap("Geen toegang") };
   };
 
   // Een contract van zijn firma dat kantoor klaarzette (te tekenen of getekend); een ontwerp zonder versie ziet hij niet.
@@ -619,11 +622,21 @@ mixin (
     let o = odMyOrg(p);
     let t = switch (odDocCheck(kind, title, validFrom, validUntil, "")) { case (#ok x) x; case (#err e) return #err(e) };
     if (OaDeals.docsOf(oaDeals, o).size() >= Config.maxOrgDocs) { return #err("Te veel attesten. Neem contact op met BOWACO") };
+    // 2c.9 (review S1): per firma hoogstens Config.maxOaAttestsPerYear opgeladen attesten per jaar, en de opslagruimte van de firma.
+    let now = Time.now();
+    let (perYear, _) = OaDeals.oaAttestCounts(oaDeals, access, o, now, odToday(), 0);
+    if (perYear >= Config.maxOaAttestsPerYear) { return #err("Te veel attesten opgeladen dit jaar. Neem contact op met BOWACO") };
+    switch (OaDeals.oaUploadRoom(access, files, o, size)) { case (?e) return #err(e); case null {} };
     let fid = switch (odAddFile(p, name, mime, size, blob, null)) { case (#ok x) x; case (#err e) return #err(e) };
+    OaDeals.bindFile(settings, fid, o);
     let id = odAddDoc(p, o, kind, t, ?fid, validFrom, validUntil, "", false);
     Access.audit(audit, caller, ?p.id, null, "attest-opgeladen", odOrgName(o) # ": " # t);
-    for (q in access.persons.values()) {
-      if (q.archivedAt == null and Rights.isOffice(q)) { Access.notify(audit, ctr, q.id, "attest", odOrgName(o) # " laadde het attest «" # t # "» op: na te kijken op de firmafiche.", null) };
+    // 2c.9 (review S1 punt 5): één melding per firma per dag naar kantoor (de firmafiche toont alles wat te keuren is).
+    let (_, sameDay) = OaDeals.oaAttestCounts(oaDeals, access, o, now, odToday(), id);
+    if (not sameDay) {
+      for (q in access.persons.values()) {
+        if (q.archivedAt == null and Rights.isOffice(q)) { Access.notify(audit, ctr, q.id, "attest", odOrgName(o) # " laadde het attest «" # t # "» op: na te kijken op de firmafiche.", null) };
+      };
     };
     switch (oaDeals.orgDocs.get(id)) { case (?x) #ok(odMyAttestView(x)); case null #err("Onbekend attest") };
   };
@@ -634,6 +647,8 @@ mixin (
     let x = OaDeals.docsOf(oaDeals, o).find(func(d : Types.OrgDoc) : Bool = ref.size() == 16 and OaDeals.refOf(d.extra) == ref) ?? return #err("Onbekend attest");
     let fid = x.fileId ?? return #err("Geen bestand");
     let fr = files.files.get(fid) ?? return #err("Geen bestand");
+    // 2c.9 (review S7): enkel een bestand dat bij een attest of tarief van ZIJN firma opgeladen werd (geen ander vertrouwelijk bestand).
+    if (fr.workId != null or not fr.confidential or not OaDeals.fileOfOrg(settings, fid, o)) { return #err("Geen bestand") };
     Access.audit(audit, caller, ?p.id, null, "bekeek:mijn-attest", odOrgName(o) # ": " # x.title);
     #ok({ name = fr.name; mime = fr.mime; size = fr.size; blob = fr.blob });
   };

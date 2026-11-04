@@ -212,10 +212,10 @@ mixin (
     if (t.workId != workId or t.archivedAt != null) { return #err("Onbekende taak") };
     let now = Time.now();
     plan.tasks.add(taskId, { t with archivedAt = ?now; updatedAt = now; updatedBy = p.id });
-    for (d in plan.dependencies.values()) {
+    for (d in plan.dependencies.values().toArray().values()) {
       if (d.archivedAt == null and (d.fromTaskId == taskId or d.toTaskId == taskId)) { plan.dependencies.add(d.id, { d with archivedAt = ?now }) };
     };
-    for (a in plan.assignments.values()) {
+    for (a in plan.assignments.values().toArray().values()) {
       if (a.taskId == taskId and a.archivedAt == null) { plan.assignments.add(a.id, { a with archivedAt = ?now; updatedAt = now }) };
     };
     plChange(t, p.id, "taak", t.title, "gearchiveerd", "");
@@ -731,7 +731,7 @@ mixin (
           plChange(t, p.id, "start", Plan.fmtDay(s.fromStart), Plan.fmtDay(s.toStart), why);
           plChange(t, p.id, "duur", s.fromWorkdays.toText() # " d", s.toWorkdays.toText() # " d", why);
           let delta : Int = s.toStart - s.fromStart;
-          for (a in plan.assignments.values()) {
+          for (a in plan.assignments.values().toArray().values()) {
             if (a.taskId == t.id and a.archivedAt == null) {
               let shift = func(d : ?Nat) : ?Nat { switch d { case (?x) ?Int.abs(Int.max(0, x + delta)); case null null } };
               let reopen = a.confirmation != #open;

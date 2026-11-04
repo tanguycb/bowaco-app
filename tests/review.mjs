@@ -894,10 +894,15 @@ else {
       const x = await freshBackend(cid);
       ok(await x.redeemCode(inv.code));
       check("(M4) OA zonder actief lidmaatschap: 'Mijn facturen' geweigerd en caps.myOaInvoices nee, ook met de schakelaar aan", (await denied(x.myOaInvoices())) && !(await x.me()).caps[0].myOaInvoices);
+      // 2c.9 (review S1, S2): zonder lidmaatschap, uitnodiging of afspraak: geen uploadcertificaat en geen Mijn contracten/attesten.
+      const cert = async (y, h) => { try { await y._immutableObjectStorageCreateCertificate("sha256:" + h.repeat(64)); return true; } catch { return false; } };
+      check("(2c.9 S1) OA zonder lidmaatschap, uitnodiging of afspraak: geen uploadcertificaat; Mijn contracten/attesten geweigerd (S2, caps nee)", !(await cert(x, "c")) && (await denied(x.listMyContracts())) && (await denied(x.listMyAttests())) && !(await x.me()).caps[0].myDeals);
       const m = ok(await admin.addMembership(B, [inv.personId], [], { onderaannemer: null }, []));
       check("(M4) met een lidmaatschap op P-B: toegelaten (caps ja)", Array.isArray(await x.myOaInvoices()) && (await x.me()).caps[0].myOaInvoices);
+      check("(2c.9 S1) met een lidmaatschap: wel een certificaat en Mijn attesten", (await cert(x, "d")) && !(await denied(x.listMyAttests())));
       ok(await admin.endMembership(m));
       check("(M4) lidmaatschap beëindigd: meteen weer geweigerd (R31)", await denied(x.myOaInvoices()));
+      check("(2c.9 S1/S2) lidmaatschap beëindigd: meteen geen certificaat en geen Mijn attesten meer (R31)", !(await cert(x, "e")) && (await denied(x.listMyAttests())));
       ok(await admin.archivePerson(inv.personId));
     } finally {
       ok(await admin.saveOaInvoiceSettings(s0));
@@ -911,6 +916,41 @@ else {
   walk(root);
   const badRoles = files.filter((p) => !p.endsWith("/lib/Rights.mo") && /\broles\s*\.\s*(find|any|all|some)\s*\(\s*func\s+\w+\s*=\s*\w+\s*==\s*#/.test(readFileSync(p, "utf8"))).map((p) => p.slice(root.length + 1));
   check("(M5) geen enkel bestand buiten lib/Rights.mo test zelf op een rol (roles.find/any/all … == #rol)", files.length > 60 && badRoles.length === 0, badRoles.join(", ") || `${files.length} bestanden`);
+}
+
+// ── securityreview 2c.9: S8 (klant op een werf zonder klantfirma ziet geen werfadministratie) en S16 (geen lus die een waarde vervangt
+//    in de Map die ze doorloopt: mechanisch op de broncode) ──
+{
+  const stamp = Date.now().toString(36).toUpperCase();
+  const addr = { street: "Proefstraat", number: "14", zip: "8670", city: "Koksijde", country: "BE" };
+  const klantId = (await klant.me()).person[0].id;
+  const wid = ok(await admin.createWork({ code: `P-S8-${stamp}`, name: "Proefwerf review 2c.9 zonder klantfirma", address: addr, parentId: [], clientOrgId: [], architectOrgId: [], leaderPersonId: [], vatBp: 2100n })).id;
+  const mKl = ok(await admin.addMembership(wid, [klantId], [], { klant: null }, []));
+  try {
+    check("(2c.9 S8) klant-lid van een werf ZONDER klantfirma: clientSiteAdmin geweigerd", await denied(klant.clientSiteAdmin(wid)));
+  } finally {
+    await admin.endMembership(mKl).catch(() => {});
+    await admin.setWorkStatus(wid, { cancelled: null }).catch(() => {});
+  }
+  // S16: for (x in a.b.values()/entries()/keys()) zonder momentopname, met in de lus a.b.add/remove/delete/clear.
+  const { readdirSync, statSync } = await import("node:fs");
+  const root = join(import.meta.dirname, "../src/backend");
+  const files = [];
+  const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) { if (n !== "dist" && n !== ".most") walk(p); } else if (n.endsWith(".mo")) files.push(p); } };
+  walk(root);
+  const hits = [];
+  for (const p of files) {
+    const src = readFileSync(p, "utf8");
+    for (const m of src.matchAll(/for\s*\(\s*[\w(), ]+\s+in\s+([\w.]+)\.(values|entries|keys|reverseEntries)\(\)\s*\)\s*\{/g)) {
+      let depth = 1;
+      let i = m.index + m[0].length;
+      while (i < src.length && depth > 0) { if (src[i] === "{") depth++; else if (src[i] === "}") depth--; i++; }
+      const body = src.slice(m.index + m[0].length, i);
+      const coll = m[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`(?<![\\w.])${coll}\\.(add|remove|delete|clear|put)\\s*\\(`).test(body)) hits.push(`${p.slice(root.length + 1)}:${src.slice(0, m.index).split("\n").length} ${m[1]}`);
+    }
+  }
+  check("(2c.9 S16) geen lus die de Map wijzigt die ze zonder momentopname doorloopt (ook geen waarde vervangen)", files.length > 60 && hits.length === 0, hits.join(", ") || `${files.length} bestanden`);
 }
 
 // ── (B11) Pogingentellers worden opgeruimd door de timer (T11); enkel lokaal met de klok ──

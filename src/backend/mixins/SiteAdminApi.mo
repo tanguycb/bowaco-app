@@ -718,7 +718,8 @@ mixin (
     if (not asArchitect) {
       Rights.require(ctx, p, #clientQuote, ?workId);
       switch (works.works.get(workId)) {
-        case (?w) { if (w.clientOrgId != null and w.clientOrgId != p.orgId) { Runtime.trap("Geen toegang") } };
+        // 2c.9 (review S8): zonder klantfirma op de werf ziet geen enkele klant iets (zoals minMeerScope en salesScope, R41/R42).
+        case (?w) { if (w.clientOrgId == null or w.clientOrgId != p.orgId) { Runtime.trap("Geen toegang") } };
         case null { Runtime.trap("Geen toegang") };
       };
     };

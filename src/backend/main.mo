@@ -95,7 +95,7 @@ persistent actor Self {
   func isLive() : Bool { Mail.isLive(Principal.fromActor(Self)) };
 
   include StorageGate(settings, access, works, tenders, oaDeals);
-  include AccessApi(settings, access, works, robot, audit, ctr, org);
+  include AccessApi(settings, access, works, robot, audit, ctr, org, oaDeals);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
   include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, audit, ctr);
@@ -160,7 +160,7 @@ persistent actor Self {
 
   // 2c.2: prijsvraag naar onderaannemers (posten kopiëren, firma's, deadline, PDF + Excel in de browser, toegang voor de OA zonder
   // werf, Mijn prijsvragen van de OA, eigen PDF opladen); herinnering en "geen antwoord" in Post.tick.
-  include TendersApi(settings, access, org, oa, works, files, plan, library, quotes, quoteForms, tenders, post, audit, ctr);
+  include TendersApi(settings, access, org, oa, works, files, plan, library, quotes, quoteForms, tenders, post, dossier, reports, permits, surveys, oaDeals, purchases, siteAdmin, audit, ctr);
 
   include OaQuotesApi(settings, access, org, oa, works, files, library, quotes, tenders, oaDeals, audit, ctr);
 

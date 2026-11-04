@@ -21,6 +21,7 @@ import Config "Config";
 import Ids "Ids";
 import Measure "Measure";
 import Plan "Plan";
+import Post "Post";
 import QuoteCalc "QuoteCalc";
 import Quotes "Quotes";
 import Rights "Rights";
@@ -250,6 +251,49 @@ module {
     };
     if (out.endsWith(#text "-")) { Text.fromIter(out.chars().take(out.size() - 1)) } else out;
   };
+
+  // ── 2c.9 (review S1, S7): grenzen voor wat een OA oplaadt, en bestanden aan hun firma binden ──
+  // De personen van een firma (de OA-logins); hun bestanden tellen samen.
+  func orgPersons(access : Types.AccessState, orgId : Nat) : Map.Map<Nat, Bool> {
+    let m = Map.empty<Nat, Bool>();
+    for (q in access.persons.values()) { if (q.orgId == ?orgId) m.add(q.id, true) };
+    m;
+  };
+
+  // null = er is plaats voor nog een bestand van `size` bytes; anders de weigering. Telt elke FileRef (ook gearchiveerd: de blob
+  // leeft nog) van alle personen van de firma.
+  public func oaUploadRoom(access : Types.AccessState, files : Types.FileState, orgId : Nat, size : Nat) : ?Text {
+    let mine = orgPersons(access, orgId);
+    var n = 0;
+    var bytes = 0;
+    for (f in files.files.values()) { if (mine.containsKey(f.personId)) { n += 1; bytes += f.size } };
+    if (n >= Config.maxOaFilesPerOrg or bytes + size > Config.maxOaBytesPerOrg) ?"De opslagruimte van uw firma is vol. Neem contact op met BOWACO" else null;
+  };
+
+  // Attesten die de firma zelf opleverde: in de laatste 365 dagen (alle, ook gearchiveerd), en of er vandaag al één was
+  // (dan geen nieuwe melding naar kantoor: één melding per firma per dag).
+  public func oaAttestCounts(d : D, access : Types.AccessState, orgId : Nat, now : Int, today : Day, skipId : Nat) : (Nat, Bool) {
+    let mine = orgPersons(access, orgId);
+    let ids = switch (d.docsByOrg.get(orgId)) { case (?x) x; case null [] };
+    var year = 0;
+    var sameDay = false;
+    for (id in ids.values()) {
+      switch (d.orgDocs.get(id)) {
+        case (?x) {
+          if (id != skipId and mine.containsKey(x.createdBy)) {
+            if (now - x.createdAt < 365 * 86_400_000_000_000) { year += 1 };
+            if (Post.local(x.createdAt).day == today) { sameDay := true };
+          };
+        };
+        case null {};
+      };
+    };
+    (year, sameDay);
+  };
+
+  // Een bestand van een tarief of attest hoort bij één firma (settings.values "oaBestand:<bestand>" = firma; geen migratie).
+  public func bindFile(s : Types.SettingsState, fileId : Nat, orgId : Nat) { s.values.add("oaBestand:" # fileId.toText(), orgId.toText()) };
+  public func fileOfOrg(s : Types.SettingsState, fileId : Nat, orgId : Nat) : Bool { s.values.get("oaBestand:" # fileId.toText()) == ?orgId.toText() };
 
   public func docsOf(d : D, orgId : Nat) : [Types.OrgDoc] {
     let ids = switch (d.docsByOrg.get(orgId)) { case (?x) x; case null [] };

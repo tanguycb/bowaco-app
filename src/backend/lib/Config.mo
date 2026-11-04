@@ -55,6 +55,12 @@ module {
   // Bestanden (§2.7, R11)
   public let maxFileBytes : Nat = 25_000_000;
   public let maxFilesPerPerson : Nat = 2_000;
+  // 2c.9 (review S1): grenzen voor wat een OA (zonder #upload) oplaadt, per FIRMA (alle personen van de firma samen): bestanden en
+  // bytes zoals geregistreerd (ook gearchiveerde: hun blob leeft nog), attesten per jaar, en certificaten per principal per uur.
+  public let maxOaFilesPerOrg : Nat = 300;
+  public let maxOaBytesPerOrg : Nat = 2_000_000_000;
+  public let maxOaAttestsPerYear : Nat = 50;
+  public let maxOaCertsPerHour : Nat = 60;
   public func allowedMime(mime : Text) : Bool {
     mime == "image/jpeg" or mime == "image/png" or mime == "image/webp" or mime == "application/pdf";
   };

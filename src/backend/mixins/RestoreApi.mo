@@ -438,7 +438,8 @@ mixin (
     // 1b.3: index van de sleutels en van de open opdrachten herrekenen; een geleasete opdracht komt terug in de wachtrij.
     // mail-caffeine: een mail die bij de export "bij de maildienst" stond, is misschien weg: onzeker, nooit vanzelf opnieuw.
     let app = Principal.fromText(Config.appSender);
-    for (j in post.jobs.values()) {
+    // 2c.9 (review S16): momentopname, want de lus vervangt waarden in post.jobs.
+    for (j in post.jobs.values().toArray().values()) {
       post.keys.add(j.key, j.id);
       switch (j.state) {
         case (#queued) post.open.add(j.id, ());

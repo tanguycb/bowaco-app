@@ -299,6 +299,7 @@ module {
       // 2c.4 (R40): per werf de afspraken zien (dealScope beslist wat); maken, tarieven en contracten enkel kantoor; de OA zijn eigen.
       case (#readDeals) on(func w = dealScope(ctx, p, w) != #none);
       case (#editDeals) admin or calc;
+      // 2c.9 (review S2): de API's vragen daarbovenop ownDealsOk (lidmaatschap of lopende afspraak van de firma).
       case (#ownDeals) has(p, #onderaannemer) and p.orgId != null;
       // 2c.7 (R44): aankoop enkel kantoor; de uren per dag de werfleider van die werf (en de beheerder).
       case (#editPurchases) admin or calc;
@@ -493,9 +494,28 @@ module {
   };
 
   // R39: de opslagpoort. Bovenop #upload: een OA met een open uitnodiging (hij laadt zijn eigen offerte-PDF op, ook zonder werf).
-  // 2c.4 (R40): ook een OA wiens firma een afspraak heeft (hij laadt zijn attesten op); de aanroeper geeft dat mee als openInvite.
   public func mayUpload(ctx : Ctx, p : Person, openInvite : Bool) : Bool {
     may(ctx, p, #upload, null) or (p.archivedAt == null and has(p, #onderaannemer) and p.orgId != null and openInvite);
+  };
+
+  // 2c.9 (review S2, R31): een afspraak van zijn firma die nog loopt (niet beëindigd) op een bestaande werf.
+  public func liveDealOfOrg(ctx : Ctx, d : Types.OaDealState, orgId : Types.OrgId) : Bool {
+    d.agreements.values().any(func(a : Types.Agreement) : Bool = a.orgId == orgId and workExists(ctx, a.workId) and (switch (a.status) { case (#ended _) false; case _ true }));
+  };
+
+  // 2c.9 (review S2): "Mijn contracten" en "Mijn attesten" (#ownDeals) enkel zolang de samenwerking loopt: actief OA-lid van een werf
+  // (persoonlijk of via de firma), of een lopende afspraak van zijn firma. Een beëindigd lidmaatschap sluit meteen (R31, les 2.12 L3);
+  // een contactpersoon die enkel een prijsvraagcode kreeg, ziet enkel Mijn prijsvragen (R37).
+  public func ownDealsOk(ctx : Ctx, p : Person, d : Types.OaDealState) : Bool {
+    if (not may(ctx, p, #ownDeals, null)) { return false };
+    switch (p.orgId) { case (?o) activeOa(ctx, p) or liveDealOfOrg(ctx, d, o); case null false };
+  };
+
+  // 2c.9 (review S1): de opslagpoort voor een OA zonder #upload: enkel met een open uitnodiging (zijn offerte-PDF), als actief OA-lid
+  // of met een lopende afspraak van zijn firma (attesten). Deze functie gaat het lidmaatschap en de afspraak zelf na.
+  public func mayUploadOa(ctx : Ctx, p : Person, openInvite : Bool, d : Types.OaDealState) : Bool {
+    if (p.archivedAt != null or not has(p, #onderaannemer) or p.orgId == null) { return false };
+    openInvite or ownDealsOk(ctx, p, d);
   };
 
   // ── Afwezigheden (1.4) ──────────────────────────────────────────────────
@@ -697,6 +717,11 @@ module {
     else if (has(p, #calculator)) "offertes"
     else if (has(p, #onderaannemer)) "week"
     else "werven";
+  };
+
+  // 2c.9 (review S2): de caps met "Mijn contracten/attesten" volgens ownDealsOk (de afspraken zitten niet in Ctx).
+  public func capsWithDeals(ctx : Ctx, p : Person, d : Types.OaDealState) : Views.Caps {
+    { caps(ctx, p) with myDeals = ownDealsOk(ctx, p, d) };
   };
 
   public func caps(ctx : Ctx, p : Person) : Views.Caps {

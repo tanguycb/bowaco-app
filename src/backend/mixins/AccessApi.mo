@@ -27,6 +27,7 @@ mixin (
   audit : Types.AuditState,
   ctr : Types.Counters,
   org : Types.OrgState,
+  oaDeals : Types.OaDealState,
 ) {
 
   // Caffeine's loginpakket (@caffeineai/core-infrastructure) roept dit na elke II-login aan; het
@@ -53,7 +54,7 @@ mixin (
           principal = caller;
           status = if active #active else #pending;
           person = switch person { case (?p) ?Access.personView(p); case null null };
-          caps = if active { switch person { case (?p) ?Rights.caps(ctx, p); case null null } } else null;
+          caps = if active { switch person { case (?p) ?Rights.capsWithDeals(ctx, p, oaDeals); case null null } } else null;
           isRobot;
           blockedUntil = blocked;
           version = Config.version;
@@ -268,7 +269,7 @@ mixin (
       principal = caller;
       status = if pending #pending else #active;
       person = ?Access.personView(person);
-      caps = if pending null else ?Rights.caps(ctx, person);
+      caps = if pending null else ?Rights.capsWithDeals(ctx, person, oaDeals);
       isRobot = false;
       blockedUntil = null;
       version = Config.version;

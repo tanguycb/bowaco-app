@@ -265,9 +265,10 @@ check("(B9) meer dan 100 eigen posten, korting boven 50 %: geweigerd", /eigen po
 
 // B10. Eigen PDF opladen (R39): vertrouwelijk aan de werf; de OA ziet naam en grootte, nooit de verwijzing.
 const blobA = new TextEncoder().encode("!caf!sha256:" + "5".repeat(64));
-// 2c.4 (review L1): elke OA met een firma krijgt sindsdien een certificaat (hij laadt de attesten van zijn eigen firma op, R40);
-// wat hij met het bestand mag doen, beslissen de functies zelf (addMyTenderFile enkel met een open uitnodiging).
-check("(B10) de opslagpoort: een OA met een open uitnodiging (zonder werf) krijgt een uploadcertificaat; OA C (niets open, wel een firma) ook (attesten, 2c.4); een onbekende login niet", !(await rejects(oaA._immutableObjectStorageCreateCertificate("sha256:" + "5".repeat(64)))) && !(await rejects(oaC._immutableObjectStorageCreateCertificate("sha256:" + "6".repeat(64)))) && (await rejects(vreemd._immutableObjectStorageCreateCertificate("sha256:" + "7".repeat(64)))));
+// 2c.9 (review S1): een certificaat enkel met een open uitnodiging, als actief OA-lid of met een lopende afspraak van de firma; een OA met
+// enkel een firma (niets open, geen werf, geen afspraak) niet meer. Wat hij met het bestand mag doen, beslissen de functies zelf.
+check("(B10) de opslagpoort: een OA met een open uitnodiging (zonder werf) krijgt een uploadcertificaat; OA C (niets open, geen werf, geen afspraak, wel een firma) NIET (S1); een onbekende login niet", !(await rejects(oaA._immutableObjectStorageCreateCertificate("sha256:" + "5".repeat(64)))) && (await rejects(oaC._immutableObjectStorageCreateCertificate("sha256:" + "6".repeat(64)))) && (await rejects(vreemd._immutableObjectStorageCreateCertificate("sha256:" + "7".repeat(64)))));
+check("(B10) S2: OA C (enkel een prijsvraaglogin) heeft geen Mijn contracten/attesten (caps nee, lijst geweigerd)", !(await oaC.me()).caps[0].myDeals && (await denied(oaC.listMyContracts())) && (await denied(oaC.listMyAttests())));
 check("(B10) enkel een PDF; een foto geweigerd", /Enkel een PDF/.test(errOf(await oaA.addMyTenderFile(invA.ref, "foto.jpg", "image/jpeg", 100n, blobA))));
 const upA = ok(await oaA.addMyTenderFile(invA.ref, "offerte Reiger (proef).pdf", "application/pdf", 2048n, blobA));
 const ans2 = ok(await oaA.readMyTenderAnswer(invA.ref));
@@ -278,6 +279,10 @@ const upA2 = ok(await oaA.addMyTenderFile(invA.ref, "offerte Reiger v2 (proef).p
 const upA2Id = (ok(await admin.exportChunk("confidentialFiles", 0n, 5000n)).files ?? []).find((f) => f.name === "offerte Reiger v2 (proef).pdf" && f.workId[0] === W1).id;
 check("(B10) M1 (R38): kantoor leest de PDF in het ontwerp NIET (calculator en beheerder: zelfde antwoord als een onbekend bestand)", errOf(await calc.readConfidentialFile(upA2Id)) === "Onbekend bestand" && errOf(await admin.readConfidentialFile(upA2Id)) === errOf(await calc.readConfidentialFile(999_999_999n)));
 check("(B10) een tweede PDF vervangt de eerste in het ontwerp; het bestand van een OA-offerte archiveer je niet via de losse bestanden", ok(await oaA.readMyTenderAnswer(invA.ref)).draft[0].file[0].name === upA2.name && /OA-offerte/.test(errOf(await admin.archiveFile(upA2Id))));
+{
+  const ex2 = ok(await admin.exportChunk("confidentialFiles", 0n, 5000n)).files ?? [];
+  check("(B10) S1: het vervangen ontwerpbestand (nergens anders gebruikt) is GESCHRAPT, niet gearchiveerd (de blob wordt dood)", !ex2.some((f) => f.name === "offerte Reiger (proef).pdf" && f.workId[0] === W1) && ex2.some((f) => f.id === upA2Id));
+}
 
 // B11. Indienen: de server rekent na; kantoor ziet de offerte; een tweede indiening = versie 2.
 check("(B11) indienen met een ander totaal dan de server: geweigerd, niets ingediend", /totaal klopt niet/.test(errOf(await oaA.saveMyTender(invA.ref, draftA, true, sv.netCents + 1n))) && ok(await calc.readTender(T1)).invites.find((i) => i.id === invA.id).oaQuotes.length === 0);
@@ -318,6 +323,7 @@ ok(await calc.updateTender(T1, rev, { extend: sug.deadlineDay + 2n }));
 check("(B12) verlengd: de deadline van de prijsvraag schuift (de eigen deadline van B blijft)", ok(await oaA.readMyTender(invA.ref)).deadlineDay === sug.deadlineDay + 2n && ok(await oaB.readMyTender(invB.ref)).deadlineDay === own);
 
 // B13. Firma erbij, annuleren, afsluiten, 90 dagen.
+let accClose = null;
 const addC = ok(await calc.addTenderFirm(T1, { orgId: FUUT, contactPersonId: [] }));
 ok(await calc.updateTenderInvite(addC, { declined: "telefonisch, vóór het versturen" }));
 check("(B13) L1: 'geen interesse' door kantoor vóór het versturen maakt niets zichtbaar voor de OA", !(await oaC.listMyTenders()).some((x) => x.code === v1.code));
@@ -336,19 +342,29 @@ check("(B13) L1: 'geen interesse' door kantoor vóór het versturen maakt niets 
   const after = ok(await calc.readTender(T1)).invites.find((i) => i.id === invL);
   const stray = await freshBackend(cid);
   check("(B13) L4: een ander contact kiezen trekt de open code in (verwijzing leeg, code onbruikbaar)", withCode.accessCodeId.length === 1 && after.accessCodeId.length === 0 && "err" in (await stray.redeemCode(accV.code[0])));
+  // 2c.9 (review S4): een nieuwe open code voor Vrij; ze moet vervallen bij het afsluiten van T1 (zie verder).
+  ok(await calc.updateTenderInvite(invL, { contact: [pVrij] }));
+  accClose = ok(await calc.tenderAccess(invL, 0n));
 }
 check("(B13) firma erbij terwijl de prijsvraag loopt (dezelfde controlecode); dezelfde firma nog eens: geweigerd", ok(await calc.readTender(T1)).invites.length === 4 && ok(await calc.readTender(T1)).sentHash === v1.sentHash && /al gevraagd/.test(errOf(await calc.addTenderFirm(T1, { orgId: FUUT, contactPersonId: [] }))));
 ok(await calc.updateTenderInvite(addC, { markSent: ["mail"] }));
 const refC = ok(await calc.readTender(T1)).invites.find((i) => i.id === addC).ref;
 check("(B13) OA C ziet nu de prijsvraag aan zijn firma", (await oaC.listMyTenders()).some((x) => x.ref === refC));
-const b1 = ok(await calc.readTender(T1b));
+let b1 = ok(await calc.readTender(T1b));
 ok(await calc.updateTenderInvite(b1.invites[0].id, { markSent: ["pdf"] }));
+// 2c.9 (review S4): een open toegangscode van deze prijsvraag vervalt bij het annuleren.
+const pCode = await personOf(FUUT, `Proef Fuut Code ${suffix}`);
+ok(await calc.updateTenderInvite(b1.invites[0].id, { contact: [pCode] }));
+const accCancel = ok(await calc.tenderAccess(b1.invites[0].id, 0n));
+b1 = ok(await calc.readTender(T1b));
 check("(B13) annuleren vraagt een reden; daarna ziet de OA niets meer", /reden/.test(errOf(await calc.updateTender(T1b, b1.rev, { cancel: "x" }))) && isOk(await calc.updateTender(T1b, b1.rev, { cancel: "proef: niet meer nodig" })) && !(await oaC.listMyTenders()).some((x) => x.ref === b1.invites[0].ref) && (await denied(oaC.readMyTender(b1.invites[0].ref))));
+check("(B13) S4: na het annuleren is de open toegangscode van de prijsvraag onbruikbaar", typeof accCancel.code[0] === "string" && "err" in (await (await freshBackend(cid)).redeemCode(accCancel.code[0])));
 check("(B13) een geannuleerde prijsvraag: niets meer te wijzigen", /geannuleerd/.test(errOf(await calc.updateTenderInvite(b1.invites[0].id, { markSent: ["pdf"] }))));
 const rv = ok(await calc.readTender(T1)).rev;
 check("(B13) afsluiten met een firma die niet gevraagd is: geweigerd", /niet gevraagd/.test(errOf(await calc.updateTender(T1, rv, { close: [999_999n] }))));
 ok(await calc.updateTender(T1, rv, { close: [invA.id, invA.id] })); // L5: dubbel = één keer
 const closed = ok(await calc.readTender(T1));
+check("(B13) S4: na het afsluiten is een nog open toegangscode van de prijsvraag onbruikbaar", typeof accClose?.code[0] === "string" && "err" in (await (await freshBackend(cid)).redeemCode(accClose.code[0])));
 check("(B13) afgesloten: Reiger gekozen, de anderen bedankt", "closed" in closed.status && "chosen" in closed.invites.find((i) => i.id === invA.id).outcome && "thanked" in closed.invites.find((i) => i.id === invB.id).outcome);
 const afterA = ok(await oaA.readMyTender(invA.ref));
 const afterB = ok(await oaB.readMyTender(invB.ref));
