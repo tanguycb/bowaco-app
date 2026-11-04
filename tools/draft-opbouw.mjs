@@ -13,12 +13,13 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdirSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { backend, identity, KEYDIR, ok } from "./lib.mjs";
+import { backend, identity, KEYDIR, ok, weigerLive } from "./lib.mjs";
 
 const args = process.argv.slice(2);
 const proef = args[0] === "--proef";
 const cid = proef ? args[1] : args[0];
 if (!cid) throw new Error("gebruik: node tools/draft-opbouw.mjs [--proef] <canister>");
+weigerLive(cid, "de proefgegevens opbouwen"); // 2c.9: ook op demo-live
 const host = process.env.ICP_HOST || "https://icp-api.io";
 const local = host.includes("localhost") || host.includes("127.0.0.1");
 if (proef && !local) throw new Error("--proef enkel op het eigen lokale net (ICP_HOST=http://localhost:<poort>)");

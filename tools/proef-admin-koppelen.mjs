@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import { backend, identity, isLiveCanister, ok } from "./lib.mjs";
+import { backend, identity, isLiveCanister, ok, testsleutelOpLive } from "./lib.mjs";
 
 const cid = process.argv[2];
 if (!cid || !/^[a-z0-9-]{27}$/.test(cid)) {
@@ -17,11 +17,14 @@ if (!cid || !/^[a-z0-9-]{27}$/.test(cid)) {
   process.exit(2);
 }
 const cfg = readFileSync(fileURLToPath(new URL("../src/backend/lib/Config.mo", import.meta.url)), "utf8");
-const live = isLiveCanister(cid) || (cfg.match(/mailLiveBackends\(\)[^{]*\{\s*\[([^\]]*)\]/)?.[1] ?? "").includes(cid);
+// 2c.9: uitzondering demo-live (tools/live-canisters.json "demoLive": true, zie tools/lib.mjs); nooit op een canister met echte mail.
+const echteMail = (cfg.match(/mailLiveBackends\(\)[^{]*\{\s*\[([^\]]*)\]/)?.[1] ?? "").includes(cid);
+const live = echteMail || (isLiveCanister(cid) && !testsleutelOpLive(cid, "proef-admin"));
 if (live) {
   console.error("Geweigerd: dit is een live-canister (tools/live-canisters.json of Config.mailLiveBackends): een testsleutel komt nooit op live.");
   process.exit(1);
 }
+if (isLiveCanister(cid)) console.log(`Demo-live ${cid}: testsleutel toegelaten tot de herinstallatie (tools/live-canisters.json demoLive).`);
 let code = process.env.UITNODIGING_CODE; // enkel voor een test; normaal onzichtbaar getypt
 if (!code) {
   const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });

@@ -57,10 +57,23 @@ export const isLiveCanister = (cid) => liveCanisters().includes(String(cid));
 export function weigerLive(cid, wat) {
   if (isLiveCanister(cid)) throw new Error(`Geweigerd: ${cid} is de echte omgeving (tools/live-canisters.json); ${wat} mag daar niet.`);
 }
+// 2c.9 (demo-live): de eerste live wordt na de demo opnieuw geïnstalleerd (eigenaar 04-11), dus zolang "demoLive" in
+// tools/live-canisters.json op true staat, mag daar een TESTSLEUTEL (proef-*) inloggen: proef-admin-koppelen en losse
+// oproepen. De testreeksen in tests/ (rollen, lek, review …), wegwerpidentiteiten, omgevingsvariabelen, geheugen en
+// proefuploads blijven geweigerd: die schrijven testwerven en testbestanden tussen de echte werf van de demo.
+// LIVE_DEMO=0|1 overschrijft de vlag (enkel tests/live-grens.mjs). Na de herinstallatie: demoLive weg of false.
+export function demoLive() {
+  if (process.env.LIVE_DEMO === "0" || process.env.LIVE_DEMO === "1") return process.env.LIVE_DEMO === "1";
+  const f = new URL("./live-canisters.json", import.meta.url);
+  return existsSync(f) && JSON.parse(readFileSync(f, "utf8")).demoLive === true;
+}
+const testScript = () => /[\\/]tests[\\/][^\\/]+$/.test(process.argv[1] ?? "");
+export const testsleutelOpLive = (cid, identityName) =>
+  isLiveCanister(cid) && demoLive() && /^proef-/.test(identityName ?? "") && !testScript();
 
 // HOST = http://localhost:<poort> voor het eigen testnetwerk, anders mainnet (draft).
 export async function backend(identityName, canisterId) {
-  if (identityName !== LIVE_ID) weigerLive(canisterId, `een oproep als ${identityName ?? "anoniem"}`);
+  if (identityName !== LIVE_ID && !testsleutelOpLive(canisterId, identityName)) weigerLive(canisterId, `een oproep als ${identityName ?? "anoniem"}`);
   const host = process.env.ICP_HOST || "https://icp-api.io";
   const local = host.includes("localhost") || host.includes("127.0.0.1");
   const agent = await HttpAgent.create({

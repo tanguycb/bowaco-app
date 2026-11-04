@@ -3,9 +3,10 @@
 // (instructies, grens van een query: 5 miljard), grootte van het antwoord en tijd.
 //   ICP_HOST=http://localhost:8041 node tools/weekbord-stress.mjs <canister-id> [werven=120] [oas=60]
 // Draai het na tests/rollen.mjs op dezelfde canister (gebruikt diens testbeheerder). Enkel verzonnen namen.
-import { backend, ok } from "./lib.mjs";
+import { backend, ok, weigerLive } from "./lib.mjs";
 
 const cid = process.argv[2];
+weigerLive(cid, "een stresstest"); // 2c.9: ook op demo-live (testsleutels mogen daar, testgegevens niet)
 const host = process.env.ICP_HOST || "";
 if (!cid || !(host.includes("localhost") || host.includes("127.0.0.1"))) throw new Error("enkel lokaal: ICP_HOST=http://localhost:8041 node tools/weekbord-stress.mjs <canister-id>");
 const NW = Number(process.argv[3] ?? 120);

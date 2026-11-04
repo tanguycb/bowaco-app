@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 const LIVE = "rrkah-fqaaa-aaaaa-aaaaq-cai"; // een geldig maar willekeurig id (niet dat van BOWACO)
 const DRAFT = "ryjl3-tyaaa-aaaaa-aaaba-cai";
 process.env.LIVE_CANISTERS_EXTRA = LIVE;
-const { backend, freshBackend, isLiveCanister, LIVE_ID, setCanisterEnv, weigerLive } = await import("../tools/lib.mjs");
+process.env.LIVE_DEMO = "0"; // eerst de strikte grens (na de herinstallatie); de demo-uitzondering (2c.9) onderaan
+const { backend, demoLive, freshBackend, isLiveCanister, LIVE_ID, setCanisterEnv, testsleutelOpLive, weigerLive } = await import("../tools/lib.mjs");
 
 let pass = 0;
 let fail = 0;
@@ -42,6 +43,24 @@ const k2 = run(["tools/inrichting/koppelen.mjs", DRAFT], { UITNODIGING_CODE: "BO
 check("inrichtingsidentiteit koppelen: enkel aan een canister uit de live-lijst", k2.status === 1 && /live-canisters.json/.test(k2.stderr), k2.stderr.trim());
 const i = run(["tools/inrichting.mjs", "--canister", LIVE, "--stap", "1"]);
 check("inrichting op live zonder JA_EIGENAAR: geweigerd", i.status !== 0, (i.stderr || i.stdout).split("\n").find((l) => l.trim()) ?? "");
+
+// 2c.9 demo-live: testsleutels mogen, testreeksen en testgegevens niet; echte mail blijft uit.
+process.env.LIVE_DEMO = "1";
+check("demo-live: vlag aan", demoLive());
+const argv1 = process.argv[1];
+process.argv[1] = fileURLToPath(new URL("../tools/losse-oproep.mjs", import.meta.url)); // alsof een script uit tools/ het vraagt
+check("demo-live: backend als proef-admin op live toegelaten (vanuit tools/)", (await weigert(() => backend("proef-admin", LIVE))) === "");
+process.argv[1] = argv1;
+check("demo-live: backend als proef-admin vanuit tests/ nog geweigerd", /echte omgeving/.test(await weigert(() => backend("proef-admin", LIVE))));
+check("demo-live: anoniem en robot op live nog geweigerd", /echte omgeving/.test(await weigert(() => backend(null, LIVE))) && /echte omgeving/.test(await weigert(() => backend("robot-test", LIVE))));
+check("demo-live: wegwerpidentiteit en omgevingsvariabelen nog geweigerd", /echte omgeving/.test(await weigert(() => freshBackend(LIVE))) && /echte omgeving/.test(await weigert(() => setCanisterEnv("proef-admin", LIVE, {}))));
+check("demo-live: geen uitzondering op een draft nodig, geen op een niet-live canister", !testsleutelOpLive(DRAFT, "proef-admin"));
+for (const [n, args] of [["rollentest", ["tests/rollen.mjs", LIVE]], ["lektest", ["tests/lek.mjs", LIVE]], ["review", ["tests/review.mjs", LIVE]], ["geheugen", ["tools/geheugen.mjs", LIVE]], ["stresstest", ["tools/weekbord-stress.mjs", LIVE]], ["proefopbouw", ["tools/draft-opbouw.mjs", LIVE]]]) {
+  const r = run(args, { LIVE_DEMO: "1" });
+  check(`demo-live: ${n} op live stopt nog met "Geweigerd"`, r.status !== 0 && /Geweigerd: .* echte omgeving/.test(r.stderr + r.stdout), (r.stderr || r.stdout).split("\n").find((l) => /Geweigerd|Error/.test(l)) ?? `exit ${r.status}`);
+}
+const kd = run(["tools/proef-admin-koppelen.mjs", LIVE], { LIVE_DEMO: "1", UITNODIGING_CODE: "BOW-0000-0000-0000-0000" });
+check("demo-live: testbeheerder koppelen voorbij de live-weigering (de code zelf faalt: geen netwerkcanister)", !/Geweigerd: dit is een live-canister/.test(kd.stderr) && /Demo-live/.test(kd.stdout), (kd.stdout + kd.stderr).split("\n").find((l) => l.trim()) ?? "");
 
 console.log(`\n${pass} ✓  ${fail} ✗`);
 process.exit(fail ? 1 : 0);
