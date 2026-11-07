@@ -125,7 +125,9 @@ for (const [n, x] of [["calculator", calc], ["architect", arch], ["OA", oa2], ["
 check("(1) een onbekende versie: 'Onbekende versie' (werfleider), geweigerd (calculator: geen id-orakel)", /Onbekende versie/.test(errOf(await wl.workStartPreview(999_999_999n, base))) && (await denied(calc.workStartPreview(999_999_999n, base))));
 
 // ── (2) De voorvertoning ──
-const start = nextWd(today + 42);
+// kerst-/bouwverlof (± 20-12 … 03-01) overslaan: de app schuift een start daar naar januari
+const inVerlof = (d) => { const t = new Date(d * 86_400_000); const m = t.getUTCMonth(), x = t.getUTCDate(); return (m === 11 && x >= 18) || (m === 0 && x <= 5); };
+let start = nextWd(today + 42); while (inVerlof(start)) start = nextWd(start + 1);
 const inp = { ...base, startDay: BigInt(start) };
 const pv = ok(await wl.workStartPreview(v1, inp));
 const g = (k) => pv.groups.find((x) => x.key === k);
