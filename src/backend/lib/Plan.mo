@@ -136,6 +136,22 @@ module {
     Array.sort<Task>(ts, func(a, b) = if (a.order == b.order) Nat.compare(a.id, b.id) else Nat.compare(a.order, b.order));
   };
 
+  // 2d.2: alle taken per werf in één doorloop (voor de klokrondes: niet per werf opnieuw alle taken), elk zoals tasksOf.
+  public func tasksByWork(plan : Types.PlanState) : Map.Map<Nat, [Task]> {
+    let acc = Map.empty<Nat, List.List<Task>>();
+    for (t in plan.tasks.values()) {
+      if (t.archivedAt == null) {
+        let l = switch (acc.get(t.workId)) { case (?l) l; case null { let l = List.empty<Task>(); acc.add(t.workId, l); l } };
+        l.add(t);
+      };
+    };
+    let out = Map.empty<Nat, [Task]>();
+    for ((w, l) in acc.entries()) {
+      out.add(w, Array.sort<Task>(l.toArray(), func(a, b) = if (a.order == b.order) Nat.compare(a.id, b.id) else Nat.compare(a.order, b.order)));
+    };
+    out;
+  };
+
   public func depsOf(plan : Types.PlanState, workId : Nat) : [Dependency] {
     plan.dependencies.values().filter(func d = d.workId == workId and d.archivedAt == null).toArray();
   };

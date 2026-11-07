@@ -95,5 +95,8 @@ ok(/public let mailLiveAnyCanister : Bool = false;/.test(readFileSync(join(root,
   ok(/public func aiLiveBackends\(\) : \[Text\] \{ \[\] \};/.test(cfgAi), "Config.mo: aiLiveBackends leeg (drafts en uploads bellen de inferentiedienst nooit echt)");
 }
 
+// 2d.1: de meetfunctie meetKlok nooit in een upload.
+ok(/public let measureAnyCanister : Bool = false;/.test(readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8")), "Config.mo: measureAnyCanister = false (meetKlok enkel in de testbouw)");
+
 console.log(bad ? `\n${bad} grens(en) overschreden` : "\nmeetlat groen");
 process.exit(bad ? 1 : 0);

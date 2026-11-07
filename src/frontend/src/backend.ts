@@ -9754,6 +9754,7 @@ export interface backendInterface {
     measureSettings(): Promise<MeasureSettingsView>;
     measureSummary(workId: bigint): Promise<MeasureSummaryView>;
     measureSync(ops: Array<MeasureOpInput>): Promise<Array<MeasureOpResult>>;
+    meetKlok(which: string): Promise<bigint>;
     minMeerQty(workId: bigint): Promise<MinMeerQtyView>;
     minMeerSettings(): Promise<Result_67>;
     myAiCalls(): Promise<Array<AiCallView>>;
@@ -12764,6 +12765,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.measureSync(await to_candid_vec_n1141(this._uploadFile, this._downloadFile, arg0));
             return from_candid_vec_n1153(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async meetKlok(arg0: string): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.meetKlok(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.meetKlok(arg0);
+            return result;
         }
     }
     async minMeerQty(arg0: bigint): Promise<MinMeerQtyView> {

@@ -101,6 +101,26 @@ module {
     byName;
   };
 
+  // 2d.2: dezelfde keuze als municipalityFor, maar met één index voor de hele klokronde (eerste treffer op postcode, anders
+  // de eerste op naam, in de volgorde van de Map), i.p.v. per werf alle gemeenten opnieuw te vouwen.
+  func municipalityIndex(ps : Types.PermitState) : Types.Address -> ?Nat {
+    let byZip = Map.empty<Text, Nat>();
+    let byName = Map.empty<Text, Nat>();
+    for (m in ps.municipalities.values()) {
+      if (m.archivedAt == null) {
+        for (z in m.zips.values()) { if (not byZip.containsKey(z)) { byZip.add(z, m.id) } };
+        let n = Oa.fold(m.name);
+        if (n.size() > 0 and not byName.containsKey(n)) { byName.add(n, m.id) };
+      };
+    };
+    func(a : Types.Address) : ?Nat {
+      let zip = a.zip.trim(#char ' ');
+      if (zip.size() > 0) { switch (byZip.get(zip)) { case (?id) return ?id; case null {} } };
+      let city = Oa.fold(a.city);
+      if (city.size() > 0) byName.get(city) else null;
+    };
+  };
+
   // Doorlooptijd: de procedure van de gemeente voor deze soort, anders de soort zelf.
   public func defaultLead(s : Types.SettingsState, ps : Types.PermitState, muniId : ?Nat, kindKey : Text) : Nat {
     switch (procedure(ps, muniId, kindKey)) {
@@ -198,13 +218,23 @@ module {
     let ks = kinds(s, false).filter(func k = k.words.size() > 0);
     if (ks.size() == 0) { return [] };
     let mine = ps.permits.values().filter(func x = x.workId == workId and x.archivedAt == null and x.status != #cancelled).toArray();
+    suggestionsIn(s, plan, works, ps, workId, muniId, today, foldKinds(ks), Plan.tasksOf(plan, workId), mine);
+  };
+
+  // 2d.2: dezelfde voorstellen met vooraf berekende soorten, taken en vergunningen van de werf (de klokronde rekent die één keer
+  // voor alle werven, niet per werf opnieuw over alle taken en vergunningen).
+  // De sleutelwoorden één keer gevouwen (vroeger per taak en per woord twee keer Oa.fold: het grootste deel van de uurronde).
+  func foldKinds(ks : [Views.PermitKindView]) : [(Views.PermitKindView, [Text])] {
+    Array.map<Views.PermitKindView, (Views.PermitKindView, [Text])>(ks, func k = (k, Array.filter<Text>(Array.map<Text, Text>(k.words, Oa.fold), func w = w.size() > 0)));
+  };
+  func suggestionsIn(s : Types.SettingsState, plan : Types.PlanState, works : Types.WorksState, ps : Types.PermitState, workId : Nat, muniId : ?Nat, today : Day, ks : [(Views.PermitKindView, [Text])], tasks : [Types.Task], mine : [Types.Permit]) : [Views.PermitSuggestion] {
     var cal : ?Plan.Cal = null;
     var out : [Views.PermitSuggestion] = [];
-    for (t in Plan.tasksOf(plan, workId).values()) {
+    for (t in tasks.values()) {
       if (t.status != #done and out.size() < 50) {
         let text = Oa.fold(t.title) # " " # Oa.fold(t.templateKey ?? "");
-        for (k in ks.values()) {
-          let hit = k.words.any(func w = text.contains(#text(Oa.fold(w))) and Oa.fold(w).size() > 0);
+        for ((k, words) in ks.values()) {
+          let hit = words.any(func w = text.contains(#text w));
           let covered = mine.any(func x = x.kind == k.key and x.taskIds.any(func i = i == t.id));
           if (hit and not covered) {
             let c = switch cal { case (?c) c; case null { let c = Plan.calFor(plan, works, workId); cal := ?c; c } };
@@ -403,13 +433,16 @@ module {
   func liveWork(w : Types.Work) : Bool { w.archivedAt == null and (w.status == #planned or w.status == #running) };
 
   // Geeft het aantal nieuwe meldingen terug (voor de tests).
-  public func scan(c : ScanCtx) : Nat {
+  public func scan(c : ScanCtx) : Nat { scanParts(c, true, true) };
+
+  // 2d.1: de twee delen apart meetbaar (lijst = de vergunningen zelf, plan = voorstellen uit de planning).
+  public func scanParts(c : ScanCtx, list : Bool, fromPlan : Bool) : Nat {
     let now = Time.now();
     let today = Dossier.today();
     var sent = 0;
     var n = 0;
     label permitsLoop for (x in c.ps.permits.values()) {
-      if (n >= Config.permitScanMax) { break permitsLoop };
+      if (n >= Config.permitScanMax or not list) { break permitsLoop };
       if (x.archivedAt == null and x.status != #cancelled) {
         n += 1;
         switch (c.works.works.get(x.workId)) {
@@ -435,11 +468,27 @@ module {
       };
     };
     // Uit de planning: een taak die een vergunning vraagt en waarvan de uiterste aanvraagdag nadert of voorbij is.
+    if (not fromPlan) { return sent };
     let soon = today + warnDays(c.settings);
+    // 2d.2: soorten, taken per werf en vergunningen per werf één keer (vroeger per werf opnieuw over alle taken en vergunningen).
+    let ks = foldKinds(kinds(c.settings, false).filter(func k = k.words.size() > 0));
+    if (ks.size() == 0) { return sent };
+    let tasksBy = Plan.tasksByWork(c.plan);
+    let muniOf = municipalityIndex(c.ps);
+    var maxLead = 14;
+    for ((k, _) in ks.values()) { if (k.leadDays > maxLead) { maxLead := k.leadDays } };
+    for (p in c.ps.procedures.values()) { if (p.leadDays > maxLead) { maxLead := p.leadDays } };
+    let permitsBy = Map.empty<Nat, [Types.Permit]>();
+    for (x in c.ps.permits.values()) {
+      if (x.archivedAt == null and x.status != #cancelled) { permitsBy.add(x.workId, (permitsBy.get(x.workId) ?? []).concat([x])) };
+    };
     for (w in c.works.works.values()) {
       if (liveWork(w)) {
-        let muni = switch (municipalityFor(c.ps, w.address)) { case (?m) ?m.id; case null null };
-        for (sg in suggestions(c.settings, c.plan, c.works, c.ps, w.id, muni, today).values()) {
+        // Enkel taken die nog moeten beginnen en waarvan de aanvraagdag binnen het venster kan vallen (start ≤ venster + langste
+        // doorlooptijd): de rest kan geen melding geven, dus ook niet vouwen en doorzoeken (2d.2, het grootste deel van de uurronde).
+        let tasks = (tasksBy.get(w.id) ?? []).filter(func(t : Types.Task) : Bool = t.status != #done and t.start > today and t.start <= soon + maxLead);
+        let muni = if (tasks.size() == 0) null else muniOf(w.address);
+        for (sg in (if (tasks.size() == 0) [] else suggestionsIn(c.settings, c.plan, c.works, c.ps, w.id, muni, today, ks, tasks, permitsBy.get(w.id) ?? [])).values()) {
           // Enkel taken die nog niet begonnen zijn: een lopende taak heeft haar vergunning (of niet) al buiten de app.
           if (sg.deadline <= soon and sg.start > today) {
             let k = "s" # sg.taskId.toText() # ":" # sg.kind # ":" # sg.deadline.toText();

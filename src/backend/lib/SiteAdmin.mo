@@ -69,13 +69,18 @@ module {
   // De start voor de aangifte (review M6): de vroegste van de geplande start van de werf, de vroegste geplande taak en de vroegste
   // werkelijke start. Actiepunten en restpunten tellen niet mee: ze ontstaan pas tijdens of na de werken.
   public func startOf(works : Types.WorksState, plan : Types.PlanState, workId : Nat) : ?Day {
+    startIn(works, workId, Plan.tasksOf(plan, workId));
+  };
+
+  // 2d.2: idem met de vooraf verzamelde taken van de werf (de klokronde: één doorloop over alle taken).
+  func startIn(works : Types.WorksState, workId : Nat, tasks : [Types.Task]) : ?Day {
     var first : ?Day = null;
     let take = func(d : Day) { first := ?(switch first { case (?f) Nat.min(f, d); case null d }) };
     switch (works.works.get(workId)) {
       case (?w) { switch (w.plannedStart) { case (?s) take(s); case null {} } };
       case null return null;
     };
-    for (t in Plan.tasksOf(plan, workId).values()) {
+    for (t in tasks.values()) {
       if (t.archivedAt == null and t.templateKey != ?"actiepunt" and t.templateKey != ?"restpunt") {
         take(t.start);
         switch (t.actualStart) { case (?a) take(a); case null {} };
@@ -177,8 +182,11 @@ module {
     let now = Time.now();
     // Review L7: hoogstens Config.maxScanInsurances verzekeringen per tik en per werf één keer de startdag bepalen (geen volle taakscan per verzekering).
     let starts = Map.empty<Nat, ?Day>();
+    // 2d.2: de taken per werf pas als er een verzekering is om na te kijken, en dan één keer voor alle werven.
+    var byWork : ?Map.Map<Nat, [Types.Task]> = null;
+    let tasksBy = func() : Map.Map<Nat, [Types.Task]> { switch byWork { case (?m) m; case null { let m = Plan.tasksByWork(c.plan); byWork := ?m; m } } };
     let startFor = func(w : Nat) : ?Day {
-      switch (starts.get(w)) { case (?v) v; case null { let v = startOf(c.works, c.plan, w); starts.add(w, v); v } };
+      switch (starts.get(w)) { case (?v) v; case null { let v = startIn(c.works, w, tasksBy().get(w) ?? []); starts.add(w, v); v } };
     };
     for (x in d.insurances.values().toArray().values()) {
       if (x.archivedAt == null and x.status == #toDeclare and seen < Config.maxScanInsurances) {

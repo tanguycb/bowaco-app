@@ -3,6 +3,7 @@
 // GEEN publieke functies hier, en nooit een `let`/`var` op het hoogste niveau van een mixin.
 import Time "mo:core/Time";
 import Timer "mo:core/Timer";
+import Map "mo:core/Map";
 import Types "types";
 import Config "lib/Config";
 import Housekeeping "lib/Housekeeping";
@@ -46,6 +47,7 @@ import PurchaseApi "mixins/PurchaseApi";
 import MinMeerApi "mixins/MinMeerApi";
 import SiteAdminApi "mixins/SiteAdminApi";
 import SiteAdmin "lib/SiteAdmin";
+import MeetApi "mixins/MeetApi";
 import SalesApi "mixins/SalesApi";
 import OaDeals "lib/OaDeals";
 import Post "lib/Post";
@@ -190,19 +192,46 @@ persistent actor Self {
   // 1b.1: hoogstens eens per uur de vergunningen nakijken en melden wat aandacht vraagt (één keer per ding). Het
   // tijdstip van de laatste ronde is bewust niet stabiel: na een upgrade kijkt de eerste tik meteen na.
   transient var permitScanAt : Int = 0;
+  // 2d.1: de delen van de klokronde als eigen functies, zodat de meetfunctie (MeetApi, enkel in de testbouw) exact dezelfde code meet.
+  func tickSmall() {
+    Housekeeping.tick(access, robot, reports, surveys);
+    // 3.1: AI-oproepen zonder afloop na 15 min (onzeker, nooit vanzelf opnieuw) en het logboek na 400 dagen.
+    ignore AiConnector.idle({ settings; access; robot; ai; audit; ctr }, Time.now());
+    // 1b.3: verlopen leases terug in de wachtrij; op het ingestelde moment de weekmails en herinneringen klaarzetten.
+    Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr, tenders);
+  };
+  func klokVergunningen() { ignore Permits.scan({ settings; access; works; plan; ps = permits; audit; ctr }) };
+  func klokAfspraken() { ignore OaDeals.scan(oaDeals, settings, access, org, audit, ctr, Post.local(Time.now()).day) };
+  func klokWerfadmin() { ignore SiteAdmin.scan({ settings; access; org; works; plan; audit; ctr }, siteAdmin, Post.local(Time.now()).day) };
+  func mailRound() : async* () {
+    // 2d.2: een lege wachtrij = niets doen (geen slot, geen sleutels).
+    if (Map.isEmpty(post.open)) return;
+    ignore await* Mail.drain<system>({ c = { settings; access; org; oa; works; plan; reports }; ps = post; ms = mail; audit; ctr; lock = mailLock; live = isLive() }, Config.mailPerRound, null);
+  };
+  func measureRound(which : Text) : async* Bool {
+    switch which {
+      case "tick" tickSmall();
+      case "vergunningen" klokVergunningen();
+      case "vergunningen-lijst" ignore Permits.scanParts({ settings; access; works; plan; ps = permits; audit; ctr }, true, false);
+      case "vergunningen-plan" ignore Permits.scanParts({ settings; access; works; plan; ps = permits; audit; ctr }, false, true);
+      case "afspraken" klokAfspraken();
+      case "werfadmin" klokWerfadmin();
+      case "mail" await* mailRound();
+      case _ return false;
+    };
+    true;
+  };
+  include MeetApi(access, works, settings, measureRound);
+
   transient let _tick = Timer.recurringTimer<system>(
     #seconds(Config.timerSeconds),
     func() : async () {
-      Housekeeping.tick(access, robot, reports, surveys);
-      // 3.1: AI-oproepen zonder afloop na 15 min (onzeker, nooit vanzelf opnieuw) en het logboek na 400 dagen.
-      ignore AiConnector.idle({ settings; access; robot; ai; audit; ctr }, Time.now());
-      // 1b.3: verlopen leases terug in de wachtrij; op het ingestelde moment de weekmails en herinneringen klaarzetten.
-      Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr, tenders);
+      tickSmall();
       if (Time.now() - permitScanAt >= Config.permitScanEvery) {
         permitScanAt := Time.now();
-        ignore Permits.scan({ settings; access; works; plan; ps = permits; audit; ctr });
-        ignore OaDeals.scan(oaDeals, settings, access, org, audit, ctr, Post.local(Time.now()).day);
-        ignore SiteAdmin.scan({ settings; access; org; works; plan; audit; ctr }, siteAdmin, Post.local(Time.now()).day);
+        klokVergunningen();
+        klokAfspraken();
+        klokWerfadmin();
         // 3.1: de modelcatalogus van Caffeine hoogstens eens per dag, en enkel op een canister die echt belt (nooit op een draft).
         if (isAiLive() and AiConnector.modelsOld(ai, Time.now())) { ignore await* AiConnector.refresh<system>(ai, Time.now()) };
       };
@@ -213,8 +242,6 @@ persistent actor Self {
   // hierboven niet op, en een tweede ronde (de klok weer, of "Nu versturen") stopt meteen zolang deze loopt.
   transient let _mail = Timer.recurringTimer<system>(
     #seconds(Config.mailTimerSeconds),
-    func() : async () {
-      ignore await* Mail.drain<system>({ c = { settings; access; org; oa; works; plan; reports }; ps = post; ms = mail; audit; ctr; lock = mailLock; live = isLive() }, Config.mailPerRound, null);
-    },
+    func() : async () { await* mailRound() },
   );
 };

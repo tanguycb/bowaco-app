@@ -8187,6 +8187,7 @@ export interface _SERVICE {
   'measureSettings' : ActorMethod<[], MeasureSettingsView>,
   'measureSummary' : ActorMethod<[bigint], MeasureSummaryView>,
   'measureSync' : ActorMethod<[Array<MeasureOpInput>], Array<MeasureOpResult>>,
+  'meetKlok' : ActorMethod<[string], bigint>,
   'minMeerQty' : ActorMethod<[bigint], MinMeerQtyView>,
   'minMeerSettings' : ActorMethod<[], Result_67>,
   'myAiCalls' : ActorMethod<[], Array<AiCallView>>,

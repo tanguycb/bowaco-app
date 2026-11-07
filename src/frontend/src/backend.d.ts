@@ -9692,6 +9692,7 @@ export interface backendInterface {
     measureSettings(): Promise<MeasureSettingsView>;
     measureSummary(workId: bigint): Promise<MeasureSummaryView>;
     measureSync(ops: Array<MeasureOpInput>): Promise<Array<MeasureOpResult>>;
+    meetKlok(which: string): Promise<bigint>;
     minMeerQty(workId: bigint): Promise<MinMeerQtyView>;
     minMeerSettings(): Promise<Result_67>;
     myAiCalls(): Promise<Array<AiCallView>>;

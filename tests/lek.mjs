@@ -251,6 +251,7 @@ const table = {
   permitRules: [INTERNAL, () => []],
   setPermitRules: [ADMIN, () => [{ warnDays: 0n, expiryDays: 0n }]],
   scanPermits: [ADMIN, () => []],
+  meetKlok: [ADMIN, () => ["tick"]], // 2d.1: meetfunctie, enkel in de testbouw (Config.measureAnyCanister)
   workPermits: [["admin", "werfleider", "oa"], () => [B]],
   savePermit: [["admin", "werfleider"], () => [B, { id: [], kind: "bestaat-niet", title: "", municipalityId: [], status: { needed: null }, location: "", taskIds: [], neededFrom: [], neededTo: [], leadDays: [], requestedOn: [], validFrom: [], validTo: [], reference: "", costCents: [], note: "" }]],
   attachPermitFile: [["admin", "werfleider"], () => [pmB.id, X]], // daarna "Onbekend bestand"

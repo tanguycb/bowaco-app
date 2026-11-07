@@ -583,6 +583,8 @@ module {
   // Enkel voor de testbouw van tests/lokaal.sh (die zet dit op true, zoals de testhash): dan telt elke canister als live,
   // zodat de rollentest het pad "testmodus uit → echte adressen" kan bewijzen. tools/meetlat.mjs weigert een upload met true.
   public let mailLiveAnyCanister : Bool = false;
+  // 2d.1: de meetfunctie meetKlok (mixins/MeetApi.mo) enkel in de testbouw van tests/lokaal.sh; tools/meetlat.mjs weigert een upload met true.
+  public let measureAnyCanister : Bool = false;
 
   // ── AI-connector (stap 3.1, ontwerp 3.1 §2) ─────────────────────────────
   // De sleutels van de AI-medewerkers (fiches): de app kent de taak (lib/AiPrompts.mo), de fiche de instellingen.

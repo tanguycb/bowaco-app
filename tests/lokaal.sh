@@ -18,6 +18,8 @@ sed -i '' -E "s/(public let mailLiveAnyCanister : Bool = )false/\1true/" "$cfg"
 # 3.1: idem voor de AI-connector: in de testbouw belt elke canister de inferentiedienst "echt" (hier de nep-inferentiedienst op
 # 127.0.0.1, tests/net/nepinferentie.mjs). De upload houdt false (tools/meetlat.mjs weigert anders): drafts bellen nooit echt.
 sed -i '' -E "s/(public let aiLiveAnyCanister : Bool = )false/\1true/" "$cfg"
+# 2d.1: de meetfunctie meetKlok enkel in de testbouw (tools/meetlat.mjs weigert een upload met true).
+sed -i '' -E "s/(public let measureAnyCanister : Bool = )false/\1true/" "$cfg"
 mops build --output src/backend/dist
 mv "$cfg.echt" "$cfg"
 # mail-caffeine: de nep-maildienst (speelt de integratiecanister van Caffeine na; enkel op dit eigen net).
