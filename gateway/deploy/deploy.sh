@@ -6,7 +6,7 @@
 #   zsh gateway/deploy/deploy.sh status <ssh-host>                  # dienst, laatste logregels, /health
 # <ssh-host> = wat je in `ssh <ssh-host>` typt (bv. root@1.2.3.4 of een naam uit ~/.ssh/config).
 # Het script kopieert ENKEL de code (geen geheimen) en vraagt nooit een sleutel: sleutels (fase 3) zet je zelf op de
-# server in /etc/bowaco-postbode/postbode.env.
+# server in /etc/bowaco-postbode/sleutels.env (root 0600; gewone instellingen in postbode.env).
 set -euo pipefail
 cmd=${1:-}
 host=${2:-}
@@ -49,6 +49,8 @@ case "$cmd" in
     remote "cd /opt/bowaco-postbode && install -o postbode -g postbode -m 0700 -d /var/lib/bowaco-postbode && if [ ! -f /etc/bowaco-postbode/robot.json ]; then /opt/node/bin/node src/sleutel.ts /tmp/robot.json && install -o postbode -g postbode -m 0600 /tmp/robot.json /etc/bowaco-postbode/robot.json && shred -u /tmp/robot.json; else /opt/node/bin/node src/sleutel.ts /etc/bowaco-postbode/robot.json; fi"
     echo "→ omgevingsbestand (voorbeeld, enkel als er nog geen is)"
     remote "[ -f /etc/bowaco-postbode/postbode.env ] || install -o root -g postbode -m 0640 /opt/bowaco-postbode/deploy/postbode.env.voorbeeld /etc/bowaco-postbode/postbode.env"
+    echo "→ sleutelbestand (leeg voorbeeld, root 0600, enkel als er nog geen is; de sleutels zet je er ZELF in)"
+    remote "[ -f /etc/bowaco-postbode/sleutels.env ] || install -o root -g root -m 0600 /opt/bowaco-postbode/deploy/sleutels.env.voorbeeld /etc/bowaco-postbode/sleutels.env"
     echo "→ systemd en Caddy ($domain)"
     remote "install -m 0644 /opt/bowaco-postbode/deploy/bowaco-postbode.service /etc/systemd/system/bowaco-postbode.service && systemctl daemon-reload && systemctl enable bowaco-postbode >/dev/null"
     remote "sed 's/POSTBODE_DOMEIN/$domain/' /opt/bowaco-postbode/deploy/Caddyfile > /etc/caddy/Caddyfile && systemctl reload caddy || systemctl restart caddy"

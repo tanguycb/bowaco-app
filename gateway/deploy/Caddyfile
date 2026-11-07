@@ -1,5 +1,7 @@
-# Caddy voor de postbode: HTTPS (Let's Encrypt, automatisch) voor /health en /task; al de rest 404.
-# deploy.sh vervangt POSTBODE_DOMEIN door de naam die de eigenaar koos (bv. postbode.bowaco.eu).
+# Caddy voor de gateway: HTTPS (Let's Encrypt, automatisch) voor /health, /task en /v2/*; al de rest 404.
+# deploy.sh vervangt POSTBODE_DOMEIN door de naam die de eigenaar koos (bv. gateway.<eigen domein>).
+# /v2/taak draagt bestanden (≤ 20 MB samen + tekst): request_body 22MB. Een taak duurt hoogstens 120 s bij de
+# leverancier; de verbinding blijft tot 150 s open (gateway: GATEWAY_ANTWOORD_MS), Caddy iets ruimer.
 POSTBODE_DOMEIN {
 	encode gzip
 	header {
@@ -8,9 +10,18 @@ POSTBODE_DOMEIN {
 		Referrer-Policy "no-referrer"
 		-Server
 	}
-	@toegelaten path /health /task
+	request_body {
+		max_size 22MB
+	}
+	@toegelaten path /health /task /v2/*
 	handle @toegelaten {
-		reverse_proxy 127.0.0.1:8787
+		reverse_proxy 127.0.0.1:8787 {
+			header_up X-Real-IP {remote_host}
+			transport http {
+				read_timeout 160s
+				write_timeout 160s
+			}
+		}
 	}
 	handle {
 		respond 404
