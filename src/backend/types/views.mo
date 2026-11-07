@@ -4,6 +4,7 @@ import Storage "mo:caffeineai-object-storage/Storage";
 import Types "../types";
 import DocViews "docviews";
 import FormViews "formviews";
+import AiViews "aiviews";
 
 module {
   type PersonId = Types.PersonId;
@@ -83,6 +84,8 @@ module {
     sales : Bool; // 2c.6: facturatieschema, facturen, betalingen, kwartaallijst (admin, calculator)
     issueSales : Bool; // 2c.6: facturen uitreiken (admin en calculator; met "enkel de beheerder" enkel admin, ⚖6)
     mySales : Bool; // 2c.6: Mijn facturen (klant; per werf enkel zijn uitgereikte facturen)
+    ai : Bool; // 3.1: een AI-taak starten en Mijn AI-oproepen (interne rollen)
+    manageAi : Bool; // 3.1: menu AI (fiches, overzicht, logboek, proeftaak): admin
     home : Text; // startscherm (bouwplan §8.2): "overzicht" · "vandaag" · "offertes" · "week" · "werven"
   };
 
@@ -413,6 +416,11 @@ module {
     workId : ?WorkId;
     budgetCents : Nat;
     expiresAt : Int;
+    // 3.1: bij een AI-ticket het model van de oproep, het terugvalmodel van de fiche en "ai:<oproep>" (anders null). De app is
+    // de bron van het model, niet de browser.
+    model : ?Text;
+    fallbackModel : ?Text;
+    payloadRef : ?Text;
   };
 
   public type ProposalView = {
@@ -1084,6 +1092,8 @@ module {
     #salesDrafts : [(Nat, Types.Confidential<[Types.SalesLine]>)]; // 2c.6 (vertrouwelijk)
     #salesFrozen : [(Nat, Types.Confidential<Types.SalesFrozen>)];
     #salesPayments : [(Nat, Types.Confidential<Types.SalesPayment>)];
+    #aiWorkers : [Types.AiWorker]; // 3.1
+    #aiLog : [AiViews.AiCallExport]; // 3.1: zonder inhoud (hashes en tellers)
   };
   public type RestoreSummary = { persons : Nat; works : Nat; tasks : Nat; reports : Nat; files : Nat; audit : Nat; counters : [(Text, Nat)]; warnings : [Text] };
 

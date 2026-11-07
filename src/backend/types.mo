@@ -2475,6 +2475,90 @@ module {
     lastDay : Map.Map<Text, Day>;
   };
 
+  // ── AI-connector (stap 3.1, ontwerp 3.1 §2.8) ────────────────────────────
+  // Eigen domein `ai` (nieuw stabiel veld, deelvorm, OldActor = {}). Een fiche (AI-medewerker) beslist de weg (caffeine of
+  // gateway), het model, het budget en of klantgegevens mee mogen. AI wijzigt niets: elke uitkomst is een `Proposal`.
+  // Het logboek bewaart NOOIT de inhoud (prompt of antwoord), enkel tellers en hashes. Ticket en Proposal blijven ongewijzigd:
+  // de koppeling staat in callByTicket en callByProposal.
+  public type AiRoute = { #caffeine; #gateway };
+  public type AiAutonomy = { #proposal; #autoNotify; #auto }; // 3.1 aanvaardt enkel #proposal (de tags staan er nu al: M0170)
+  // klasse: intern (de budgetcijfers ziet enkel #manageAi)
+  public type AiWorker = {
+    key : Text; // vaste sleutel uit Config.aiWorkerKeys: ook de taak van het ticket en "ai:<key>" als soort van het voorstel
+    name : Text;
+    route : AiRoute;
+    modelAlias : Text; // caffeine: alias uit de catalogus ("auto"); gateway: "<leverancier>/<model>"
+    fallback : Bool;
+    fallbackModel : ?Text;
+    budgetMonthCents : Nat; // 0 = fiche uit
+    maxCallCents : Nat; // reservering per oproep
+    clientData : Bool;
+    autonomy : AiAutonomy;
+    instructionVersion : Nat; // versie uit lib/AiPrompts.mo (nooit een vrije tekst)
+    enabled : Bool;
+    rev : Nat;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+  // klasse: technisch. Prijs in USD per token × 10^10 (de 10 decimalen van de catalogus).
+  public type AiModel = { alias : Text; promptPer1e10 : Nat; completionPer1e10 : Nat; cacheReadPer1e10 : Nat; cacheWritePer1e10 : Nat; seenAt : Int };
+  public type AiOrigin = { #user : PersonId; #job : Nat };
+  public type AiCallState = { #running; #done; #invalid : Text; #refused; #unsure : Text; #failed : Text; #dropped; #dryRun };
+  // klasse: technisch (geen inhoud: enkel hashes, tellers en een opgeschoonde foutmelding van hoogstens 200 tekens)
+  public type AiCall = {
+    id : Nat;
+    workerKey : Text;
+    route : AiRoute;
+    origin : AiOrigin;
+    personId : ?PersonId;
+    workId : ?WorkId;
+    ticketId : ?Nat;
+    var proposalId : ?Nat;
+    model : Text;
+    instructionVersion : Nat;
+    inputSha256 : Text;
+    var outputSha256 : ?Text;
+    inputBytes : Nat;
+    var promptTokens : Nat;
+    var completionTokens : Nat;
+    var cachedTokens : Nat;
+    reservedCents : Nat;
+    var costCents : Nat;
+    var cycles : Nat;
+    startedAt : Int;
+    var endedAt : ?Int;
+    var state : AiCallState;
+    fellBack : Bool;
+    var extra : Extra;
+  };
+  // Later (ontwerp 3.1 §4, "Postvak in"): enkel de plaats, nog geen gedrag. Geen adres en geen onderwerp, enkel hashes.
+  public type AiInboundState = { #new; #classified : Nat; #rejected : Text; #applied : Nat };
+  public type AiInbound = {
+    id : Nat;
+    receivedAt : Int;
+    fromHash : Text;
+    subjectHash : Text;
+    attachments : Nat;
+    bytes : Nat;
+    dkim : Bool;
+    spf : Bool;
+    dmarc : Bool;
+    var state : AiInboundState;
+    extra : Extra;
+  };
+  public type AiState = {
+    workers : Map.Map<Text, AiWorker>;
+    models : Map.Map<Text, AiModel>;
+    log : Map.Map<Nat, AiCall>;
+    callByTicket : Map.Map<Nat, Nat>; // ticketId → AiCall (gateway-weg)
+    callByProposal : Map.Map<Nat, Nat>; // proposalId → AiCall
+    spent : Map.Map<Text, Nat>; // "<key>:<jjjj-mm>" → cent
+    reserved : Map.Map<Text, Nat>; // "<key>:<jjjj-mm>" → cent (lopend)
+    runningByPerson : Map.Map<PersonId, Nat>; // persoon → lopende AiCall (caffeine-weg)
+    inbound : Map.Map<Nat, AiInbound>; // Postvak in (later): leeg in 3.1
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

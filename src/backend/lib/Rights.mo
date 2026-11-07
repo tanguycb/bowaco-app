@@ -108,6 +108,9 @@ module {
     // #ownSales = de klantrol: "Mijn facturen". Teller en vaste vermeldingen: #manageSettings (R43). 2c.8+ B: de eigen schijven van een
     // meerwerkofferte (saveSalesExtraPlan) = #editSales + #readCosts + #readSales op die werf, zoals saveSalesPlan.
     #readSales; #editSales; #issueSales; #ownSales;
+    // 3.1: AI-connector. #useAi = een AI-taak starten (interne rollen; de taak zelf vraagt daarbovenop haar eigen recht, zie
+    // AiPrompts.requires); #manageAi = de fiches, de catalogus en het overzicht (admin); #readAiLog = het hele logboek (admin).
+    #useAi; #manageAi; #readAiLog;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -328,6 +331,10 @@ module {
       case (#readAudit) admin;
       // R29: tickets voor actieve personen; welke taak, beslist Config.ticketTasks
       case (#useTickets) internal(p);
+      // 3.1 (ontwerp 3.1 §2.9): een OA, klant, architect of veiligheidscoördinator start nooit een AI-taak.
+      case (#useAi) internal(p);
+      case (#manageAi) admin;
+      case (#readAiLog) admin;
       // R27: contractparameters en klantcontact van een werf: admin, calculator. Een werfleider enkel
       // als hij ook calculator is (rechten = som van rollen); de werfleiderrol zelf nooit.
       case (#readContract) on(func w = (admin or calc) and seesWork(ctx, p, w));
@@ -784,6 +791,8 @@ module {
       sales = may(ctx, p, #editSales, null);
       issueSales = may(ctx, p, #issueSales, null);
       mySales = may(ctx, p, #ownSales, null);
+      ai = may(ctx, p, #useAi, null);
+      manageAi = may(ctx, p, #manageAi, null);
       home = home(p);
     };
   };

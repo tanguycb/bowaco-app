@@ -220,6 +220,188 @@ type Agreement__991936866 =
     updatedBy : PersonId__905878204;
     workId : WorkId__654334923
   };
+type AiAutonomy__366268829 = {#auto; #autoNotify; #proposal};
+type AiAutonomy__619216845 = {#auto; #autoNotify; #proposal};
+type AiCallState__402586420 =
+  {
+    #done;
+    #dropped;
+    #dryRun;
+    #failed : Text;
+    #invalid : Text;
+    #refused;
+    #running;
+    #unsure : Text
+  };
+type AiCallState__539369961 =
+  {
+    #done;
+    #dropped;
+    #dryRun;
+    #failed : Text;
+    #invalid : Text;
+    #refused;
+    #running;
+    #unsure : Text
+  };
+type AiCall__55376710 =
+  {
+    var cachedTokens : Nat;
+    var completionTokens : Nat;
+    var costCents : Nat;
+    var cycles : Nat;
+    var endedAt : ?Int;
+    var extra : Extra__363963512;
+    fellBack : Bool;
+    id : Nat;
+    inputBytes : Nat;
+    inputSha256 : Text;
+    instructionVersion : Nat;
+    model : Text;
+    origin : AiOrigin__259229080;
+    var outputSha256 : ?Text;
+    personId : ?PersonId__401825873;
+    var promptTokens : Nat;
+    var proposalId : ?Nat;
+    reservedCents : Nat;
+    route : AiRoute__443945964;
+    startedAt : Int;
+    var state : AiCallState__402586420;
+    ticketId : ?Nat;
+    workId : ?WorkId__518175520;
+    workerKey : Text
+  };
+type AiCall__675158033 =
+  {
+    var cachedTokens : Nat;
+    var completionTokens : Nat;
+    var costCents : Nat;
+    var cycles : Nat;
+    var endedAt : ?Int;
+    var extra : Extra__945213800;
+    fellBack : Bool;
+    id : Nat;
+    inputBytes : Nat;
+    inputSha256 : Text;
+    instructionVersion : Nat;
+    model : Text;
+    origin : AiOrigin__394297628;
+    var outputSha256 : ?Text;
+    personId : ?PersonId__967516914;
+    var promptTokens : Nat;
+    var proposalId : ?Nat;
+    reservedCents : Nat;
+    route : AiRoute__699851803;
+    startedAt : Int;
+    var state : AiCallState__539369961;
+    ticketId : ?Nat;
+    workId : ?WorkId__929594816;
+    workerKey : Text
+  };
+type AiInboundState__102153406 =
+  {#applied : Nat; #classified : Nat; #new; #rejected : Text};
+type AiInboundState__108953064 =
+  {#applied : Nat; #classified : Nat; #new; #rejected : Text};
+type AiInbound__249181656 =
+  {
+    attachments : Nat;
+    bytes : Nat;
+    dkim : Bool;
+    dmarc : Bool;
+    extra : Extra__945213800;
+    fromHash : Text;
+    id : Nat;
+    receivedAt : Int;
+    spf : Bool;
+    var state : AiInboundState__108953064;
+    subjectHash : Text
+  };
+type AiInbound__525908133 =
+  {
+    attachments : Nat;
+    bytes : Nat;
+    dkim : Bool;
+    dmarc : Bool;
+    extra : Extra__363963512;
+    fromHash : Text;
+    id : Nat;
+    receivedAt : Int;
+    spf : Bool;
+    var state : AiInboundState__102153406;
+    subjectHash : Text
+  };
+type AiModel__223078234 =
+  {
+    alias : Text;
+    cacheReadPer1e10 : Nat;
+    cacheWritePer1e10 : Nat;
+    completionPer1e10 : Nat;
+    promptPer1e10 : Nat;
+    seenAt : Int
+  };
+type AiModel__810017406 =
+  {
+    alias : Text;
+    cacheReadPer1e10 : Nat;
+    cacheWritePer1e10 : Nat;
+    completionPer1e10 : Nat;
+    promptPer1e10 : Nat;
+    seenAt : Int
+  };
+type AiOrigin__259229080 = {#job : Nat; #user : PersonId__401825873};
+type AiOrigin__394297628 = {#job : Nat; #user : PersonId__967516914};
+type AiRoute__443945964 = {#caffeine; #gateway};
+type AiRoute__699851803 = {#caffeine; #gateway};
+type AiState__661040377 =
+  {
+    callByProposal : Map__230067015<Nat, Nat>;
+    callByTicket : Map__230067015<Nat, Nat>;
+    inbound : Map__230067015<Nat, AiInbound__525908133>;
+    log : Map__230067015<Nat, AiCall__55376710>;
+    models : Map__230067015<Text, AiModel__223078234>;
+    reserved : Map__230067015<Text, Nat>;
+    runningByPerson : Map__230067015<PersonId__401825873, Nat>;
+    spent : Map__230067015<Text, Nat>;
+    workers : Map__230067015<Text, AiWorker__746944537>
+  };
+type AiWorker__746944537 =
+  {
+    autonomy : AiAutonomy__619216845;
+    budgetMonthCents : Nat;
+    clientData : Bool;
+    enabled : Bool;
+    extra : Extra__363963512;
+    fallback : Bool;
+    fallbackModel : ?Text;
+    instructionVersion : Nat;
+    key : Text;
+    maxCallCents : Nat;
+    modelAlias : Text;
+    name : Text;
+    rev : Nat;
+    route : AiRoute__443945964;
+    updatedAt : Int;
+    updatedBy : PersonId__401825873
+  };
+type AiWorker__849922024 =
+  {
+    autonomy : AiAutonomy__366268829;
+    budgetMonthCents : Nat;
+    clientData : Bool;
+    enabled : Bool;
+    extra : Extra__945213800;
+    fallback : Bool;
+    fallbackModel : ?Text;
+    instructionVersion : Nat;
+    key : Text;
+    maxCallCents : Nat;
+    modelAlias : Text;
+    name : Text;
+    rev : Nat;
+    route : AiRoute__699851803;
+    updatedAt : Int;
+    updatedBy : PersonId__967516914
+  };
 type Appointment__3400962 =
   {
     archivedAt : ?Int;
@@ -749,6 +931,7 @@ type Extra__1018104949 = [(Text, Text)];
 type Extra__262828561 = [(Text, Text)];
 type Extra__268650993 = [(Text, Text)];
 type Extra__276464624 = [(Text, Text)];
+type Extra__363963512 = [(Text, Text)];
 type Extra__365037972 = [(Text, Text)];
 type Extra__417870522 = [(Text, Text)];
 type Extra__442518337 = [(Text, Text)];
@@ -2034,6 +2217,7 @@ type NewActor__477761715 = {oaDeals : OaDealState__105177660};
 type NewActor__47798723 = {siteAdmin : SiteAdminState__152125603};
 type NewActor__502640867 = {oaInvoices : OaInvoiceState__866295989};
 type NewActor__542837279 = {reports : ReportState__211051397};
+type NewActor__680101125 = {ai : AiState__661040377};
 type NewActor__813176251 = {sales : SalesState__788409936};
 type NewActor__914032600 = {oa : OaState__978871092};
 type NewActor__915174763 = {progress : ProgressState__159614730};
@@ -2480,6 +2664,7 @@ type OldActor__74197155 = {};
 type OldActor__804964816 = {};
 type OldActor__853471898 = {};
 type OldActor__885308482 = {};
+type OldActor__893970407 = {};
 type OldActor__932069066 = {};
 type OldOrgKind__251334601 =
   {
@@ -2867,6 +3052,7 @@ type PersonId__321680111 = Nat;
 type PersonId__350725727 = Nat;
 type PersonId__363464289 = Nat;
 type PersonId__377743261 = Nat;
+type PersonId__401825873 = Nat;
 type PersonId__471029118 = Nat;
 type PersonId__518727946 = Nat;
 type PersonId__580701172 = Nat;
@@ -5265,6 +5451,7 @@ type WorkId__386895530 = Nat;
 type WorkId__446306738 = Nat;
 type WorkId__448300686 = Nat;
 type WorkId__45236768 = Nat;
+type WorkId__518175520 = Nat;
 type WorkId__547794872 = Nat;
 type WorkId__564296267 = Nat;
 type WorkId__642659770 = Nat;
@@ -5439,7 +5626,8 @@ type WorksState__605582232 =
   "20261101_032513" : OldActor__709840404 -> NewActor__925272246;
   "20261101_033017" : OldActor__49271436 -> NewActor__193100407;
   "20261101_130000" : OldActor__390299613 -> NewActor__47798723;
-  "20261101_155702" : OldActor__67970265 -> NewActor__813176251
+  "20261101_155702" : OldActor__67970265 -> NewActor__813176251;
+  "20261106_180000" : OldActor__893970407 -> NewActor__680101125
 }
 actor  {
   stable access :
@@ -5454,6 +5642,18 @@ actor  {
         Map__230067015<PersonId__967516914, PersonConfidential__403340742>;
       persons : Map__230067015<PersonId__967516914, Person__726696944>;
       throttle : Throttle__532528626
+    };
+  stable ai :
+    {
+      callByProposal : Map__230067015<Nat, Nat>;
+      callByTicket : Map__230067015<Nat, Nat>;
+      inbound : Map__230067015<Nat, AiInbound__249181656>;
+      log : Map__230067015<Nat, AiCall__675158033>;
+      models : Map__230067015<Text, AiModel__810017406>;
+      reserved : Map__230067015<Text, Nat>;
+      runningByPerson : Map__230067015<PersonId__967516914, Nat>;
+      spent : Map__230067015<Text, Nat>;
+      workers : Map__230067015<Text, AiWorker__849922024>
     };
   stable audit :
     {

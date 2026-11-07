@@ -36,6 +36,7 @@ import MinMeer "../lib/MinMeer";
 import SiteAdmin "../lib/SiteAdmin";
 import Sales "../lib/Sales";
 import Reports "../lib/Reports";
+import Connector "../lib/ai/Connector";
 
 mixin (
   settings : Types.SettingsState,
@@ -69,6 +70,7 @@ mixin (
   siteAdmin : Types.SiteAdminState,
   sales : Types.SalesState,
   robot : Types.RobotState,
+  ai : Types.AiState, // 3.1
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -342,6 +344,8 @@ mixin (
       case (#salesDrafts xs) { for ((id, x) in xs.values()) { sales.drafts.add(id, x) }; xs.size() };
       case (#salesFrozen xs) { for ((id, x) in xs.values()) { sales.frozen.add(id, x) }; xs.size() };
       case (#salesPayments xs) { for ((id, x) in xs.values()) { sales.payments.add(id, x) }; xs.size() };
+      case (#aiWorkers xs) { for (x in xs.values()) { ai.workers.add(x.key, x) }; xs.size() };
+      case (#aiLog xs) { for (x in xs.values()) { Connector.restore(ai, x) }; xs.size() };
     };
   };
 
@@ -411,6 +415,7 @@ mixin (
     rsAtLeast("file", rsMaxKey(files.files));
     rsAtLeast("ticket", rsMaxKey(robot.tickets));
     rsAtLeast("proposal", rsMaxKey(robot.proposals));
+    rsAtLeast("aiCall", rsMaxKey(ai.log));
     rsAtLeast("task", rsMaxKey(plan.tasks));
     rsAtLeast("dependency", rsMaxKey(plan.dependencies));
     rsAtLeast("assignment", rsMaxKey(plan.assignments));

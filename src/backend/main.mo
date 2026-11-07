@@ -50,6 +50,8 @@ import SalesApi "mixins/SalesApi";
 import OaDeals "lib/OaDeals";
 import Post "lib/Post";
 import Mail "lib/Mail";
+import AiConnector "lib/ai/Connector";
+import AiApi "mixins/AiApi";
 import Principal "mo:core/Principal";
 
 persistent actor Self {
@@ -84,6 +86,7 @@ persistent actor Self {
   let sales : Types.SalesState; // 2c.6: verkoopfacturen per werf (schema, facturen en creditnota's, herinneringen; regels, vastgelegde inhoud en betalingen vertrouwelijk)
   let minMeer : Types.MinMeerState; // 2c.5: min-meerstaat per werf (regels, voorstellen, uitsluitingen, versies, akkoorden; prijzen, regietarief en vastgelegde inhoud vertrouwelijk)
   let robot : Types.RobotState;
+  let ai : Types.AiState; // 3.1: AI-connector (fiches, catalogus, logboek zonder inhoud, budget per maand, Postvak in later)
   let audit : Types.AuditState;
   let ctr : Types.Counters;
 
@@ -93,12 +96,14 @@ persistent actor Self {
   func isDraft() : Bool { Mail.isDraft(Principal.fromActor(Self)) };
   // 1b.5: enkel de livecanister (Config.mailLiveBackends) kan echte mail sturen; elders blijft de testmodus aan.
   func isLive() : Bool { Mail.isLive(Principal.fromActor(Self)) };
+  // 3.1: enkel de livecanister (Config.aiLiveBackends; de testbouw: elke canister) belt de inferentiedienst echt.
+  func isAiLive() : Bool { AiConnector.isLive(Principal.fromActor(Self), isDraft()) };
 
   include StorageGate(settings, access, works, tenders, oaDeals);
   include AccessApi(settings, access, works, robot, audit, ctr, org, oaDeals);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
-  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, ai, audit, ctr);
   include FilesApi(settings, access, works, files, dossier, reports, permits, surveys, tenders, oaDeals, purchases, siteAdmin, audit, ctr);
   include DossierApi(settings, access, org, works, files, dossier, plan, wadm, audit, ctr);
   include OaApi(settings, access, org, works, oa, audit, ctr);
@@ -108,9 +113,9 @@ persistent actor Self {
   include ReportsApi(settings, access, org, works, files, plan, imp, reports, audit, ctr);
   include ExternApi(settings, access, org, works, reports, audit, ctr);
   include DashboardApi(settings, access, org, works, plan, reports, permits);
-  include TicketsApi(settings, access, works, robot, audit, ctr);
+  include TicketsApi(settings, access, works, robot, ai, audit, ctr);
   // 1.9: herstel uit een export op een LEGE canister met de opstartcode (M9, T16).
-  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, audit, ctr);
+  include RestoreApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, ai, audit, ctr);
   // 1b.1: vergunningenregister (R13), kennisbank per gemeente.
   include PermitsApi(settings, access, works, files, plan, permits, audit, ctr);
   // 1b.2: boete-opzoeking op de ritten van het werfverslag (R14) met de vergunningen van die dag.
@@ -176,6 +181,10 @@ persistent actor Self {
   // bij het uitreiken, creditnota in een eigen reeks, betalingen, herinnering, kwartaallijst; de UBL maakt de browser).
   include SalesApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, purchases, minMeer, sales, post, audit, ctr);
 
+  // 3.1: AI-connector (ontwerp 3.1 §2.9): askAi (caffeine-weg in deze update-call, gateway-weg via een ticket), de proeftaak,
+  // het logboek zonder inhoud, fiches en catalogus (admin), en reportAiUsage/failAiTicket voor de robot "ai" van de gateway.
+  include AiApi(settings, access, works, robot, ai, audit, ctr, isDraft, isAiLive);
+
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).
   // 1b.1: hoogstens eens per uur de vergunningen nakijken en melden wat aandacht vraagt (één keer per ding). Het
@@ -185,6 +194,8 @@ persistent actor Self {
     #seconds(Config.timerSeconds),
     func() : async () {
       Housekeeping.tick(access, robot, reports, surveys);
+      // 3.1: AI-oproepen zonder afloop na 15 min (onzeker, nooit vanzelf opnieuw) en het logboek na 400 dagen.
+      ignore AiConnector.idle({ settings; access; robot; ai; audit; ctr }, Time.now());
       // 1b.3: verlopen leases terug in de wachtrij; op het ingestelde moment de weekmails en herinneringen klaarzetten.
       Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr, tenders);
       if (Time.now() - permitScanAt >= Config.permitScanEvery) {
@@ -192,6 +203,8 @@ persistent actor Self {
         ignore Permits.scan({ settings; access; works; plan; ps = permits; audit; ctr });
         ignore OaDeals.scan(oaDeals, settings, access, org, audit, ctr, Post.local(Time.now()).day);
         ignore SiteAdmin.scan({ settings; access; org; works; plan; audit; ctr }, siteAdmin, Post.local(Time.now()).day);
+        // 3.1: de modelcatalogus van Caffeine hoogstens eens per dag, en enkel op een canister die echt belt (nooit op een draft).
+        if (isAiLive() and AiConnector.modelsOld(ai, Time.now())) { ignore await* AiConnector.refresh<system>(ai, Time.now()) };
       };
     },
   );

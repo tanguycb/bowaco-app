@@ -14,6 +14,7 @@ import Views "../types/views";
 import Access "../lib/Access";
 import Config "../lib/Config";
 import Rights "../lib/Rights";
+import Connector "../lib/ai/Connector";
 import Dossier "../lib/Dossier";
 import Wadm "../lib/Wadm";
 import Oa "../lib/Oa";
@@ -50,6 +51,7 @@ mixin (
   siteAdmin : Types.SiteAdminState,
   sales : Types.SalesState,
   robot : Types.RobotState,
+  ai : Types.AiState, // 3.1: fiches en logboek in de export
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -455,6 +457,8 @@ mixin (
       case "salesDrafts" ?#salesDrafts(pg(sales.drafts.entries().toArray()));
       case "salesFrozen" ?#salesFrozen(pg(sales.frozen.entries().toArray()));
       case "salesPayments" ?#salesPayments(pg(sales.payments.entries().toArray()));
+      case "aiWorkers" ?#aiWorkers(pg(ai.workers.values().toArray()));
+      case "aiLog" ?#aiLog(pg(ai.log.values().map(Connector.exportOf).toArray()));
       case _ null;
     };
     switch part { case (?x) #ok(x); case null #err("Onbekende collectie: " # kind) };

@@ -6,6 +6,7 @@ import Blob "mo:core/Blob";
 import Iter "mo:core/Iter";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Principal "mo:core/Principal";
 import Random "mo:core/Random";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
@@ -17,12 +18,14 @@ import Codes "../lib/Codes";
 import Config "../lib/Config";
 import Ids "../lib/Ids";
 import Rights "../lib/Rights";
+import Connector "../lib/ai/Connector";
 
 mixin (
   settings : Types.SettingsState,
   access : Types.AccessState,
   works : Types.WorksState,
   robot : Types.RobotState,
+  ai : Types.AiState, // 3.1: een AI-ticket (askAi) hoort bij een AI-oproep (callByTicket)
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -67,6 +70,8 @@ mixin (
     if (ticket.size() > 64) { return #err("Onbekend ticket") };
     let id = robot.ticketIndex.get(Codes.ticketHash(ticket)) ?? return #err("Onbekend ticket");
     let t = robot.tickets.get(id) ?? return #err("Onbekend ticket");
+    // 3.1: een AI-ticket enkel voor een robot met de soort "ai" (R28: nooit meer dan nodig).
+    if (ai.callByTicket.containsKey(id) and not (switch (robot.robots.get(caller)) { case (?r) r.kinds.any(func k = k == "ai"); case null false })) { return #err("Dit programma mag geen AI-taken doen") };
     if (t.state != #open) { return #err("Ticket al gebruikt of verlopen") };
     if (Time.now() > t.expiresAt) { return #err("Ticket verlopen") };
     // R28: de persoon kan intussen afgezet zijn; dan geen werk meer op zijn naam.
@@ -76,7 +81,10 @@ mixin (
     };
     t.state := #used(Time.now());
     Access.audit(audit, caller, null, t.workId, "ticket-gecontroleerd", "#" # id.toText() # " " # t.task);
-    #ok({ ticketId = id; personId = p.id; personName = p.name; task = t.task; workId = t.workId; budgetCents = t.budgetCents; expiresAt = t.expiresAt });
+    let call = switch (ai.callByTicket.get(id)) { case (?cid) ai.log.get(cid); case null null };
+    let model = switch call { case (?c) ?c.model; case null null };
+    let fallbackModel = switch call { case (?c) { switch (ai.workers.get(c.workerKey)) { case (?w) w.fallbackModel; case null null } }; case null null };
+    #ok({ ticketId = id; personId = p.id; personName = p.name; task = t.task; workId = t.workId; budgetCents = t.budgetCents; expiresAt = t.expiresAt; model; fallbackModel; payloadRef = t.payloadRef });
   };
 
   // De robot schrijft één voorstel per gecontroleerd ticket; een mens beslist later.
@@ -87,10 +95,28 @@ mixin (
     if (Time.now() > t.expiresAt + Config.proposalGrace) { return #err("Te laat voor dit ticket") };
     if (content.size() > Config.maxProposalBytes or kind.size() > 40) { return #err("Voorstel te groot") };
     if (robot.proposalByTicket.containsKey(ticketId)) { return #err("Er is al een voorstel") };
+    // 3.1: bij een AI-ticket de soort "ai:<fiche>" en de koppeling met de oproep (het voorstel wordt de afloop van de oproep).
+    let call = switch (ai.callByTicket.get(ticketId)) { case (?cid) ai.log.get(cid); case null null };
+    switch call {
+      case (?c) {
+        if (kind != "ai:" # c.workerKey) { return #err("Verkeerde soort voorstel voor deze AI-taak") };
+        if (c.state != #running) { return #err("Deze AI-oproep is al afgesloten") };
+      };
+      case null {};
+    };
     let id = Ids.next(ctr, "proposal");
     let x : Types.Proposal = { id; ticketId = ?ticketId; jobId = null; personId = ?t.personId; workId = t.workId; kind; content; by = caller; at = Time.now(); var decision = null };
     robot.proposals.add(id, x);
     robot.proposalByTicket.add(ticketId, id);
+    switch call {
+      case (?c) {
+        ai.callByProposal.add(id, c.id);
+        c.proposalId := ?id;
+        c.outputSha256 := ?Connector.sha(content);
+        Connector.end(c, #done, Time.now());
+      };
+      case null {};
+    };
     Access.audit(audit, caller, null, t.workId, "voorstel-ontvangen", "ticket #" # ticketId.toText());
     #ok(id);
   };

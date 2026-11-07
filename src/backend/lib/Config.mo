@@ -519,7 +519,7 @@ module {
   // Soorten die een robot kan krijgen: "proef" (ticketproef), "inhoudingsplicht" (later, met aansluiting). Sinds
   // mail-caffeine (E-11) verstuurt de app zelf de mails: "mail" is geen robotsoort meer (een oude robot met die soort
   // leaset niets).
-  public func robotKinds() : [Text] { ["proef", "inhoudingsplicht"] };
+  public func robotKinds() : [Text] { ["proef", "inhoudingsplicht", "ai"] }; // 3.1: "ai" = de gateway voor AI-taken (checkTicket, submitProposal, reportAiUsage, failAiTicket)
 
   // ── Mail via de maildienst van Caffeine (mail-caffeine, E-11) ───────────
   // De app verstuurt zelf (caffeineai-email, "service"-mail). Elke ronde is begrensd en er loopt er hoogstens één tegelijk.
@@ -583,6 +583,32 @@ module {
   // Enkel voor de testbouw van tests/lokaal.sh (die zet dit op true, zoals de testhash): dan telt elke canister als live,
   // zodat de rollentest het pad "testmodus uit → echte adressen" kan bewijzen. tools/meetlat.mjs weigert een upload met true.
   public let mailLiveAnyCanister : Bool = false;
+
+  // ── AI-connector (stap 3.1, ontwerp 3.1 §2) ─────────────────────────────
+  // De sleutels van de AI-medewerkers (fiches): de app kent de taak (lib/AiPrompts.mo), de fiche de instellingen.
+  public func aiWorkerKeys() : [Text] { ["routering", "offerte-review", "prijsvraag-opstellen", "werfverslag-spraak", "oa-offerte-inlezen", "oa-offertes-vergelijken", "oa-factuurcontrole"] };
+  public let aiMaxConcurrent : Nat = 3; // lopende caffeine-oproepen in de hele app (één per persoon)
+  public let aiCyclesMax : Nat = 60_000_000_000; // meegegeven per outcall (± 1,5 × de IC-prijs voor 256 kB antwoord); pricing v2 geeft de rest terug
+  public let aiCyclesFloor : Nat = 500_000_000_000; // daaronder geen AI-oproep (de canister mag niet bevriezen)
+  public let aiMaxResponseBytes : Nat64 = 256_000;
+  public let aiModelsResponseBytes : Nat64 = 64_000;
+  public let aiMaxInputBytes : Nat = 200_000; // invoer van de caffeine-weg (tekst + refs)
+  public let aiMaxRefs : Nat = 20;
+  public let aiMinReserveCents : Nat = 5; // minder dan dit vrij in het maandbudget = budget op
+  public let aiMaxBudgetCents : Nat = 1_000_000; // € 10.000 per maand per fiche: tikfoutgrens
+  public let aiLogKeepDays : Nat = 400;
+  public let aiLogPrunePerRound : Nat = 200;
+  public let aiRunningIdle : Int = 900_000_000_000; // 15 min: een oproep zonder afloop wordt "onzeker"
+  public let aiModelsEvery : Int = 86_400_000_000_000; // de catalogus hoogstens eens per dag in de uurlijkse ronde
+  public let aiMaxModels : Nat = 100;
+  public func aiGatewayProviders() : [Text] { ["claude", "grok", "nep"] };
+  // Echte AI-oproepen (naar inference.caffeine.ai) kunnen ENKEL vanaf een canister in deze lijst: de livecanister, in te
+  // vullen bij de livegang met een apart ja van de eigenaar (zoals mailLiveBackends). Een draft belt nooit echt: daar en op
+  // elke andere canister geeft de caffeine-weg een droog antwoord (vast voorbeeld, kost 0). De testbouw van tests/lokaal.sh
+  // zet aiLiveAnyCanister (dan belt de lokale canister de nep-inferentiedienst op 127.0.0.1); tools/meetlat.mjs weigert
+  // een upload met true of met een niet-lege lijst.
+  public func aiLiveBackends() : [Text] { [] };
+  public let aiLiveAnyCanister : Bool = false;
 
   // 2c.8: grenzen van de werfadministratie (begrensd, T17).
   public let maxInsurances : Nat = 2_000;
