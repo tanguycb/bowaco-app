@@ -1556,7 +1556,7 @@ await sec("── 2b.2 menu per rol: welke menu-items en welke Beheer-tabbladen 
   check("de beheerder heeft geen menu-item Vandaag (vraag 13: een blok in het Overzicht)", !keys(caps.admin).includes("vandaag") && caps.admin.writeReports);
   check("Mijn login is geen menu-item meer (staat bij je naam)", Object.values(caps).every((c) => !keys(c).includes("login") && !meer(c).includes("login")));
   // Beheer-tabbladen per rol
-  check("Beheer beheerder: alle 9 tabbladen", eq(tabs(caps.admin), ["bedrijf", "offertes", "opmeting", "planning", "documenten", "voertuigen", "mail", "toegang", "audit"]), tabs(caps.admin).join());
+  check("Beheer beheerder: alle 10 tabbladen (3.1: AI-medewerkers)", eq(tabs(caps.admin), ["bedrijf", "offertes", "opmeting", "planning", "documenten", "voertuigen", "mail", "ai", "toegang", "audit"]), tabs(caps.admin).join());
   check("Beheer werfleider: enkel voertuigen & ritten en toegang & codes", eq(tabs(caps.werfleider), ["voertuigen", "toegang"]), tabs(caps.werfleider).join());
   check("Beheer calculator, OA, architect, klant en VC: geen tabbladen", ["calculator", "oa", "architect", "klant", "vc"].every((k) => tabs(caps[k]).length === 0), ["calculator", "oa", "architect", "klant", "vc"].map((k) => tabs(caps[k]).join("-")).join(" / "));
   check("hubs: Facturatie toont facturen (2c.6), vorderingsstaten en OA-facturen enkel waar de rol ze mag", eq(nav.hubTabs("vorderingen", caps.admin).map((x) => x.key), ["facturen", "vorderingen", "oa-facturen"]) && !nav.hubTabs("vorderingen", caps.werfleider).some((x) => x.key === "facturen") && nav.pagesFor(caps.calculator).has("facturen") && !nav.pagesFor(caps.werfleider).has("facturen") && nav.hubTabs("vorderingen", caps.werfleider).length >= 1);

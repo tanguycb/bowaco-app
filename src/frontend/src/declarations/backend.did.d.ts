@@ -161,6 +161,186 @@ export interface AgreementTerms {
   'advanceCents' : [] | [bigint],
   'rates' : Array<AgreedRate>,
 }
+export type AiAnswer = { 'ticket' : AiTicket } |
+  { 'proposal' : { 'callId' : bigint, 'proposalId' : bigint } };
+export type AiAutonomy = { 'auto' : null } |
+  { 'autoNotify' : null } |
+  { 'proposal' : null };
+export interface AiBudgetView {
+  'month' : string,
+  'reservedCents' : bigint,
+  'spentCents' : bigint,
+  'maxCallCents' : bigint,
+  'budgetMonthCents' : bigint,
+}
+export interface AiCallExport {
+  'id' : bigint,
+  'model' : string,
+  'startedAt' : bigint,
+  'inputSha256' : string,
+  'outputSha256' : [] | [string],
+  'endedAt' : [] | [bigint],
+  'inputBytes' : bigint,
+  'costCents' : bigint,
+  'reservedCents' : bigint,
+  'origin' : AiOrigin,
+  'instructionVersion' : bigint,
+  'ticketId' : [] | [bigint],
+  'extra' : Extra,
+  'cycles' : bigint,
+  'personId' : [] | [PersonId],
+  'state' : AiCallState,
+  'workerKey' : string,
+  'completionTokens' : bigint,
+  'fellBack' : boolean,
+  'workId' : [] | [WorkId],
+  'cachedTokens' : bigint,
+  'proposalId' : [] | [bigint],
+  'route' : AiRoute,
+  'promptTokens' : bigint,
+}
+export type AiCallState = { 'dropped' : null } |
+  { 'invalid' : string } |
+  { 'done' : null } |
+  { 'unsure' : string } |
+  { 'failed' : string } |
+  { 'running' : null } |
+  { 'refused' : null } |
+  { 'dryRun' : null };
+export interface AiCallView {
+  'id' : bigint,
+  'model' : string,
+  'startedAt' : bigint,
+  'inputSha256' : [] | [string],
+  'outputSha256' : [] | [string],
+  'endedAt' : [] | [bigint],
+  'inputBytes' : bigint,
+  'costCents' : bigint,
+  'reservedCents' : bigint,
+  'origin' : AiOrigin,
+  'instructionVersion' : bigint,
+  'ticketId' : [] | [bigint],
+  'extra' : Extra,
+  'cycles' : bigint,
+  'personId' : [] | [PersonId],
+  'state' : AiCallState,
+  'workerKey' : string,
+  'completionTokens' : bigint,
+  'fellBack' : boolean,
+  'workId' : [] | [WorkId],
+  'cachedTokens' : bigint,
+  'proposalId' : [] | [bigint],
+  'route' : AiRoute,
+  'promptTokens' : bigint,
+}
+export interface AiInput {
+  'refs' : Array<string>,
+  'text' : string,
+  'forceRoute' : [] | [AiRoute],
+}
+export interface AiModel {
+  'alias' : string,
+  'cacheWritePer1e10' : bigint,
+  'seenAt' : bigint,
+  'completionPer1e10' : bigint,
+  'cacheReadPer1e10' : bigint,
+  'promptPer1e10' : bigint,
+}
+export type AiOrigin = { 'job' : bigint } |
+  { 'user' : PersonId };
+export interface AiOverview {
+  'month' : string,
+  'live' : boolean,
+  'usdEurMilli' : bigint,
+  'gatewayUrl' : [] | [string],
+  'cyclesFloor' : bigint,
+  'modelsSeenAt' : [] | [bigint],
+  'workers' : Array<AiWorkerStats>,
+  'models' : Array<AiModel>,
+  'cyclesBalance' : bigint,
+  'draft' : boolean,
+  'running' : bigint,
+}
+export type AiRoute = { 'gateway' : null } |
+  { 'caffeine' : null };
+export interface AiTicket {
+  'ticket' : string,
+  'expiresAt' : bigint,
+  'gatewayUrl' : string,
+  'ticketId' : bigint,
+  'callId' : bigint,
+}
+export interface AiUsage {
+  'model' : string,
+  'outputSha256' : [] | [string],
+  'costCents' : bigint,
+  'completionTokens' : bigint,
+  'durationMs' : bigint,
+  'cachedTokens' : bigint,
+  'promptTokens' : bigint,
+}
+export interface AiWorker {
+  'key' : string,
+  'rev' : bigint,
+  'fallbackModel' : [] | [string],
+  'fallback' : boolean,
+  'clientData' : boolean,
+  'autonomy' : AiAutonomy,
+  'name' : string,
+  'instructionVersion' : bigint,
+  'maxCallCents' : bigint,
+  'extra' : Extra,
+  'enabled' : boolean,
+  'updatedAt' : bigint,
+  'updatedBy' : PersonId,
+  'route' : AiRoute,
+  'budgetMonthCents' : bigint,
+  'modelAlias' : string,
+}
+export interface AiWorkerInput {
+  'key' : string,
+  'rev' : bigint,
+  'fallbackModel' : [] | [string],
+  'fallback' : boolean,
+  'clientData' : boolean,
+  'autonomy' : AiAutonomy,
+  'name' : string,
+  'instructionVersion' : bigint,
+  'maxCallCents' : bigint,
+  'enabled' : boolean,
+  'route' : AiRoute,
+  'budgetMonthCents' : bigint,
+  'modelAlias' : string,
+}
+export interface AiWorkerStats {
+  'key' : string,
+  'calls' : bigint,
+  'reservedCents' : bigint,
+  'name' : string,
+  'errors' : bigint,
+  'spentCents' : bigint,
+  'enabled' : boolean,
+  'lastCallAt' : [] | [bigint],
+  'route' : AiRoute,
+  'budgetMonthCents' : bigint,
+}
+export interface AiWorkerView {
+  'key' : string,
+  'rev' : bigint,
+  'fallbackModel' : [] | [string],
+  'fallback' : boolean,
+  'clientData' : boolean,
+  'autonomy' : AiAutonomy,
+  'name' : string,
+  'instructionVersion' : bigint,
+  'enabled' : boolean,
+  'updatedAt' : bigint,
+  'configured' : boolean,
+  'budget' : [] | [AiBudgetView],
+  'versions' : Array<bigint>,
+  'route' : AiRoute,
+  'modelAlias' : string,
+}
 export type Applies = { 'no' : null } |
   { 'yes' : null } |
   { 'unknown' : null };
@@ -434,6 +614,7 @@ export interface CapacityView {
   'updatedAt' : bigint,
 }
 export interface Caps {
+  'ai' : boolean,
   'manageAccess' : boolean,
   'myQuotes' : boolean,
   'inviteExternal' : boolean,
@@ -442,6 +623,7 @@ export interface Caps {
   'mySales' : boolean,
   'siteAdmin' : boolean,
   'importOa' : boolean,
+  'manageAi' : boolean,
   'manageOa' : boolean,
   'minMeer' : boolean,
   'measure' : boolean,
@@ -5808,6 +5990,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'attendances' : Array<Attendance> } |
   { 'mmOverrides' : Array<MmOverride> } |
   { 'lookups' : Array<LookupView> } |
+  { 'aiLog' : Array<AiCallExport> } |
   { 'measureOps' : Array<SurveyOpRecord> } |
   { 'quoteSubgroups' : Array<QuoteSubgroup> } |
   { 'audit' : Array<AuditEntry> } |
@@ -5900,6 +6083,7 @@ export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'permitAlerts' : Array<[string, bigint]> } |
   { 'siteMeetings' : Array<SiteMeeting> } |
   { 'works' : Array<WorkView> } |
+  { 'aiWorkers' : Array<AiWorker> } |
   { 'tenders' : Array<Tender> } |
   { 'quoteRules' : Array<QuoteRuleCfg> } |
   { 'orgConfidential' : Array<[OrgId, ContactConfidentialView]> } |
@@ -6130,11 +6314,13 @@ export type Result_91 = { 'ok' : TicketInfo } |
   { 'err' : string };
 export type Result_92 = { 'ok' : Array<QuoteFinding> } |
   { 'err' : string };
-export type Result_93 = { 'ok' : TenderApplyResult } |
+export type Result_93 = { 'ok' : AiAnswer } |
   { 'err' : string };
-export type Result_94 = { 'ok' : MyTenderFile } |
+export type Result_94 = { 'ok' : TenderApplyResult } |
   { 'err' : string };
-export type Result_95 = { 'ok' : MyAttestView } |
+export type Result_95 = { 'ok' : MyTenderFile } |
+  { 'err' : string };
+export type Result_96 = { 'ok' : MyAttestView } |
   { 'err' : string };
 export interface RevisionModel {
   'aBp' : bigint,
@@ -7224,7 +7410,10 @@ export interface TextBlockView {
   'defaultOn' : boolean,
 }
 export interface TicketInfo {
+  'model' : [] | [string],
+  'fallbackModel' : [] | [string],
   'expiresAt' : bigint,
+  'payloadRef' : [] | [string],
   'budgetCents' : bigint,
   'task' : string,
   'personName' : string,
@@ -7766,11 +7955,11 @@ export interface _SERVICE {
       bigint,
       ExternalBlob,
     ],
-    Result_95
+    Result_96
   >,
   'addMyTenderFile' : ActorMethod<
     [string, string, string, bigint, ExternalBlob],
-    Result_94
+    Result_95
   >,
   'addOrgDocKind' : ActorMethod<[string], Result_10>,
   'addQuoteTerms' : ActorMethod<[QuoteTermsInput], Result_7>,
@@ -7780,6 +7969,10 @@ export interface _SERVICE {
     Result_7
   >,
   'addTenderFirm' : ActorMethod<[bigint, TenderFirmInput], Result_7>,
+  'aiCall' : ActorMethod<[bigint], [] | [AiCallView]>,
+  'aiLog' : ActorMethod<[bigint, bigint], Array<AiCallView>>,
+  'aiOverview' : ActorMethod<[], AiOverview>,
+  'aiTestCall' : ActorMethod<[string], Result_7>,
   'answerMyMinMeer' : ActorMethod<[bigint, string, boolean, string], Result_1>,
   'answerMyProgress' : ActorMethod<[bigint, string, boolean, string], Result_1>,
   'applyPlan' : ActorMethod<[bigint, PlanChange, bigint, string], Result_12>,
@@ -7787,7 +7980,7 @@ export interface _SERVICE {
     [bigint, string, bigint, boolean, bigint],
     Result_12
   >,
-  'applyTenderChoices' : ActorMethod<[bigint, bigint], Result_93>,
+  'applyTenderChoices' : ActorMethod<[bigint, bigint], Result_94>,
   'approveOaInvoice' : ActorMethod<
     [bigint, bigint, OaProofInput, string],
     Result_1
@@ -7812,6 +8005,7 @@ export interface _SERVICE {
   'archiveSalesPayment' : ActorMethod<[bigint, string], Result_1>,
   'archiveTask' : ActorMethod<[bigint, bigint, bigint], Result_7>,
   'archiveTechSheet' : ActorMethod<[bigint], Result_1>,
+  'askAi' : ActorMethod<[string, [] | [bigint], AiInput], Result_93>,
   'attachDocumentFile' : ActorMethod<
     [bigint, string, [] | [bigint], bigint],
     Result_7
@@ -7861,6 +8055,7 @@ export interface _SERVICE {
   'exportChunk' : ActorMethod<[string, bigint, bigint], Result_83>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
+  'failAiTicket' : ActorMethod<[bigint, string], Result_1>,
   'failJob' : ActorMethod<[bigint, bigint, string, boolean], Result_1>,
   'finishHandover' : ActorMethod<[bigint, bigint, string], Result_82>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
@@ -7893,6 +8088,7 @@ export interface _SERVICE {
     [[] | [bigint], bigint, bigint],
     Array<AbsenceView>
   >,
+  'listAiWorkers' : ActorMethod<[], Array<AiWorkerView>>,
   'listAppointments' : ActorMethod<[bigint], Array<Appointment>>,
   'listCalendarBlocks' : ActorMethod<[[] | [bigint]], Array<BlockView>>,
   'listContractTemplates' : ActorMethod<[], Array<ContractTemplateView>>,
@@ -7993,6 +8189,7 @@ export interface _SERVICE {
   'measureSync' : ActorMethod<[Array<MeasureOpInput>], Array<MeasureOpResult>>,
   'minMeerQty' : ActorMethod<[bigint], MinMeerQtyView>,
   'minMeerSettings' : ActorMethod<[], Result_67>,
+  'myAiCalls' : ActorMethod<[], Array<AiCallView>>,
   'myBoard' : ActorMethod<[bigint, bigint], MyBoardView>,
   'myDay' : ActorMethod<[bigint, boolean], MyDayView>,
   'myHours' : ActorMethod<[bigint, bigint], Array<HoursLine>>,
@@ -8068,10 +8265,12 @@ export interface _SERVICE {
   'recordPid' : ActorMethod<[bigint, bigint, bigint, bigint], Result_1>,
   'recordWithholdingCheck' : ActorMethod<[bigint, WithholdingInput], Result_34>,
   'redeemCode' : ActorMethod<[string], Result_33>,
+  'refreshAiModels' : ActorMethod<[], Result_7>,
   'registerOaQuote' : ActorMethod<[OaQuoteInput, bigint], Result_32>,
   'registerSignedQuote' : ActorMethod<[bigint, bigint, string], Result_1>,
   'remindSalesInvoice' : ActorMethod<[bigint, boolean, string], Result_7>,
   'removeDependency' : ActorMethod<[bigint, bigint, bigint], Result_7>,
+  'reportAiUsage' : ActorMethod<[bigint, AiUsage], Result_1>,
   'reportSync' : ActorMethod<[Array<ReportOpInput>], Array<OpResult>>,
   'restoreBegin' : ActorMethod<[string], Result_1>,
   'restoreChunk' : ActorMethod<[string, RestorePart], Result_7>,
@@ -8089,6 +8288,7 @@ export interface _SERVICE {
   'salesSettings' : ActorMethod<[], SalesSettingsView>,
   'salesWorklist' : ActorMethod<[], Result_28>,
   'saveAbsence' : ActorMethod<[AbsenceInput], Result_7>,
+  'saveAiWorker' : ActorMethod<[AiWorkerInput], Result_1>,
   'saveAssignment' : ActorMethod<[bigint, AssignmentInput, bigint], Result_7>,
   'saveCalendarBlock' : ActorMethod<[BlockInput], Result_7>,
   'saveContractTemplate' : ActorMethod<
@@ -8170,6 +8370,10 @@ export interface _SERVICE {
   'sendMailNow' : ActorMethod<[], Result_11>,
   'sendProgress' : ActorMethod<[bigint, bigint, bigint, string], Result_10>,
   'sendQuoteVersion' : ActorMethod<[bigint, bigint, bigint, string], Result_10>,
+  'setAiSettings' : ActorMethod<
+    [[] | [string], [] | [bigint], [] | [boolean]],
+    Result_1
+  >,
   'setBoardRules' : ActorMethod<[BoardRulesInput], Result_1>,
   'setCapacity' : ActorMethod<[string, [] | [bigint], string], Result_1>,
   'setContract' : ActorMethod<[bigint, ContractInput, bigint], Result_7>,

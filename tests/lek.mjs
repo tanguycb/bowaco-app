@@ -584,6 +584,21 @@ const table = {
   checkTicket: [["robot"], () => ["TK-0"]],
   submitProposal: [["robot"], () => [X, "", ""]],
   myProposals: [ACTIVE, () => []],
+  // 3.1: AI-connector. Een AI-taak starten enkel interne rollen (een OA, klant, architect of VC nooit); fiches, catalogus, overzicht,
+  // logboek en instellingen enkel de admin; aiCall antwoordt null voor andermans oproep (elke actieve persoon); de twee robotfuncties
+  // enkel een robot met de soort "ai" (de lekrobot heeft enkel "proef": niemand hier).
+  askAi: [INTERNAL, () => ["onbekend", [], { text: "", refs: [], forceRoute: [] }]],
+  aiTestCall: [ADMIN, () => ["onbekend"]],
+  aiCall: [ACTIVE, () => [X]],
+  myAiCalls: [INTERNAL, () => []],
+  aiLog: [ADMIN, () => [0n, 1n]],
+  listAiWorkers: [INTERNAL, () => []],
+  aiOverview: [ADMIN, () => []],
+  saveAiWorker: [ADMIN, () => [{ key: "onbekend", name: "", route: { caffeine: null }, modelAlias: "", fallback: false, fallbackModel: [], budgetMonthCents: 0n, maxCallCents: 0n, clientData: false, autonomy: { proposal: null }, instructionVersion: 1n, enabled: false, rev: 0n }]],
+  setAiSettings: [ADMIN, () => [["http://ongeldig.invalid"], [], []]],
+  refreshAiModels: [ADMIN, () => []],
+  reportAiUsage: [NONE, () => [X, { model: "", promptTokens: 0n, completionTokens: 0n, cachedTokens: 0n, costCents: 0n, durationMs: 0n, outputSha256: [] }]],
+  failAiTicket: [NONE, () => [X, ""]],
   decideProposal: [["admin", "werfleider"], () => [decided.id, true, ""]],
   // Opslag (StorageGate.mo). De poort: alleen actieve personen met een uploadrecht.
   _immutableObjectStorageCreateCertificate: [["admin", "werfleider", "calculator", "oa", "veiligheid"], () => [hash]],

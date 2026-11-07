@@ -87,6 +87,13 @@ ok(hits.length === 0, `geen sleutels of opstartcode in de bestanden${hits.length
 // 1b.5 (M2): de upload mag nooit de testvlag dragen die elke canister als live telt (tests/lokaal.sh zet ze enkel in de
 // testbouw): echte mail kan enkel vanaf Config.mailLiveBackends.
 ok(/public let mailLiveAnyCanister : Bool = false;/.test(readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8")), "Config.mo: mailLiveAnyCanister = false (echte mail enkel vanaf Config.mailLiveBackends)");
+// 3.1 (ontwerp §5.10): idem voor de AI-connector: een upload belt de inferentiedienst nooit echt zolang de livegang niet gebeurde
+// (aiLiveBackends leeg, zoals mailLiveBackends) en nooit met de testvlag van tests/lokaal.sh.
+{
+  const cfgAi = readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8");
+  ok(/public let aiLiveAnyCanister : Bool = false;/.test(cfgAi), "Config.mo: aiLiveAnyCanister = false (echte AI-oproepen enkel vanaf Config.aiLiveBackends)");
+  ok(/public func aiLiveBackends\(\) : \[Text\] \{ \[\] \};/.test(cfgAi), "Config.mo: aiLiveBackends leeg (drafts en uploads bellen de inferentiedienst nooit echt)");
+}
 
 console.log(bad ? `\n${bad} grens(en) overschreden` : "\nmeetlat groen");
 process.exit(bad ? 1 : 0);

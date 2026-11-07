@@ -55,7 +55,7 @@ async function exportAll(cid, dir) {
   };
   const INTERN = ["persons", "links", "linkHistory", "invites", "orgs", "works", "memberships", "files", "workInfo", "documents", "orgContacts", "personContacts", "tasks", "assignments", "dependencies", "calendarBlocks", "taskChanges", "templates", "absences", "absenceChanges", "capacity", "importBatches", "importKeys", "appointments", "vehicles", "dayReports", "reportChanges", "attendances", "hoursConfirmations", "workDone", "materials", "photos", "issues", "trips", "robots", "proposals", "notifications", "lookups", "values", "sequences", "planVersions", "reportKeys", "ops"];
   // Collecties die pas in een latere stap bestaan (1b.1: vergunningen): een oudere canister kent ze niet → leeg.
-  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices", "quoteFormInfos", "quoteVersionForms", "quoteSubgroups", "quoteLineForms", "textBlocks", "quoteSentExtras", "tenders", "tenderItems", "tenderInvites", "oaQuotes", "agreements", "oaContractTemplates", "orgDocs", "dealNotices", "purchases", "hourClaims", "mmEntries", "mmOverrides", "mmVersions", "mmAnswers", "salesInvoices", "salesPlans", "salesReminders", "insurances", "siteMeetings", "handovers", "techSheets", "workSheets", "siteNotices"];
+  const LATER = ["permits", "permitChanges", "municipalities", "procedures", "permitAlerts", "jobs", "mailLog", "withholdingChecks", "declarations", "libChapters", "libItems", "libItemVersions", "quotes", "quoteVersions", "quoteChapters", "quoteLines", "quoteRules", "quoteStdPosts", "quoteChecks", "quoteTerms", "quoteSendInfos", "quoteAcceptances", "workStarts", "surveys", "surveyKeys", "measureEntries", "measureSnapshots", "measureOps", "progressStatements", "progressInputs", "progressAnswers", "oaInvoices", "quoteFormInfos", "quoteVersionForms", "quoteSubgroups", "quoteLineForms", "textBlocks", "quoteSentExtras", "tenders", "tenderItems", "tenderInvites", "oaQuotes", "agreements", "oaContractTemplates", "orgDocs", "dealNotices", "purchases", "hourClaims", "mmEntries", "mmOverrides", "mmVersions", "mmAnswers", "salesInvoices", "salesPlans", "salesReminders", "insurances", "siteMeetings", "handovers", "techSheets", "workSheets", "siteNotices", "aiWorkers", "aiLog"];
   // Collecties met lange teksten (tot 4.000 tekens per record) in kleinere stukken: 500 × 4 KB raakt de berichtgrens.
   const SIZE = { purchaseAmounts: 50, libItems: 100, libItemVersions: 50, quoteLines: 100, quoteTerms: 20, quoteSendInfos: 20, measureEntries: 100, measureSnapshots: 50, progressInputs: 50, progressFrozen: 10, oaInvoiceAmounts: 50, textBlocks: 50, quoteSentExtras: 20, quoteVersionTerms: 100, tenderItems: 100, oaQuoteAmounts: 50, oaQuoteDrafts: 50, oaContractTemplates: 10, agreementFrozen: 10, agreementTerms: 50, mmFrozen: 5, mmEntries: 200, mmPrices: 200, salesFrozen: 5, salesDrafts: 20, salesInvoices: 200 };
   const partOpt = async (k) => { try { return await part(k, SIZE[k] ?? 500); } catch (e) { if (/Onbekende collectie/.test(String(e))) return []; throw e; } };
@@ -286,6 +286,9 @@ async function restoreAll(cid, dir) {
   await send("salesDrafts", vertrouwelijk.salesDrafts ?? [], 20);
   await send("salesFrozen", vertrouwelijk.salesFrozen ?? [], 5);
   await send("salesPayments", vertrouwelijk.salesPayments ?? [], 300);
+  // 3.1: de fiches en het logboek van de AI-connector (zonder inhoud; het verbruik per maand rekent de app opnieuw uit het logboek).
+  await send("aiWorkers", intern.aiWorkers ?? [], 100);
+  await send("aiLog", intern.aiLog ?? [], 300);
   await send("audit", audit, 500);
   await send("counters", intern.counters, 500);
   const s = ok(await admin.restoreFinish(code));
@@ -420,6 +423,8 @@ function normalize(intern, vertrouwelijk, audit) {
     salesInvoices: byKey(intern.salesInvoices ?? [], id),
     salesPlans: byKey(intern.salesPlans ?? [], (x) => x.workId),
     salesReminders: byKey(intern.salesReminders ?? [], id),
+    aiWorkers: byKey(intern.aiWorkers ?? [], (x) => x.key),
+    aiLog: byKey(intern.aiLog ?? [], id),
     settings: intern.settings,
     "vertrouwelijk.orgs": byKey(vertrouwelijk.orgs, (x) => x[0]),
     "vertrouwelijk.persons": byKey(vertrouwelijk.persons, (x) => x[0]),

@@ -166,6 +166,211 @@ export interface AgreementTerms {
     advanceCents?: bigint;
     rates: Array<AgreedRate>;
 }
+export type AiAnswer = {
+    __kind__: "ticket";
+    ticket: AiTicket;
+} | {
+    __kind__: "proposal";
+    proposal: {
+        callId: bigint;
+        proposalId: bigint;
+    };
+};
+export interface AiBudgetView {
+    month: string;
+    reservedCents: bigint;
+    spentCents: bigint;
+    maxCallCents: bigint;
+    budgetMonthCents: bigint;
+}
+export interface AiCallExport {
+    id: bigint;
+    model: string;
+    startedAt: bigint;
+    inputSha256: string;
+    outputSha256?: string;
+    endedAt?: bigint;
+    inputBytes: bigint;
+    costCents: bigint;
+    reservedCents: bigint;
+    origin: AiOrigin;
+    instructionVersion: bigint;
+    ticketId?: bigint;
+    extra: Extra;
+    cycles: bigint;
+    personId?: PersonId;
+    state: AiCallState;
+    workerKey: string;
+    completionTokens: bigint;
+    fellBack: boolean;
+    workId?: WorkId;
+    cachedTokens: bigint;
+    proposalId?: bigint;
+    route: AiRoute;
+    promptTokens: bigint;
+}
+export type AiCallState = {
+    __kind__: "dropped";
+    dropped: null;
+} | {
+    __kind__: "invalid";
+    invalid: string;
+} | {
+    __kind__: "done";
+    done: null;
+} | {
+    __kind__: "unsure";
+    unsure: string;
+} | {
+    __kind__: "failed";
+    failed: string;
+} | {
+    __kind__: "running";
+    running: null;
+} | {
+    __kind__: "refused";
+    refused: null;
+} | {
+    __kind__: "dryRun";
+    dryRun: null;
+};
+export interface AiCallView {
+    id: bigint;
+    model: string;
+    startedAt: bigint;
+    inputSha256?: string;
+    outputSha256?: string;
+    endedAt?: bigint;
+    inputBytes: bigint;
+    costCents: bigint;
+    reservedCents: bigint;
+    origin: AiOrigin;
+    instructionVersion: bigint;
+    ticketId?: bigint;
+    extra: Extra;
+    cycles: bigint;
+    personId?: PersonId;
+    state: AiCallState;
+    workerKey: string;
+    completionTokens: bigint;
+    fellBack: boolean;
+    workId?: WorkId;
+    cachedTokens: bigint;
+    proposalId?: bigint;
+    route: AiRoute;
+    promptTokens: bigint;
+}
+export interface AiInput {
+    refs: Array<string>;
+    text: string;
+    forceRoute?: AiRoute;
+}
+export interface AiModel {
+    alias: string;
+    cacheWritePer1e10: bigint;
+    seenAt: bigint;
+    completionPer1e10: bigint;
+    cacheReadPer1e10: bigint;
+    promptPer1e10: bigint;
+}
+export type AiOrigin = {
+    __kind__: "job";
+    job: bigint;
+} | {
+    __kind__: "user";
+    user: PersonId;
+};
+export interface AiOverview {
+    month: string;
+    live: boolean;
+    usdEurMilli: bigint;
+    gatewayUrl?: string;
+    cyclesFloor: bigint;
+    modelsSeenAt?: bigint;
+    workers: Array<AiWorkerStats>;
+    models: Array<AiModel>;
+    cyclesBalance: bigint;
+    draft: boolean;
+    running: bigint;
+}
+export interface AiTicket {
+    ticket: string;
+    expiresAt: bigint;
+    gatewayUrl: string;
+    ticketId: bigint;
+    callId: bigint;
+}
+export interface AiUsage {
+    model: string;
+    outputSha256?: string;
+    costCents: bigint;
+    completionTokens: bigint;
+    durationMs: bigint;
+    cachedTokens: bigint;
+    promptTokens: bigint;
+}
+export interface AiWorker {
+    key: string;
+    rev: bigint;
+    fallbackModel?: string;
+    fallback: boolean;
+    clientData: boolean;
+    autonomy: AiAutonomy;
+    name: string;
+    instructionVersion: bigint;
+    maxCallCents: bigint;
+    extra: Extra;
+    enabled: boolean;
+    updatedAt: bigint;
+    updatedBy: PersonId;
+    route: AiRoute;
+    budgetMonthCents: bigint;
+    modelAlias: string;
+}
+export interface AiWorkerInput {
+    key: string;
+    rev: bigint;
+    fallbackModel?: string;
+    fallback: boolean;
+    clientData: boolean;
+    autonomy: AiAutonomy;
+    name: string;
+    instructionVersion: bigint;
+    maxCallCents: bigint;
+    enabled: boolean;
+    route: AiRoute;
+    budgetMonthCents: bigint;
+    modelAlias: string;
+}
+export interface AiWorkerStats {
+    key: string;
+    calls: bigint;
+    reservedCents: bigint;
+    name: string;
+    errors: bigint;
+    spentCents: bigint;
+    enabled: boolean;
+    lastCallAt?: bigint;
+    route: AiRoute;
+    budgetMonthCents: bigint;
+}
+export interface AiWorkerView {
+    key: string;
+    rev: bigint;
+    fallbackModel?: string;
+    fallback: boolean;
+    clientData: boolean;
+    autonomy: AiAutonomy;
+    name: string;
+    instructionVersion: bigint;
+    enabled: boolean;
+    updatedAt: bigint;
+    configured: boolean;
+    budget?: AiBudgetView;
+    versions: Array<bigint>;
+    route: AiRoute;
+    modelAlias: string;
+}
 export interface Appointment {
     id: bigint;
     day: Day;
@@ -456,6 +661,7 @@ export interface CapacityView {
     updatedAt: bigint;
 }
 export interface Caps {
+    ai: boolean;
     manageAccess: boolean;
     myQuotes: boolean;
     inviteExternal: boolean;
@@ -464,6 +670,7 @@ export interface Caps {
     mySales: boolean;
     siteAdmin: boolean;
     importOa: boolean;
+    manageAi: boolean;
     manageOa: boolean;
     minMeer: boolean;
     measure: boolean;
@@ -6275,6 +6482,9 @@ export type RestorePart = {
     __kind__: "lookups";
     lookups: Array<LookupView>;
 } | {
+    __kind__: "aiLog";
+    aiLog: Array<AiCallExport>;
+} | {
     __kind__: "measureOps";
     measureOps: Array<SurveyOpRecord>;
 } | {
@@ -6550,6 +6760,9 @@ export type RestorePart = {
 } | {
     __kind__: "works";
     works: Array<WorkView>;
+} | {
+    __kind__: "aiWorkers";
+    aiWorkers: Array<AiWorker>;
 } | {
     __kind__: "tenders";
     tenders: Array<Tender>;
@@ -7299,19 +7512,26 @@ export type Result_92 = {
 };
 export type Result_93 = {
     __kind__: "ok";
-    ok: TenderApplyResult;
+    ok: AiAnswer;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_94 = {
     __kind__: "ok";
-    ok: MyTenderFile;
+    ok: TenderApplyResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_95 = {
+    __kind__: "ok";
+    ok: MyTenderFile;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_96 = {
     __kind__: "ok";
     ok: MyAttestView;
 } | {
@@ -8502,7 +8722,10 @@ export interface TextBlockView {
     defaultOn: boolean;
 }
 export interface TicketInfo {
+    model?: string;
+    fallbackModel?: string;
     expiresAt: bigint;
+    payloadRef?: string;
     budgetCents: bigint;
     task: string;
     personName: string;
@@ -8988,6 +9211,15 @@ export enum AbsenceSource {
     oa = "oa",
     intern = "intern"
 }
+export enum AiAutonomy {
+    auto = "auto",
+    autoNotify = "autoNotify",
+    proposal = "proposal"
+}
+export enum AiRoute {
+    gateway = "gateway",
+    caffeine = "caffeine"
+}
 export enum Applies {
     no = "no",
     yes = "yes",
@@ -9277,18 +9509,22 @@ export interface backendInterface {
     addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_7>;
     addLibraryCost(itemId: bigint, i: LibCostInput): Promise<Result_7>;
     addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_7>;
-    addMyAttest(kind: string, title: string, validFrom: Day | null, validUntil: Day | null, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_95>;
-    addMyTenderFile(ref: string, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_94>;
+    addMyAttest(kind: string, title: string, validFrom: Day | null, validUntil: Day | null, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_96>;
+    addMyTenderFile(ref: string, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_95>;
     addOrgDocKind(name: string): Promise<Result_10>;
     addQuoteTerms(i: QuoteTermsInput): Promise<Result_7>;
     addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_1>;
     addSalesPayment(id: bigint, day: bigint, cents: bigint, how: string, note: string): Promise<Result_7>;
     addTenderFirm(tenderId: bigint, f: TenderFirmInput): Promise<Result_7>;
+    aiCall(id: bigint): Promise<AiCallView | null>;
+    aiLog(from: bigint, n: bigint): Promise<Array<AiCallView>>;
+    aiOverview(): Promise<AiOverview>;
+    aiTestCall(worker: string): Promise<Result_7>;
     answerMyMinMeer(versionId: bigint, hash: string, ok: boolean, note: string): Promise<Result_1>;
     answerMyProgress(id: bigint, hash: string, ok: boolean, note: string): Promise<Result_1>;
     applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_12>;
     applyTemplate(workId: bigint, key: string, startDay: bigint, append: boolean, expectedVersion: bigint): Promise<Result_12>;
-    applyTenderChoices(tenderId: bigint, versionId: bigint): Promise<Result_93>;
+    applyTenderChoices(tenderId: bigint, versionId: bigint): Promise<Result_94>;
     approveOaInvoice(id: bigint, rev: bigint, proof: OaProofInput, reason: string): Promise<Result_1>;
     approvePurchase(id: bigint, rev: bigint, reason: string): Promise<Result_1>;
     archiveAbsence(id: bigint): Promise<Result_1>;
@@ -9310,6 +9546,7 @@ export interface backendInterface {
     archiveSalesPayment(paymentId: bigint, reason: string): Promise<Result_1>;
     archiveTask(workId: bigint, taskId: bigint, expectedVersion: bigint): Promise<Result_7>;
     archiveTechSheet(id: bigint): Promise<Result_1>;
+    askAi(worker: string, workId: bigint | null, input: AiInput): Promise<Result_93>;
     attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_7>;
     attachInsuranceFile(id: bigint, kindKey: string, title: string, fileId: bigint, asAttest: boolean): Promise<Result_7>;
     attachPermitFile(permitId: bigint, fileId: bigint): Promise<Result_20>;
@@ -9353,6 +9590,7 @@ export interface backendInterface {
     exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_83>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
+    failAiTicket(ticketId: bigint, why: string): Promise<Result_1>;
     failJob(id: bigint, attempt: bigint, why: string, retry: boolean): Promise<Result_1>;
     finishHandover(id: bigint, docFileId: bigint, controlCode: string): Promise<Result_82>;
     getDossier(workId: bigint): Promise<DossierView>;
@@ -9379,6 +9617,7 @@ export interface backendInterface {
     libraryItemHistory(id: bigint): Promise<Result_75>;
     libraryUnits(includeArchived: boolean): Promise<Array<UnitView>>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
+    listAiWorkers(): Promise<Array<AiWorkerView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
     listCalendarBlocks(workId: bigint | null): Promise<Array<BlockView>>;
     listContractTemplates(): Promise<Array<ContractTemplateView>>;
@@ -9455,6 +9694,7 @@ export interface backendInterface {
     measureSync(ops: Array<MeasureOpInput>): Promise<Array<MeasureOpResult>>;
     minMeerQty(workId: bigint): Promise<MinMeerQtyView>;
     minMeerSettings(): Promise<Result_67>;
+    myAiCalls(): Promise<Array<AiCallView>>;
     myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;
     myDay(day: bigint, all: boolean): Promise<MyDayView>;
     myHours(fromDay: bigint, toDay: bigint): Promise<Array<HoursLine>>;
@@ -9527,10 +9767,12 @@ export interface backendInterface {
     recordPid(workId: bigint, included: bigint, skipped: bigint, pages: bigint): Promise<Result_1>;
     recordWithholdingCheck(orgId: bigint, x: WithholdingInput): Promise<Result_34>;
     redeemCode(code: string): Promise<Result_33>;
+    refreshAiModels(): Promise<Result_7>;
     registerOaQuote(i: OaQuoteInput, expectNetCents: bigint): Promise<Result_32>;
     registerSignedQuote(versionId: bigint, fileId: bigint, note: string): Promise<Result_1>;
     remindSalesInvoice(id: bigint, mail: boolean, note: string): Promise<Result_7>;
     removeDependency(workId: bigint, depId: bigint, expectedVersion: bigint): Promise<Result_7>;
+    reportAiUsage(ticketId: bigint, u: AiUsage): Promise<Result_1>;
     reportSync(ops: Array<ReportOpInput>): Promise<Array<OpResult>>;
     restoreBegin(code: string): Promise<Result_1>;
     restoreChunk(code: string, part: RestorePart): Promise<Result_7>;
@@ -9548,6 +9790,7 @@ export interface backendInterface {
     salesSettings(): Promise<SalesSettingsView>;
     salesWorklist(): Promise<Result_28>;
     saveAbsence(i: AbsenceInput): Promise<Result_7>;
+    saveAiWorker(x: AiWorkerInput): Promise<Result_1>;
     saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_7>;
     saveCalendarBlock(i: BlockInput): Promise<Result_7>;
     saveContractTemplate(title: string, text: string, provisional: boolean, note: string): Promise<Result_7>;
@@ -9598,6 +9841,7 @@ export interface backendInterface {
     sendMailNow(): Promise<Result_11>;
     sendProgress(id: bigint, rev: bigint, expectTotalCents: bigint, reason: string): Promise<Result_10>;
     sendQuoteVersion(versionId: bigint, rev: bigint, expectTotalCents: bigint, reason: string): Promise<Result_10>;
+    setAiSettings(gatewayUrl: string | null, usdEurMilli: bigint | null, testMode: boolean | null): Promise<Result_1>;
     setBoardRules(i: BoardRulesInput): Promise<Result_1>;
     setCapacity(key: string, maxWorks: bigint | null, note: string): Promise<Result_1>;
     setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_7>;

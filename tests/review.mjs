@@ -308,7 +308,9 @@ else {
     // (D9) De maildienst is onbereikbaar (schone weigering, Error.isCleanReject): zeker niet verstuurd → opnieuw met wachttijd.
     // De app zoekt de dienst via INTEGRATIONS_CANISTER_ID: even naar een canister die niet bestaat (via de beheercanister;
     // tests/lokaal.sh maakte de testbeheerder controller van dit eigen net), daarna terug.
-    const setSvc = (v) => setCanisterEnv("proef-admin", cid, { INTEGRATIONS_CANISTER_ID: v });
+    // 3.1: setCanisterEnv vervangt de hele lijst: de URL en de wegwerpsleutel van de nep-inferentiedienst (tests/lokaal.sh) blijven staan.
+    const aiEnv = process.env.NEPINF_PORT && process.env.NEPINF_KEY ? { CAFFEINE_INFERENCE_URL: `http://127.0.0.1:${process.env.NEPINF_PORT}`, CAFFEINE_INFERENCE_API_KEY: process.env.NEPINF_KEY } : {};
+    const setSvc = (v) => setCanisterEnv("proef-admin", cid, { INTEGRATIONS_CANISTER_ID: v, ...aiEnv });
     await setSvc("rrkah-fqaaa-aaaaa-aaaaq-cai");
     const t9 = ok(await admin.queueTestMail("eigen@proef.invalid"));
     const n9 = await nMails();
@@ -918,6 +920,11 @@ else {
   walk(root);
   const badRoles = files.filter((p) => !p.endsWith("/lib/Rights.mo") && /\broles\s*\.\s*(find|any|all|some)\s*\(\s*func\s+\w+\s*=\s*\w+\s*==\s*#/.test(readFileSync(p, "utf8"))).map((p) => p.slice(root.length + 1));
   check("(M5) geen enkel bestand buiten lib/Rights.mo test zelf op een rol (roles.find/any/all … == #rol)", files.length > 60 && badRoles.length === 0, badRoles.join(", ") || `${files.length} bestanden`);
+  // (3.1, ontwerp §2.7) Omgevingsvariabelen: Prim.envVar enkel in lib/Mail.mo (de maildienst) en lib/ai/Caffeine.mo (de inferentiesleutel),
+  // en nooit op een regel die iets bewaart, logt of toont (audit, log, settings.values.add, Debug.print).
+  const envFiles = files.filter((p) => /Prim\.envVar/.test(readFileSync(p, "utf8"))).map((p) => p.slice(root.length + 1)).sort();
+  const envBad = files.flatMap((p) => readFileSync(p, "utf8").split("\n").filter((l) => /envVar/.test(l) && /audit\(|\.log\.add|values\.add|Debug\.print|notifyAdmins/.test(l)).map((l) => p.slice(root.length + 1) + ": " + l.trim().slice(0, 80)));
+  check("(3.1) Prim.envVar enkel in lib/Mail.mo en lib/ai/Caffeine.mo, nooit in een audit-, log- of instellingsregel", envFiles.every((f) => f === "lib/Mail.mo" || f === "lib/ai/Caffeine.mo") && envFiles.includes("lib/ai/Caffeine.mo") && envBad.length === 0, [...envFiles, ...envBad].join(", "));
 }
 
 // ── securityreview 2c.9: S8 (klant op een werf zonder klantfirma ziet geen werfadministratie) en S16 (geen lus die een waarde vervangt

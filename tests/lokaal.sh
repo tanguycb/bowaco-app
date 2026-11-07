@@ -15,6 +15,9 @@ sed -i '' -E "s/(public let bootstrapHashHex = \")[0-9a-f]{64}/\1$testhash/" "$c
 # 1b.5: in de testbouw telt elke canister als live (pad "testmodus uit → echte adressen" in de rollentest); de upload
 # houdt false (tools/meetlat.mjs weigert anders): echte mail enkel vanaf Config.mailLiveBackends.
 sed -i '' -E "s/(public let mailLiveAnyCanister : Bool = )false/\1true/" "$cfg"
+# 3.1: idem voor de AI-connector: in de testbouw belt elke canister de inferentiedienst "echt" (hier de nep-inferentiedienst op
+# 127.0.0.1, tests/net/nepinferentie.mjs). De upload houdt false (tools/meetlat.mjs weigert anders): drafts bellen nooit echt.
+sed -i '' -E "s/(public let aiLiveAnyCanister : Bool = )false/\1true/" "$cfg"
 mops build --output src/backend/dist
 mv "$cfg.echt" "$cfg"
 # mail-caffeine: de nep-maildienst (speelt de integratiecanister van Caffeine na; enkel op dit eigen net).
@@ -43,11 +46,20 @@ icp canister settings update backend -e local --add-environment-variable "INTEGR
 # maildienst even onbereikbaar kan maken (omgevingsvariabele via de beheercanister). Nooit op een draft of live.
 admin_principal=$(cd "$repo/tools" && node --input-type=module -e "const m = await import('./lib.mjs'); console.log(m.identity('proef-admin').getPrincipal().toText())")
 icp canister settings update backend -e local --add-controller "$admin_principal" >/dev/null
+# 3.1: de nep-inferentiedienst (EIGEN proces op een eigen poort, enkel 127.0.0.1) en, zoals Caffeine, de URL en een wegwerpsleutel
+# in de omgeving van de backend. De sleutel is per ronde nieuw en komt nergens anders terecht. Enkel dit eigen proces wordt gestopt.
+export NEPINF_PORT=${NEPINF_PORT:-$((port + 10000))}
+export NEPINF_KEY="nep-$(node -e 'console.log(require("crypto").randomBytes(12).toString("hex"))')"
+node "$repo/tests/net/nepinferentie.mjs" "$NEPINF_PORT" "$NEPINF_KEY" > "$net/nepinferentie.log" 2>&1 &
+nepinf_pid=$!
+trap 'mv "$repo/$cfg.echt" "$repo/$cfg" 2>/dev/null || true; kill $nepinf_pid 2>/dev/null || true' EXIT
+icp canister settings update backend -e local --add-environment-variable "CAFFEINE_INFERENCE_URL=http://127.0.0.1:$NEPINF_PORT" >/dev/null
+icp canister settings update backend -e local --add-environment-variable "CAFFEINE_INFERENCE_API_KEY=$NEPINF_KEY" >/dev/null
 cd "$repo"
 echo "canister $cid"
 export ICP_HOST=http://localhost:$port
 # ALLEEN_OPZET=1: enkel bouwen en een lege canister installeren (voor een losse proef op dit eigen net), geen tests.
-if [[ -n "$ALLEEN_OPZET" ]]; then echo "$cid" > "$net/canister.txt"; exit 0; fi
+if [[ -n "$ALLEEN_OPZET" ]]; then echo "$cid" > "$net/canister.txt"; echo "$NEPINF_PORT $NEPINF_KEY" > "$net/nepinferentie.txt"; trap - EXIT; mv "$repo/$cfg.echt" "$repo/$cfg" 2>/dev/null || true; echo "nep-inferentie pid $nepinf_pid (zelf stoppen)"; exit 0; fi
 node tests/rollen.mjs "$cid"
 node tests/lek.mjs "$cid"
 # 1.9: de aanvallen uit de securityreview (externen, bestanden, robot, grenzen, herstelpoort, opruiming van tellers).
@@ -99,6 +111,9 @@ node tests/inrichting.mjs "$cid"
 node tests/live-grens.mjs
 # mail-caffeine: de app verstuurt zelf (nep-maildienst); de gateway (fase 3) enkel nog eenheidstesten.
 node tests/mail-proef.mjs "$cid"
+# 3.1: de AI-connector op de caffeine-weg tegen de nep-inferentiedienst (rechten per rol, fiches, budget en reservering, uitkomstklassen,
+# terugval naar de gateway, robot "ai", logboek zonder inhoud, testmodus, export en herstel van de fiches). Vóór de klokproeven.
+node tests/ai-3-1.mjs "$cid"
 # 2c.2: de prijsvraag-Excel heen en terug (zonder netwerk) en de prijsvraag door de backend (klaarzetten, toegang zonder werf,
 # Mijn prijsvragen, ontwerp, indienen, bijlagen, afsluiten, werfleider zonder bedragen, .did-controle). De klokproef (herinnering,
 # geen antwoord, 90 dagen na afsluiten) verzet de tijd van dit eigen net met ruim 90 dagen: daarom als LAATSTE canisterproef.

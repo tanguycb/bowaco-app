@@ -12,6 +12,7 @@ import { Audit } from "./Audit";
 import { BoetesPage } from "./Boetes";
 import { Codes } from "./Codes";
 import { PostbodePage } from "./Postbode";
+import { AiBeheer } from "./AiBeheer";
 import { CompanyCalendar, Templates } from "./PlanSettings";
 import { WadmRules } from "./Werfadministratie";
 import { PermitKindsSettings } from "./Vergunningen";
@@ -36,6 +37,7 @@ export function Beheer({ caps, me, route, go }: { caps: Caps; me: PersonView; ro
     case "documenten": body = own(cur.label, <><DocKinds />{caps.managePermitKinds && <PermitKindsSettings />}<AttestSoorten /></>); break;
     case "voertuigen": body = caps.readTrips ? <BoetesPage go={go} extra={caps.manageVehicles ? <Vehicles /> : undefined} /> : own(cur.label, <Vehicles />); break;
     case "mail": body = <PostbodePage />; break;
+    case "ai": body = <AiBeheer />; break;
     case "toegang": body = <Codes caps={caps} me={me} extra={caps.manageSettings ? <SettingsFields show={{ days: true }} /> : undefined} />; break;
     case "audit": body = <Audit caps={caps} />; break;
   }

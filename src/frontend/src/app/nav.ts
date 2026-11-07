@@ -82,6 +82,7 @@ export function beheerTabs(caps: Caps): Tab[] {
     ["documenten", B.documenten, caps.manageSettings],
     ["voertuigen", B.voertuigen, caps.readTrips || caps.manageVehicles],
     ["mail", B.mail, caps.manageRobots],
+    ["ai", B.ai, caps.manageAi], // 3.1-B2
     ["toegang", B.toegang, caps.inviteExternal || caps.manageAccess],
     ["audit", B.audit, caps.readAudit || caps.export],
   ];
