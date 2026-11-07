@@ -18,6 +18,7 @@ import { fmtQty } from "./Offertes";
 import { makeSheet, sheetFileName } from "../tender/sheet.ts";
 import { totals, type Included } from "../tender/calc.ts";
 import "../app/prijsvraag.css";
+import { prepareUpload } from "../lib/uploadPrep";
 
 const P = t.prijsvragen;
 export const unitOf = (u: string) => (u === "m2" ? "m²" : u === "m3" ? "m³" : u);
@@ -739,6 +740,7 @@ function MyTenderBody({ v, ans, loading, onChange, toast }: { v: MyTenderView; a
   });
   const upload = useMutation({
     mutationFn: async (file: File) => {
+      file = await prepareUpload(file);
       const bytes = new Uint8Array(await file.arrayBuffer());
       setProgress(0);
       const blob = ExternalBlob.fromBytes(bytes, "application/pdf", file.name).withUploadProgress(setProgress);

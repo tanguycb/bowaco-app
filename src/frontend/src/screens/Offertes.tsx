@@ -18,6 +18,7 @@ import { EmptyState, Loading, Page, useWorks } from "./common";
 import { CalculatorStart } from "./Aandacht";
 import { OpenConfidential } from "./Dossier";
 import { ChapterMargin, FormPanel, KindSheet, SubgroupHead } from "./OfferteVorm";
+import { prepareUpload } from "../lib/uploadPrep";
 
 const O = t.offertes;
 const FORMS: ContractForm[] = [ContractForm.vh, ContractForm.fixed, ContractForm.regie, ContractForm.estimate, ContractForm.budget, ContractForm.perAttachment];
@@ -1191,6 +1192,7 @@ function SignedSheet({ workId, onDone, onClose }: { workId: bigint; onDone: (fil
   const upload = async (file: File) => {
     setBusy(true);
     try {
+      file = await prepareUpload(file);
       if (file.type !== "application/pdf") throw new Error(O.signedFile + ": PDF");
       const bytes = new Uint8Array(await file.arrayBuffer());
       setProgress(0);
