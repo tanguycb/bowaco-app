@@ -17,6 +17,7 @@ import "../app/oafactuur.css";
 import { MyPurchasesBlock, PayList, PurchaseList, PurchaseTabs } from "./Aankoop";
 import { PurchaseForm } from "./AankoopForm";
 import { PurchaseView } from "./AankoopView";
+import { prepareUpload } from "../lib/uploadPrep";
 
 const T = t.oaFacturen;
 const statusTag = (s: OaInvoiceStatus) => (s === OaInvoiceStatus.approved ? "a-tag--ok" : s === OaInvoiceStatus.disputed ? "a-tag--bad" : s === OaInvoiceStatus.withdrawn ? "" : "a-tag--accent");
@@ -163,6 +164,7 @@ function InvoiceForm({ id, go }: { id?: bigint; go: (to: string) => void }) {
     setBusy(true);
     try {
       if (!f.workId) throw new Error(T.workFirst);
+      file = await prepareUpload(file);
       if (!["application/pdf", "image/jpeg", "image/png"].includes(file.type)) throw new Error(T.fileType);
       const bytes = new Uint8Array(await file.arrayBuffer());
       setProgress(0);

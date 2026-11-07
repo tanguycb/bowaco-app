@@ -12,6 +12,7 @@ import { dayToInput, errText, fmtDayNum, fmtEuro, inputToDay, parseEuro, parsePc
 import { Loading } from "./common";
 import { download } from "./Prijsvragen";
 import { Field } from "./Werven";
+import { prepareUpload } from "../lib/uploadPrep";
 
 const A = t.afspraken;
 
@@ -142,6 +143,7 @@ function DealSheet({ d, work, onClose }: { d: DealStatusView; work: string; onCl
   const pdf = useMutation({ mutationFn: async (v: bigint) => contractDownload(unwrap(await actor!.readOaContract(d.id, v)), d.orgName, work), onError: fail });
   const sign = useMutation({
     mutationFn: async (file: File) => {
+      file = await prepareUpload(file);
       const bytes = new Uint8Array(await file.arrayBuffer());
       setProgress(0);
       const blob = ExternalBlob.fromBytes(bytes, file.type || "application/pdf", file.name).withUploadProgress(setProgress);

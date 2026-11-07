@@ -11,6 +11,7 @@ import { dayToInput, errText, fmtDayNum, fmtEuro, inputToDay, parseEuro, todayDa
 import { Loading } from "./common";
 import { StateTag, contractDownload } from "./Afspraken";
 import { Field } from "./Werven";
+import { prepareUpload } from "../lib/uploadPrep";
 
 const A = t.afspraken;
 const DOC: Record<string, string> = { received: "te keuren", approved: "goedgekeurd", expired: "afgekeurd", missing: "ontbreekt", requested: "gevraagd", notApplicable: "n.v.t." };
@@ -48,6 +49,7 @@ export function TarievenAttesten({ orgId, caps, isOa }: { orgId: bigint; caps: C
     mutationFn: async (file: File | null) => {
       let fileId: bigint | undefined;
       if (file) {
+        file = await prepareUpload(file);
         const bytes = new Uint8Array(await file.arrayBuffer());
         setProgress(0);
         fileId = unwrap(await actor!.addDealFile(file.name, file.type || "application/pdf", BigInt(bytes.length), blobOf(file, bytes, setProgress), { __kind__: "orgDoc", orgDoc: orgId }));
@@ -149,6 +151,7 @@ export function MijnAttesten() {
   const [progress, setProgress] = useState<number | null>(null);
   const up = useMutation({
     mutationFn: async (file: File) => {
+      file = await prepareUpload(file);
       const bytes = new Uint8Array(await file.arrayBuffer());
       setProgress(0);
       return unwrap(await actor!.addMyAttest(d.kind, "", null, inputToDay(d.until) ?? null, file.name, file.type || "application/pdf", BigInt(bytes.length), blobOf(file, bytes, setProgress)));

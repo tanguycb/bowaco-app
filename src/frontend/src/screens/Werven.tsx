@@ -11,6 +11,7 @@ import { EmptyState, factsOf, Loading, Page, PhaseLabel, useReviewNotes, useStag
 import { DashCounters, useDashboard } from "./Dashboard";
 import { isClient } from "../app/nav";
 import { volgendeStap, werfFase, werfGroep } from "../app/fase";
+import { prepareUpload } from "../lib/uploadPrep";
 
 /** Hoofdwerven met hun deelwerven er meteen onder; zoeken op code, naam of gemeente. */
 function nested(works: WorkView[], q: string): WorkView[] {
@@ -283,16 +284,6 @@ export function Field({ label, children }: { label: string; children: React.Reac
   );
 }
 
-// Foto's worden op het toestel verkleind (≤ 1600 px, JPEG): kleiner en zonder EXIF-locatie (§8.5).
-export async function shrinkPhoto(file: File): Promise<Blob> {
-  const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bmp.width * scale);
-  canvas.height = Math.round(bmp.height * scale);
-  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  return new Promise((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("Verkleinen mislukt"))), "image/jpeg", 0.82));
-}
 
 export function Files({ workId, canUpload, title, canConfidential }: { workId: bigint; canUpload: boolean; title?: string; canConfidential?: boolean }) {
   const { actor, isFetching } = useBackend();
@@ -303,10 +294,9 @@ export function Files({ workId, canUpload, title, canConfidential }: { workId: b
   const files = useQuery({ queryKey: ["files", String(workId)], queryFn: () => actor!.listFiles(workId), enabled: !!actor && !isFetching, refetchOnWindowFocus: true, refetchInterval: 30_000 });
   const upload = useMutation({
     mutationFn: async (file: File) => {
-      const isImage = file.type.startsWith("image/");
-      const data = isImage ? await shrinkPhoto(file) : file;
-      const mime = isImage ? "image/jpeg" : file.type;
-      const name = isImage ? file.name.replace(/\.[^.]+$/, "") + ".jpg" : file.name;
+      const data = await prepareUpload(file);
+      const mime = data.type;
+      const name = data.name;
       const bytes = new Uint8Array(await data.arrayBuffer());
       setProgress(0);
       const blob = ExternalBlob.fromBytes(bytes, mime, name).withUploadProgress(setProgress);

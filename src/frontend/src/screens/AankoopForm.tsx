@@ -11,6 +11,7 @@ import { Loading, Page } from "./common";
 import { TA } from "./Aankoop";
 import { euroIn, parseEuroSigned, roundDiv } from "./OaFacturen";
 import { fmtQty, parseQty } from "./Offertes";
+import { prepareUpload } from "../lib/uploadPrep";
 
 type DayForm = { day: string; persons: string; slots: string; pause: string };
 type LineForm = { lineId?: bigint; work: string; kind: string; root: string; description: string; persons: string; qty: string; unit: string; price: string; amount: string; passOn: boolean; days: DayForm[] };
@@ -111,6 +112,7 @@ export function PurchaseForm({ id, go }: { id?: bigint; go: (to: string) => void
   const upload = async (x: File, which: "file" | "stat") => {
     setBusy(true);
     try {
+      x = await prepareUpload(x);
       if (!["application/pdf", "image/jpeg", "image/png"].includes(x.type)) throw new Error(t.oaFacturen.fileType);
       const bytes = new Uint8Array(await x.arrayBuffer());
       const blob = ExternalBlob.fromBytes(bytes, x.type, x.name);

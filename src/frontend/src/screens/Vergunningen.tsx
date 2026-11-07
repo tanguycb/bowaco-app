@@ -10,7 +10,8 @@ import { cacheGet, cachePut } from "../offline/db";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page } from "./common";
-import { Field, shrinkPhoto } from "./Werven";
+import { Field } from "./Werven";
+import { prepareUpload } from "../lib/uploadPrep";
 
 const P = t.permits;
 const G = t.gemeenten;
@@ -285,10 +286,9 @@ function PermitFiles({ p, workId, onDone }: { p: PermitView; workId: bigint; onD
   const [progress, setProgress] = useState<number | null>(null);
   const up = useMutation({
     mutationFn: async (file: File) => {
-      const isImage = file.type.startsWith("image/");
-      const data = isImage ? await shrinkPhoto(file) : file;
-      const mime = isImage ? "image/jpeg" : file.type;
-      const name = isImage ? file.name.replace(/\.[^.]+$/, "") + ".jpg" : file.name;
+      const data = await prepareUpload(file);
+      const mime = data.type;
+      const name = data.name;
       const bytes = new Uint8Array(await data.arrayBuffer());
       setProgress(0);
       const blob = ExternalBlob.fromBytes(bytes, mime, name).withUploadProgress(setProgress);

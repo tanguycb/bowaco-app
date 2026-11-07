@@ -16,6 +16,7 @@ import { AiBeheer } from "./AiBeheer";
 import { CompanyCalendar, Templates } from "./PlanSettings";
 import { WadmRules } from "./Werfadministratie";
 import { PermitKindsSettings } from "./Vergunningen";
+import { FotoInstelling } from "./FotoInstelling";
 import { MarginClassesAdmin, TextBlocksAdmin } from "./OfferteVorm";
 import { TenderSettingsAdmin } from "./OaOffertes";
 import { MinMeerSettingsAdmin } from "./MinMeerForms";
@@ -34,7 +35,7 @@ export function Beheer({ caps, me, route, go }: { caps: Caps; me: PersonView; ro
     case "offertes": body = own(cur.label, <><QuoteNumbers /><MarginClassesAdmin /><TextBlocksAdmin /><QuoteRulesAdmin /><QuoteDocsAdmin /><ContractSjabloon caps={caps} /></>); break;
     case "opmeting": body = own(cur.label, <><SettingsFields show={{ thresholds: true }} /><WadmRules /><OpmetingAdmin /><VorderingAdmin /><OaFactuurAdmin /><TenderSettingsAdmin /><MinMeerSettingsAdmin /><SalesSettingsAdmin /></>); break;
     case "planning": body = own(cur.label, <><Templates /><Trades /><ImportBatches /></>); break;
-    case "documenten": body = own(cur.label, <><DocKinds />{caps.managePermitKinds && <PermitKindsSettings />}<AttestSoorten /></>); break;
+    case "documenten": body = own(cur.label, <><DocKinds />{caps.managePermitKinds && <PermitKindsSettings />}<AttestSoorten /><FotoInstelling /></>); break;
     case "voertuigen": body = caps.readTrips ? <BoetesPage go={go} extra={caps.manageVehicles ? <Vehicles /> : undefined} /> : own(cur.label, <Vehicles />); break;
     case "mail": body = <PostbodePage />; break;
     case "ai": body = <AiBeheer />; break;

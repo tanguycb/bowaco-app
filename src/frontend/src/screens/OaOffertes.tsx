@@ -18,6 +18,7 @@ import { readTenderSheet, MAX_BYTES, type SheetResult } from "../tender/sheetrea
 import { roundDiv, totals, type Included } from "../tender/calc.ts";
 import { compare, sameResult, type CInput, type CResult } from "../tender/compare.ts";
 import "../app/prijsvraag.css";
+import { prepareUpload } from "../lib/uploadPrep";
 
 const O = t.oaOffertes;
 const P = t.prijsvragen;
@@ -302,7 +303,8 @@ function HandSheet({ workId, v, inv, onClose }: { workId: bigint; v: TenderView 
     try {
       let f: OaQuoteInput["file"] = undefined;
       if (file) {
-        if (file.type !== "application/pdf") throw new Error(P.yourPdf);
+        const pf = await prepareUpload(file);
+        if (pf.type !== "application/pdf") throw new Error(P.yourPdf);
         const b = new Uint8Array(await file.arrayBuffer());
         setProgress(0);
         f = { name: file.name, mime: "application/pdf", size: BigInt(b.length), blob: ExternalBlob.fromBytes(b, "application/pdf", file.name).withUploadProgress(setProgress) };

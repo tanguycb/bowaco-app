@@ -10,6 +10,7 @@ import { dayToInput, errText, fmtDayNum, fmtEuro, inputToDay, parseEuro, unwrap,
 import { Loading } from "./common";
 import { Field } from "./Werven";
 import { WorkHandovers, WorkMeetings, WorkSheets } from "./WerfbeheerOplevering";
+import { prepareUpload } from "../lib/uploadPrep";
 
 const T = t.siteAdmin;
 const I = T.insurance;
@@ -24,6 +25,7 @@ export function premiumCents(valueCents: bigint, rateMilli: bigint, minCents: bi
 
 /** Een bestand zonder vertrouwelijkheid opladen bij een werf (of zonder werf); geeft het id. */
 export async function uploadPlain(actor: NonNullable<ReturnType<typeof useBackend>["actor"]>, x: File, workId: bigint | undefined, confidential = false): Promise<bigint> {
+  x = await prepareUpload(x);
   if (!["application/pdf", "image/jpeg", "image/png"].includes(x.type)) throw new Error(t.oaFacturen.fileType);
   const bytes = new Uint8Array(await x.arrayBuffer());
   return unwrap(await actor.addFile(x.name, x.type, BigInt(bytes.length), ExternalBlob.fromBytes(bytes, x.type, x.name), workId ?? null, confidential));
