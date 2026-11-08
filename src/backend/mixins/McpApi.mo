@@ -14,7 +14,6 @@ import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Random "mo:core/Random";
-import Runtime "mo:core/Runtime";
 import Result "mo:core/Result";
 import Text "mo:core/Text";
 import Time "mo:core/Time";
@@ -78,11 +77,13 @@ mixin (
   };
 
   // ── De koppeling (zelfde namen als het npm-pakket @caffeineai/mcp-server) ──
-  public shared ({ caller }) func _caffeineMcpSetSignInOrigin(origin : Text) : async () {
+  // Anders dan het pakket: een Result (geen trap), en enkel #manageBots. De pagina zet dit niet vanzelf: de beheerder kiest het.
+  public shared ({ caller }) func _caffeineMcpSetSignInOrigin(origin : Text) : async Result.Result<(), Text> {
     let p = requireBotAdmin(caller);
-    if (not OAuth.validSignInOrigin(origin)) { Runtime.trap("Ongeldig adres: https://<host> zonder pad") };
+    if (not OAuth.validSignInOrigin(origin)) { return #err("Ongeldig adres: https://<host> zonder pad") };
     bots.oauth.signInOrigin := ?origin;
     Access.audit(audit, caller, ?p.id, null, "mcp-inlogpagina", origin);
+    #ok;
   };
 
   public query func _caffeineMcpSignInOrigin() : async ?Text { bots.oauth.signInOrigin };
@@ -93,7 +94,7 @@ mixin (
 
   // Enkel een gekoppelde, actieve bot keurt een koppeling goed; elke tool-oproep loopt later als die bot.
   public shared ({ caller }) func _caffeineMcpApprove(request : OAuth.Approval) : async { #ok : Text; #err : Text } {
-    let b = switch (Bots.activeBot(bots, caller)) { case (?x) x; case null return #err("Enkel een gekoppelde bot kan een koppeling goedkeuren. Log in met de Internet Identity van de bot en geef eerst de koppelcode in.") };
+    let b = switch (Bots.activeBot(bots, caller)) { case (?x) x; case null return #err("Geen toegang: enkel een gekoppelde bot kan een koppeling goedkeuren. Log in met de Internet Identity van de bot en geef eerst de koppelcode in.") };
     let r = await* OAuth.approve(bots.oauth, caller, request, Time.now());
     switch r { case (#ok(_)) Access.audit(audit, caller, null, null, "bot-koppeling", "bot #" # b.id.toText()); case (#err(_)) {} };
     r;

@@ -359,6 +359,12 @@ export interface Appointment {
   'workId' : WorkId,
   'archivedAt' : [] | [bigint],
 }
+export interface Approval {
+  'clientId' : string,
+  'redirectUri' : string,
+  'codeChallengeMethod' : string,
+  'codeChallenge' : string,
+}
 export interface Assignment {
   'id' : bigint,
   'toDay' : [] | [Day],
@@ -584,6 +590,116 @@ export interface BoardView {
   'weeks' : Array<BoardWeek>,
 }
 export interface BoardWeek { 'blocks' : Array<BlockView>, 'monday' : Day }
+export type BotActionDetail = {
+    'invoiceCheck' : {
+      'firm' : string,
+      'invoiceId' : bigint,
+      'verdict' : string,
+      'number' : string,
+      'remarks' : Array<string>,
+    }
+  } |
+  { 'other' : { 'tool' : string } } |
+  {
+    'docLink' : {
+      'title' : string,
+      'kind' : string,
+      'fileName' : string,
+      'fileId' : bigint,
+    }
+  };
+export type BotActionState = { 'expired' : null } |
+  { 'done' : null } |
+  { 'undone' : null } |
+  { 'rejected' : null } |
+  { 'proposed' : null } |
+  { 'accepted' : null } |
+  { 'failed' : string };
+export interface BotActionView {
+  'at' : bigint,
+  'id' : bigint,
+  'appliedAt' : [] | [bigint],
+  'note' : string,
+  'botName' : string,
+  'task' : string,
+  'createdDoc' : boolean,
+  'canUndo' : boolean,
+  'detail' : BotActionDetail,
+  'state' : BotActionState,
+  'botId' : bigint,
+  'workId' : [] | [WorkId],
+  'docId' : [] | [bigint],
+  'decidedAt' : [] | [bigint],
+  'decidedBy' : [] | [PersonId],
+  'workCode' : string,
+  'reason' : string,
+}
+export type BotCallOutcome = { 'ok' : null } |
+  { 'error' : string } |
+  { 'limit' : null } |
+  { 'unknown' : null } |
+  { 'refused' : string };
+export interface BotCallView {
+  'at' : bigint,
+  'id' : bigint,
+  'botName' : string,
+  'tool' : string,
+  'botId' : bigint,
+  'workId' : [] | [WorkId],
+  'argsSha256' : string,
+  'outcome' : BotCallOutcome,
+  'actionId' : [] | [bigint],
+}
+export interface BotConnectionView {
+  'id' : string,
+  'expiresAt' : bigint,
+  'clientName' : string,
+  'createdAt' : bigint,
+}
+export interface BotInput {
+  'id' : [] | [bigint],
+  'rev' : bigint,
+  'tasks' : Array<[string, BotLevel]>,
+  'model' : string,
+  'tools' : Array<string>,
+  'name' : string,
+  'docKinds' : Array<string>,
+  'vendor' : string,
+  'allWorks' : boolean,
+  'works' : Array<WorkId>,
+  'callsPerDay' : bigint,
+}
+export type BotLevel = { 'auto' : null } |
+  { 'never' : null } |
+  { 'proposal' : null };
+export interface BotTaskInfo { 'key' : string, 'maxAuto' : boolean }
+export interface BotToolInfo {
+  'name' : string,
+  'task' : string,
+  'readOnly' : boolean,
+}
+export interface BotView {
+  'id' : bigint,
+  'rev' : bigint,
+  'openActions' : bigint,
+  'tasks' : Array<[string, BotLevel]>,
+  'model' : string,
+  'principal' : [] | [Principal],
+  'tools' : Array<string>,
+  'codePending' : boolean,
+  'name' : string,
+  'createdAt' : bigint,
+  'docKinds' : Array<string>,
+  'codeExpiresAt' : bigint,
+  'connections' : bigint,
+  'updatedAt' : bigint,
+  'callsToday' : bigint,
+  'vendor' : string,
+  'allWorks' : boolean,
+  'works' : Array<WorkId>,
+  'revokedAt' : [] | [bigint],
+  'callsPerDay' : bigint,
+}
 export interface CalendarBlock {
   'id' : bigint,
   'to' : Day,
@@ -1624,6 +1740,7 @@ export interface HandoverView {
   'signedFileId' : [] | [bigint],
   'points' : Array<PointView>,
 }
+export type HeaderField = [string, string];
 export interface HourClaim {
   'id' : bigint,
   'day' : Day,
@@ -2441,6 +2558,12 @@ export interface MaterialView {
   'createdByName' : string,
   'quantity' : string,
 }
+export interface McpInfo {
+  'tasks' : Array<BotTaskInfo>,
+  'signInOrigin' : [] | [string],
+  'tools' : Array<BotToolInfo>,
+  'never' : Array<string>,
+}
 export interface MeView {
   'blockedUntil' : [] | [bigint],
   'status' : { 'active' : null } |
@@ -3096,6 +3219,10 @@ export interface MyBoardView {
   'canReport' : boolean,
   'weeks' : Array<BoardWeek>,
 }
+export type MyBot = { 'bot' : { 'name' : string, 'vendor' : string } } |
+  { 'revoked' : null } |
+  { 'person' : null } |
+  { 'none' : null };
 export interface MyContractBrief {
   'ref' : string,
   'status' : string,
@@ -3461,6 +3588,7 @@ export interface MyTenderView {
   'versions' : bigint,
   'outcome' : TenderOutcome,
 }
+export interface NewBotCode { 'expiresAt' : bigint, 'code' : string }
 export interface NewCode {
   'expiresAt' : bigint,
   'code' : string,
@@ -5970,6 +6098,20 @@ export interface ReportView {
   'workDone' : Array<WorkDoneView>,
   'totalMinutes' : bigint,
 }
+export interface Request {
+  'url' : string,
+  'method' : string,
+  'body' : Uint8Array,
+  'headers' : Array<HeaderField>,
+  'certificate_version' : [] | [number],
+}
+export interface Response {
+  'body' : Uint8Array,
+  'headers' : Array<HeaderField>,
+  'upgrade' : [] | [boolean],
+  'streaming_strategy' : [] | [StreamingStrategy],
+  'status_code' : number,
+}
 export type RestorePart = { 'ops' : Array<OpRecord> } |
   { 'files' : Array<FileView> } |
   { 'absences' : Array<Absence> } |
@@ -6254,73 +6396,77 @@ export type Result_65 = { 'ok' : MailOut } |
   { 'err' : string };
 export type Result_66 = { 'ok' : Array<FileView> } |
   { 'err' : string };
-export type Result_67 = { 'ok' : MmSettingsView } |
+export type Result_67 = { 'ok' : NewBotCode } |
   { 'err' : string };
-export type Result_68 = { 'ok' : MmExtraQuoteMade } |
+export type Result_68 = { 'ok' : MmSettingsView } |
   { 'err' : string };
-export type Result_69 = { 'ok' : MailPreview } |
+export type Result_69 = { 'ok' : MmExtraQuoteMade } |
   { 'err' : string };
 export type Result_7 = { 'ok' : bigint } |
   { 'err' : string };
-export type Result_70 = { 'ok' : FineResult } |
+export type Result_70 = { 'ok' : MailPreview } |
   { 'err' : string };
-export type Result_71 = { 'ok' : Array<PayRow> } |
+export type Result_71 = { 'ok' : FineResult } |
   { 'err' : string };
-export type Result_72 = { 'ok' : Array<OaRateView> } |
+export type Result_72 = { 'ok' : Array<PayRow> } |
   { 'err' : string };
-export type Result_73 = { 'ok' : MySalesView } |
+export type Result_73 = { 'ok' : Array<OaRateView> } |
   { 'err' : string };
-export type Result_74 = { 'ok' : MarginClassesView } |
+export type Result_74 = { 'ok' : MySalesView } |
   { 'err' : string };
-export type Result_75 = { 'ok' : Array<LibItemVersionView> } |
+export type Result_75 = { 'ok' : MarginClassesView } |
   { 'err' : string };
-export type Result_76 = { 'ok' : NewCode } |
+export type Result_76 = { 'ok' : Array<LibItemVersionView> } |
   { 'err' : string };
-export type Result_77 = { 'ok' : InsuranceSheetData } |
+export type Result_77 = { 'ok' : NewCode } |
   { 'err' : string };
-export type Result_78 = { 'ok' : PlanImportReport } |
+export type Result_78 = { 'ok' : InsuranceSheetData } |
   { 'err' : string };
-export type Result_79 = { 'ok' : ImportReport } |
+export type Result_79 = { 'ok' : PlanImportReport } |
   { 'err' : string };
 export type Result_8 = { 'ok' : WorkStartDone } |
   { 'err' : string };
-export type Result_80 = { 'ok' : HandoverDocData } |
+export type Result_80 = { 'ok' : ImportReport } |
   { 'err' : string };
-export type Result_81 = { 'ok' : OaView } |
+export type Result_81 = { 'ok' : HandoverDocData } |
   { 'err' : string };
-export type Result_82 = { 'ok' : HandoverView } |
+export type Result_82 = { 'ok' : OaView } |
   { 'err' : string };
-export type Result_83 = { 'ok' : RestorePart } |
+export type Result_83 = { 'ok' : HandoverView } |
   { 'err' : string };
-export type Result_84 = { 'ok' : MyQuoteAnswered } |
+export type Result_84 = { 'ok' : RestorePart } |
   { 'err' : string };
-export type Result_85 = { 'ok' : DeclarationDraft } |
+export type Result_85 = { 'ok' : MyQuoteAnswered } |
   { 'err' : string };
-export type Result_86 = { 'ok' : NewTicket } |
+export type Result_86 = { 'ok' : DeclarationDraft } |
   { 'err' : string };
-export type Result_87 = { 'ok' : QuoteCreated } |
+export type Result_87 = { 'ok' : NewTicket } |
   { 'err' : string };
-export type Result_88 = {
+export type Result_88 = { 'ok' : QuoteCreated } |
+  { 'err' : string };
+export type Result_89 = {
     'ok' : { 'id' : bigint, 'warnings' : Array<string> }
   } |
   { 'err' : string };
-export type Result_89 = { 'ok' : TenderCompareView } |
-  { 'err' : string };
 export type Result_9 = { 'ok' : PostSettingsView } |
   { 'err' : string };
-export type Result_90 = { 'ok' : CiawExport } |
+export type Result_90 = { 'ok' : TenderCompareView } |
   { 'err' : string };
-export type Result_91 = { 'ok' : TicketInfo } |
+export type Result_91 = { 'ok' : MyBot } |
   { 'err' : string };
-export type Result_92 = { 'ok' : Array<QuoteFinding> } |
+export type Result_92 = { 'ok' : CiawExport } |
   { 'err' : string };
-export type Result_93 = { 'ok' : AiAnswer } |
+export type Result_93 = { 'ok' : TicketInfo } |
   { 'err' : string };
-export type Result_94 = { 'ok' : TenderApplyResult } |
+export type Result_94 = { 'ok' : Array<QuoteFinding> } |
   { 'err' : string };
-export type Result_95 = { 'ok' : MyTenderFile } |
+export type Result_95 = { 'ok' : AiAnswer } |
   { 'err' : string };
-export type Result_96 = { 'ok' : MyAttestView } |
+export type Result_96 = { 'ok' : TenderApplyResult } |
+  { 'err' : string };
+export type Result_97 = { 'ok' : MyTenderFile } |
+  { 'err' : string };
+export type Result_98 = { 'ok' : MyAttestView } |
   { 'err' : string };
 export interface RevisionModel {
   'aBp' : bigint,
@@ -6826,6 +6972,22 @@ export interface StartState {
   'introSeen' : boolean,
   'marked' : Array<string>,
 }
+export interface StreamingCallbackHttpResponse {
+  'token' : [] | [StreamingCallbackToken],
+  'body' : Uint8Array,
+}
+export interface StreamingCallbackToken {
+  'key' : string,
+  'sha256' : [] | [Uint8Array],
+  'index' : bigint,
+  'content_encoding' : string,
+}
+export type StreamingStrategy = {
+    'Callback' : {
+      'token' : StreamingCallbackToken,
+      'callback' : [Principal, string],
+    }
+  };
 export interface SubgroupOp {
   'id' : [] | [bigint],
   'ref' : string,
@@ -7904,6 +8066,17 @@ export interface _ImmutableObjectStorageRefillResult {
   'topped_up_amount' : [] | [bigint],
 }
 export interface _SERVICE {
+  '_caffeineMcpApprove' : ActorMethod<
+    [Approval],
+    { 'ok' : string } |
+      { 'err' : string }
+  >,
+  '_caffeineMcpClient' : ActorMethod<
+    [string],
+    [] | [{ 'redirectUris' : Array<string>, 'name' : string }]
+  >,
+  '_caffeineMcpSetSignInOrigin' : ActorMethod<[string], Result_1>,
+  '_caffeineMcpSignInOrigin' : ActorMethod<[], [] | [string]>,
   '_immutableObjectStorageBlobsAreLive' : ActorMethod<
     [Array<Uint8Array>],
     Array<boolean>
@@ -7927,7 +8100,7 @@ export interface _SERVICE {
     [bigint, bigint, bigint],
     Array<AbsenceChangeView>
   >,
-  'acceptMyQuote' : ActorMethod<[bigint, string], Result_84>,
+  'acceptMyQuote' : ActorMethod<[bigint, string], Result_85>,
   'accessStats' : ActorMethod<[], AccessStats>,
   'addDealFile' : ActorMethod<
     [string, string, bigint, ExternalBlob, DealFilePurpose],
@@ -7955,11 +8128,11 @@ export interface _SERVICE {
       bigint,
       ExternalBlob,
     ],
-    Result_96
+    Result_98
   >,
   'addMyTenderFile' : ActorMethod<
     [string, string, string, bigint, ExternalBlob],
-    Result_95
+    Result_97
   >,
   'addOrgDocKind' : ActorMethod<[string], Result_10>,
   'addQuoteTerms' : ActorMethod<[QuoteTermsInput], Result_7>,
@@ -7980,7 +8153,7 @@ export interface _SERVICE {
     [bigint, string, bigint, boolean, bigint],
     Result_12
   >,
-  'applyTenderChoices' : ActorMethod<[bigint, bigint], Result_94>,
+  'applyTenderChoices' : ActorMethod<[bigint, bigint], Result_96>,
   'approveOaInvoice' : ActorMethod<
     [bigint, bigint, OaProofInput, string],
     Result_1
@@ -8005,7 +8178,7 @@ export interface _SERVICE {
   'archiveSalesPayment' : ActorMethod<[bigint, string], Result_1>,
   'archiveTask' : ActorMethod<[bigint, bigint, bigint], Result_7>,
   'archiveTechSheet' : ActorMethod<[bigint], Result_1>,
-  'askAi' : ActorMethod<[string, [] | [bigint], AiInput], Result_93>,
+  'askAi' : ActorMethod<[string, [] | [bigint], AiInput], Result_95>,
   'attachDocumentFile' : ActorMethod<
     [bigint, string, [] | [bigint], bigint],
     Result_7
@@ -8019,49 +8192,54 @@ export interface _SERVICE {
   'auditLog' : ActorMethod<[bigint, bigint], Array<AuditEntry>>,
   'boardConflicts' : ActorMethod<[bigint, bigint, bigint], ConflictList>,
   'boardRules' : ActorMethod<[], BoardRulesView>,
+  'botActions' : ActorMethod<[boolean], Array<BotActionView>>,
+  'botConnections' : ActorMethod<[bigint], Array<BotConnectionView>>,
+  'botLog' : ActorMethod<[bigint, bigint], Array<BotCallView>>,
   'cancelJob' : ActorMethod<[bigint], Result_1>,
   'cancelProgressDraft' : ActorMethod<[bigint, string], Result_1>,
   'cancelSalesDraft' : ActorMethod<[bigint, string], Result_1>,
-  'checkQuoteVersion' : ActorMethod<[bigint], Result_92>,
-  'checkTicket' : ActorMethod<[string], Result_91>,
-  'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_90>,
+  'checkQuoteVersion' : ActorMethod<[bigint], Result_94>,
+  'checkTicket' : ActorMethod<[string], Result_93>,
+  'checkinatworkExport' : ActorMethod<[bigint, bigint, bigint], Result_92>,
   'claimBootstrap' : ActorMethod<[string, string], Result_3>,
+  'claimBotCode' : ActorMethod<[string], Result_91>,
   'clientSiteAdmin' : ActorMethod<[bigint], ClientSiteView>,
-  'compareTender' : ActorMethod<[bigint], Result_89>,
+  'compareTender' : ActorMethod<[bigint], Result_90>,
   'completeJob' : ActorMethod<[bigint, bigint, string], Result_1>,
   'confirmAssignment' : ActorMethod<[bigint, boolean, string], Result_1>,
   'confirmHours' : ActorMethod<[bigint, boolean, string], Result_1>,
   'confirmLink' : ActorMethod<[Principal], Result_1>,
-  'createDeal' : ActorMethod<[bigint, bigint], Result_88>,
+  'createDeal' : ActorMethod<[bigint, bigint], Result_89>,
   'createOrg' : ActorMethod<[OrgInput], Result_4>,
-  'createQuote' : ActorMethod<[QuoteNew], Result_87>,
-  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_76>,
+  'createQuote' : ActorMethod<[QuoteNew], Result_88>,
+  'createRecoveryCode' : ActorMethod<[bigint, bigint, string], Result_77>,
   'createTender' : ActorMethod<[TenderInput], Result_7>,
-  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_86>,
+  'createTicket' : ActorMethod<[string, [] | [bigint]], Result_87>,
   'createWork' : ActorMethod<[WorkInput], Result_2>,
   'creditProgress' : ActorMethod<[bigint, string], Result_7>,
   'dashboard' : ActorMethod<[bigint], DashboardView>,
   'dealSetup' : ActorMethod<[], DealSetup>,
+  'decideBotAction' : ActorMethod<[bigint, boolean, string], Result_1>,
   'decideProposal' : ActorMethod<[bigint, boolean, string], Result_1>,
   'decideQuoteVersion' : ActorMethod<[bigint, boolean, string], Result_1>,
-  'declarationDraft' : ActorMethod<[bigint], Result_85>,
-  'declineMyQuote' : ActorMethod<[bigint, string, string], Result_84>,
+  'declarationDraft' : ActorMethod<[bigint], Result_86>,
+  'declineMyQuote' : ActorMethod<[bigint, string, string], Result_85>,
   'declineMyTender' : ActorMethod<[string, string], Result_1>,
   'dismissWorkStart' : ActorMethod<[bigint, string], Result_8>,
   'disputeOaInvoice' : ActorMethod<[bigint, bigint, string], Result_1>,
   'disputePurchase' : ActorMethod<[bigint, bigint, string], Result_1>,
   'endDeal' : ActorMethod<[bigint, string, bigint], Result_1>,
   'endMembership' : ActorMethod<[bigint], Result_1>,
-  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_83>,
+  'exportChunk' : ActorMethod<[string, bigint, bigint], Result_84>,
   'exportConfidential' : ActorMethod<[], ExportConfidential>,
   'exportIntern' : ActorMethod<[], ExportIntern>,
   'failAiTicket' : ActorMethod<[bigint, string], Result_1>,
   'failJob' : ActorMethod<[bigint, bigint, string, boolean], Result_1>,
-  'finishHandover' : ActorMethod<[bigint, bigint, string], Result_82>,
+  'finishHandover' : ActorMethod<[bigint, bigint, string], Result_83>,
   'getDossier' : ActorMethod<[bigint], DossierView>,
   'getLibraryItem' : ActorMethod<[bigint], Result_25>,
   'getMeasureSurvey' : ActorMethod<[bigint], SurveyDetail>,
-  'getOa' : ActorMethod<[bigint], Result_81>,
+  'getOa' : ActorMethod<[bigint], Result_82>,
   'getPlan' : ActorMethod<[bigint], PlanView>,
   'getQuoteDocSettings' : ActorMethod<[], QuoteDocSettings>,
   'getQuoteRules' : ActorMethod<[], QuoteRulesView>,
@@ -8070,19 +8248,21 @@ export interface _SERVICE {
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
   'handleIssue' : ActorMethod<[bigint, string], Result_1>,
-  'handoverDoc' : ActorMethod<[bigint], Result_80>,
-  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_79>,
+  'handoverDoc' : ActorMethod<[bigint], Result_81>,
+  'http_request' : ActorMethod<[Request], Response>,
+  'http_request_update' : ActorMethod<[Request], Response>,
+  'importOrgs' : ActorMethod<[boolean, Array<ImportRow>], Result_80>,
   'importPlanning' : ActorMethod<
     [boolean, string, string, Array<string>, ImportBlock],
-    Result_78
+    Result_79
   >,
-  'insuranceSheet' : ActorMethod<[bigint], Result_77>,
-  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_76>,
-  'invitePerson' : ActorMethod<[InviteRequest], Result_76>,
+  'insuranceSheet' : ActorMethod<[bigint], Result_78>,
+  'inviteExistingPerson' : ActorMethod<[ExistingInvite], Result_77>,
+  'invitePerson' : ActorMethod<[InviteRequest], Result_77>,
   'issueSalesInvoice' : ActorMethod<[bigint, bigint, bigint], Result_10>,
   'leaseJobs' : ActorMethod<[bigint], Array<JobLease>>,
   'libraryChapters' : ActorMethod<[boolean], Array<LibChapterView>>,
-  'libraryItemHistory' : ActorMethod<[bigint], Result_75>,
+  'libraryItemHistory' : ActorMethod<[bigint], Result_76>,
   'libraryUnits' : ActorMethod<[boolean], Array<UnitView>>,
   'listAbsences' : ActorMethod<
     [[] | [bigint], bigint, bigint],
@@ -8090,6 +8270,7 @@ export interface _SERVICE {
   >,
   'listAiWorkers' : ActorMethod<[], Array<AiWorkerView>>,
   'listAppointments' : ActorMethod<[bigint], Array<Appointment>>,
+  'listBots' : ActorMethod<[], Array<BotView>>,
   'listCalendarBlocks' : ActorMethod<[[] | [bigint]], Array<BlockView>>,
   'listContractTemplates' : ActorMethod<[], Array<ContractTemplateView>>,
   'listDeals' : ActorMethod<[bigint], Array<DealStatusView>>,
@@ -8111,7 +8292,7 @@ export interface _SERVICE {
   'listLibrary' : ActorMethod<[LibFilter], LibPage>,
   'listLinks' : ActorMethod<[], Array<LinkView>>,
   'listMailLog' : ActorMethod<[bigint, bigint], Array<MailLogView>>,
-  'listMarginClasses' : ActorMethod<[], Result_74>,
+  'listMarginClasses' : ActorMethod<[], Result_75>,
   'listMeasureWorks' : ActorMethod<[], Array<MeasureWorkBrief>>,
   'listMeetings' : ActorMethod<[bigint], Array<MeetingView>>,
   'listMembers' : ActorMethod<[bigint], Array<MembershipView>>,
@@ -8121,14 +8302,14 @@ export interface _SERVICE {
   'listMyMinMeer' : ActorMethod<[], Array<MyMinMeerBrief>>,
   'listMyProgress' : ActorMethod<[], Array<MyProgressBrief>>,
   'listMyQuotes' : ActorMethod<[], Array<MyQuoteBrief>>,
-  'listMySales' : ActorMethod<[], Result_73>,
+  'listMySales' : ActorMethod<[], Result_74>,
   'listMyTenders' : ActorMethod<[], Array<MyTenderBrief>>,
   'listOaInvoices' : ActorMethod<
     [[] | [bigint], [] | [OaInvoiceStatus]],
     Array<OaInvoiceBrief>
   >,
   'listOaQuotes' : ActorMethod<[bigint], Array<OaQuoteBrief>>,
-  'listOaRates' : ActorMethod<[bigint], Result_72>,
+  'listOaRates' : ActorMethod<[bigint], Result_73>,
   'listOas' : ActorMethod<[OaFilter], Array<OaView>>,
   'listOrgDocKinds' : ActorMethod<[], Array<OrgDocKindAdminView>>,
   'listOrgDocs' : ActorMethod<[bigint], OrgDocsView>,
@@ -8141,7 +8322,7 @@ export interface _SERVICE {
     [[] | [bigint], [] | [PurchaseStatus]],
     Array<PurchaseBrief>
   >,
-  'listPurchasesToPay' : ActorMethod<[], Result_71>,
+  'listPurchasesToPay' : ActorMethod<[], Result_72>,
   'listQuotes' : ActorMethod<[[] | [bigint], boolean], Array<QuoteSummary>>,
   'listReports' : ActorMethod<[bigint, bigint, bigint], Array<ReportSummary>>,
   'listRobots' : ActorMethod<[], Array<RobotView>>,
@@ -8156,12 +8337,12 @@ export interface _SERVICE {
   'listWorkStages' : ActorMethod<[], Array<WorkStageView>>,
   'listWorks' : ActorMethod<[], Array<WorkView>>,
   'loadLibraryStartChapters' : ActorMethod<[], Result_7>,
-  'lookupFine' : ActorMethod<[FineQuery], Result_70>,
-  'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_69>,
+  'lookupFine' : ActorMethod<[FineQuery], Result_71>,
+  'mailPreview' : ActorMethod<[string, [] | [bigint], bigint], Result_70>,
   'mailQuoteToClient' : ActorMethod<[bigint], Result_1>,
   'makeExtraWorkQuote' : ActorMethod<
     [bigint, Array<bigint>, string],
-    Result_68
+    Result_69
   >,
   'makeMinMeerVersion' : ActorMethod<[bigint, string, MmExpect], Result_7>,
   'makeOaContract' : ActorMethod<[bigint, bigint], Result_45>,
@@ -8182,6 +8363,7 @@ export interface _SERVICE {
   >,
   'markSalesSent' : ActorMethod<[bigint, string], Result_1>,
   'markSalesUbl' : ActorMethod<[bigint], Result_1>,
+  'mcpInfo' : ActorMethod<[], McpInfo>,
   'me' : ActorMethod<[], MeView>,
   'measurePost' : ActorMethod<[bigint, bigint], MeasurePostDetail>,
   'measureSettings' : ActorMethod<[], MeasureSettingsView>,
@@ -8189,9 +8371,10 @@ export interface _SERVICE {
   'measureSync' : ActorMethod<[Array<MeasureOpInput>], Array<MeasureOpResult>>,
   'meetKlok' : ActorMethod<[string], bigint>,
   'minMeerQty' : ActorMethod<[bigint], MinMeerQtyView>,
-  'minMeerSettings' : ActorMethod<[], Result_67>,
+  'minMeerSettings' : ActorMethod<[], Result_68>,
   'myAiCalls' : ActorMethod<[], Array<AiCallView>>,
   'myBoard' : ActorMethod<[bigint, bigint], MyBoardView>,
+  'myBot' : ActorMethod<[], MyBot>,
   'myDay' : ActorMethod<[bigint, boolean], MyDayView>,
   'myHours' : ActorMethod<[bigint, bigint], Array<HoursLine>>,
   'myNotifications' : ActorMethod<[boolean], Array<NotificationView>>,
@@ -8199,6 +8382,7 @@ export interface _SERVICE {
   'myProposals' : ActorMethod<[], Array<ProposalView>>,
   'myPurchases' : ActorMethod<[], Array<MyPurchaseView>>,
   'myWorks' : ActorMethod<[], Array<ExternalWork>>,
+  'newBotCode' : ActorMethod<[bigint], Result_67>,
   'newProgress' : ActorMethod<[bigint], Result_7>,
   'newQuoteVersion' : ActorMethod<[bigint, [] | [bigint]], Result_7>,
   'newSalesInvoice' : ActorMethod<[bigint, SalesSource], Result_7>,
@@ -8280,6 +8464,8 @@ export interface _SERVICE {
   'retryJob' : ActorMethod<[bigint], Result_1>,
   'reviewHourClaim' : ActorMethod<[bigint, boolean, string], Result_1>,
   'reviewOrgDoc' : ActorMethod<[bigint, boolean, string], Result_1>,
+  'revokeBot' : ActorMethod<[bigint], Result_1>,
+  'revokeBotConnection' : ActorMethod<[bigint, string], Result_1>,
   'revokeInvite' : ActorMethod<[bigint], Result_1>,
   'revokeLink' : ActorMethod<[Principal], Result_1>,
   'revokeRobot' : ActorMethod<[Principal], Result_1>,
@@ -8291,6 +8477,7 @@ export interface _SERVICE {
   'saveAbsence' : ActorMethod<[AbsenceInput], Result_7>,
   'saveAiWorker' : ActorMethod<[AiWorkerInput], Result_1>,
   'saveAssignment' : ActorMethod<[bigint, AssignmentInput, bigint], Result_7>,
+  'saveBot' : ActorMethod<[BotInput], Result_7>,
   'saveCalendarBlock' : ActorMethod<[BlockInput], Result_7>,
   'saveContractTemplate' : ActorMethod<
     [string, string, boolean, string],
@@ -8438,6 +8625,7 @@ export interface _SERVICE {
   'tenderAccess' : ActorMethod<[bigint, bigint], Result_6>,
   'tenderSettings' : ActorMethod<[], TenderSettings>,
   'tenderSuggestions' : ActorMethod<[bigint, Array<bigint>], Result_5>,
+  'undoBotAction' : ActorMethod<[bigint], Result_1>,
   'updateOrg' : ActorMethod<[bigint, OrgInput], Result_4>,
   'updatePerson' : ActorMethod<[bigint, PersonUpdate], Result_3>,
   'updateTender' : ActorMethod<[bigint, bigint, TenderOp], Result_1>,

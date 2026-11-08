@@ -386,6 +386,12 @@ export interface Appointment {
     workId: WorkId;
     archivedAt?: bigint;
 }
+export interface Approval {
+    clientId: string;
+    redirectUri: string;
+    codeChallengeMethod: string;
+    codeChallenge: string;
+}
 export interface Assignment {
     id: bigint;
     toDay?: Day;
@@ -630,6 +636,147 @@ export interface BoardView {
 export interface BoardWeek {
     blocks: Array<BlockView>;
     monday: Day;
+}
+export type BotActionDetail = {
+    __kind__: "invoiceCheck";
+    invoiceCheck: {
+        firm: string;
+        invoiceId: bigint;
+        verdict: string;
+        number: string;
+        remarks: Array<string>;
+    };
+} | {
+    __kind__: "other";
+    other: {
+        tool: string;
+    };
+} | {
+    __kind__: "docLink";
+    docLink: {
+        title: string;
+        kind: string;
+        fileName: string;
+        fileId: bigint;
+    };
+};
+export type BotActionState = {
+    __kind__: "expired";
+    expired: null;
+} | {
+    __kind__: "done";
+    done: null;
+} | {
+    __kind__: "undone";
+    undone: null;
+} | {
+    __kind__: "rejected";
+    rejected: null;
+} | {
+    __kind__: "proposed";
+    proposed: null;
+} | {
+    __kind__: "accepted";
+    accepted: null;
+} | {
+    __kind__: "failed";
+    failed: string;
+};
+export interface BotActionView {
+    at: bigint;
+    id: bigint;
+    appliedAt?: bigint;
+    note: string;
+    botName: string;
+    task: string;
+    createdDoc: boolean;
+    canUndo: boolean;
+    detail: BotActionDetail;
+    state: BotActionState;
+    botId: bigint;
+    workId?: WorkId;
+    docId?: bigint;
+    decidedAt?: bigint;
+    decidedBy?: PersonId;
+    workCode: string;
+    reason: string;
+}
+export type BotCallOutcome = {
+    __kind__: "ok";
+    ok: null;
+} | {
+    __kind__: "error";
+    error: string;
+} | {
+    __kind__: "limit";
+    limit: null;
+} | {
+    __kind__: "unknown";
+    unknown: null;
+} | {
+    __kind__: "refused";
+    refused: string;
+};
+export interface BotCallView {
+    at: bigint;
+    id: bigint;
+    botName: string;
+    tool: string;
+    botId: bigint;
+    workId?: WorkId;
+    argsSha256: string;
+    outcome: BotCallOutcome;
+    actionId?: bigint;
+}
+export interface BotConnectionView {
+    id: string;
+    expiresAt: bigint;
+    clientName: string;
+    createdAt: bigint;
+}
+export interface BotInput {
+    id?: bigint;
+    rev: bigint;
+    tasks: Array<[string, BotLevel]>;
+    model: string;
+    tools: Array<string>;
+    name: string;
+    docKinds: Array<string>;
+    vendor: string;
+    allWorks: boolean;
+    works: Array<WorkId>;
+    callsPerDay: bigint;
+}
+export interface BotTaskInfo {
+    key: string;
+    maxAuto: boolean;
+}
+export interface BotToolInfo {
+    name: string;
+    task: string;
+    readOnly: boolean;
+}
+export interface BotView {
+    id: bigint;
+    rev: bigint;
+    openActions: bigint;
+    tasks: Array<[string, BotLevel]>;
+    model: string;
+    principal?: Principal;
+    tools: Array<string>;
+    codePending: boolean;
+    name: string;
+    createdAt: bigint;
+    docKinds: Array<string>;
+    codeExpiresAt: bigint;
+    connections: bigint;
+    updatedAt: bigint;
+    callsToday: bigint;
+    vendor: string;
+    allWorks: boolean;
+    works: Array<WorkId>;
+    revokedAt?: bigint;
+    callsPerDay: bigint;
 }
 export interface CalendarBlock {
     id: bigint;
@@ -1869,6 +2016,7 @@ export interface HandoverView {
     signedFileId?: bigint;
     points: Array<PointView>;
 }
+export type HeaderField = [string, string];
 export interface HourClaim {
     id: bigint;
     day: Day;
@@ -2765,6 +2913,12 @@ export interface MaterialView {
     createdByName: string;
     quantity: string;
 }
+export interface McpInfo {
+    tasks: Array<BotTaskInfo>;
+    signInOrigin?: string;
+    tools: Array<BotToolInfo>;
+    never: Array<string>;
+}
 export interface MeView {
     blockedUntil?: bigint;
     status: Variant_active_pending_anonymous_unlinked;
@@ -3444,6 +3598,22 @@ export interface MyBoardView {
     canReport: boolean;
     weeks: Array<BoardWeek>;
 }
+export type MyBot = {
+    __kind__: "bot";
+    bot: {
+        name: string;
+        vendor: string;
+    };
+} | {
+    __kind__: "revoked";
+    revoked: null;
+} | {
+    __kind__: "person";
+    person: null;
+} | {
+    __kind__: "none";
+    none: null;
+};
 export interface MyContractBrief {
     ref: string;
     status: string;
@@ -3814,6 +3984,10 @@ export interface MyTenderView {
     items: Array<MyTenderItem>;
     versions: bigint;
     outcome: TenderOutcome;
+}
+export interface NewBotCode {
+    expiresAt: bigint;
+    code: string;
 }
 export interface NewCode {
     expiresAt: bigint;
@@ -6421,6 +6595,20 @@ export interface ReportView {
     workDone: Array<WorkDoneView>;
     totalMinutes: bigint;
 }
+export interface Request {
+    url: string;
+    method: string;
+    body: Uint8Array;
+    headers: Array<HeaderField>;
+    certificate_version?: number;
+}
+export interface Response {
+    body: Uint8Array;
+    headers: Array<HeaderField>;
+    upgrade?: boolean;
+    streaming_strategy?: StreamingStrategy;
+    status_code: number;
+}
 export type RestorePart = {
     __kind__: "ops";
     ops: Array<OpRecord>;
@@ -7306,21 +7494,21 @@ export type Result_66 = {
 };
 export type Result_67 = {
     __kind__: "ok";
-    ok: MmSettingsView;
+    ok: NewBotCode;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_68 = {
     __kind__: "ok";
-    ok: MmExtraQuoteMade;
+    ok: MmSettingsView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_69 = {
     __kind__: "ok";
-    ok: MailPreview;
+    ok: MmExtraQuoteMade;
 } | {
     __kind__: "err";
     err: string;
@@ -7334,70 +7522,70 @@ export type Result_7 = {
 };
 export type Result_70 = {
     __kind__: "ok";
-    ok: FineResult;
+    ok: MailPreview;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_71 = {
     __kind__: "ok";
-    ok: Array<PayRow>;
+    ok: FineResult;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_72 = {
     __kind__: "ok";
-    ok: Array<OaRateView>;
+    ok: Array<PayRow>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_73 = {
     __kind__: "ok";
-    ok: MySalesView;
+    ok: Array<OaRateView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_74 = {
     __kind__: "ok";
-    ok: MarginClassesView;
+    ok: MySalesView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_75 = {
     __kind__: "ok";
-    ok: Array<LibItemVersionView>;
+    ok: MarginClassesView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_76 = {
     __kind__: "ok";
-    ok: NewCode;
+    ok: Array<LibItemVersionView>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_77 = {
     __kind__: "ok";
-    ok: InsuranceSheetData;
+    ok: NewCode;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_78 = {
     __kind__: "ok";
-    ok: PlanImportReport;
+    ok: InsuranceSheetData;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_79 = {
     __kind__: "ok";
-    ok: ImportReport;
+    ok: PlanImportReport;
 } | {
     __kind__: "err";
     err: string;
@@ -7411,73 +7599,73 @@ export type Result_8 = {
 };
 export type Result_80 = {
     __kind__: "ok";
-    ok: HandoverDocData;
+    ok: ImportReport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_81 = {
     __kind__: "ok";
-    ok: OaView;
+    ok: HandoverDocData;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_82 = {
     __kind__: "ok";
-    ok: HandoverView;
+    ok: OaView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_83 = {
     __kind__: "ok";
-    ok: RestorePart;
+    ok: HandoverView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_84 = {
     __kind__: "ok";
-    ok: MyQuoteAnswered;
+    ok: RestorePart;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_85 = {
     __kind__: "ok";
-    ok: DeclarationDraft;
+    ok: MyQuoteAnswered;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_86 = {
     __kind__: "ok";
-    ok: NewTicket;
+    ok: DeclarationDraft;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_87 = {
     __kind__: "ok";
-    ok: QuoteCreated;
+    ok: NewTicket;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_88 = {
     __kind__: "ok";
-    ok: {
-        id: bigint;
-        warnings: Array<string>;
-    };
+    ok: QuoteCreated;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_89 = {
     __kind__: "ok";
-    ok: TenderCompareView;
+    ok: {
+        id: bigint;
+        warnings: Array<string>;
+    };
 } | {
     __kind__: "err";
     err: string;
@@ -7491,47 +7679,61 @@ export type Result_9 = {
 };
 export type Result_90 = {
     __kind__: "ok";
-    ok: CiawExport;
+    ok: TenderCompareView;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_91 = {
     __kind__: "ok";
-    ok: TicketInfo;
+    ok: MyBot;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_92 = {
     __kind__: "ok";
-    ok: Array<QuoteFinding>;
+    ok: CiawExport;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_93 = {
     __kind__: "ok";
-    ok: AiAnswer;
+    ok: TicketInfo;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_94 = {
     __kind__: "ok";
-    ok: TenderApplyResult;
+    ok: Array<QuoteFinding>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_95 = {
     __kind__: "ok";
-    ok: MyTenderFile;
+    ok: AiAnswer;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_96 = {
+    __kind__: "ok";
+    ok: TenderApplyResult;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_97 = {
+    __kind__: "ok";
+    ok: MyTenderFile;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_98 = {
     __kind__: "ok";
     ok: MyAttestView;
 } | {
@@ -8095,6 +8297,23 @@ export interface StartState {
     introSeen: boolean;
     marked: Array<string>;
 }
+export interface StreamingCallbackHttpResponse {
+    token?: StreamingCallbackToken;
+    body: Uint8Array;
+}
+export interface StreamingCallbackToken {
+    key: string;
+    sha256?: Uint8Array;
+    index: bigint;
+    content_encoding: string;
+}
+export type StreamingStrategy = {
+    __kind__: "Callback";
+    Callback: {
+        token: StreamingCallbackToken;
+        callback: [Principal, string];
+    };
+};
 export interface SubgroupOp {
     id?: bigint;
     ref: string;
@@ -9232,6 +9451,11 @@ export enum BlockKind {
     stop = "stop",
     verlof = "verlof"
 }
+export enum BotLevel {
+    auto = "auto",
+    never = "never",
+    proposal = "proposal"
+}
 export enum CascadeMode {
     asNeeded = "asNeeded",
     follow = "follow"
@@ -9501,7 +9725,7 @@ export enum WorkStatus {
 }
 export interface backendInterface {
     absenceHistory(orgId: bigint, from: bigint, limit: bigint): Promise<Array<AbsenceChangeView>>;
-    acceptMyQuote(versionId: bigint, hash: string): Promise<Result_84>;
+    acceptMyQuote(versionId: bigint, hash: string): Promise<Result_85>;
     accessStats(): Promise<AccessStats>;
     addDealFile(name: string, mime: string, size: bigint, blob: ExternalBlob, purpose: DealFilePurpose): Promise<Result_7>;
     addDealRate(id: bigint, i: DealRateInput, rev: bigint): Promise<Result_1>;
@@ -9509,8 +9733,8 @@ export interface backendInterface {
     addFile(name: string, mime: string, size: bigint, blob: ExternalBlob, workId: bigint | null, confidential: boolean): Promise<Result_7>;
     addLibraryCost(itemId: bigint, i: LibCostInput): Promise<Result_7>;
     addMembership(workId: bigint, personId: bigint | null, orgId: bigint | null, role: Role, grants: Array<Grant>): Promise<Result_7>;
-    addMyAttest(kind: string, title: string, validFrom: Day | null, validUntil: Day | null, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_96>;
-    addMyTenderFile(ref: string, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_95>;
+    addMyAttest(kind: string, title: string, validFrom: Day | null, validUntil: Day | null, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_98>;
+    addMyTenderFile(ref: string, name: string, mime: string, size: bigint, blob: ExternalBlob): Promise<Result_97>;
     addOrgDocKind(name: string): Promise<Result_10>;
     addQuoteTerms(i: QuoteTermsInput): Promise<Result_7>;
     addRobot(principal: Principal, name: string, kinds: Array<string>): Promise<Result_1>;
@@ -9524,7 +9748,7 @@ export interface backendInterface {
     answerMyProgress(id: bigint, hash: string, ok: boolean, note: string): Promise<Result_1>;
     applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_12>;
     applyTemplate(workId: bigint, key: string, startDay: bigint, append: boolean, expectedVersion: bigint): Promise<Result_12>;
-    applyTenderChoices(tenderId: bigint, versionId: bigint): Promise<Result_94>;
+    applyTenderChoices(tenderId: bigint, versionId: bigint): Promise<Result_96>;
     approveOaInvoice(id: bigint, rev: bigint, proof: OaProofInput, reason: string): Promise<Result_1>;
     approvePurchase(id: bigint, rev: bigint, reason: string): Promise<Result_1>;
     archiveAbsence(id: bigint): Promise<Result_1>;
@@ -9546,7 +9770,7 @@ export interface backendInterface {
     archiveSalesPayment(paymentId: bigint, reason: string): Promise<Result_1>;
     archiveTask(workId: bigint, taskId: bigint, expectedVersion: bigint): Promise<Result_7>;
     archiveTechSheet(id: bigint): Promise<Result_1>;
-    askAi(worker: string, workId: bigint | null, input: AiInput): Promise<Result_93>;
+    askAi(worker: string, workId: bigint | null, input: AiInput): Promise<Result_95>;
     attachDocumentFile(workId: bigint, kindKey: string, docId: bigint | null, fileId: bigint): Promise<Result_7>;
     attachInsuranceFile(id: bigint, kindKey: string, title: string, fileId: bigint, asAttest: boolean): Promise<Result_7>;
     attachPermitFile(permitId: bigint, fileId: bigint): Promise<Result_20>;
@@ -9554,49 +9778,54 @@ export interface backendInterface {
     auditLog(from: bigint, limit: bigint): Promise<Array<AuditEntry>>;
     boardConflicts(fromDay: bigint, weeks: bigint, limit: bigint): Promise<ConflictList>;
     boardRules(): Promise<BoardRulesView>;
+    botActions(onlyOpen: boolean): Promise<Array<BotActionView>>;
+    botConnections(botId: bigint): Promise<Array<BotConnectionView>>;
+    botLog(from: bigint, n: bigint): Promise<Array<BotCallView>>;
     cancelJob(id: bigint): Promise<Result_1>;
     cancelProgressDraft(id: bigint, reason: string): Promise<Result_1>;
     cancelSalesDraft(id: bigint, reason: string): Promise<Result_1>;
-    checkQuoteVersion(versionId: bigint): Promise<Result_92>;
-    checkTicket(ticket: string): Promise<Result_91>;
-    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_90>;
+    checkQuoteVersion(versionId: bigint): Promise<Result_94>;
+    checkTicket(ticket: string): Promise<Result_93>;
+    checkinatworkExport(workId: bigint, from: bigint, to: bigint): Promise<Result_92>;
     claimBootstrap(code: string, name: string): Promise<Result_3>;
+    claimBotCode(code: string): Promise<Result_91>;
     clientSiteAdmin(workId: bigint): Promise<ClientSiteView>;
-    compareTender(tenderId: bigint): Promise<Result_89>;
+    compareTender(tenderId: bigint): Promise<Result_90>;
     completeJob(id: bigint, attempt: bigint, result: string): Promise<Result_1>;
     confirmAssignment(assignmentId: bigint, accept: boolean, reason: string): Promise<Result_1>;
     confirmHours(attendanceId: bigint, ok: boolean, remark: string): Promise<Result_1>;
     confirmLink(p: Principal): Promise<Result_1>;
-    createDeal(workId: bigint, orgId: bigint): Promise<Result_88>;
+    createDeal(workId: bigint, orgId: bigint): Promise<Result_89>;
     createOrg(input: OrgInput): Promise<Result_4>;
-    createQuote(i: QuoteNew): Promise<Result_87>;
-    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_76>;
+    createQuote(i: QuoteNew): Promise<Result_88>;
+    createRecoveryCode(personId: bigint, validDays: bigint, tag: string): Promise<Result_77>;
     createTender(i: TenderInput): Promise<Result_7>;
-    createTicket(task: string, workId: bigint | null): Promise<Result_86>;
+    createTicket(task: string, workId: bigint | null): Promise<Result_87>;
     createWork(i: WorkInput): Promise<Result_2>;
     creditProgress(id: bigint, reason: string): Promise<Result_7>;
     dashboard(day: bigint): Promise<DashboardView>;
     dealSetup(): Promise<DealSetup>;
+    decideBotAction(id: bigint, accept: boolean, note: string): Promise<Result_1>;
     decideProposal(id: bigint, accepted: boolean, note: string): Promise<Result_1>;
     decideQuoteVersion(versionId: bigint, accepted: boolean, note: string): Promise<Result_1>;
-    declarationDraft(workId: bigint): Promise<Result_85>;
-    declineMyQuote(versionId: bigint, hash: string, note: string): Promise<Result_84>;
+    declarationDraft(workId: bigint): Promise<Result_86>;
+    declineMyQuote(versionId: bigint, hash: string, note: string): Promise<Result_85>;
     declineMyTender(ref: string, reason: string): Promise<Result_1>;
     dismissWorkStart(versionId: bigint, reason: string): Promise<Result_8>;
     disputeOaInvoice(id: bigint, rev: bigint, reason: string): Promise<Result_1>;
     disputePurchase(id: bigint, rev: bigint, reason: string): Promise<Result_1>;
     endDeal(id: bigint, reason: string, rev: bigint): Promise<Result_1>;
     endMembership(id: bigint): Promise<Result_1>;
-    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_83>;
+    exportChunk(kind: string, from: bigint, limit: bigint): Promise<Result_84>;
     exportConfidential(): Promise<ExportConfidential>;
     exportIntern(): Promise<ExportIntern>;
     failAiTicket(ticketId: bigint, why: string): Promise<Result_1>;
     failJob(id: bigint, attempt: bigint, why: string, retry: boolean): Promise<Result_1>;
-    finishHandover(id: bigint, docFileId: bigint, controlCode: string): Promise<Result_82>;
+    finishHandover(id: bigint, docFileId: bigint, controlCode: string): Promise<Result_83>;
     getDossier(workId: bigint): Promise<DossierView>;
     getLibraryItem(id: bigint): Promise<Result_25>;
     getMeasureSurvey(surveyId: bigint): Promise<SurveyDetail>;
-    getOa(id: bigint): Promise<Result_81>;
+    getOa(id: bigint): Promise<Result_82>;
     getPlan(workId: bigint): Promise<PlanView>;
     getQuoteDocSettings(): Promise<QuoteDocSettings>;
     getQuoteRules(): Promise<QuoteRulesView>;
@@ -9605,20 +9834,23 @@ export interface backendInterface {
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
     handleIssue(issueId: bigint, note: string): Promise<Result_1>;
-    handoverDoc(id: bigint): Promise<Result_80>;
-    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_79>;
-    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_78>;
-    insuranceSheet(id: bigint): Promise<Result_77>;
-    inviteExistingPerson(i: ExistingInvite): Promise<Result_76>;
-    invitePerson(req: InviteRequest): Promise<Result_76>;
+    handoverDoc(id: bigint): Promise<Result_81>;
+    http_request(req: Request): Promise<Response>;
+    http_request_update(req: Request): Promise<Response>;
+    importOrgs(dryRun: boolean, rows: Array<ImportRow>): Promise<Result_80>;
+    importPlanning(dryRun: boolean, batchId: string, title: string, knownBlocks: Array<string>, block: ImportBlock): Promise<Result_79>;
+    insuranceSheet(id: bigint): Promise<Result_78>;
+    inviteExistingPerson(i: ExistingInvite): Promise<Result_77>;
+    invitePerson(req: InviteRequest): Promise<Result_77>;
     issueSalesInvoice(id: bigint, rev: bigint, expectTotalCents: bigint): Promise<Result_10>;
     leaseJobs(max: bigint): Promise<Array<JobLease>>;
     libraryChapters(includeArchived: boolean): Promise<Array<LibChapterView>>;
-    libraryItemHistory(id: bigint): Promise<Result_75>;
+    libraryItemHistory(id: bigint): Promise<Result_76>;
     libraryUnits(includeArchived: boolean): Promise<Array<UnitView>>;
     listAbsences(orgId: bigint | null, fromDay: bigint, toDay: bigint): Promise<Array<AbsenceView>>;
     listAiWorkers(): Promise<Array<AiWorkerView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
+    listBots(): Promise<Array<BotView>>;
     listCalendarBlocks(workId: bigint | null): Promise<Array<BlockView>>;
     listContractTemplates(): Promise<Array<ContractTemplateView>>;
     listDeals(workId: bigint): Promise<Array<DealStatusView>>;
@@ -9634,7 +9866,7 @@ export interface backendInterface {
     listLibrary(f: LibFilter): Promise<LibPage>;
     listLinks(): Promise<Array<LinkView>>;
     listMailLog(from: bigint, limit: bigint): Promise<Array<MailLogView>>;
-    listMarginClasses(): Promise<Result_74>;
+    listMarginClasses(): Promise<Result_75>;
     listMeasureWorks(): Promise<Array<MeasureWorkBrief>>;
     listMeetings(workId: bigint): Promise<Array<MeetingView>>;
     listMembers(workId: bigint): Promise<Array<MembershipView>>;
@@ -9644,11 +9876,11 @@ export interface backendInterface {
     listMyMinMeer(): Promise<Array<MyMinMeerBrief>>;
     listMyProgress(): Promise<Array<MyProgressBrief>>;
     listMyQuotes(): Promise<Array<MyQuoteBrief>>;
-    listMySales(): Promise<Result_73>;
+    listMySales(): Promise<Result_74>;
     listMyTenders(): Promise<Array<MyTenderBrief>>;
     listOaInvoices(workId: bigint | null, status: OaInvoiceStatus | null): Promise<Array<OaInvoiceBrief>>;
     listOaQuotes(workId: bigint): Promise<Array<OaQuoteBrief>>;
-    listOaRates(orgId: bigint): Promise<Result_72>;
+    listOaRates(orgId: bigint): Promise<Result_73>;
     listOas(f: OaFilter): Promise<Array<OaView>>;
     listOrgDocKinds(): Promise<Array<OrgDocKindAdminView>>;
     listOrgDocs(orgId: bigint): Promise<OrgDocsView>;
@@ -9658,7 +9890,7 @@ export interface backendInterface {
     listPersons(includeArchived: boolean): Promise<Array<PersonView>>;
     listProgress(workId: bigint): Promise<Array<ProgressBrief>>;
     listPurchases(workId: bigint | null, status: PurchaseStatus | null): Promise<Array<PurchaseBrief>>;
-    listPurchasesToPay(): Promise<Result_71>;
+    listPurchasesToPay(): Promise<Result_72>;
     listQuotes(workId: bigint | null, includeArchived: boolean): Promise<Array<QuoteSummary>>;
     listReports(workId: bigint, offset: bigint, limit: bigint): Promise<Array<ReportSummary>>;
     listRobots(): Promise<Array<RobotView>>;
@@ -9673,10 +9905,10 @@ export interface backendInterface {
     listWorkStages(): Promise<Array<WorkStageView>>;
     listWorks(): Promise<Array<WorkView>>;
     loadLibraryStartChapters(): Promise<Result_7>;
-    lookupFine(q: FineQuery): Promise<Result_70>;
-    mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_69>;
+    lookupFine(q: FineQuery): Promise<Result_71>;
+    mailPreview(kind: string, orgId: bigint | null, monday: bigint): Promise<Result_70>;
     mailQuoteToClient(versionId: bigint): Promise<Result_1>;
-    makeExtraWorkQuote(workId: bigint, entryIds: Array<bigint>, title: string): Promise<Result_68>;
+    makeExtraWorkQuote(workId: bigint, entryIds: Array<bigint>, title: string): Promise<Result_69>;
     makeMinMeerVersion(workId: bigint, note: string, expect: MmExpect): Promise<Result_7>;
     makeOaContract(id: bigint, rev: bigint): Promise<Result_45>;
     markIntroSeen(): Promise<void>;
@@ -9687,6 +9919,7 @@ export interface backendInterface {
     markPurchasePaid(id: bigint, rev: bigint, day: bigint | null, withheldDay: bigint | null): Promise<Result_1>;
     markSalesSent(id: bigint, how: string): Promise<Result_1>;
     markSalesUbl(id: bigint): Promise<Result_1>;
+    mcpInfo(): Promise<McpInfo>;
     me(): Promise<MeView>;
     measurePost(workId: bigint, root: bigint): Promise<MeasurePostDetail>;
     measureSettings(): Promise<MeasureSettingsView>;
@@ -9694,9 +9927,10 @@ export interface backendInterface {
     measureSync(ops: Array<MeasureOpInput>): Promise<Array<MeasureOpResult>>;
     meetKlok(which: string): Promise<bigint>;
     minMeerQty(workId: bigint): Promise<MinMeerQtyView>;
-    minMeerSettings(): Promise<Result_67>;
+    minMeerSettings(): Promise<Result_68>;
     myAiCalls(): Promise<Array<AiCallView>>;
     myBoard(fromDay: bigint, weeks: bigint): Promise<MyBoardView>;
+    myBot(): Promise<MyBot>;
     myDay(day: bigint, all: boolean): Promise<MyDayView>;
     myHours(fromDay: bigint, toDay: bigint): Promise<Array<HoursLine>>;
     myNotifications(unreadOnly: boolean): Promise<Array<NotificationView>>;
@@ -9704,6 +9938,7 @@ export interface backendInterface {
     myProposals(): Promise<Array<ProposalView>>;
     myPurchases(): Promise<Array<MyPurchaseView>>;
     myWorks(): Promise<Array<ExternalWork>>;
+    newBotCode(botId: bigint): Promise<Result_67>;
     newProgress(workId: bigint): Promise<Result_7>;
     newQuoteVersion(quoteId: bigint, fromVersionId: bigint | null): Promise<Result_7>;
     newSalesInvoice(workId: bigint, src: SalesSource): Promise<Result_7>;
@@ -9782,6 +10017,8 @@ export interface backendInterface {
     retryJob(id: bigint): Promise<Result_1>;
     reviewHourClaim(id: bigint, ok: boolean, note: string): Promise<Result_1>;
     reviewOrgDoc(id: bigint, ok: boolean, note: string): Promise<Result_1>;
+    revokeBot(botId: bigint): Promise<Result_1>;
+    revokeBotConnection(botId: bigint, connectionId: string): Promise<Result_1>;
     revokeInvite(inviteId: bigint): Promise<Result_1>;
     revokeLink(p: Principal): Promise<Result_1>;
     revokeRobot(principal: Principal): Promise<Result_1>;
@@ -9793,6 +10030,7 @@ export interface backendInterface {
     saveAbsence(i: AbsenceInput): Promise<Result_7>;
     saveAiWorker(x: AiWorkerInput): Promise<Result_1>;
     saveAssignment(workId: bigint, i: AssignmentInput, expectedVersion: bigint): Promise<Result_7>;
+    saveBot(i: BotInput): Promise<Result_7>;
     saveCalendarBlock(i: BlockInput): Promise<Result_7>;
     saveContractTemplate(title: string, text: string, provisional: boolean, note: string): Promise<Result_7>;
     saveDealTerms(id: bigint, i: DealTermsInput, rev: bigint): Promise<Result_1>;
@@ -9897,6 +10135,7 @@ export interface backendInterface {
     tenderAccess(inviteId: bigint, validDays: bigint): Promise<Result_6>;
     tenderSettings(): Promise<TenderSettings>;
     tenderSuggestions(versionId: bigint, lineIds: Array<bigint>): Promise<Result_5>;
+    undoBotAction(id: bigint): Promise<Result_1>;
     updateOrg(id: bigint, input: OrgInput): Promise<Result_4>;
     updatePerson(id: bigint, u: PersonUpdate): Promise<Result_3>;
     updateTender(tenderId: bigint, rev: bigint, op: TenderOp): Promise<Result_1>;

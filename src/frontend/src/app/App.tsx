@@ -9,6 +9,7 @@ import { OutboxProvider, useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
 import { useBackend } from "../util";
 import { CodeEntry, Login, Pending } from "../screens/Gate";
+import { isMcpAuthorize, McpKoppelen } from "../screens/McpKoppelen";
 import { Home } from "../screens/Home";
 import { Overzicht } from "../screens/Overzicht";
 import { Werven } from "../screens/Werven";
@@ -127,6 +128,8 @@ function AppInner() {
   };
 
   if (isInitializing) return <Gate><p className="bw-muted">{t.common.loading}</p></Gate>;
+  // 3.13: de toestemmingspagina voor een bot (OAuth van de MCP-connector) staat los van de gewone app: een bot is geen persoon.
+  if (isMcpAuthorize()) return <Gate onLogout={isAuthenticated ? () => void logout() : undefined}><McpKoppelen onLogout={() => void logout()} /></Gate>;
   if (!isAuthenticated) {
     return (
       <Gate>

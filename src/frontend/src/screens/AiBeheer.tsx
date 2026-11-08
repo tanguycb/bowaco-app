@@ -12,6 +12,7 @@ import { t } from "../texts/nl";
 import { errText, fmtEuro, fmtTime, parseEuro, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
 import { Field } from "./Werven";
+import { Bots } from "./Bots";
 
 const A = t.ai;
 const PAGE = 50n;
@@ -136,6 +137,8 @@ export function AiBeheer() {
           {log.data && BigInt(log.data.length) === PAGE && <Button variant="quiet" onClick={() => setFrom(from + PAGE)}>{A.more}</Button>}
         </div>
       </section>
+
+      <Bots />
 
       {edit && <WorkerSheet w={edit} models={o?.models ?? []} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); refreshAll(); toast.show({ kind: "ok", text: t.common.saved }); }} />}
     </Page>
