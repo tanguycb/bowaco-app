@@ -612,6 +612,38 @@ module {
   public func aiLiveBackends() : [Text] { [] };
   public let aiLiveAnyCanister : Bool = false;
 
+  // ── Bots via MCP (stap 3.4 + 3.13, bouwplan §6 "Bots via MCP" en "Autonomie per taak") ──
+  // De tools van de MCP-server (lib/Bots.mo): (naam, taak). Taak "" = enkel lezen (geen autonomie nodig); anders bepaalt de
+  // fiche per taak Zelf doen / Voorstel / Nooit. 3.4/3.13 = een eerste kleine set; 3.8–3.10 breiden ze uit.
+  public func botTools() : [(Text, Text)] {
+    [
+      ("mijn_fiche", ""),
+      ("werven", ""),
+      ("werf_documenten", ""),
+      ("oa_offertes", ""),
+      ("oa_facturen", ""),
+      ("document_koppelen", "document-koppelen"),
+      ("voorstel_factuurcontrole", "factuurcontrole"),
+    ];
+  };
+  // De taken met hun hoogste niveau: document koppelen is intern en terug te draaien (mag Zelf doen); factuurcontrole raakt
+  // geld (hoogstens Voorstel, §6). Een nieuwe taak start altijd op Voorstel.
+  public func botTasks() : [(Text, { #auto; #proposal })] { [("document-koppelen", #auto), ("factuurcontrole", #proposal)] };
+  // NOOIT (vast in de code, niet in te stellen; er bestaat ook geen tool voor): betalen of definitief goedkeuren, versturen naar
+  // een klant of OA, contracten, verwijderen, vertrouwelijke prijzen. Rights.mayBot weigert deze taken altijd.
+  public func botNeverTasks() : [Text] { ["betalen-goedkeuren", "versturen", "contracten", "verwijderen", "vertrouwelijke-prijzen"] };
+  public let maxBots : Nat = 20;
+  public let botMaxCallsPerDay : Nat = 2_000;
+  public let botDefaultCallsPerDay : Nat = 100;
+  public let botCodeValid : Int = 86_400_000_000_000; // de koppelcode: 24 u, eenmalig
+  public let botLogKeepDays : Nat = 400;
+  public let botLogPrunePerRound : Nat = 200;
+  public let botMaxOpenActions : Nat = 200; // open voorstellen per bot
+  public let botMaxRemarks : Nat = 20;
+  public let botMaxRemark : Nat = 500;
+  public let botMaxList : Nat = 200; // hoogstens zoveel rijen per lees-tool
+  public let botActionExpire : Int = 2_592_000_000_000_000; // 30 dagen: een onbeslist voorstel vervalt
+
   // 2c.8: grenzen van de werfadministratie (begrensd, T17).
   public let maxInsurances : Nat = 2_000;
   public let maxMeetingsPerWork : Nat = 300;

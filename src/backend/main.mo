@@ -54,6 +54,9 @@ import Post "lib/Post";
 import Mail "lib/Mail";
 import AiConnector "lib/ai/Connector";
 import AiApi "mixins/AiApi";
+import McpApi "mixins/McpApi";
+import Bots "lib/Bots";
+import OAuth "mo:caffeineai-mcp-server/OAuth";
 import Principal "mo:core/Principal";
 
 persistent actor Self {
@@ -88,6 +91,7 @@ persistent actor Self {
   let sales : Types.SalesState; // 2c.6: verkoopfacturen per werf (schema, facturen en creditnota's, herinneringen; regels, vastgelegde inhoud en betalingen vertrouwelijk)
   let minMeer : Types.MinMeerState; // 2c.5: min-meerstaat per werf (regels, voorstellen, uitsluitingen, versies, akkoorden; prijzen, regietarief en vastgelegde inhoud vertrouwelijk)
   let robot : Types.RobotState;
+  let bots : Types.BotState; // 3.4 + 3.13: bots via MCP (fiches, acties met ongedaan maken, logboek zonder inhoud, OAuth van caffeineai-mcp-server)
   let ai : Types.AiState; // 3.1: AI-connector (fiches, catalogus, logboek zonder inhoud, budget per maand, Postvak in later)
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -102,10 +106,10 @@ persistent actor Self {
   func isAiLive() : Bool { AiConnector.isLive(Principal.fromActor(Self), isDraft()) };
 
   include StorageGate(settings, access, works, tenders, oaDeals);
-  include AccessApi(settings, access, works, robot, audit, ctr, org, oaDeals);
+  include AccessApi(settings, access, works, robot, audit, ctr, org, oaDeals, bots);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
-  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, ai, audit, ctr);
+  include AdminApi(settings, access, org, works, files, dossier, oa, plan, board, imp, reports, permits, post, mail, wadm, library, quotes, quoteChecks, quoteDocs, workStarts, surveys, progress, oaInvoices, quoteForms, tenders, oaDeals, purchases, minMeer, siteAdmin, sales, robot, ai, audit, ctr, bots);
   include FilesApi(settings, access, works, files, dossier, reports, permits, surveys, tenders, oaDeals, purchases, siteAdmin, audit, ctr);
   include DossierApi(settings, access, org, works, files, dossier, plan, wadm, audit, ctr);
   include OaApi(settings, access, org, works, oa, audit, ctr);
@@ -187,6 +191,10 @@ persistent actor Self {
   // het logboek zonder inhoud, fiches en catalogus (admin), en reportAiUsage/failAiTicket voor de robot "ai" van de gateway.
   include AiApi(settings, access, works, robot, ai, audit, ctr, isDraft, isAiLive);
 
+  // 3.4 + 3.13: de MCP-server (caffeineai-mcp-server: OAuth 2.1 + Internet Identity, /mcp) met de tools van lib/Bots.mo, en het
+  // beheer van de bots (enkel #manageBots). Een bot is geen persoon; elke tool-oproep gaat door Rights.mayBot en de fiche.
+  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, audit, ctr);
+
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).
   // 1b.1: hoogstens eens per uur de vergunningen nakijken en melden wat aandacht vraagt (één keer per ding). Het
@@ -197,6 +205,9 @@ persistent actor Self {
     Housekeeping.tick(access, robot, reports, surveys);
     // 3.1: AI-oproepen zonder afloop na 15 min (onzeker, nooit vanzelf opnieuw) en het logboek na 400 dagen.
     ignore AiConnector.idle({ settings; access; robot; ai; audit; ctr }, Time.now());
+    // 3.13: logboek van de bots na 400 dagen, oude dagtellers, onbesliste voorstellen na 30 dagen; verlopen OAuth-codes en koppelingen.
+    Bots.idle(bots, Time.now());
+    OAuth.prune(bots.oauth, Time.now());
     // 1b.3: verlopen leases terug in de wachtrij; op het ingestelde moment de weekmails en herinneringen klaarzetten.
     Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr, tenders);
   };

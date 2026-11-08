@@ -5,6 +5,7 @@
 // Elk type draagt zijn dataklasse (architectuur §3) als commentaar.
 import List "mo:core/List";
 import Map "mo:core/Map";
+import OAuth "mo:caffeineai-mcp-server/OAuth";
 
 module {
   public type PersonId = Nat;
@@ -2557,6 +2558,73 @@ module {
     reserved : Map.Map<Text, Nat>; // "<key>:<jjjj-mm>" → cent (lopend)
     runningByPerson : Map.Map<PersonId, Nat>; // persoon → lopende AiCall (caffeine-weg)
     inbound : Map.Map<Nat, AiInbound>; // Postvak in (later): leeg in 3.1
+  };
+
+  // ── Bots via MCP (stap 3.4 + 3.13, bouwplan §6 "Bots via MCP" en "Autonomie per taak", eigenaar 08-11) ──
+  // Eigen stabiel veld `bots` (deelvorm, OldActor = {}). Een bot is GEEN persoon: hij heeft een eigen Internet Identity (principal),
+  // gaat nooit door Access.activePerson, en komt enkel binnen via /mcp met een OAuth-token van caffeineai-mcp-server. Wat hij mag,
+  // beslist Rights.mayBot met de fiche hieronder (nooit AccessControl). Enkel de beheerder (#manageBots) maakt, wijzigt en trekt in.
+  // Varianten hebben meteen een reservetag (M0170: een tag erbij in een Map-record vraagt anders een migratie).
+  public type BotLevel = { #auto; #proposal; #never }; // Zelf doen · Voorstel · Nooit
+  // klasse: intern. codeHash = sha256 van de eenmalige koppelcode (de code zelf ziet enkel de beheerder één keer).
+  public type Bot = {
+    id : Nat;
+    name : Text;
+    vendor : Text; // label: "Anthropic", "xAI" …
+    model : Text; // label: "Claude Opus 5.5" …
+    principal : ?Principal; // de Internet Identity van de bot, na de koppelcode
+    codeHash : ?Blob;
+    codeExpiresAt : Int;
+    tools : [Text]; // toegelaten MCP-tools (Config.botTools)
+    allWorks : Bool;
+    works : [WorkId];
+    docKinds : [Text]; // documentsoorten die hij ziet (nooit een vertrouwelijke soort)
+    callsPerDay : Nat;
+    tasks : [(Text, BotLevel)]; // autonomie per taak (Config.botTasks); ontbreekt = Voorstel
+    revokedAt : ?Int;
+    revokedBy : ?PersonId;
+    rev : Nat;
+    createdAt : Int;
+    createdBy : PersonId;
+    updatedAt : Int;
+    updatedBy : PersonId;
+    extra : Extra;
+  };
+  // klasse: intern. Wat de bot vraagt of deed. Vrije tekst van de bot is onbetrouwbare invoer (enkel getoond, nooit uitgevoerd).
+  public type BotActionKind = {
+    #docLink : { fileId : Nat; kind : Text; title : Text };
+    #invoiceCheck : { invoiceId : Nat; verdict : Text; remarks : [Text] };
+    #other : { tool : Text; data : [(Text, Text)] };
+  };
+  public type BotActionState = { #proposed; #accepted; #rejected; #done; #undone; #failed : Text; #expired };
+  public type BotAction = {
+    id : Nat;
+    botId : Nat;
+    task : Text;
+    workId : ?WorkId;
+    action : BotActionKind;
+    reason : Text;
+    at : Int;
+    var state : BotActionState;
+    var docId : ?Nat; // het document waaraan het bestand hing (bij uitvoeren)
+    var createdDoc : Bool; // dat document werd door deze actie gemaakt
+    var appliedAt : ?Int;
+    var decidedBy : ?PersonId;
+    var decidedAt : ?Int;
+    var note : Text;
+    var extra : Extra;
+  };
+  // klasse: technisch. Elke tool-oproep, zonder inhoud: enkel de tool, de werf, de hash van de argumenten en de uitkomst.
+  public type BotCallOutcome = { #ok; #refused : Text; #error : Text; #limit; #unknown };
+  public type BotCall = { id : Nat; botId : Nat; tool : Text; workId : ?WorkId; argsSha256 : Text; at : Int; outcome : BotCallOutcome; actionId : ?Nat };
+  public type BotState = {
+    bots : Map.Map<Nat, Bot>;
+    byPrincipal : Map.Map<Principal, Nat>;
+    byCode : Map.Map<Blob, Nat>;
+    actions : Map.Map<Nat, BotAction>;
+    log : Map.Map<Nat, BotCall>;
+    daily : Map.Map<Text, Nat>; // "<bot>:<dag>" → oproepen
+    oauth : OAuth.State; // caffeineai-mcp-server: klanten, codes, koppelingen (enkel hashes van tokens)
   };
 
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.

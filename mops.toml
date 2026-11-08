@@ -18,6 +18,9 @@ sha2 = "0.2.5"
 caffeineai-object-storage = "1.1.1"
 caffeineai-email = "0.1.1"
 caffeineai-inference-client = "0.4.1"
+caffeineai-mcp-server = "0.1.0"
+jayson = "0.1.1"
+caffeineai-http-endpoints = "0.1.0"
 
 [toolchain]
 moc = "1.13.0"

@@ -9,6 +9,7 @@ import Runtime "mo:core/Runtime";
 import Text "mo:core/Text";
 import Types "../types";
 import Views "../types/views";
+import Config "Config";
 
 module {
   type Person = Types.Person;
@@ -111,6 +112,9 @@ module {
     // 3.1: AI-connector. #useAi = een AI-taak starten (interne rollen; de taak zelf vraagt daarbovenop haar eigen recht, zie
     // AiPrompts.requires); #manageAi = de fiches, de catalogus en het overzicht (admin); #readAiLog = het hele logboek (admin).
     #useAi; #manageAi; #readAiLog;
+    // 3.4 + 3.13: bots via MCP. #manageBots = bots maken, fiche, koppelcode, koppelingen en intrekken, voorstellen beslissen en
+    // ongedaan maken (enkel de beheerder = de zaakvoerder, §6 "Bots via MCP"). Wat een bot zelf mag: mayBot hieronder.
+    #manageBots;
   };
 
   public type Ctx = { works : Types.WorksState; settings : Types.SettingsState };
@@ -335,6 +339,7 @@ module {
       case (#useAi) internal(p);
       case (#manageAi) admin;
       case (#readAiLog) admin;
+      case (#manageBots) admin;
       // R27: contractparameters en klantcontact van een werf: admin, calculator. Een werfleider enkel
       // als hij ook calculator is (rechten = som van rollen); de werfleiderrol zelf nooit.
       case (#readContract) on(func w = (admin or calc) and seesWork(ctx, p, w));
@@ -344,6 +349,46 @@ module {
       // De werfleider van een werf aanduiden is een interne toewijzing (zoals een werfleider-lidmaatschap)
       case (#setLeader) on(func w = admin);
     };
+  };
+
+  // ── Bots via MCP (3.4 + 3.13, R47) ──────────────────────────────────────
+  // Een bot is geen persoon: hij gaat nooit door may hierboven (en de gewone API kent zijn principal niet). Zijn kolom in de matrix:
+  // enkel de tools en werven op zijn fiche, nooit iets vertrouwelijks (geen bedragen, prijzen, contracten, klantcontact, opslag-
+  // URL's), en nooit een taak onder Nooit (Config.botNeverTasks). Elke tool-oproep gaat hierdoor (lib/Bots.mo).
+  public func botTaskOf(tool : Text) : ?Text {
+    switch (Config.botTools().find(func((n, _) : (Text, Text)) : Bool = n == tool)) { case (?(_, t)) ?t; case null null };
+  };
+
+  // Het niveau van een taak voor deze bot: Nooit-taken altijd #never; ontbreekt op de fiche = Voorstel; nooit hoger dan Config.botTasks.
+  public func botLevel(b : Types.Bot, task : Text) : Types.BotLevel {
+    if (Config.botNeverTasks().any(func t = t == task)) return #never;
+    let cap = switch (Config.botTasks().find(func((k, _) : (Text, { #auto; #proposal })) : Bool = k == task)) { case (?(_, c)) c; case null return #never };
+    let set = switch (b.tasks.find(func((k, _) : (Text, Types.BotLevel)) : Bool = k == task)) { case (?(_, l)) l; case null #proposal };
+    switch (set, cap) {
+      case (#never, _) #never;
+      case (#auto, #auto) #auto;
+      case _ #proposal;
+    };
+  };
+
+  public func botActive(b : Types.Bot) : Bool { b.revokedAt == null and b.principal != null };
+
+  public func botSeesWork(ctx : Ctx, b : Types.Bot, w : WorkId) : Bool {
+    workExists(ctx, w) and (b.allWorks or b.works.any(func x = x == w));
+  };
+
+  // De enige poort voor een bot: tool op de fiche, taak niet Nooit, en (als er een werf is) die werf op de fiche.
+  public func mayBot(ctx : Ctx, b : Types.Bot, tool : Text, work : ?WorkId) : Bool {
+    if (not botActive(b)) return false;
+    let task = botTaskOf(tool) ?? return false;
+    if (not b.tools.any(func t = t == tool)) return false;
+    if (task != "" and botLevel(b, task) == #never) return false;
+    switch work { case (?w) botSeesWork(ctx, b, w); case null true };
+  };
+
+  // Een document of documentsoort: enkel niet-vertrouwelijk en enkel de soorten op de fiche.
+  public func botSeesDocKind(b : Types.Bot, kind : Text, confidential : Bool) : Bool {
+    not confidential and b.docKinds.any(func k = k == kind);
   };
 
   // Een OA die op minstens één bestaande werf actief lid is als onderaannemer (persoonlijk of via zijn firma).

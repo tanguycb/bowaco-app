@@ -54,6 +54,7 @@ mixin (
   ai : Types.AiState, // 3.1: fiches en logboek in de export
   audit : Types.AuditState,
   ctr : Types.Counters,
+  bots : Types.BotState, // 3.13: een robotsleutel is nooit een bot
 ) {
 
   // ── Instellingen ─────────────────────────────────────────────────────────
@@ -100,6 +101,7 @@ mixin (
     Rights.require({ works; settings }, p, #manageRobots, null);
     if (principal.isAnonymous()) { return #err("Ongeldige sleutel") };
     if (access.links.containsKey(principal)) { return #err("Deze sleutel hoort bij een persoon") };
+    if (bots.byPrincipal.containsKey(principal)) { return #err("Deze sleutel hoort bij een bot") };
     let n = Access.cleanText(name, Config.maxName) ?? return #err("Naam ontbreekt");
     if (kinds.size() > 10) { return #err("Te veel soorten") };
     // 1b.3: enkel gekende soorten (R28: een robot krijgt nooit meer dan nodig).

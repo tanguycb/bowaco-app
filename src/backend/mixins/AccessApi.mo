@@ -28,6 +28,7 @@ mixin (
   ctr : Types.Counters,
   org : Types.OrgState,
   oaDeals : Types.OaDealState,
+  bots : Types.BotState,
 ) {
 
   // Caffeine's loginpakket (@caffeineai/core-infrastructure) roept dit na elke II-login aan; het
@@ -69,8 +70,8 @@ mixin (
   // Eerste installatie: wie de opstartcode heeft, wordt de eerste admin. Daarna is de code ongeldig.
   public shared ({ caller }) func claimBootstrap(code : Text, name : Text) : async Result.Result<Views.PersonView, Text> {
     Access.requireAuthenticated(caller);
-    // R28 (1.9): een robotprincipal is nooit een persoon.
-    if (Access.isRobot(robot, caller)) { return #err("Geen toegang") };
+    // R28 (1.9): een robotprincipal is nooit een persoon. 3.13: een bot (ook ingetrokken) evenmin.
+    if (Access.isRobot(robot, caller) or bots.byPrincipal.containsKey(caller)) { return #err("Geen toegang") };
     if (not mayStartLink(caller)) { return #err("Je bent al ingelogd als een andere persoon") };
     switch (Access.blockedUntil(access, caller)) {
       case (?until) { return #err("Te veel pogingen; probeer opnieuw na " # until.toText()) };
@@ -231,8 +232,8 @@ mixin (
   // De persoon voert de code in na de II-login. Geen await: alles in één bericht (T12).
   public shared ({ caller }) func redeemCode(code : Text) : async Result.Result<Views.MeView, Text> {
     Access.requireAuthenticated(caller);
-    // R28 (1.9): een robotprincipal is nooit een persoon, ook niet met een geldige code.
-    if (Access.isRobot(robot, caller)) { return #err("Geen toegang") };
+    // R28 (1.9): een robotprincipal is nooit een persoon, ook niet met een geldige code. 3.13: een bot (ook ingetrokken) evenmin.
+    if (Access.isRobot(robot, caller) or bots.byPrincipal.containsKey(caller)) { return #err("Geen toegang") };
     if (not mayStartLink(caller)) { return #err("Je bent al ingelogd als een andere persoon") };
     switch (Access.blockedUntil(access, caller)) {
       case (?until) { return #err("Te veel pogingen; probeer opnieuw na " # until.toText()) };
