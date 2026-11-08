@@ -12,7 +12,7 @@ niets dubbel.
 | 4 | postenbibliotheek uit de oude Excelofferten (vier sjabloonfamilies), aankoopprijzen met datum, marge per post | `tools/inrichting/offerte-lezer.py` | `saveLibraryItem`, `addLibraryCost`, `setLibrarySell` |
 | 5 | prijslijsten van OA's (Word) als aankoopprijzen met datum | `tools/inrichting/lees-prijslijsten.py` | `saveLibraryItem`, `addLibraryCost` |
 | 6 | vergunningen: nieuwe soorten, gemeenten en procedures met doorlooptijd | `tools/inrichting/lees-vergunningen.py` | `setPermitKind`, `saveMunicipality`, `saveProcedure` |
-| 7 | documenten van de actieve werven: **enkel de selectie** (geen upload) | `tools/inrichting/lees-documenten.py` | — |
+| 7 | werfdocumenten (2d.4): **keuze per werf** (standaard enkel de actieve werven), foto's verkleind, video's in de lijst, **kostenraming per werf** (geen upload) | `tools/inrichting/lees-documenten.py` | — |
 | 8 | **één werf volledig** (2c.9, enkel met `--werf`): werf, firma's, offerte als ontwerp, ALLE documenten | `tools/inrichting/lees-werf.py` | `setDocKind`, `setLibraryUnit`, `importOrgs`, `createOrg`, `createWork`, `createQuote`, `saveQuoteDraft`, `saveQuoteForm`, `saveDocument`, `addFile`, `attachDocumentFile` |
 
 ## Draaien
@@ -124,6 +124,34 @@ node tools/inrichting/lekcontrole.mjs <live-id>
   onderbreking gewoon dezelfde opdracht opnieuw; hij laadt niet opnieuw op en registreert enkel wat ontbreekt.
 - Daarna, de eigenaar: Team → Logins → de toegang van "Inrichting" intrekken. De testlogins (OA en klant) koppelt hij zelf
   via "Toegang geven".
+
+## Zuinig importeren (2d.4)
+
+De kosten van de import zitten in de bestanden (ingress en opslag), niet in de gegevens. Daarom (`tools/inrichting/zuinig.mjs`):
+
+- **Dezelfde regels als de app.** De parameters komen uit `src/frontend/src/lib/uploadPrep.ts` (2d.3): foto's langste zijde
+  hoogstens 2000 px (nooit groter), JPEG 0,8, altijd opnieuw gecodeerd zodat EXIF en gps wegvallen (een draaiing eerst in de
+  pixels); grens 15 MB per bestand na verkleining; PDF, Excel en Word ongewijzigd. Verkleinen met `sips` (macOS), in een
+  voorraad buiten git (`~/.bowaco/inrichting/verkleind`); stap 8 (`lees-werf.py`) leest dezelfde parameters.
+- **Video's nooit.** Ze staan in het verslag (soort `video`, met de grootte) en in het manifest, maar worden niet gekopieerd
+  of opgeladen.
+- **Keuze per werf (D47).** De gegevens komen van alle werven (stap 3); de documenten standaard enkel van de actieve werven
+  (de werven die stap 3 aanmaakt). Per werf overschrijven: `--documenten-werf W-012=ja,W-091=nee`. Een gekozen werf die
+  niet in de app staat, geeft een conflict.
+- **Raming vooraf.** De droogloop van stap 7 toont per werf: bestanden, MB vóór en na verkleining, foto's (en hoeveel
+  geraamd), video's en bestanden > 15 MB (niet), en de kost. Tarief = IC zonder de marge van Caffeine
+  (BOWACO_verslag_2d.md §4): ≈ € 2,6 per GB eenmalig + ≈ 11 M cycli per bestand, en € 0,41 per GB per maand; op een groter
+  subnet (34 nodes) ≈ × 2,6. De tabel staat op het scherm, in het verslag en als `<verslag>-raming.csv`.
+- Foto's van een werf die niet gekozen is, worden niet verkleind (geen iCloud-download): hun grootte "na" is geraamd met
+  het gemiddelde van deze run (of 0,5 MB per foto, nooit meer dan het origineel). `--schatting` raamt alle foto's zo.
+
+```
+ICP_HOST=http://localhost:<poort> node tools/inrichting.mjs --canister <id> --stap 7                                  # raming per werf
+ICP_HOST=http://localhost:<poort> node tools/inrichting.mjs --canister <id> --stap 7 --documenten-werf W-091=ja --schatting
+```
+
+Stap 7 laadt nooit op. Opladen gebeurt per werf met stap 8 (`--werf <code>`), na het "ja" van de eigenaar; stap 8 toont
+dezelfde raming voor die werf.
 
 ## "Nog na te kijken"
 
