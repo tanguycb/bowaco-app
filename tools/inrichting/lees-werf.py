@@ -13,10 +13,12 @@ Regels (voorlopige keuzes, nog na te kijken):
     en offertes die de index aan de werf koppelt). Een dubbel krijgt een eigen document "(dubbel of oudere versie)";
   - NOOIT: een bestand dat de index gevoelig noemt, of waarvan pad of inhoud (Word, Excel, Outlook) op personeelszaken,
     lonen, rijksregister- of identiteitsgegevens of medische gegevens wijst. Die komen apart in het verslag (geweerd);
-  - foto's (HEIC, JPEG, PNG) worden zoals in de app een JPEG van hoogstens 1600 px zonder EXIF (geen GPS-locatie, §8.5);
+  - foto's (HEIC, JPEG, PNG) worden zoals in de app een JPEG zonder EXIF (geen GPS-locatie, §8.5), met de regels van de
+    upload-helper (src/frontend/src/lib/uploadPrep.ts, 2d.3/2d.4: langste zijde ≤ 2000 px, nooit groter, kwaliteit 0,8);
+  - video's nooit (2d.4): enkel in de lijst, niet gekopieerd en niet opgeladen;
   - documentsoort per categorie van de index; een map "postinterventiedossier" = PID. Een document per (soort, map), met
     hoogstens 50 bestanden (Config.maxFilesPerDoc): daarboven "(deel 2)" enz.;
-  - groter dan 25 MB (Config.maxFileBytes) of een soort die de app niet aanvaardt: niet opgeladen, in het verslag;
+  - groter dan 15 MB (de grens van de upload-helper) of een soort die de app niet aanvaardt: niet opgeladen, in het verslag;
   - firma's: de aankoopfacturen van de werf en de firma's uit de firma-index waarvan de naam in een pad van de werf staat;
     een map "Offerte OA/<vak>/<firma>" geeft een onderaannemer met dat vak. Geen personen, geen contactgegevens;
   - de klant: geen naam (privacy). Een plaatshouder "Opdrachtgever <code>" met het werfadres, nog na te kijken;
@@ -41,7 +43,20 @@ _spec = importlib.util.spec_from_file_location("offerte_lezer", os.path.join(os.
 lezer = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(lezer)
 
-MAX_BYTES = 25_000_000  # Config.maxFileBytes
+
+
+def upload_regels():
+    """De regels van de upload-helper van de app (2d.3), gelezen uit uploadPrep.ts: de import volgt de app vanzelf."""
+    pad = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src/frontend/src/lib/uploadPrep.ts")
+    t = open(pad, encoding="utf-8").read()
+    zijde = int(re.search(r"DEFAULT_MAX_SIDE\s*=\s*(\d+)", t).group(1))
+    kwaliteit = float(re.search(r"JPEG_QUALITY\s*=\s*([\d.]+)", t).group(1))
+    mb = int(re.search(r"MAX_UPLOAD_BYTES\s*=\s*(\d+)\s*\*\s*1024\s*\*\s*1024", t).group(1))
+    video = re.search(r"VIDEO_EXT\s*=\s*/\\\.\(([a-z0-9|]+)\)", t).group(1).split("|")
+    return zijde, kwaliteit, mb * 1024 * 1024, {"." + v for v in video}
+
+
+MAX_ZIJDE, KWALITEIT, MAX_BYTES, VIDEO = upload_regels()
 MAX_PER_DOC = 50  # Config.maxFilesPerDoc
 FOTO = {".heic", ".heif", ".jpg", ".jpeg", ".png", ".webp"}
 MIME = {
@@ -131,11 +146,20 @@ def oriëntatie(pad):
         return 1
 
 
+def pixels(pad):
+    uit = subprocess.run(["sips", "-g", "pixelWidth", "-g", "pixelHeight", pad], capture_output=True, text=True, timeout=60).stdout
+    w, h = re.search(r"pixelWidth:\s*(\d+)", uit), re.search(r"pixelHeight:\s*(\d+)", uit)
+    return (int(w.group(1)), int(h.group(1))) if w and h else (0, 0)
+
+
 def naar_jpeg(src, dst):
-    """Zoals de app (Werven.tsx shrinkPhoto): JPEG, langste zijde ≤ 1600 px, kwaliteit 82 %, zonder EXIF. Een EXIF-draaiing
-    wordt eerst in de pixels gezet (anders staat de foto na het weghalen van EXIF scheef)."""
+    """Zoals de app (lib/uploadPrep.ts): JPEG, langste zijde ≤ MAX_ZIJDE px (nooit groter: sips -Z vergroot ook), kwaliteit
+    KWALITEIT, zonder EXIF. Een EXIF-draaiing wordt eerst in de pixels gezet (anders staat de foto na het weghalen van EXIF scheef)."""
     tmp = dst + ".tmp.jpg"
-    r = subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "82", "-Z", "1600", src, "--out", tmp], capture_output=True, text=True, timeout=120)
+    args = ["sips", "-s", "format", "jpeg", "-s", "formatOptions", str(round(KWALITEIT * 100))]
+    if max(pixels(src)) > MAX_ZIJDE:
+        args += ["-Z", str(MAX_ZIJDE)]
+    r = subprocess.run(args + [src, "--out", tmp], capture_output=True, text=True, timeout=120)
     if r.returncode != 0 or not os.path.exists(tmp):
         raise RuntimeError("omzetten mislukt")
     graden = {3: 180, 6: 90, 8: 270}.get(oriëntatie(tmp))
@@ -219,6 +243,14 @@ def main():
         if gevoelig_pad(pad):
             geweerd.append({"doc": d["doc_id"], "reden": "naam of map wijst op personeelszaken of persoonsgegevens"})
             continue
+        if ext in VIDEO:  # 2d.4: nooit opladen, niet kopiëren (geen iCloud-download); enkel in de lijst
+            kind, label = soort_van(d.get("categorie") or "", rel)
+            bestanden.append({"doc": d["doc_id"], "naam": naam[:200], "bronNaam": naam, "pad": pad, "categorie": d.get("categorie") or "", "soort": kind,
+                              "documentTitel": label, "vertrouwelijk": False, "mime": "", "bytes": int(d.get("grootte_bytes") or 0), "bronBytes": int(d.get("grootte_bytes") or 0),
+                              "sha256": "", "bestand": "", "omgezet": False, "dubbel": dubbel, "video": True,
+                              "nietOpladen": "video: nooit opladen (enkel in de lijst; link naar de cloudmap)", "inWerfmap": bool(rel)})
+            tel["video (niet)"] += 1
+            continue
         src = os.path.join(root, pad)
         kopie = os.path.join(werk, "bron", d["doc_id"] + ext)
         try:
@@ -240,7 +272,7 @@ def main():
         kind, label = soort_van(d.get("categorie") or "", rel)
         if ext in FOTO:
             appnaam = re.sub(r"\.[^.]+$", "", naam) + ".jpg"
-            app = os.path.join(werk, "app", d["doc_id"] + ".jpg")
+            app = os.path.join(werk, "app", f"{d['doc_id']}-{MAX_ZIJDE}-{round(KWALITEIT * 100)}.jpg")  # andere regels = nieuwe kopie
             mime = "image/jpeg"
             try:
                 if not (os.path.exists(app) and os.path.getsize(app) > 0):
@@ -256,7 +288,7 @@ def main():
         if not mime:
             reden = f"soort {ext or '(geen)'} niet toegelaten in de app"
         elif grootte > MAX_BYTES:
-            reden = f"te groot ({grootte / 1e6:.1f} MB > 25 MB)"
+            reden = f"te groot ({grootte / 1e6:.1f} MB > {MAX_BYTES // 1048576} MB): link naar de cloudmap"
         mtitel = map_titel(os.path.dirname(rel)) if rel else ""
         dtitel = (label + (" " + mtitel if mtitel and kind != "pid" else (" – " + mtitel if mtitel else ""))).strip()
         if dubbel:

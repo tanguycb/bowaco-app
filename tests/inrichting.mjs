@@ -55,7 +55,9 @@ const l5 = p5.lijsten[0]?.lijnen ?? [];
 check("prijslijst: regels uit Word met kop (Plafond, Scheidingswand), pdf met de hand", l5.length === 5 && l5.some((x) => x.titel === "Plafond: Plaatsing proefplaat") && l5.some((x) => x.titel === "Scheidingswand: Plaatsing proefplaat") && p5.metDeHand.some((h) => h.doc === "D-00004"));
 check("prijslijst: enkel een regel zonder kop hoort bij de gelijknamige offertepost; dezelfde omschrijving onder twee koppen = twee posten", l5.find((x) => x.titel === "Werfvoorbereiding proefpost")?.offerteKey && l5.filter((x) => x.titel.endsWith("Plaatsing proefplaat")).every((x) => !x.offerteKey && x.key) && new Set(l5.map((x) => x.key)).size === 5);
 const p7 = plan("stap7-documenten.json");
-check("documenten: enkel werfbestanden van aangemaakte werven; foto's en gevoelige bestanden niet", p7.werven.length === 1 && p7.werven[0].aantal === 2 && !JSON.stringify(p7).includes("D-00012") && !JSON.stringify(p7).includes("D-00013"));
+const w7 = (c) => p7.werven.find((w) => w.code === c);
+check("documenten (2d.4): alle werven met een werfmap, actief = de werven van stap 3; foto's en video's mee, gevoelig niet", p7.werven.map((w) => `${w.code}:${w.actief}`).join() === "W-901:true,W-903:false" && w7("W-901").bestanden.map((b) => b.doc).join() === "D-00010,D-00011,D-00012,D-00014,D-00015,D-00016" && !JSON.stringify(p7).includes("D-00013"), JSON.stringify(p7.werven.map((w) => [w.code, w.actief, w.bestanden.map((b) => b.doc)])));
+check("documenten (2d.4): het pad per bestand (voor het verkleinen); dubbels en historiek niet", w7("W-901").bestanden.find((b) => b.doc === "D-00014")?.pad?.endsWith("groot proefbeeld.jpg") && !w7("W-903").bestanden.some((b) => b.doc === "D-09015" || b.doc === "D-09016"));
 check("de lezers draaien zonder fout (lees-alles.sh)", lezers.includes("stap 7"));
 
 // ── De grens: echte gegevens nooit buiten het lokale net ───────────────────
@@ -77,8 +79,9 @@ check("grens: BOWACO_BRON=test op een map zonder merkbestand wordt geweigerd (de
 check("grens: een host die enkel het woord localhost bevat, telt niet als lokaal", spawnSync("node", ["--input-type=module", "-e", `process.env.ICP_HOST="https://icp-api.io/?localhost"; const m = await import("${join(repo, "tools/inrichting/lib.mjs")}"); process.exit(m.isLocal() ? 1 : 0)`]).status === 0);
 
 // ── Droogloop, echt, nog eens ──────────────────────────────────────────────
+const verkleind = join(tmp, "verkleind"); // de voorraad verkleinde foto's van de proef (niet ~/.bowaco)
 const run = (naam, extra = []) => {
-  const r = spawnSync("node", [join(repo, "tools/inrichting.mjs"), "--canister", cid, "--plan", join(werk, "plan"), "--verslag", join(tmp, `${naam}.md`), ...extra], { env: process.env, encoding: "utf8" });
+  const r = spawnSync("node", [join(repo, "tools/inrichting.mjs"), "--canister", cid, "--plan", join(werk, "plan"), "--verslag", join(tmp, `${naam}.md`), "--verkleind", verkleind, ...extra], { env: process.env, encoding: "utf8" });
   const rijen = readFileSync(join(tmp, `${naam}.csv`), "utf8").replace(/^﻿/, "").trim().split("\n").slice(1).map((l) => l.split(";").map((x) => x.replace(/^"|"$/g, "")));
   const tel = (soort, uitkomst) => rijen.filter((x) => x[1] === soort && x[4] === uitkomst).length;
   return { r, rijen, tel };
@@ -87,6 +90,22 @@ const a = await backend("proef-admin", cid);
 const voor = { works: (await a.listWorks()).length, orgs: (await a.listOrgs(true)).length, lib: (await a.listLibrary({ text: "", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: true, offset: 0n, limit: 1n })).total.toString(), terms: (await a.getQuoteDocSettings()).terms.length };
 const d = run("droog");
 check("droogloop: zonder fout, en hij zou werven, posten, firma's, eenheden en prijzen aanmaken", d.r.status === 0 && d.tel("werf", "zou aangemaakt worden") === 2 && d.tel("post", "zou aangemaakt worden") >= 6 && d.tel("eenheid", "zou aangemaakt worden") >= 3, d.r.stdout.slice(-400));
+// ── 2d.4: zuinige stap 7 (droogloop) ───────────────────────────────────────
+const raming = (naam) => Object.fromEntries(readFileSync(join(tmp, `${naam}-raming.csv`), "utf8").replace(/^﻿/, "").trim().split("\n").slice(1).map((l) => { const c = l.split(";").map((x) => x.replace(/^"|"$/g, "")); return [c[0], { documenten: c[2], bestanden: +c[4], voor: +c[5], na: +c[6], fotos: +c[7], geraamd: +c[8], videos: +c[9], teGroot: +c[10], eenmalig: +c[11], maand: +c[12], groot: +c[13] }]; }));
+const rm = raming("droog");
+const px = (f) => Object.fromEntries([...execFileSync("sips", ["-g", "pixelWidth", "-g", "pixelHeight", f], { encoding: "utf8" }).matchAll(/(pixelWidth|pixelHeight):\s*(\d+)/g)].map((m) => [m[1], +m[2]]));
+const vk = (() => { try { return execFileSync("ls", [verkleind], { encoding: "utf8" }).split("\n").find((f) => f.startsWith("D-00014-") && f.endsWith(".jpg")); } catch { return null; } })();
+check("2d.4 raming: actieve werf W-901 documenten ja, historiekwerf W-903 nee (standaard D47)", rm["W-901"]?.documenten === "ja" && rm["W-903"]?.documenten === "nee", JSON.stringify(rm));
+check("2d.4 raming: video's en bestanden > 15 MB tellen niet mee, maar staan in de lijst", rm["W-901"].videos === 1 && rm["W-901"].teGroot === 1 && rm["W-901"].bestanden === 4 && d.tel("video", "overgeslagen") === 2 && d.rijen.some((x) => x[1] === "bestand" && x[2] === "D-00016" && /15 MB/.test(x[5])), JSON.stringify(rm["W-901"]));
+check("2d.4 verkleinen: de grote foto (3000 × 2000) wordt ≤ 2000 px, zonder EXIF/gps, en kleiner", !!vk && px(join(verkleind, vk)).pixelWidth === 2000 && px(join(verkleind, vk)).pixelHeight === 1333 && !readFileSync(join(verkleind, vk)).includes("GPS") && !readFileSync(join(verkleind, vk)).includes("Exif") && rm["W-901"].na < rm["W-901"].voor, vk ?? "geen verkleinde foto");
+check("2d.4 raming: de ontbrekende foto (D-00012) en de foto's van de niet-gekozen werf worden geraamd, niet verkleind", rm["W-901"].geraamd === 1 && rm["W-903"].geraamd === rm["W-903"].fotos && rm["W-903"].fotos === 54 && !execFileSync("ls", [verkleind], { encoding: "utf8" }).includes("D-09"));
+check("2d.4 raming: € 2,6 per GB eenmalig (+ per bestand), € 0,41 per GB per maand, groot subnet × 2,6", Math.abs(rm["W-901"].eenmalig - (rm["W-901"].na / 1e9 * 2.6 + rm["W-901"].bestanden * 11e6 * 1.25 / 1e12)) < 1e-4 && Math.abs(rm["W-901"].maand - rm["W-901"].na / 1e9 * 0.41) < 1e-4 && Math.abs(rm["W-901"].groot - rm["W-901"].eenmalig * 2.6) < 1e-4);
+const md7 = readFileSync(join(tmp, "droog.md"), "utf8");
+check("2d.4 droogloop: de tabel per werf (bestanden, MB vóór/na, raming) en het tarief in het verslag en op het scherm", /\| W-901 \| ja \| \*\*ja\*\* \| 4 \|/.test(md7) && /\| W-903 \| nee \| nee \|/.test(md7) && md7.includes("× 2,6") && md7.includes("€ 0,41 per GB per maand") && /\| W-901 \|.*MB.*€/.test(d.r.stdout), md7.slice(md7.indexOf("## Stap 7"), md7.indexOf("## Stap 7") + 900));
+const sch = run("schatting", ["--stap", "7", "--schatting"]);
+check("2d.4 --schatting: niets verkleind, alle foto's geraamd", sch.r.status === 0 && raming("schatting")["W-901"].geraamd === raming("schatting")["W-901"].fotos, sch.r.stderr.slice(0, 300));
+const slecht = run("slecht", ["--stap", "7", "--documenten-werf", "W-901=misschien"]);
+check("2d.4 --documenten-werf: een ongeldige keuze wordt geweigerd", slecht.r.status !== 0 && /W-012=ja/.test(slecht.r.stderr));
 const na0 = { works: (await a.listWorks()).length, orgs: (await a.listOrgs(true)).length, lib: (await a.listLibrary({ text: "", chapterId: [], trade: [], unit: [], form: [], orgId: [], includeArchived: true, offset: 0n, limit: 1n })).total.toString(), terms: (await a.getQuoteDocSettings()).terms.length };
 check("droogloop: niets bewaard (werven, firma's, posten, voorwaarden ongewijzigd)", JSON.stringify(voor) === JSON.stringify(na0), JSON.stringify([voor, na0]));
 const e1 = run("echt-1", ["--echt"]);
@@ -131,9 +150,11 @@ check("werf-lezer: draait zonder fout", lw.status === 0, lw.stderr.slice(0, 300)
 const p8 = plan("stap8-werf-W-903.json");
 const b8 = (d) => p8.bestanden.find((x) => x.doc === d);
 const op8 = p8.bestanden.filter((x) => !x.nietOpladen);
-check("werf-lezer: alle rijen van de werf (werfmap, dubbel in 99, factuur buiten de map); 3 geweerd (pad, index, rijksregisternummer in de inhoud)", p8.telling.indexrijen === 68 && p8.bestanden.length === 65 && p8.geweerd.map((g) => g.doc).sort().join() === "D-09012,D-09013,D-09014", JSON.stringify(p8.geweerd));
+check("werf-lezer: alle rijen van de werf (werfmap, dubbel in 99, factuur buiten de map); 3 geweerd (pad, index, rijksregisternummer in de inhoud)", p8.telling.indexrijen === 69 && p8.bestanden.length === 66 && p8.geweerd.map((g) => g.doc).sort().join() === "D-09012,D-09013,D-09014", JSON.stringify(p8.geweerd));
 check("werf-lezer: te groot (> 25 MB) en een onbekende soort niet op te laden, met de reden", /te groot/.test(b8("D-09010")?.nietOpladen) && /niet toegelaten/.test(b8("D-09011")?.nietOpladen) && op8.length === 63);
 check("werf-lezer: foto's als JPEG zonder EXIF (geen GPS), naam .jpg", b8("D-09002")?.naam === "proeffoto 2.jpg" && b8("D-09001")?.mime === "image/jpeg" && !readFileSync(b8("D-09001").bestand).includes("GPS"));
+check("werf-lezer (2d.4): een video staat in de lijst, nooit gekopieerd of opgeladen", b8("D-09017")?.video === true && /video/.test(b8("D-09017").nietOpladen) && b8("D-09017").bestand === "");
+check("werf-lezer (2d.4): regels van de app (2000 px, 0,8); een kleine foto wordt niet vergroot", /-2000-80\.jpg$/.test(b8("D-09002")?.bestand ?? "") && px(b8("D-09002").bestand).pixelWidth === 30);
 check("werf-lezer: soort per categorie, PID uit de map, dubbel apart, vertrouwelijk voor OA-offerte en factuur", b8("D-09008")?.soort === "pid" && b8("D-09015")?.documentTitel.includes("dubbel") && b8("D-09005")?.vertrouwelijk && b8("D-09016")?.soort === "factuur-klant" && b8("D-09016").vertrouwelijk && b8("D-09007")?.mime === "application/vnd.ms-outlook");
 check("werf-lezer: hoogstens 50 bestanden per document (deel 1 en deel 2)", op8.filter((x) => x.documentTitel.endsWith("(deel 1)")).length === 50 && op8.filter((x) => x.documentTitel.endsWith("(deel 2)")).length === 2);
 check("werf-lezer: firma's uit de aankoop van de werf, uit een pad en uit een map van een OA-offerte; geen diensten", p8.firmas.rijen.map((r) => r.key).join() === "F-001,F-003,W-903:oa:proefpleister" && p8.firmas.nietInDeApp.some((f) => f.firma === "F-005"));
@@ -156,13 +177,22 @@ const rq = q8 ? (await a.readQuoteVersion(q8.versions[0].id)).ok : null;
 check("stap 8 echt: offerte 2025/150 als ontwerp met 2 hoofdstukken, 5 lijnen, subtotaal = de Excel (47,00 €·100)", rq && "draft" in rq.version.status && rq.chapters.length === 2 && rq.lines.length === 5 && rq.totals.subtotalCents === 470000n, rq ? `${rq.totals.subtotalCents}` : "geen offerte");
 const e8b = r8("w-echt-2", ["--echt"]);
 const nieuw8 = e8b.rijen.filter((x) => x[4] === "aangemaakt" || x[4] === "bijgewerkt");
-check("stap 8 tweede run: niets nieuw (idempotent)", e8b.r.status === 0 && nieuw8.length === 0 && e8b.tel("bestand", "overgeslagen") === 68, JSON.stringify(nieuw8).slice(0, 300));
+check("stap 8 tweede run: niets nieuw (idempotent)", e8b.r.status === 0 && nieuw8.length === 0 && e8b.tel("bestand", "overgeslagen") === 69, JSON.stringify(nieuw8).slice(0, 300));
 const sp8 = spawnSync("node", [join(repo, "tools/inrichting/steekproef.mjs"), "--canister", cid, "--plan", join(werk, "plan"), "--werf", "W-903"], { env: process.env, encoding: "utf8" });
 check("stap 8 steekproef: alles teruggevonden", sp8.status === 0, sp8.stdout.slice(-400));
 const lk8 = spawnSync("node", [join(repo, "tools/inrichting/lekcontrole.mjs"), cid, "--ids", String(Number(w903.id) + 5)], { env: process.env, encoding: "utf8" });
 check("stap 8 lekcontrole: een onbekende login ziet niets (ook niet per werf-id)", lk8.status === 0, lk8.stdout.slice(-400));
 const liveUp = spawnSync("node", ["--input-type=module", "-e", `const m = await import("${join(repo, "tools/opslag.mjs")}"); try { await m.storageClientInrichting("${cid}", "p", "proef-admin"); process.exit(1); } catch (e) { process.exit(/Geweigerd/.test(e.message) ? 0 : 2); }`], { env: { ...process.env, LIVE_CANISTERS_EXTRA: cid, JA_EIGENAAR: "1" }, encoding: "utf8" });
 check("stap 8 grens: op live laadt enkel de inrichtingsidentiteit op", liveUp.status === 0, liveUp.stderr.slice(0, 200));
+
+// ── 2d.4: keuze per werf overschrijven (W-903 staat nu in de app via stap 8) ────────────────────────────
+const ov = run("keuze", ["--stap", "7", "--documenten-werf", "W-903=ja,W-901=nee"]);
+const rk = raming("keuze");
+check("2d.4 --documenten-werf: W-903=ja en W-901=nee overschrijven de standaard; geen conflict", ov.r.status === 0 && rk["W-903"]?.documenten === "ja" && rk["W-901"]?.documenten === "nee" && !ov.rijen.some((x) => x[4] === "conflict"), JSON.stringify(rk));
+check("2d.4 --documenten-werf: de foto's van de gekozen werf worden nu verkleind (en kleine nooit vergroot)", rk["W-903"].geraamd === 0 && execFileSync("ls", [verkleind], { encoding: "utf8" }).includes("D-09002-2000-80.jpg") && px(join(verkleind, "D-09002-2000-80.jpg")).pixelWidth === 30);
+const onb = run("onbekend", ["--stap", "7", "--documenten-werf", "W-999=ja"]);
+check("2d.4 --documenten-werf: een werf zonder documenten in het plan = conflict in het verslag", onb.rijen.some((x) => x[1] === "keuze" && x[2] === "W-999" && x[4] === "conflict"));
+check("2d.4: stap 7 laadt nooit iets op (ook niet met keuze)", (await a.listFiles([w901.id])).length === 0);
 
 rmSync(tmp, { recursive: true, force: true });
 console.log(`\ninrichting: ${pass} ✓  ${fail} ✗`);

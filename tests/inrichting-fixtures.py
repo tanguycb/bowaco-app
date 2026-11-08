@@ -235,10 +235,10 @@ def png(pad, w, h, seed):
     open(pad, "wb").write(b"\x89PNG\r\n\x1a\n" + ch(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + ch(b"IDAT", zlib.compress(raw)) + ch(b"IEND", b""))
 
 
-def jpeg_met_gps(pad, seed):
+def jpeg_met_gps(pad, seed, w=40, h=30):
     """Een JPEG met een (verzonnen) EXIF-blok met het woord GPS: de lezer moet het weghalen."""
     tmp = pad + ".png"
-    png(tmp, 40, 30, seed)
+    png(tmp, w, h, seed)
     subprocess.run(["sips", "-s", "format", "jpeg", tmp, "--out", pad], capture_output=True, check=True)
     os.remove(tmp)
     d = open(pad, "rb").read()
@@ -280,6 +280,20 @@ bestand("D-09013", "10. Diversen/lijst proef.pdf", "overig werfdossier", "werf-b
 bestand("D-09014", "10. Diversen/aanwezigen proef.docx", "overig werfdossier", "werf-bestand (overig)", lambda f: docx(f, [("", "Proefpersoon 00.00.00-000.00")]))
 bestand("D-09015", "99 Dubbels en oude versies/" + WM + "/03. Foto's/20240101_Afbraak/proeffoto 2.png", "foto", "niet: dubbel of oudere versie (in 99)", lambda f: png(f, 30, 20, 2), werfmap=False)
 bestand("D-09016", "05 Verkoop en vorderingen/2024-001 Factuur proef.pdf", "factuur (oud formaat)", "historiek: niet importeren in 2b.6", schrijf(PDF + b"%factuur\n"), werfmap=False, bron_entiteit="verkoopdocument")
+bestand("D-09017", "03. Foto's/20240202_Ruwbouw/rondgang.mp4", "foto", FA, schrijf(b"\0\0\0\x18ftypmp42 verzonnen video"))
+
+# ── 2d.4 stap 7: actieve werf W-901 met een grote foto (3000 × 2000, met gps), een video en een bestand > 15 MB ─────
+WM1 = "02 Werven en klanten/Proefstraat 1"
+groot = os.path.join(ADM, WM1, "03. Foto's/groot proefbeeld.jpg")
+os.makedirs(os.path.dirname(groot), exist_ok=True)
+jpeg_met_gps(groot, 7, 3000, 2000)
+video = os.path.join(ADM, WM1, "03. Foto's/rondgang.mov")
+open(video, "wb").write(b"\0\0\0\x14ftypqt   verzonnen video")
+docrijen += [
+    {"doc_id": "D-00014", "pad": WM1 + "/03. Foto's/groot proefbeeld.jpg", "type": "jpg", "grootte_bytes": str(os.path.getsize(groot)), "werf_id": "W-901", "categorie": "foto", "import_actie": FA, "gevoelig": "nee"},
+    {"doc_id": "D-00015", "pad": WM1 + "/03. Foto's/rondgang.mov", "type": "mov", "grootte_bytes": "80000000", "werf_id": "W-901", "categorie": "foto", "import_actie": FA, "gevoelig": "nee"},
+    {"doc_id": "D-00016", "pad": WM1 + "/02. Plannen/scan groot.pdf", "type": "pdf", "grootte_bytes": "20000000", "werf_id": "W-901", "categorie": "plan", "import_actie": "werf-bestand (bijlage)", "gevoelig": "nee"},
+]
 index("BOWACO_index_documenten.csv", kop_doc + ["bron_entiteit"], docrijen + w3)
 index("BOWACO_index_aankoop.csv", ["aankoop_id", "firma_id", "werf_id"], [{"aankoop_id": "A-1", "firma_id": "F-001", "werf_id": "W-903"}, {"aankoop_id": "A-2", "firma_id": "F-005", "werf_id": "W-903"}])
 

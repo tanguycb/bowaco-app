@@ -17,6 +17,11 @@
 //         --werf <code>       stap 8 voor die werf (plan stap8-werf-<code>.json van tools/inrichting/lees-werf.py)
 //         --project <id>      stap 8 op live: het Caffeine-project (project_id in env.json van de app) voor de opslag
 //         --uploads <n>       stap 8: uploads tegelijk (hoogstens 3, standaard 3)
+// 2d.4 (zuinig, stap 7; zie tools/inrichting/zuinig.mjs):
+//         --documenten-werf W-012=ja,W-091=nee   documenten per werf (standaard: enkel de actieve werven, D47)
+//         --schatting         stap 7: foto's niet verkleinen, enkel ramen (snel)
+//         --verkleind <map>   stap 7: voorraad verkleinde foto's (standaard ~/.bowaco/inrichting/verkleind)
+//   De droogloop van stap 7 toont per werf bestanden, MB vóór/na verkleining en de kostenraming (ook <verslag>-raming.csv).
 // Herhaalbaar: elke stap vindt wat er al staat terug (sleutel, code, naam, verwijzing) en maakt niets dubbel.
 // GRENS: een plan met echte gegevens gaat enkel naar het eigen lokale net, ook in een droogloop (tools/inrichting/lib.mjs).
 import { isAbsolute, join } from "node:path";
@@ -29,7 +34,7 @@ import { stap3 } from "./inrichting/stap3-werven.mjs";
 import { stap4 } from "./inrichting/stap4-posten.mjs";
 import { stap5 } from "./inrichting/stap5-prijzen.mjs";
 import { stap6 } from "./inrichting/stap6-vergunningen.mjs";
-import { stap7 } from "./inrichting/stap7-documenten.mjs";
+import { stap7, leesKeuze } from "./inrichting/stap7-documenten.mjs";
 import { stap8 } from "./inrichting/stap8-werf.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i < 0 ? d : (process.argv[i + 1] ?? true); };
@@ -51,7 +56,7 @@ const STAPPEN = {
   4: { naam: "postenbibliotheek", plan: "stap4-posten.json", fn: stap4 },
   5: { naam: "prijslijsten", plan: "stap5-prijzen.json", fn: stap5 },
   6: { naam: "vergunningskennisbank", plan: "stap6-vergunningen.json", fn: stap6 },
-  7: { naam: "documenten van de actieve werven", plan: "stap7-documenten.json", fn: stap7 },
+  7: { naam: "werfdocumenten (keuze per werf, raming)", plan: "stap7-documenten.json", fn: stap7 },
   8: { naam: `één werf volledig (${werfCode ?? "?"})`, plan: `stap8-werf-${werfCode}.json`, fn: stap8 },
 };
 
@@ -67,7 +72,9 @@ if (pp) leesPlan(isAbsolute(pp) ? pp : join(map, pp));
 // Op live enkel de inrichtingsidentiteit (een testsleutel komt nooit op live; lib.mjs weigert ze daar).
 const idNaam = arg("identity", isLiveCanister(cid) ? LIVE_ID : "proef-admin");
 const actor = await backend(idNaam, cid);
-const opties = { project: arg("project", null), uploads: Number(arg("uploads", 3)), identity: idNaam, manifest: verslagPad.replace(/\.md$/, "") + "-manifest.csv" };
+const opties = { project: arg("project", null), uploads: Number(arg("uploads", 3)), identity: idNaam, manifest: verslagPad.replace(/\.md$/, "") + "-manifest.csv",
+  raming: verslagPad.replace(/\.md$/, "") + "-raming.csv", documentenWerf: leesKeuze(arg("documenten-werf", "")), schatting: process.argv.includes("--schatting"),
+  verkleind: arg("verkleind", undefined) };
 const verslag = new Verslag(echt);
 // Wat een droogloop in een vorige stap zou aanmaken (eenheden, hoofdstukken, werven): de volgende stappen tellen het mee.
 const zou = { eenheden: new Set(), hoofdstukken: new Set(), werven: new Set() };

@@ -17,6 +17,7 @@ import { homedir } from "node:os";
 import { isLiveCanister, LIVE_ID } from "../lib.mjs";
 import { blobHash, blobRef, refText, storageClientInrichting } from "../opslag.mjs";
 import { isLocal, ok, opt, pool, NAKIJKEN } from "./lib.mjs";
+import { REGELS, raming, euro } from "./zuinig.mjs";
 import { stap2 } from "./stap2-firmas.mjs";
 import { M, fromRead, saveAll } from "../../tests/offerte-lib.mjs";
 
@@ -230,8 +231,14 @@ export async function stap8({ actor, plan, echt, verslag, gelijktijdig, cid, opt
   // ── Manifest en tellingen ──────────────────────────────────────────────
   const tel = (f) => op.filter(f).length;
   const totaal = op.reduce((s, b) => s + b.bytes, 0);
-  verslag.noteer(S, `werf ${w.code}: ${plan.telling?.indexrijen ?? "?"} rijen in de documenten-index · ${plan.bestanden.length} bestanden in het plan · op te laden ${op.length} (${mb(totaal)}; foto's omgezet naar JPEG ≤ 1600 px zonder EXIF: ${tel((b) => b.omgezet)}) · niet opgeladen ${plan.bestanden.length - op.length} · geweerd (persoonsgegevens) ${(plan.geweerd ?? []).length} · leesfouten ${(plan.fouten ?? []).length}`);
+  verslag.noteer(S, `werf ${w.code}: ${plan.telling?.indexrijen ?? "?"} rijen in de documenten-index · ${plan.bestanden.length} bestanden in het plan · op te laden ${op.length} (${mb(totaal)}; foto's omgezet naar JPEG ≤ ${REGELS.maxZijde} px zonder EXIF: ${tel((b) => b.omgezet)}) · niet opgeladen ${plan.bestanden.length - op.length} · geweerd (persoonsgegevens) ${(plan.geweerd ?? []).length} · leesfouten ${(plan.fouten ?? []).length}`);
   verslag.noteer(S, `per soort: ${Object.entries(op.reduce((a, b) => ({ ...a, [b.soort]: (a[b.soort] ?? 0) + 1 }), {})).map(([k, n]) => `${k} ${n}`).join(", ")} · documenten in het dossier ${new Set(op.map((b) => sleutel(b.soort, b.documentTitel))).size} · vertrouwelijk ${tel((b) => b.vertrouwelijk)} · dubbels ${tel((b) => b.dubbel)}`);
+  // 2d.4: vooraf de kost (IC-tarief zonder de marge van Caffeine, BOWACO_verslag_2d.md §4) en de video's (nooit opgeladen).
+  const bronTot = op.reduce((s, b) => s + (b.bronBytes || b.bytes), 0);
+  const k = raming(totaal, op.length);
+  const videos = plan.bestanden.filter((b) => b.video);
+  verslag.noteer(S, `raming werf ${w.code}: ${op.length} bestanden, ${mb(bronTot)} vóór → ${mb(totaal)} na verkleining; ${euro(k.eenmalig)} eenmalig + ${euro(k.maand)}/maand (IC-tarief, zonder de marge van Caffeine; groter subnet × 2,6: ${euro(k.eenmaligGroot)} + ${euro(k.maandGroot)}/maand) · video's niet opgeladen: ${videos.length} (${mb(videos.reduce((s, b) => s + b.bytes, 0))})`);
+  console.log(`   raming ${w.code}: ${op.length} bestanden, ${mb(bronTot)} → ${mb(totaal)}; ${euro(k.eenmalig)} eenmalig + ${euro(k.maand)}/maand (× 2,6 groter subnet) · video's niet: ${videos.length}`);
   if (store) verslag.noteer(S, `opgeladen in deze run: ${opgeladen} bestanden, ${mb(bytesOp)} in ${((Date.now() - tUp) / 1000).toFixed(0)} s`);
   else if (!opladen) verslag.noteer(S, "lokaal: geen opslagdienst. De echte run registreert elk bestand met de verwijzing die live krijgt (zelfde hash, zonder blob); openen kan lokaal niet.");
   const csvPad = opties.manifest;
