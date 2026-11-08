@@ -158,7 +158,7 @@ function BotSheet({ bot, info, works, kinds, onClose, onSaved }: { bot: BotView 
       </fieldset>
       <Field label={F.works}><Choice label={F.works} value={allWorks ? "alle" : "enkel"} onChange={(v) => setAllWorks(v === "alle")} options={[{ value: "enkel", label: F.someWorks }, { value: "alle", label: F.allWorks }]} /></Field>
       {!allWorks && (
-        <div className="a-scroll" style={{ maxHeight: 220, overflowY: "auto" }}>
+        <div className="a-scroll" style={{ maxHeight: 220, overflowY: "auto", flexShrink: 0 }}>
           {liveWorks.map((w) => (
             <label key={String(w.id)} className="a-check"><input type="checkbox" checked={ws.includes(String(w.id))} onChange={() => toggle(ws, String(w.id), setWs)} /> {w.code} · {w.name}</label>
           ))}
