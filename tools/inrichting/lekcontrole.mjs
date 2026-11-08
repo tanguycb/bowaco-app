@@ -25,7 +25,8 @@ const leeg = (t) => {
   return null;
 };
 // Publiek bedoeld (geen gegevens van BOWACO): de begroeting van de app en de controle van een ticket door een robot.
-const PUBLIEK = new Set(["me", "_initialize_access_control", "http_request", "icrc10_supported_standards", "icrc21_canister_call_consent_message", "_caffeineStorageBlobIsLive", "_caffeineStorageBlobsToDelete", "_caffeineStorageRefillCashier", "_caffeineStorageUpdateGatewayPrincipals", "_caffeineStorageCreateCertificate"]);
+// 3.13: myBot (wie ben ik voor de toestemmingspagina: enkel de eigen stand), de inlogpagina en een geregistreerde MCP-klant.
+const PUBLIEK = new Set(["me", "myBot", "_caffeineMcpSignInOrigin", "_caffeineMcpClient", "_initialize_access_control", "http_request", "icrc10_supported_standards", "icrc21_canister_call_consent_message", "_caffeineStorageBlobIsLive", "_caffeineStorageBlobsToDelete", "_caffeineStorageRefillCashier", "_caffeineStorageUpdateGatewayPrincipals", "_caffeineStorageCreateCertificate"]);
 const a = await freshBackend(cid, { alleenLezen: true }); // ook op live: enkel queries
 let geweigerd = 0, leegTerug = 0, publiek = 0;
 const inhoud = [];
