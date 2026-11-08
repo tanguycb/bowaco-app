@@ -27,3 +27,4 @@ BOWACO_posten_*
 # standaard in ~/.bowaco/posten, nooit in git.
 rekentest-*.json
 rekentest-*.md
+__pycache__/
