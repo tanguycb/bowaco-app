@@ -280,7 +280,9 @@ module {
     let used = e.bots.daily.get(key) ?? 0;
     let workId = Tool.nat(args, "werfId");
     if (used >= b.callsPerDay) {
-      logCall(e, b, tool, workId, argsSha, #limit, null);
+      // Review 3.13 M2: hoogstens één logregel per bot per dag na de limiet (een gelekt token vult het logboek niet).
+      let flag = key # ":limiet";
+      if (not e.bots.daily.containsKey(flag)) { e.bots.daily.add(flag, 1); logCall(e, b, tool, workId, argsSha, #limit, null) };
       return #err("Daglimiet bereikt (" # b.callsPerDay.toText() # " oproepen). Probeer morgen opnieuw.");
     };
     e.bots.daily.add(key, used + 1);
@@ -294,7 +296,7 @@ module {
     };
     if (needsWork and scopeWork == null) {
       logCall(e, b, tool, workId, argsSha, #refused("werf"), null);
-      return #err(if (tool == "voorstel_factuurcontrole") "Onbekende factuur" else "Geef een geldige werfId");
+      return #err(if (tool == "voorstel_factuurcontrole") "Geen toegang: deze tool of deze werf staat niet op je fiche" else "Geef een geldige werfId");
     };
     if (not Rights.mayBot(ctx, b, tool, scopeWork)) {
       logCall(e, b, tool, scopeWork, argsSha, #refused("fiche"), null);
@@ -378,7 +380,7 @@ module {
       let used = attachedFiles(e, workId);
       let loose = List.empty<Json>();
       for (f in e.files.files.values()) {
-        if (loose.size() < Config.botMaxList and f.workId == ?workId and f.archivedAt == null and not f.confidential and not used.containsKey(f.id)) {
+        if (loose.size() < Config.botMaxList and looseFileOk(e, f, workId) and not used.containsKey(f.id)) {
           loose.add(#Object([("id", num(f.id)), ("naam", str(f.name)), ("type", str(f.mime)), ("grootte", num(f.size))]));
         };
       };
@@ -464,10 +466,15 @@ module {
   };
 
   // Is dit bestand (nog) te koppelen aan deze soort op deze werf, door deze bot?
+  // Review 3.13 M1: enkel een bestand dat een INTERNE persoon oplaadde (zoals attachDocumentFile: een externe koppelt enkel zijn
+  // eigen bestand). Eén neutrale boodschap voor onbekend, andere werf, vertrouwelijk of extern (L1: geen id-orakel).
+  func looseFileOk(e : Env, f : Types.FileRef, workId : Nat) : Bool {
+    f.workId == ?workId and f.archivedAt == null and not f.confidential and (switch (e.access.persons.get(f.personId)) { case (?p) Rights.internal(p); case null false });
+  };
+
   func docLinkCheck(e : Env, b : Bot, workId : Nat, fileId : Nat, kindKey : Text) : ?Text {
-    let f = e.files.files.get(fileId) ?? return ?"Onbekend bestand";
-    if (f.workId != ?workId or f.archivedAt != null) return ?"Dit bestand hoort niet bij deze werf";
-    if (f.confidential) return ?"Geen toegang";
+    let f = e.files.files.get(fileId) ?? return ?"Dit bestand kan je niet koppelen";
+    if (not looseFileOk(e, f, workId)) return ?"Dit bestand kan je niet koppelen";
     if (attachedFiles(e, workId).containsKey(fileId)) return ?"Dit bestand hangt al aan een document";
     let k = Dossier.kind(e.settings, kindKey) ?? return ?"Onbekende documentsoort";
     if (k.archived) return ?"Deze documentsoort is gearchiveerd";
@@ -481,7 +488,9 @@ module {
     let reasonRaw = Tool.text(args, "reden") ?? "";
     if (reasonRaw.size() > Config.maxText) return #err("Reden: hoogstens 1000 tekens");
     switch (docLinkCheck(e, b, workId, fileId, kindKey)) { case (?m) return #err(m); case null {} };
-    let level = Rights.botLevel(b, "document-koppelen");
+    // Review 3.13 M1: een soort die een externe ziet of levert (OA zichtbaar, levering door klant/architect/…) gaat altijd als voorstel.
+    let extern = switch (Dossier.kind(e.settings, kindKey)) { case (?k) k.oaVisible or k.deliverer != "bowaco"; case null true };
+    let level = switch (Rights.botLevel(b, "document-koppelen")) { case (#auto) if extern #proposal else #auto; case l l };
     if (level == #proposal and openActions(e, b.id) >= Config.botMaxOpenActions) return #err("Te veel open voorstellen; wacht tot BOWACO ze bekeek");
     let title = switch (Dossier.kind(e.settings, kindKey)) { case (?k) k.name; case null kindKey };
     let a = newAction(e, b, "document-koppelen", ?workId, #docLink({ fileId; kind = kindKey; title }), clean(reasonRaw, Config.maxText), now);
@@ -545,7 +554,7 @@ module {
     switch target {
       case (?d) {
         if (d.fileIds.size() >= Config.maxFilesPerDoc) return #err("Te veel versies");
-        e.dossier.documents.add(d.id, { d with fileIds = d.fileIds.concat([x.fileId]); status = #received; updatedAt = now; updatedBy = by });
+        e.dossier.documents.add(d.id, { d with fileIds = d.fileIds.concat([x.fileId]); status = #received; updatedAt = now; updatedBy = by; extra = d.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "bot").concat([("bot", a.botId.toText())]) });
         a.docId := ?d.id;
         a.createdDoc := false;
         a.extra := [("vorigeStatus", docStatusKey(d.status))];

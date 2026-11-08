@@ -10,7 +10,7 @@
 //   (9) daglimiet; logboek zonder inhoud; intrekken (koppeling en bot) sluit meteen.
 // Enkel VERZONNEN gegevens (P-MCP-…, Proef bot). Draait na tests/rollen.mjs en tests/oafactuur-draft.mjs (een OA-factuur).
 //   node tests/mcp-3-13.mjs <canister-id>
-import { backend, freshBackend, principalOf } from "../tools/lib.mjs";
+import { backend, freshBackend } from "../tools/lib.mjs";
 import { connect, FORBIDDEN, http, register, rpc, tool, pkce, REDIRECT } from "./mcp-lib.mjs";
 
 const cid = process.argv[2];
@@ -52,7 +52,7 @@ const invOther = invAll.find((i) => i.workId !== W1);
 check("opzet: twee proefwerven, vier losse bestanden (één vertrouwelijk), een OA-factuur van een andere werf", !!W1 && !!W2 && !!invOther, S({ W1, W2, inv: invOther?.id }));
 
 // ── (1) Enkel de beheerder ──────────────────────────────────────────────
-const F = (o = {}) => ({ id: [], rev: 0n, name: `Proef bot ${sfx}`, vendor: "Anthropic", model: "Claude (label)", tools: ["mijn_fiche", "werven", "werf_documenten", "oa_offertes", "oa_facturen", "document_koppelen", "voorstel_factuurcontrole"], allWorks: false, works: [W1], docKinds: ["plannen", "asbestinventaris"], callsPerDay: 200n, tasks: [], ...o });
+const F = (o = {}) => ({ id: [], rev: 0n, name: `Proef bot ${sfx}`, vendor: "Anthropic", model: "Claude (label)", tools: ["mijn_fiche", "werven", "werf_documenten", "oa_offertes", "oa_facturen", "document_koppelen", "voorstel_factuurcontrole"], allWorks: false, works: [W1], docKinds: ["plannen", "asbestinventaris", "plaatsbeschrijving", "verzekering"], callsPerDay: 200n, tasks: [], ...o });
 for (const [n, x] of [["werfleider", wl], ["calculator", calc], ["OA", oa], ["anoniem", anon]]) {
   const rs = await Promise.all([x.listBots(), x.saveBot(F()), x.newBotCode(1n), x.revokeBot(1n), x.botActions(false), x.botLog(0n, 5n), x.mcpInfo(), x._caffeineMcpSetSignInOrigin("https://x.example"), x.botConnections(1n), x.decideBotAction(1n, true, ""), x.undoBotAction(1n)].map(denied));
   check(`(1) ${n} beheert geen bots`, rs.every(Boolean), S(rs));
@@ -82,7 +82,7 @@ check("(3) de code is eenmalig", errOf(await botB.claimBotCode(code.code)).inclu
 check("(3) een gekoppelde bot krijgt geen tweede code", errOf(await admin.newBotCode(idA)).includes("al gekoppeld"));
 check("(3) een bot is nooit een persoon: redeemCode en claimBootstrap weigeren", errOf(await botA.redeemCode("BOW-0000-0000-0000")) === "Geen toegang" && errOf(await botA.claimBootstrap("BOW-0000-0000-0000-0000", "x")) === "Geen toegang");
 check("(3) de bot kan de gewone API niet gebruiken (werven, bestanden, facturen)", (await denied(botA.listWorks())) && (await denied(botA.listFiles([W1]))) && (await denied(botA.listOaInvoices([], []))));
-check("(3) een bot-identiteit kan geen robot worden", errOf(await admin.addRobot(principalOf(botA), "Proef", ["proef"])) === "Deze sleutel hoort bij een bot");
+check("(3) een bot-identiteit kan geen robot worden", errOf(await admin.addRobot((await botA.me()).principal, "Proef", ["proef"])) === "Deze sleutel hoort bij een bot");
 check("(3) myBot: de bot, een persoon, een onbekende", "bot" in (await botA.myBot()) && "person" in (await wl.myBot()) && "none" in (await botX.myBot()));
 
 // ── (4) OAuth ───────────────────────────────────────────────────────────
@@ -142,9 +142,12 @@ ok(await admin.undoBotAction(a1.id));
 check("(7) een aanvaarde koppeling ongedaan maken: het document is weg", !(await admin.getDossier(W1)).documents.some((d) => d.id === d1.id));
 bA = (await admin.listBots()).find((b) => b.id === idA);
 ok(await admin.saveBot(F({ id: [idA], rev: bA.rev, tasks: [["document-koppelen", { auto: null }]] })));
-const z1 = await tool(anon, cid, conA.access, "document_koppelen", { werfId: Number(W1), bestandId: Number(fOpen2), soort: "asbestinventaris", reden: "proef zelf doen" });
-const dz = (await admin.getDossier(W1)).documents.find((d) => d.kind === "asbestinventaris");
-check("(7) Zelf doen: meteen uitgevoerd, document Asbestinventaris (ontvangen)", !z1.isError && z1.data.stand === "uitgevoerd" && !!dz && "received" in dz.status, z1.text);
+const ze = await tool(anon, cid, conA.access, "document_koppelen", { werfId: Number(W1), bestandId: Number(fOpen2), soort: "asbestinventaris", reden: "proef extern" });
+check("(7) Zelf doen voor een soort die externen zien of leveren (asbestinventaris): toch een voorstel (review M1)", !ze.isError && ze.data.stand === "voorstel", ze.text);
+ok(await admin.decideBotAction(BigInt(ze.data.actie), false, "proef geweigerd"));
+const z1 = await tool(anon, cid, conA.access, "document_koppelen", { werfId: Number(W1), bestandId: Number(fOpen2), soort: "plaatsbeschrijving", reden: "proef zelf doen" });
+const dz = (await admin.getDossier(W1)).documents.find((d) => d.kind === "plaatsbeschrijving");
+check("(7) Zelf doen (interne soort): meteen uitgevoerd, document Plaatsbeschrijving (ontvangen)", !z1.isError && z1.data.stand === "uitgevoerd" && !!dz && "received" in dz.status, z1.text);
 acts = await admin.botActions(false);
 const az = acts.find((a) => Number(a.id) === z1.data.actie);
 check("(7) in Beheer: 'zelf gedaan' met de knop ongedaan maken", !!az && "done" in az.state && az.canUndo === true, S(az?.state));
@@ -152,8 +155,8 @@ ok(await admin.undoBotAction(az.id));
 check("(7) ongedaan met één klik: het document is weg, de actie staat op ongedaan", !(await admin.getDossier(W1)).documents.some((d) => d.id === dz.id) && "undone" in (await admin.botActions(false)).find((a) => a.id === az.id).state);
 check("(7) twee keer ongedaan maken kan niet", errOf(await admin.undoBotAction(az.id)).includes("Niets"));
 // Na een menselijke wijziging: niet meer ongedaan.
-const z2 = await tool(anon, cid, conA.access, "document_koppelen", { werfId: Number(W1), bestandId: Number(fOpen3), soort: "plannen" });
-const dz2 = (await admin.getDossier(W1)).documents.find((d) => d.kind === "plannen");
+const z2 = await tool(anon, cid, conA.access, "document_koppelen", { werfId: Number(W1), bestandId: Number(fOpen3), soort: "verzekering" });
+const dz2 = (await admin.getDossier(W1)).documents.find((d) => d.kind === "verzekering");
 ok(await admin.setDocumentStatus(dz2.id, { approved: null }, "proef goedgekeurd door een mens"));
 check("(7) na een wijziging door een mens: niet meer ongedaan te maken", errOf(await admin.undoBotAction(BigInt(z2.data.actie))).includes("intussen gewijzigd"));
 
@@ -184,8 +187,9 @@ check("(9) daglimiet: na de limiet weigert de app", !l1.isError && !l2.isError &
 const log = await admin.botLog(0n, 200n);
 const logText = S(log);
 check("(9) logboek: elke oproep (ok, geweigerd, limiet) met een sha256 van de argumenten, zonder inhoud", log.some((c) => "limit" in c.outcome) && log.some((c) => "refused" in c.outcome) && log.some((c) => "ok" in c.outcome) && log.every((c) => /^[0-9a-f]{64}$/.test(c.argsSha256)) && !logText.includes(MARK) && !logText.includes("Proefreden"), log.length);
-const auditText = S(await admin.auditLog(0n, 300n));
-check("(9) auditlog: bot-acties zonder inhoud", auditText.includes("bot-voorstel") && auditText.includes("bot-zelf") && !auditText.includes(MARK));
+const botAudit = (await admin.auditLog(0n, 500n)).filter((a) => a.action.startsWith("bot-"));
+const auditText = S(botAudit);
+check("(9) auditlog: bot-acties zonder inhoud", auditText.includes("bot-voorstel") && auditText.includes("bot-zelf") && !auditText.includes(MARK) && !auditText.includes("Proefreden"), botAudit.length);
 ok(await admin.saveBot(F({ id: [idA], rev: (await admin.listBots()).find((b) => b.id === idA).rev, works: [W1], callsPerDay: 200n })));
 // Tweede koppeling, daarna enkel die intrekken.
 const conA2 = await connect(anon, botA, cid, "Proef Claude A tweede");

@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { backend, freshBackend, identity, ok, Principal } from "../tools/lib.mjs";
+import { connect, rpc, tool as mcpTool } from "./mcp-lib.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/lek.mjs <canister-id>");
@@ -35,7 +36,13 @@ const roles = {
   klant: await backend("proef-klant", cid),
   veiligheid: await backend("proef-vc", cid),
   robot: await backend("robot-test", cid),
+  // 3.13: een bot (eigen Internet Identity, GEEN persoon) met een minimale fiche: enkel mijn_fiche, geen werven, geen soorten.
+  bot: await backend("proef-bot-lek", cid),
 };
+if (!("bot" in (await roles.bot.myBot()))) {
+  const bid = ok(await admin.saveBot({ id: [], rev: 0n, name: "Proef bot (lektest)", vendor: "Proef", model: "", tools: ["mijn_fiche"], allWorks: false, works: [], docKinds: [], callsPerDay: 500n, tasks: [] }));
+  ok(await roles.bot.claimBotCode(ok(await admin.newBotCode(bid)).code));
+}
 await admin.addRobot(identity("robot-test").getPrincipal(), "Proefrobot", ["proef"]).catch(() => {});
 
 // Gegevens uit de rollentest
@@ -116,8 +123,30 @@ const table = {
   me: [ALL, () => []],
   _initialize_access_control: [ALL, () => []],
   // 1.9 (R28): een robotprincipal is nooit een persoon, dus ook geen code.
-  claimBootstrap: [AUTH.filter((r) => r !== "robot"), () => ["BOW-0000-0000-0000-0000", "x"]],
-  redeemCode: [AUTH.filter((r) => r !== "robot"), () => ["BOW-0000-0000-0000"]],
+  claimBootstrap: [AUTH.filter((r) => r !== "robot" && r !== "bot"), () => ["BOW-0000-0000-0000-0000", "x"]],
+  redeemCode: [AUTH.filter((r) => r !== "robot" && r !== "bot"), () => ["BOW-0000-0000-0000"]],
+  // 3.4 + 3.13: bots via MCP. De HTTP-ingang is voor iedereen (de OAuth- en MCP-laag beslist, zie hieronder); goedkeuren enkel een
+  // gekoppelde bot; de koppelcode gebruiken elke ingelogde identiteit behalve een robot (een persoon of bot krijgt een invoerfout);
+  // beheer enkel de beheerder (#manageBots).
+  http_request: [ALL, () => [{ method: "GET", url: "/bestaat-niet", headers: [], body: new Uint8Array(), certificate_version: [] }]],
+  http_request_update: [ALL, () => [{ method: "GET", url: "/bestaat-niet", headers: [], body: new Uint8Array(), certificate_version: [] }]],
+  _caffeineMcpSignInOrigin: [ALL, () => []],
+  _caffeineMcpClient: [ALL, () => ["bestaat-niet"]],
+  _caffeineMcpApprove: [["bot"], () => [{ clientId: "bestaat-niet", redirectUri: "https://x.example/cb", codeChallenge: "c".repeat(43), codeChallengeMethod: "S256" }]],
+  _caffeineMcpSetSignInOrigin: [ADMIN, () => ["https://x.example/ongeldig-pad"]],
+  myBot: [ALL, () => []],
+  claimBotCode: [AUTH.filter((r) => r !== "robot"), () => ["BOT-0000-0000-0000-0000"]],
+  mcpInfo: [ADMIN, () => []],
+  listBots: [ADMIN, () => []],
+  saveBot: [ADMIN, () => [{ id: [X], rev: 0n, name: "", vendor: "", model: "", tools: [], allWorks: false, works: [], docKinds: [], callsPerDay: 0n, tasks: [] }]],
+  newBotCode: [ADMIN, () => [X]],
+  revokeBot: [ADMIN, () => [X]],
+  botConnections: [ADMIN, () => [X]],
+  revokeBotConnection: [ADMIN, () => [X, ""]],
+  botActions: [ADMIN, () => [true]],
+  decideBotAction: [ADMIN, () => [X, false, ""]],
+  undoBotAction: [ADMIN, () => [X]],
+  botLog: [ADMIN, () => [0n, 1n]],
   invitePerson: [["admin", "werfleider"], () => [invReq]],
   createRecoveryCode: [ADMIN, () => [X, 0n, ""]],
   confirmLink: [ADMIN, () => [someone]],
@@ -670,6 +699,32 @@ for (const m of methods) {
   rows.push({ m, expect, got });
 }
 for (const k of Object.keys(table)) if (!methods.includes(k)) console.log(`· tabelregel zonder functie: ${k}`);
+// 3.13: de bot BUITEN zijn fiche via de MCP-ingang (zoals Claude): elke tool buiten de fiche, op elke werf, met elk id = geweigerd en
+// zonder gegevens. tools/list toont enkel mijn_fiche. Elke tool die iets teruggeeft dat niet mag = een lek.
+{
+  const anonB = roles.anoniem;
+  const con = await connect(anonB, roles.bot, cid, "Proef lektest");
+  if (!con.access) { leaks++; console.log(`✗ LEK-proef bot: geen koppeling (${con.err})`); }
+  else {
+    const tl = (await rpc(anonB, cid, con.access, "tools/list")).json?.result?.tools ?? [];
+    if (tl.length !== 1 || tl[0].name !== "mijn_fiche") { leaks++; console.log(`✗ LEK tools/list van de bot: ${tl.map((t) => t.name).join(", ")}`); }
+    const ids = [A, B, X, 0n].map(Number);
+    const tries = [];
+    for (const w of ids) {
+      tries.push(["werven", {}], ["werf_documenten", { werfId: w }], ["oa_offertes", { werfId: w }], ["oa_facturen", { werfId: w }], ["document_koppelen", { werfId: w, bestandId: Number(file.id), soort: "vgplan" }]);
+    }
+    tries.push(["voorstel_factuurcontrole", { factuurId: Number(oaInv.id), oordeel: "in_orde" }], ["betalen", {}], ["verwijderen", { werfId: Number(A) }]);
+    let botCalls = 0;
+    for (const [n, a] of tries) {
+      botCalls++;
+      const r = await mcpTool(anonB, cid, con.access, n, a);
+      if (!r.isError) { leaks++; console.log(`✗ LEK bot buiten fiche: ${n} ${JSON.stringify(a)} → ${r.text.slice(0, 120)}`); }
+    }
+    const f = await mcpTool(anonB, cid, con.access, "mijn_fiche");
+    if (f.isError || f.data?.werven?.length !== 0 || f.data?.documentsoorten?.length !== 0) { leaks++; console.log(`✗ LEK mijn_fiche van de bot: ${f.text.slice(0, 160)}`); }
+    console.log(`bot buiten zijn fiche: ${botCalls} tool-oproepen via /mcp`);
+  }
+}
 // Opruimen: de eigen wachtende koppeling afsluiten, zodat niemand ze later per vergissing bevestigt.
 if (metWacht) ok(await admin.archivePerson(wachtInv.personId));
 const left = (await admin.listLinks()).filter((l) => "pending" in l.status);

@@ -116,6 +116,10 @@ node tests/mail-proef.mjs "$cid"
 # 3.1: de AI-connector op de caffeine-weg tegen de nep-inferentiedienst (rechten per rol, fiches, budget en reservering, uitkomstklassen,
 # terugval naar de gateway, robot "ai", logboek zonder inhoud, testmodus, export en herstel van de fiches). Vóór de klokproeven.
 node tests/ai-3-1.mjs "$cid"
+# 3.4 + 3.13: bots via MCP (caffeineai-mcp-server: OAuth + Internet Identity, /mcp via http_request_update): enkel de beheerder, fiche,
+# koppelcode, bot ≠ persoon, PKCE, tools/list per fiche, buiten de fiche = 0 lekken, Voorstel / Zelf doen / ongedaan maken, factuurcontrole
+# hoogstens een voorstel, daglimiet, logboek zonder inhoud, intrekken per koppeling en per bot.
+node tests/mcp-3-13.mjs "$cid"
 # 2c.2: de prijsvraag-Excel heen en terug (zonder netwerk) en de prijsvraag door de backend (klaarzetten, toegang zonder werf,
 # Mijn prijsvragen, ontwerp, indienen, bijlagen, afsluiten, werfleider zonder bedragen, .did-controle). De klokproef (herinnering,
 # geen antwoord, 90 dagen na afsluiten) verzet de tijd van dit eigen net met ruim 90 dagen: daarom als LAATSTE canisterproef.

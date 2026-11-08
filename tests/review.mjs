@@ -925,6 +925,22 @@ else {
   const envFiles = files.filter((p) => /Prim\.envVar/.test(readFileSync(p, "utf8"))).map((p) => p.slice(root.length + 1)).sort();
   const envBad = files.flatMap((p) => readFileSync(p, "utf8").split("\n").filter((l) => /envVar/.test(l) && /audit\(|\.log\.add|values\.add|Debug\.print|notifyAdmins/.test(l)).map((l) => p.slice(root.length + 1) + ": " + l.trim().slice(0, 80)));
   check("(3.1) Prim.envVar enkel in lib/Mail.mo en lib/ai/Caffeine.mo, nooit in een audit-, log- of instellingsregel", envFiles.every((f) => f === "lib/Mail.mo" || f === "lib/ai/Caffeine.mo") && envFiles.includes("lib/ai/Caffeine.mo") && envBad.length === 0, [...envFiles, ...envBad].join(", "));
+  // (3.13) Bots via MCP: nooit AccessControl (de rechten zijn Rights.mayBot + fiche), nooit MixinMcpServer; elke tool-oproep door
+  // Rights.mayBot; de lees-tools raken nooit een opslagverwijzing (blob), vertrouwelijke bedragen of contracten; het logboek bewaart
+  // enkel een hash van de argumenten; enkel McpApi.mo raakt de OAuth-toestand en de goedkeuring.
+  const srcOf = (f) => readFileSync(join(root, f), "utf8");
+  const acFiles = files.filter((p) => /caffeineai-authorization|AccessControl|MixinMcpServer/.test(readFileSync(p, "utf8").replace(/\/\/.*$/gm, ""))).map((p) => p.slice(root.length + 1));
+  check("(3.13) geen AccessControl, caffeineai-authorization of MixinMcpServer in de backend", acFiles.length === 0, acFiles.join(", "));
+  const botsSrc = srcOf("lib/Bots.mo");
+  const callBody = botsSrc.slice(botsSrc.indexOf("public func call("), botsSrc.indexOf("// ── Lezen"));
+  check("(3.13) Bots.call: bot achter de principal, daglimiet en Rights.mayBot vóór elke tool", /activeBot\(e\.bots, caller\)/.test(callBody) && /callsPerDay/.test(callBody) && /Rights\.mayBot\(ctx, b, tool, scopeWork\)/.test(callBody) && callBody.indexOf("Rights.mayBot") < callBody.indexOf('case "mijn_fiche"'));
+  const codeOnly = botsSrc.replace(/\/\/.*$/gm, "");
+  check("(3.13) Bots.mo leest nooit een blob, vertrouwelijke bedragen, contracten of klantcontact", !/\.blob\b|\.amounts\b|dossier\.confidential|orgConfidential|personConfidential|clientContact|readCosts/.test(codeOnly));
+  check("(3.13) het logboek van de bots bewaart enkel een sha256 van de argumenten", /argsSha256 = argsSha/.test(botsSrc) && !/args\s*=\s*args|argsText|stringify\(\)\s*;?\s*\n\s*e\.bots\.log/.test(botsSrc));
+  const oauthFiles = files.filter((p) => /OAuth\.(approve|revoke|authenticate)|bots\.oauth/.test(readFileSync(p, "utf8"))).map((p) => p.slice(root.length + 1)).sort();
+  check("(3.13) enkel mixins/McpApi.mo (en de klok in main.mo) raken de OAuth-toestand", oauthFiles.every((f) => f === "mixins/McpApi.mo" || f === "main.mo"), oauthFiles.join(", "));
+  const mcpSrc = srcOf("mixins/McpApi.mo");
+  check("(3.13) goedkeuren enkel als actieve bot; inlogpagina en beheer enkel #manageBots", /_caffeineMcpApprove[\s\S]{0,300}Bots\.activeBot\(bots, caller\)/.test(mcpSrc) && /_caffeineMcpSetSignInOrigin[\s\S]{0,200}requireBotAdmin/.test(mcpSrc) && (mcpSrc.match(/requireBotAdmin\(caller\)/g) ?? []).length >= 12);
 }
 
 // ── securityreview 2c.9: S8 (klant op een werf zonder klantfirma ziet geen werfadministratie) en S16 (geen lus die een waarde vervangt

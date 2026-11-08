@@ -8,6 +8,7 @@
 // Elke tool-oproep: lib/Bots.mo (Rights.mayBot + fiche + dagteller + logboek zonder inhoud).
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
+import Int "mo:core/Int";
 import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Map "mo:core/Map";
@@ -96,6 +97,11 @@ mixin (
   public shared ({ caller }) func _caffeineMcpApprove(request : OAuth.Approval) : async { #ok : Text; #err : Text } {
     let b = switch (Bots.activeBot(bots, caller)) { case (?x) x; case null return #err("Geen toegang: enkel een gekoppelde bot kan een koppeling goedkeuren. Log in met de Internet Identity van de bot en geef eerst de koppelcode in.") };
     let r = await* OAuth.approve(bots.oauth, caller, request, Time.now());
+    // Review 3.13 L2 (R33): intussen ingetrokken → de koppeling meteen weer weg.
+    if (Bots.activeBot(bots, caller) == null) {
+      for (c in OAuth.connections(bots.oauth, caller).values()) OAuth.revoke(bots.oauth, caller, c.id);
+      return #err("Geen toegang: deze bot is intussen ingetrokken");
+    };
     switch r { case (#ok(_)) Access.audit(audit, caller, null, null, "bot-koppeling", "bot #" # b.id.toText()); case (#err(_)) {} };
     r;
   };
@@ -116,7 +122,15 @@ mixin (
     if (access.links.containsKey(caller)) { return #err("Deze Internet Identity hoort bij een persoon. Gebruik een aparte identiteit voor de bot.") };
     if (robot.robots.containsKey(caller)) { return #err("Geen toegang") };
     if (bots.byPrincipal.containsKey(caller)) { return #err("Deze Internet Identity hoort al bij een bot") };
+    // Review 3.13 M3: dezelfde pogingenteller en globale remming als redeemCode (geen onbegrensde auditregels per misser).
+    switch (Access.blockedUntil(access, caller)) {
+      case (?until) { return #err("Te veel pogingen; probeer opnieuw na " # until.toText()) };
+      case null {};
+    };
     let fail = func() : Result.Result<BotViews.MyBot, Text> {
+      if (Access.countFailure(access, caller)) {
+        Access.notifyAdmins(access, audit, ctr, "remming", "Veel foute codes in het afgelopen uur (" # Access.failuresThisHour(access).toText() # "). Bekijk de auditlog.");
+      };
       Access.audit(audit, caller, null, null, "bot-code-fout", "");
       #err("Deze koppelcode klopt niet, is verlopen of is al gebruikt");
     };
