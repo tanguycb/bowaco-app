@@ -12,27 +12,6 @@ kost: foto's verkleind zoals de app (tools/inrichting/zuinig.mjs), video's enkel
 NOOIT in de selectie: gevoelige bestanden, dubbels en oudere versies, blanco sjablonen, historiek (fase 3), aankoop- en
 verkoopfacturen. Foto's en video's wel (rij "foto-selectie later"): de import verkleint de foto's en slaat de video's over.
 Enkel lezen: de documentenmap blijft ongewijzigd.
-"""Stap 2b.6 stap 7: de selectie van de documenten van de actieve werven (geen upload). Neemt uit de documenten-index de
-werfbestanden van de werven die stap 3 aanmaakt en schrijft per werf wat er zou opgeladen worden (soort, aantal, grootte).
-
-  python3 -I tools/inrichting/lees-documenten.py --documenten BOWACO_index_documenten.csv --werven stap3-werven.json
-
-NOOIT in de selectie: gevoelige bestanden, foto's en video's (selectie later, vraag D52), dubbels en oudere versies,
-blanco sjablonen, aankoop- en verkoopfacturen. Een upload gaat naar de opslagdienst van Caffeine, dus buiten het lokale
-net: tools/inrichting.mjs weigert hem tot de eigenaar beslist (vraag D47) en zijn "ja" geeft.
-"""Stap 2b.6/2d.4 stap 7: de selectie van de werfdocumenten. Neemt uit de documenten-index de werfbestanden en de foto's
-van ALLE werven met een werfmap en schrijft per werf wat er zou opgeladen worden (soort, aantal, grootte, pad).
-
-  python3 -I tools/inrichting/lees-documenten.py --documenten BOWACO_index_documenten.csv --werven stap3-werven.json
-         [--docs <documentenmap>]
-
-2d.4 (D47): de gegevens komen van alle werven, de documenten standaard enkel van de ACTIEVE werven (= de werven die stap 3
-aanmaakt: "actief": true). tools/inrichting.mjs kiest per werf (--documenten-werf W-012=ja,W-091=nee) en raamt vooraf de
-kost: foto's verkleind zoals de app (tools/inrichting/zuinig.mjs), video's enkel in de lijst.
-
-NOOIT in de selectie: gevoelige bestanden, dubbels en oudere versies, blanco sjablonen, historiek (fase 3), aankoop- en
-verkoopfacturen. Foto's en video's wel (rij "foto-selectie later"): de import verkleint de foto's en slaat de video's over.
-Enkel lezen: de documentenmap blijft ongewijzigd.
 """
 import argparse
 import collections
