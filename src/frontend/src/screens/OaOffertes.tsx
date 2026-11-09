@@ -354,9 +354,9 @@ export function HandSheet({ workId, v, inv, onClose, read, orgPreset }: { workId
         number: no.trim(), quoteDay: inputToDay(day)!, validUntil: inputToDay(valid), discountBp: bp === null || bp === 0n || (!loose && form === "totaal") ? undefined : bp, reverse: rev,
         prices: calc.prices, remark, note, file: f,
       };
-      const saved = unwrap(await actor!.registerOaQuote(input, calc.net));
-      // 3.8: het voorstel is overgenomen; de opdracht sluit en het bestand van de opdracht hangt aan de offerte.
-      if (read) unwrap(await actor!.finishOaRead(read.brief.id, { __kind__: "applied", applied: saved.oaQuoteId }));
+      // 3.8: met een voorstel in één keer registreren en de opdracht sluiten (het bestand van de opdracht hangt aan de offerte).
+      if (read) unwrap(await actor!.applyOaRead(read.brief.id, input, calc.net));
+      else unwrap(await actor!.registerOaQuote(input, calc.net));
       toast.show({ kind: "ok", text: O.handSaved });
       refresh();
       onClose();

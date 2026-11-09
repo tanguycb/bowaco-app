@@ -540,14 +540,16 @@ module {
     let ctx = { works = e.works; settings = e.settings };
     let office = func(w : Nat) : Bool { Rights.tenderScope(ctx, p, w) == #full };
     let pr = switch (OaQuotes.prepare(e.settings, e.org, e.tenders, tctx, office, i, today(now))) { case (#ok x) x; case (#err m) return #err(m) };
-    if (prop.form != "hoofdstukken" and prop.totalCents != null and prop.totalCents != ?pr.net) return #err("het totaal klopt niet met de som van de regels");
+    // Review 3.8 M4: Zelf doen enkel met een uitdrukkelijke btw-keuze en een totaal dat klopt met de regels of de hoofdstukken.
+    if (prop.reverse == null) return #err("de btw (verlegd of niet) staat niet in het voorstel");
+    if (prop.totalCents != ?pr.net) return #err("het totaal klopt niet met de som van de regels");
     let (qid, version) = OaQuotes.store(e.tenders, e.ctr, i, pr, j.fileId, p.id, now, [("inlezen", j.id.toText()), ("bot", b.id.toText())]);
     #ok(qid, version);
   };
 
   // Ongedaan maken van Zelf doen: de offerte intrekken (zoals withdrawOaQuote), zolang ze niet overgenomen is en geen afspraak ernaar
   // verwijst en ze nog de geldende indiening is.
-  public func undoOaRead(e : Env, a : Types.BotAction, by : Nat, now : Int) : { #ok; #err : Text } {
+  public func undoOaRead(e : Env, a : Types.BotAction, who : Principal, by : Nat, now : Int) : { #ok; #err : Text } {
     let #other(x) = a.action else return #err("Geen inlezen");
     if (x.tool != "voorstel_oa_offerte") return #err("Geen inlezen");
     let qid = switch (x.data.find(func((k, _) : (Text, Text)) : Bool = k == "oaOfferte")) { case (?(_, v)) Nat.fromText(v) ?? 0; case null return #err("Niets geregistreerd") };
@@ -567,6 +569,12 @@ module {
     };
     let extra = OaDeals.extraSet(OaDeals.extraSet(OaDeals.extraSet(q.extra, "intrekZichtbaar", "nee"), "ingetrokkenOp", now.toText()), "ingetrokkenDoor", by.toText());
     e.tenders.oaQuotes.add(q.id, { q with status = #withdrawn("ongedaan: ingelezen door bot #" # a.botId.toText()); extra });
+    // Review 3.8 L1: de opdracht toont "ongedaan".
+    switch (x.data.find(func((k, _) : (Text, Text)) : Bool = k == "opdracht")) {
+      case (?(_, v)) switch (e.oaRead.jobs.get(Nat.fromText(v) ?? 0)) { case (?j) { j.status := #other("ongedaan"); j.extra := OaRead.extraSet(j.extra, "ongedaanOp", now.toText()) }; case null {} };
+      case null {};
+    };
+    Access.audit(e.audit, who, ?by, ?q.workId, "oa-offerte-ingetrokken", "ongedaan: OA-offerte #" # q.id.toText() # " ingelezen door bot #" # a.botId.toText());
     switch (q.inviteId) {
       case (?iid) switch (e.tenders.invites.get(iid)) { case (?inv) { if (inv.status == #received) e.tenders.invites.add(iid, { inv with status = #asked; answeredAt = null }) }; case null {} };
       case null {};

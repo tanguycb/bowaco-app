@@ -170,6 +170,7 @@ const table = {
   readOaRead: [["admin", "calculator"], () => [X]],
   runOaReadAi: [["admin", "calculator"], () => [X]],
   finishOaRead: [["admin", "calculator"], () => [X, { cancelled: null }]],
+  applyOaRead: [["admin", "calculator"], () => [X, { inviteId: [], workId: B, orgId: X, source: { hand: null }, sheetKey: "", number: "", quoteDay: 0n, validUntil: [], discountBp: [], reverse: true, prices: { total: 0n }, remark: "", note: "", file: [] }, 0n]],
   invitePerson: [["admin", "werfleider"], () => [invReq]],
   createRecoveryCode: [ADMIN, () => [X, 0n, ""]],
   confirmLink: [ADMIN, () => [someone]],

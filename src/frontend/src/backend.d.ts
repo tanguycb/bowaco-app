@@ -9991,6 +9991,7 @@ export interface backendInterface {
     aiTestCall(worker: string): Promise<Result_7>;
     answerMyMinMeer(versionId: bigint, hash: string, ok: boolean, note: string): Promise<Result_1>;
     answerMyProgress(id: bigint, hash: string, ok: boolean, note: string): Promise<Result_1>;
+    applyOaRead(id: bigint, i: OaQuoteInput, expectNetCents: bigint): Promise<Result_34>;
     applyPlan(workId: bigint, change: PlanChange, expectedVersion: bigint, reason: string): Promise<Result_12>;
     applyTemplate(workId: bigint, key: string, startDay: bigint, append: boolean, expectedVersion: bigint): Promise<Result_12>;
     applyTenderChoices(tenderId: bigint, versionId: bigint): Promise<Result_99>;

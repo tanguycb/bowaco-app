@@ -103,7 +103,9 @@ mixin (
     let #Object(fs) = Json.parse(body) ?? return null else return null;
     let get = func(xs : [(Text, Json.Json)], k : Text) : ?Json.Json { switch (xs.find(func((a, _) : (Text, Json.Json)) : Bool = a == k)) { case (?(_, v)) ?v; case null null } };
     if (get(fs, "method") != ?#String("tools/call")) return null;
-    let id = get(fs, "id") ?? return null;
+    if (get(fs, "jsonrpc") != ?#String("2.0")) return null;
+    // Review 3.8 L6: enkel een tekst of getal als id (anders antwoordt het pakket).
+    let id = switch (get(fs, "id")) { case (?#String(t)) #String(t); case (?#Number(n)) #Number(n); case _ return null };
     let #Object(params) = get(fs, "params") ?? return null else return null;
     let name = switch (get(params, "name")) { case (?#String(n)) n; case _ return null };
     if (name != "inleesbestand" and name != "proef_bestand") return null;
@@ -483,7 +485,7 @@ mixin (
     let p = requireBotAdmin(caller);
     let a = bots.actions.get(id) ?? return #err("Onbekende actie");
     if (a.state != #done and a.state != #accepted) { return #err("Niets om ongedaan te maken") };
-    let undo = switch (a.action) { case (#other(x)) { if (x.tool == "voorstel_oa_offerte") Bots.undoOaRead(botEnv(), a, p.id, Time.now()) else #err("Niets om ongedaan te maken") }; case _ Bots.undoDocLink(botEnv(), a, p.id, Time.now()) };
+    let undo = switch (a.action) { case (#other(x)) { if (x.tool == "voorstel_oa_offerte") Bots.undoOaRead(botEnv(), a, caller, p.id, Time.now()) else #err("Niets om ongedaan te maken") }; case _ Bots.undoDocLink(botEnv(), a, p.id, Time.now()) };
     switch undo { case (#err(m)) return #err(m); case (#ok) {} };
     a.state := #undone;
     a.decidedBy := ?p.id;

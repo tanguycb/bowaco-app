@@ -648,7 +648,9 @@ module {
   public let oaReadMaxLines : Nat = 300;
   public let oaReadMaxRemarks : Nat = 20;
   public let oaReadAnswerBytes : Nat = 60_000; // antwoord van Caffeine AI (JSON met de posten)
-  public let oaReadExpire : Int = 2_592_000_000_000_000; // 30 dagen: een open opdracht vervalt, de inhoud gaat weg
+  public let oaReadExpire : Int = 1_209_600_000_000_000; // 14 dagen: een open opdracht vervalt, de inhoud gaat weg (review 3.8 M2)
+  public let oaReadMaxLiveBytes : Nat = 100_000_000; // review 3.8 M2: alle inhoud van open opdrachten samen
+  public let oaReadMaxProofBytes : Nat = 150_000_000; // idem voor de geladen proefbestanden
   public let oaReadMaxProofContent : Nat = 220; // inhoud van proefgevallen (hoogstens zoveel bestanden tegelijk)
   public let botMaxCallsPerDay : Nat = 2_000;
   public let botDefaultCallsPerDay : Nat = 100;

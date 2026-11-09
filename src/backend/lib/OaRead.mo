@@ -45,6 +45,10 @@ module {
   public func addIndex(s : Types.OaReadState, workId : Nat, id : Nat) {
     s.byWork.add(workId, (s.byWork.get(workId) ?? []).concat([id]));
   };
+  // Review 3.8 M2: de inhoud die nu in de canister staat (opdrachten; begrensd door het aantal open opdrachten).
+  public func liveBytes(s : Types.OaReadState) : Nat { var n = 0; for (b in s.content.values()) n += b.size(); n };
+  public func proofBytes(s : Types.OaReadState) : Nat { var n = 0; for (b in s.proofContent.values()) n += b.size(); n };
+
   public func openOnWork(s : Types.OaReadState, workId : Nat) : Nat { jobsOf(s, workId).filter(isLive).size() };
 
   // Afsluiten: de inhoud gaat altijd weg (ze is enkel nodig zolang iemand moet lezen).
@@ -96,7 +100,9 @@ module {
   };
   // Tekst van buiten: geen stuurtekens, getrimd, begrensd.
   public func txt(t : Text, max : Nat) : Text {
-    let clean = Text.fromIter(t.chars().map(func(c : Char) : Char = if (Char.toNat32(c) < 32) ' ' else c));
+    // Review 3.8 L3: ook bidi- en opmaaktekens (die een omschrijving visueel kunnen omkeren) worden een spatie.
+    let bad = func(c : Char) : Bool { let n = Char.toNat32(c); n < 32 or n == 127 or (n >= 0x200B and n <= 0x200F) or (n >= 0x202A and n <= 0x202E) or (n >= 0x2066 and n <= 0x2069) or n == 0xFEFF };
+    let clean = Text.fromIter(t.chars().map(func(c : Char) : Char = if (bad(c)) ' ' else c));
     Text.fromIter(clean.trim(#char ' ').chars().take(max));
   };
   func optText(j : ?Json, max : Nat) : Text { switch j { case (?#String(t)) txt(t, max); case _ "" } };
@@ -272,7 +278,7 @@ module {
     var n = 0;
     label l for (j in s.jobs.values()) {
       if (n >= 50) break l;
-      if (isLive(j) and now - j.createdAt > Config.oaReadExpire) { close(s, j, #failed("vervallen na 30 dagen"), null, now); n += 1 };
+      if (isLive(j) and now - j.createdAt > Config.oaReadExpire) { close(s, j, #failed("vervallen na 14 dagen"), null, now); n += 1 };
     };
   };
 };

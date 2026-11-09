@@ -17,6 +17,7 @@ import Json "mo:jayson/Json";
 import Types "../types";
 import ProofViews "../types/proofviews";
 import OaReadViews "../types/oareadviews";
+import OaRead "../lib/OaRead";
 import Access "../lib/Access";
 import AiPrompts "../lib/AiPrompts";
 import Bots "../lib/Bots";
@@ -221,7 +222,7 @@ mixin (
     if (content.size() == 0 or content.size() != f.size) return #err("Het bestand klopt niet (andere grootte)");
     if (content.size() > Config.oaReadMaxBytes) return #err("Te groot om in te lezen (hoogstens 1,35 MB): dit geval doet niet mee");
     let key = Proof.contentKey(qid);
-    if (not oaRead.proofContent.containsKey(key) and oaRead.proofContent.size() >= Config.oaReadMaxProofContent) return #err("Te veel geladen bestanden; archiveer eerst een oude testset");
+    if (not oaRead.proofContent.containsKey(key) and (oaRead.proofContent.size() >= Config.oaReadMaxProofContent or OaRead.proofBytes(oaRead) + content.size() > Config.oaReadMaxProofBytes)) return #err("Te veel geladen bestanden; archiveer eerst een oude testset");
     oaRead.proofContent.add(key, content);
     Access.audit(audit, caller, ?p.id, ?q.workId, "proef-bestand", "set #" # setId.toText() # " geval " # n.toText());
     #ok;

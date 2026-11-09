@@ -1490,7 +1490,7 @@ export const nl = {
     load: "Bestanden laden",
     loading: (n: number, m: number) => `Bestanden laden: ${n} van ${m}`,
     loaded: (n: number, skipped: number) => `${n} bestanden geladen${skipped ? `, ${skipped} te groot of niet leesbaar (doen niet mee)` : ""}.`,
-    loadNote: "Een bot leest het bestand van elk geval in de proefronde. Laad de bestanden één keer vóór je een ronde start; enkel geladen gevallen doen mee.",
+    loadNote: "Een bot leest het bestand van elk geval in de proefronde. Let op: dat zijn vertrouwelijke offertes van onderaannemers, met hun prijzen; ze gaan naar de leverancier van de bot. Laad de bestanden één keer vóór je een ronde start; enkel geladen gevallen doen mee.",
   },
   ai: {
     title: "AI-medewerkers",
@@ -3279,7 +3279,7 @@ export const nl = {
     failed: "Inlezen mislukt; vul de offerte met de hand in.",
     listTitle: "Ingelezen offertes",
     listNone: "Nog geen opdrachten om in te lezen.",
-    status: { open: "wacht op lezen", voorstel: "voorstel klaar", geregistreerd: "geregistreerd", afgewezen: "afgewezen", geannuleerd: "geannuleerd", mislukt: "mislukt" } as Record<string, string>,
+    status: { open: "wacht op lezen", voorstel: "voorstel klaar", geregistreerd: "geregistreerd", afgewezen: "afgewezen", geannuleerd: "geannuleerd", mislukt: "mislukt", ongedaan: "ongedaan (ingetrokken)" } as Record<string, string>,
     auto: "zelf geregistreerd",
     use: "Voorstel overnemen",
     cancel: "Annuleren",

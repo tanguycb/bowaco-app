@@ -21,10 +21,13 @@ import Time "mo:core/Time";
 import Json "mo:jayson/Json";
 import Types "../types";
 import OV "../types/oareadviews";
+import TV "../types/tenderviews";
 import Access "../lib/Access";
 import AiPrompts "../lib/AiPrompts";
 import Config "../lib/Config";
 import Ids "../lib/Ids";
+import OaQuotes "../lib/OaQuotes";
+import Post "../lib/Post";
 import OaRead "../lib/OaRead";
 import Rights "../lib/Rights";
 import Tenders "../lib/Tenders";
@@ -35,8 +38,10 @@ mixin (
   settings : Types.SettingsState,
   access : Types.AccessState,
   org : Types.OrgState,
+  oa : Types.OaState,
   works : Types.WorksState,
   files : Types.FileState,
+  quotes : Types.QuotesState,
   tenders : Types.TenderState,
   robot : Types.RobotState,
   ai : Types.AiState,
@@ -56,9 +61,11 @@ mixin (
     Rights.require(ctx, p, #editTenders, null);
     Rights.require(ctx, p, #readCosts, null);
   };
-  func orJob(p : Types.Person, id : Nat) : ?Types.OaReadJob {
-    let j = oaRead.jobs.get(id) ?? return null;
-    if (orOffice(p, j.workId)) ?j else null;
+  // Een onbekend nummer zegt "Onbekende opdracht" (pas na orRequire: enkel kantoor); een opdracht van een werf die deze persoon niet
+  // volledig ziet: "Geen toegang".
+  func orJob(p : Types.Person, id : Nat) : { #ok : Types.OaReadJob; #err : Text } {
+    let j = oaRead.jobs.get(id) ?? return #err("Onbekende opdracht");
+    if (orOffice(p, j.workId)) #ok(j) else #err("Geen toegang");
   };
   func orOrgName(id : Nat) : Text { switch (org.orgs.get(id)) { case (?o) o.name; case null "#" # id.toText() } };
 
@@ -138,6 +145,7 @@ mixin (
     };
     if (OaRead.openOnWork(oaRead, i.workId) >= Config.oaReadMaxOpenPerWork) { return #err("Te veel open inleesopdrachten op deze werf; sluit er eerst af") };
     if (oaRead.jobs.size() >= Config.oaReadMaxJobs) { return #err("Te veel inleesopdrachten") };
+    if (OaRead.liveBytes(oaRead) + i.content.size() > Config.oaReadMaxLiveBytes) { return #err("Te veel open inleesopdrachten in de app; sluit er eerst af") };
     let now = Time.now();
     // Het bestand ook in de opslag (vertrouwelijk aan de werf), zodat het straks aan de geregistreerde offerte hangt.
     let fileId : ?Nat = switch (i.blob) {
@@ -188,7 +196,7 @@ mixin (
   public shared ({ caller }) func readOaRead(id : Nat) : async Result.Result<OV.OaReadFull, Text> {
     let p = Access.requireActive(access, caller);
     orRequire(p);
-    let j = orJob(p, id) ?? return #err("Geen toegang");
+    let j = switch (orJob(p, id)) { case (#ok x) x; case (#err e) return #err(e) };
     Access.audit(audit, caller, ?p.id, ?j.workId, "bekeek:oa-inlezen:" # id.toText(), orOrgName(j.orgId) # " · " # OaRead.statusKey(j.status));
     #ok({ brief = orBrief(j); proposal = j.proposal });
   };
@@ -214,14 +222,16 @@ mixin (
     let p = Access.requireActive(access, caller);
     orRequire(p);
     if (not Rights.may({ works; settings }, p, #useAi, null)) { return #err("Geen toegang") };
-    let j = orJob(p, id) ?? return #err("Geen toegang");
+    let j = switch (orJob(p, id)) { case (#ok x) x; case (#err e) return #err(e) };
     if (j.via != #ai) { return #err("Deze opdracht leest een bot") };
     if (j.status != #open) { return #err("Deze opdracht heeft al een voorstel of is afgesloten") };
     let text = switch (oaRead.content.get(j.id)) { case (?b) b.decodeUtf8() ?? ""; case null "" };
     if (text == "") { return #err("Geen tekst") };
     let w = ai.workers.get("oa-offerte-inlezen") ?? return #err("De AI-medewerker voor OA-offertes is nog niet ingericht (Beheer → AI-medewerkers)");
     let v = AiPrompts.version(w.key, w.instructionVersion) ?? return #err("Onbekende instructieversie");
-    let userText = AiPrompts.proofUser(orContext(j), text);
+    // Review 3.8 L4: de tekst van de OA kan het afgebakende blok niet sluiten.
+    let safe = text.replace(#text "<<<DOCUMENT", "<<< DOCUMENT").replace(#text "DOCUMENT>>>", "DOCUMENT >>>");
+    let userText = AiPrompts.proofUser(orContext(j), safe);
     let live = orAiReal();
     // Eén oproep tegelijk per opdracht (het merk vervalt na 5 min).
     let now0 = Time.now();
@@ -265,6 +275,56 @@ mixin (
     };
   };
 
+  // ── Overnemen = registreren (één update-call, review 3.8 M1/M3) ───────
+  // Het formulier (HandSheet met het voorstel) stuurt de offerte zoals kantoor ze nakeek. In één keer: dezelfde controles als
+  // registerOaQuote (OaQuotes.prepare), registreren met het bestand van de opdracht en het merk "inlezen" (nooit in een testset),
+  // de opdracht sluiten en het voorstel van de bot volgen. Werf, firma en uitnodiging moeten die van de opdracht zijn.
+  public shared ({ caller }) func applyOaRead(id : Nat, i : TV.OaQuoteInput, expectNetCents : Int) : async Result.Result<TV.OaQuoteSaved, Text> {
+    let p = Access.requireActive(access, caller);
+    orRequire(p);
+    let j = switch (orJob(p, id)) { case (#ok x) x; case (#err e) return #err(e) };
+    if (j.status != #proposed or j.proposal == null) { return #err("Deze opdracht heeft geen voorstel (meer)") };
+    if (i.workId != j.workId or i.orgId != j.orgId or i.inviteId != j.inviteId) { return #err("Werf, firma of prijsvraag klopt niet met de opdracht") };
+    if (i.source != #hand) { return #err("Een ingelezen offerte registreer je met de hand") };
+    if (i.file != null and j.fileId != null) { return #err("Het bestand van de opdracht hangt al aan de offerte") };
+    let tctx : Tenders.Ctx = { settings; access; org; oa; works; quotes; files };
+    let pr = switch (OaQuotes.prepare(settings, org, tenders, tctx, func(w : Nat) : Bool = orOffice(p, w), i, Post.local(Time.now()).day)) { case (#ok x) x; case (#err e) return #err(e) };
+    if (pr.net != expectNetCents) { return #err("Het totaal klopt niet met wat de server rekent: laad opnieuw (niets bewaard)") };
+    let now = Time.now();
+    let fileId : ?Nat = switch (i.file, j.fileId) {
+      case (_, ?f) ?f;
+      case (?f, null) {
+        if (f.mime != "application/pdf") { return #err("Enkel een PDF") };
+        if (f.size == 0 or f.size > Config.maxFileBytes or f.blob.size() > 200) { return #err("Het bestand klopt niet") };
+        let fid = Ids.next(ctr, "file");
+        let fr : Types.FileRef = { id = fid; name = Access.cleanText(f.name, 200) ?? "offerte"; mime = f.mime; size = f.size; blob = f.blob; workId = ?i.workId; confidential = true; personId = p.id; at = now; var archivedAt = null };
+        files.files.add(fid, fr);
+        ?fid;
+      };
+      case (null, null) null;
+    };
+    let via = switch (j.via) { case (#bot(b)) "bot:" # b.toText(); case _ "ai" };
+    let (qid, version) = OaQuotes.store(tenders, ctr, i, pr, fileId, p.id, now, [("inlezen", j.id.toText()), ("inlezenVia", via)]);
+    OaRead.close(oaRead, j, #applied(qid), ?p.id, now);
+    orFollow(j, #accepted, p.id, now);
+    Access.audit(audit, caller, ?p.id, ?j.workId, "oa-offerte-geregistreerd", (switch (pr.tender) { case (?t) t.code # ": "; case null "los: " }) # orOrgName(i.orgId) # " versie " # version.toText() # " (ingelezen, opdracht #" # j.id.toText() # ", " # pr.form # ", " # pr.lines.size().toText() # " regels)");
+    #ok({ oaQuoteId = qid; version; netCents = pr.net });
+  };
+
+  // Het voorstel van de bot (Voorstellen en acties) volgt de beslissing.
+  func orFollow(j : Types.OaReadJob, st : Types.BotActionState, by : Nat, now : Int) {
+    switch (OaRead.extraGet(j.extra, "actie")) {
+      case (?t) switch (Nat.fromText(t)) {
+        case (?aid) switch (bots.actions.get(aid)) {
+          case (?a) { if (a.state == #proposed) { a.state := st; a.decidedBy := ?by; a.decidedAt := ?now } };
+          case null {};
+        };
+        case null {};
+      };
+      case null {};
+    };
+  };
+
   // ── Afsluiten ─────────────────────────────────────────────────────────
   // #applied: kantoor registreerde de offerte (registerOaQuote) uit het voorstel. De server kijkt na dat het dezelfde werf, firma en
   // uitnodiging is, dat ze na de opdracht geregistreerd werd door kantoor, en nog niet aan een andere opdracht hangt. Het merk
@@ -272,23 +332,12 @@ mixin (
   public shared ({ caller }) func finishOaRead(id : Nat, outcome : OV.OaReadOutcome) : async Result.Result<(), Text> {
     let p = Access.requireActive(access, caller);
     orRequire(p);
-    let j = orJob(p, id) ?? return #err("Geen toegang");
+    let j = switch (orJob(p, id)) { case (#ok x) x; case (#err e) return #err(e) };
     if (not OaRead.isLive(j)) { return #err("Deze opdracht is al afgesloten") };
     let now = Time.now();
     let actionState : Types.BotActionState = switch outcome {
-      case (#applied qid) {
-        let q = tenders.oaQuotes.get(qid) ?? return #err("Onbekende OA-offerte");
-        if (q.workId != j.workId or q.orgId != j.orgId or q.inviteId != j.inviteId) { return #err("Deze offerte hoort bij een andere werf, firma of prijsvraag") };
-        if (q.createdAt < j.createdAt or q.source != #hand) { return #err("Registreer de offerte eerst uit het voorstel") };
-        if (OaRead.extraGet(q.extra, "inlezen") != null) { return #err("Deze offerte hangt al aan een inleesopdracht") };
-        if (j.proposal == null) { return #err("Er is nog geen voorstel") };
-        let via = switch (j.via) { case (#bot(b)) "bot:" # b.toText(); case _ "ai" };
-        // Het bestand van de opdracht hangt aan de offerte als die er nog geen heeft (het formulier laadt het niet opnieuw op).
-        let fileId = switch (q.fileId) { case (?f) ?f; case null j.fileId };
-        tenders.oaQuotes.add(q.id, { q with fileId; extra = OaRead.extraSet(OaRead.extraSet(q.extra, "inlezen", j.id.toText()), "inlezenVia", via) });
-        OaRead.close(oaRead, j, #applied(qid), ?p.id, now);
-        #accepted;
-      };
+      // Review 3.8 M1/M3: overnemen gebeurt enkel in één update-call met het registreren (applyOaRead).
+      case (#applied _) { return #err("Neem het voorstel over in het formulier (Registreren)") };
       case (#rejected r) {
         let why = Access.cleanText(r, Config.maxQuoteReason) ?? return #err("Geef een korte reden (1 tot " # Config.maxQuoteReason.toText() # " tekens)");
         OaRead.close(oaRead, j, #rejected(why), ?p.id, now);
@@ -296,17 +345,7 @@ mixin (
       };
       case (#cancelled) { OaRead.close(oaRead, j, #cancelled, ?p.id, now); #rejected };
     };
-    // Het voorstel van de bot (Voorstellen en acties) volgt de beslissing.
-    switch (OaRead.extraGet(j.extra, "actie")) {
-      case (?t) switch (Nat.fromText(t)) {
-        case (?aid) switch (bots.actions.get(aid)) {
-          case (?a) { if (a.state == #proposed) { a.state := actionState; a.decidedBy := ?p.id; a.decidedAt := ?now } };
-          case null {};
-        };
-        case null {};
-      };
-      case null {};
-    };
+    orFollow(j, actionState, p.id, now);
     Access.audit(audit, caller, ?p.id, ?j.workId, "oa-inlezen-af", "opdracht #" # j.id.toText() # " " # OaRead.statusKey(j.status));
     #ok;
   };

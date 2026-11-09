@@ -203,7 +203,7 @@ persistent actor Self {
   // 3.5: de proefbank (enkel #manageBots): testsets, proefrondes voor een bot (proeftools op /mcp) of voor Caffeine AI, score per geval.
   include ProofApi(settings, access, works, files, dossier, org, tenders, oaRead, robot, ai, bots, proof, audit, ctr, isAiLive);
   // 3.8: OA-offerte inlezen (PDF of foto via een bot, tekst via Caffeine AI) → een voorstel dat kantoor in het formulier overneemt.
-  include OaReadApi(settings, access, org, works, files, tenders, robot, ai, bots, oaRead, audit, ctr, isAiLive);
+  include OaReadApi(settings, access, org, oa, works, files, quotes, tenders, robot, ai, bots, oaRead, audit, ctr, isAiLive);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

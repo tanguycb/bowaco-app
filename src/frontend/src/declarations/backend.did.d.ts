@@ -8330,6 +8330,7 @@ export interface _SERVICE {
   'aiTestCall' : ActorMethod<[string], Result_7>,
   'answerMyMinMeer' : ActorMethod<[bigint, string, boolean, string], Result_1>,
   'answerMyProgress' : ActorMethod<[bigint, string, boolean, string], Result_1>,
+  'applyOaRead' : ActorMethod<[bigint, OaQuoteInput, bigint], Result_34>,
   'applyPlan' : ActorMethod<[bigint, PlanChange, bigint, string], Result_12>,
   'applyTemplate' : ActorMethod<
     [bigint, string, bigint, boolean, bigint],

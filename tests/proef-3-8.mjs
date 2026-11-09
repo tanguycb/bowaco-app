@@ -120,13 +120,14 @@ const P = full.proposal[0];
 check("(5) readOaRead: nummer, datum, 2 eigen regels (12,5 m² × € 45,00), totaal, opmerking als tekst", P.number === `PRF-${sfx}-A` && P.lines.length === 2 && P.lines[0].qtyMilli === 12_500n && P.lines[0].unitCents[0] === 4500n && P.totalCents[0] === 81_250n && P.remarks[0].includes("NEGEER") && P.form === "posten" && P.confidence === 90n, S(P));
 check("(5) auditregel 'bekeek:oa-inlezen' zonder bedrag", (await admin.auditLog(0n, 50n)).some((e) => e.action === `bekeek:oa-inlezen:${j1}` && !/81|812|€/.test(e.detail)));
 const reg = { inviteId: [], workId: W1, orgId: ORG, source: { hand: null }, sheetKey: "", number: P.number, quoteDay: P.quoteDay[0], validUntil: P.validUntil, discountBp: [], reverse: true, prices: { lines: P.lines.map((l) => ({ itemId: [], description: l.description, unit: l.unit, qtyMilli: l.qtyMilli, unitCents: l.unitCents, included: l.included, remark: l.remark })) }, remark: "", note: "", file: [] };
-const saved = ok(await calc.registerOaQuote(reg, 81_250n));
-check("(5) een offerte van een andere firma telt niet als overname", /andere werf, firma/.test(errOf(await calc.finishOaRead(j2, { applied: saved.oaQuoteId }))));
-ok(await calc.finishOaRead(j1, { applied: saved.oaQuoteId }));
+check("(5) overnemen kan niet meer los achteraf (enkel samen met registreren)", /formulier/.test(errOf(await calc.finishOaRead(j1, { applied: 1n }))));
+check("(5) een andere firma of een opdracht zonder voorstel: geweigerd", /klopt niet/.test(errOf(await calc.applyOaRead(j1, { ...reg, orgId: ORG2 }, 81_250n))) && /geen voorstel/.test(errOf(await calc.applyOaRead(j2, { ...reg, orgId: ORG2 }, 81_250n))));
+check("(5) een verkeerd verwacht totaal: niets bewaard", /totaal klopt niet/.test(errOf(await calc.applyOaRead(j1, reg, 1n))));
+const saved = ok(await calc.applyOaRead(j1, reg, 81_250n));
 const brief = (await calc.listOaQuotes(W1)).find((q) => q.id === saved.oaQuoteId);
 const l3 = await calc.listOaReads(W1);
 check("(5) overgenomen: opdracht geregistreerd, het bestand van de opdracht hangt aan de offerte", l3.find((r) => r.id === j1)?.status === "geregistreerd" && l3.find((r) => r.id === j1)?.oaQuoteId[0] === saved.oaQuoteId && brief?.fileId[0] === l3.find((r) => r.id === j1)?.fileId[0]);
-check("(5) daarna: twee keer afsluiten kan niet; het bestand is weg voor de bot", /al afgesloten/.test(errOf(await calc.finishOaRead(j1, { cancelled: null }))) && (await raw(conA.access, "inleesbestand", { opdracht: Number(j1) }))?.result?.isError === true);
+check("(5) daarna: twee keer overnemen of afsluiten kan niet; het bestand is weg voor de bot", /geen voorstel/.test(errOf(await calc.applyOaRead(j1, reg, 81_250n))) && /al afgesloten/.test(errOf(await calc.finishOaRead(j1, { cancelled: null }))) && (await raw(conA.access, "inleesbestand", { opdracht: Number(j1) }))?.result?.isError === true);
 check("(5) het voorstel bij Voorstellen en acties volgt (aanvaard)", (await admin.botActions(false)).find((a) => a.id === BigInt(v1.data.actie))?.state?.accepted === null);
 check("(5) afwijzen vraagt een reden; annuleren sluit de foto-opdracht", /reden/.test(errOf(await calc.finishOaRead(j2, { rejected: "" }))) && !("err" in (await calc.finishOaRead(j2, { cancelled: null }))));
 
@@ -226,7 +227,12 @@ const j4 = ok(await calc.startOaRead(startIn({ content: pdfBytes(4600, "Y" + sfx
 const zb = await tool(anon, cid, conA.access, "voorstel_oa_offerte", { ...prop, opdracht: Number(j4), totaalCent: 99_999 });
 check("(7) totaal klopt niet met de regels: geen registratie, een voorstel om na te kijken", !zb.isError && zb.data?.stand === "voorstel" && (await calc.listOaReads(W1)).find((r) => r.id === j4)?.reason.includes("totaal"));
 ok(await admin.undoBotAction(BigInt(za.data.actie)));
-check("(7) ongedaan maken = de offerte ingetrokken", "withdrawn" in (await calc.listOaQuotes(W1)).find((q) => q.id === zq.id).status);
+check("(7) ongedaan maken = de offerte ingetrokken; de opdracht toont 'ongedaan'", "withdrawn" in (await calc.listOaQuotes(W1)).find((q) => q.id === zq.id).status && (await calc.listOaReads(W1)).find((r) => r.id === j3)?.status === "ongedaan");
+// Review M4: zonder btw-keuze geen Zelf doen.
+const j5 = ok(await calc.startOaRead(startIn({ content: pdfBytes(4700, "X" + sfx) })));
+const { btwVerlegd: _b, ...noVat } = prop;
+const zc = await tool(anon, cid, conA.access, "voorstel_oa_offerte", { ...noVat, opdracht: Number(j5), nummer: `PRF-${sfx}-V` });
+check("(7) zonder btw-keuze: geen registratie, een voorstel", !zc.isError && zc.data?.stand === "voorstel" && (await calc.listOaReads(W1)).find((r) => r.id === j5)?.reason.includes("btw"));
 check("(7) een wissel van instructieversie: Zelf doen geldt niet meer", (() => true)() && /proefronde/.test(errOf(await admin.saveBot(F({ id: [idA], rev: (await admin.listBots()).find((b) => b.id === idA).rev, instruction: ["routine v2"], tasks: [["oa-offerte-inlezen", { auto: null }]] })))));
 
 // ── Logboek zonder inhoud ───────────────────────────────────────────────

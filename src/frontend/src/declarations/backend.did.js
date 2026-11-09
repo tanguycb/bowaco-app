@@ -245,6 +245,58 @@ export const AiOverview = IDL.Record({
   'draft' : IDL.Bool,
   'running' : IDL.Nat,
 });
+export const OaQuoteSource = IDL.Variant({
+  'app' : IDL.Null,
+  'hand' : IDL.Null,
+  'sheet' : IDL.Null,
+});
+export const OaRegFile = IDL.Record({
+  'blob' : ExternalBlob,
+  'mime' : IDL.Text,
+  'name' : IDL.Text,
+  'size' : IDL.Nat,
+});
+export const OaIncluded = IDL.Variant({
+  'no' : IDL.Null,
+  'alt' : IDL.Text,
+  'yes' : IDL.Null,
+});
+export const OaRegLine = IDL.Record({
+  'remark' : IDL.Text,
+  'itemId' : IDL.Opt(IDL.Nat),
+  'qtyMilli' : IDL.Int,
+  'unitCents' : IDL.Opt(IDL.Int),
+  'unit' : IDL.Text,
+  'description' : IDL.Text,
+  'included' : OaIncluded,
+});
+export const OaRegPrices = IDL.Variant({
+  'total' : IDL.Int,
+  'lines' : IDL.Vec(OaRegLine),
+  'chapters' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
+});
+export const OaQuoteInput = IDL.Record({
+  'remark' : IDL.Text,
+  'reverse' : IDL.Bool,
+  'source' : OaQuoteSource,
+  'orgId' : IDL.Nat,
+  'file' : IDL.Opt(OaRegFile),
+  'inviteId' : IDL.Opt(IDL.Nat),
+  'note' : IDL.Text,
+  'sheetKey' : IDL.Text,
+  'discountBp' : IDL.Opt(IDL.Nat),
+  'number' : IDL.Text,
+  'quoteDay' : Day,
+  'prices' : OaRegPrices,
+  'workId' : IDL.Nat,
+  'validUntil' : IDL.Opt(Day),
+});
+export const OaQuoteSaved = IDL.Record({
+  'netCents' : IDL.Int,
+  'oaQuoteId' : IDL.Nat,
+  'version' : IDL.Nat,
+});
+export const Result_34 = IDL.Variant({ 'ok' : OaQuoteSaved, 'err' : IDL.Text });
 export const CascadeMode = IDL.Variant({
   'asNeeded' : IDL.Null,
   'follow' : IDL.Null,
@@ -647,11 +699,6 @@ export const OaQuoteStatus = IDL.Variant({
   'withdrawn' : IDL.Text,
   'received' : IDL.Null,
 });
-export const OaQuoteSource = IDL.Variant({
-  'app' : IDL.Null,
-  'hand' : IDL.Null,
-  'sheet' : IDL.Null,
-});
 export const OaVatRegime = IDL.Variant({
   'reverse' : IDL.Null,
   'normal' : IDL.Nat,
@@ -690,11 +737,6 @@ export const CmpItem = IDL.Record({
 export const CmpPick = IDL.Record({
   'itemId' : IDL.Nat,
   'oaQuoteId' : IDL.Nat,
-});
-export const OaIncluded = IDL.Variant({
-  'no' : IDL.Null,
-  'alt' : IDL.Text,
-  'yes' : IDL.Null,
 });
 export const OaQuoteLine = IDL.Record({
   'remark' : IDL.Text,
@@ -7371,48 +7413,6 @@ export const Result_36 = IDL.Variant({
   'err' : IDL.Text,
 });
 export const Result_35 = IDL.Variant({ 'ok' : MeView, 'err' : IDL.Text });
-export const OaRegFile = IDL.Record({
-  'blob' : ExternalBlob,
-  'mime' : IDL.Text,
-  'name' : IDL.Text,
-  'size' : IDL.Nat,
-});
-export const OaRegLine = IDL.Record({
-  'remark' : IDL.Text,
-  'itemId' : IDL.Opt(IDL.Nat),
-  'qtyMilli' : IDL.Int,
-  'unitCents' : IDL.Opt(IDL.Int),
-  'unit' : IDL.Text,
-  'description' : IDL.Text,
-  'included' : OaIncluded,
-});
-export const OaRegPrices = IDL.Variant({
-  'total' : IDL.Int,
-  'lines' : IDL.Vec(OaRegLine),
-  'chapters' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
-});
-export const OaQuoteInput = IDL.Record({
-  'remark' : IDL.Text,
-  'reverse' : IDL.Bool,
-  'source' : OaQuoteSource,
-  'orgId' : IDL.Nat,
-  'file' : IDL.Opt(OaRegFile),
-  'inviteId' : IDL.Opt(IDL.Nat),
-  'note' : IDL.Text,
-  'sheetKey' : IDL.Text,
-  'discountBp' : IDL.Opt(IDL.Nat),
-  'number' : IDL.Text,
-  'quoteDay' : Day,
-  'prices' : OaRegPrices,
-  'workId' : IDL.Nat,
-  'validUntil' : IDL.Opt(Day),
-});
-export const OaQuoteSaved = IDL.Record({
-  'netCents' : IDL.Int,
-  'oaQuoteId' : IDL.Nat,
-  'version' : IDL.Nat,
-});
-export const Result_34 = IDL.Variant({ 'ok' : OaQuoteSaved, 'err' : IDL.Text });
 export const AiUsage = IDL.Record({
   'model' : IDL.Text,
   'outputSha256' : IDL.Opt(IDL.Text),
@@ -8770,6 +8770,7 @@ export const idlService = IDL.Service({
       [Result_1],
       [],
     ),
+  'applyOaRead' : IDL.Func([IDL.Nat, OaQuoteInput, IDL.Int], [Result_34], []),
   'applyPlan' : IDL.Func(
       [IDL.Nat, PlanChange, IDL.Nat, IDL.Text],
       [Result_12],
@@ -9740,6 +9741,58 @@ export const idlFactory = ({ IDL }) => {
     'draft' : IDL.Bool,
     'running' : IDL.Nat,
   });
+  const OaQuoteSource = IDL.Variant({
+    'app' : IDL.Null,
+    'hand' : IDL.Null,
+    'sheet' : IDL.Null,
+  });
+  const OaRegFile = IDL.Record({
+    'blob' : ExternalBlob,
+    'mime' : IDL.Text,
+    'name' : IDL.Text,
+    'size' : IDL.Nat,
+  });
+  const OaIncluded = IDL.Variant({
+    'no' : IDL.Null,
+    'alt' : IDL.Text,
+    'yes' : IDL.Null,
+  });
+  const OaRegLine = IDL.Record({
+    'remark' : IDL.Text,
+    'itemId' : IDL.Opt(IDL.Nat),
+    'qtyMilli' : IDL.Int,
+    'unitCents' : IDL.Opt(IDL.Int),
+    'unit' : IDL.Text,
+    'description' : IDL.Text,
+    'included' : OaIncluded,
+  });
+  const OaRegPrices = IDL.Variant({
+    'total' : IDL.Int,
+    'lines' : IDL.Vec(OaRegLine),
+    'chapters' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
+  });
+  const OaQuoteInput = IDL.Record({
+    'remark' : IDL.Text,
+    'reverse' : IDL.Bool,
+    'source' : OaQuoteSource,
+    'orgId' : IDL.Nat,
+    'file' : IDL.Opt(OaRegFile),
+    'inviteId' : IDL.Opt(IDL.Nat),
+    'note' : IDL.Text,
+    'sheetKey' : IDL.Text,
+    'discountBp' : IDL.Opt(IDL.Nat),
+    'number' : IDL.Text,
+    'quoteDay' : Day,
+    'prices' : OaRegPrices,
+    'workId' : IDL.Nat,
+    'validUntil' : IDL.Opt(Day),
+  });
+  const OaQuoteSaved = IDL.Record({
+    'netCents' : IDL.Int,
+    'oaQuoteId' : IDL.Nat,
+    'version' : IDL.Nat,
+  });
+  const Result_34 = IDL.Variant({ 'ok' : OaQuoteSaved, 'err' : IDL.Text });
   const CascadeMode = IDL.Variant({
     'asNeeded' : IDL.Null,
     'follow' : IDL.Null,
@@ -10136,11 +10189,6 @@ export const idlFactory = ({ IDL }) => {
     'withdrawn' : IDL.Text,
     'received' : IDL.Null,
   });
-  const OaQuoteSource = IDL.Variant({
-    'app' : IDL.Null,
-    'hand' : IDL.Null,
-    'sheet' : IDL.Null,
-  });
   const OaVatRegime = IDL.Variant({ 'reverse' : IDL.Null, 'normal' : IDL.Nat });
   const OaQuoteBrief = IDL.Record({
     'id' : IDL.Nat,
@@ -10174,11 +10222,6 @@ export const idlFactory = ({ IDL }) => {
     'chapter' : IDL.Text,
   });
   const CmpPick = IDL.Record({ 'itemId' : IDL.Nat, 'oaQuoteId' : IDL.Nat });
-  const OaIncluded = IDL.Variant({
-    'no' : IDL.Null,
-    'alt' : IDL.Text,
-    'yes' : IDL.Null,
-  });
   const OaQuoteLine = IDL.Record({
     'remark' : IDL.Text,
     'itemId' : IDL.Opt(IDL.Nat),
@@ -16742,48 +16785,6 @@ export const idlFactory = ({ IDL }) => {
   });
   const Result_36 = IDL.Variant({ 'ok' : OaWithholding, 'err' : IDL.Text });
   const Result_35 = IDL.Variant({ 'ok' : MeView, 'err' : IDL.Text });
-  const OaRegFile = IDL.Record({
-    'blob' : ExternalBlob,
-    'mime' : IDL.Text,
-    'name' : IDL.Text,
-    'size' : IDL.Nat,
-  });
-  const OaRegLine = IDL.Record({
-    'remark' : IDL.Text,
-    'itemId' : IDL.Opt(IDL.Nat),
-    'qtyMilli' : IDL.Int,
-    'unitCents' : IDL.Opt(IDL.Int),
-    'unit' : IDL.Text,
-    'description' : IDL.Text,
-    'included' : OaIncluded,
-  });
-  const OaRegPrices = IDL.Variant({
-    'total' : IDL.Int,
-    'lines' : IDL.Vec(OaRegLine),
-    'chapters' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Int)),
-  });
-  const OaQuoteInput = IDL.Record({
-    'remark' : IDL.Text,
-    'reverse' : IDL.Bool,
-    'source' : OaQuoteSource,
-    'orgId' : IDL.Nat,
-    'file' : IDL.Opt(OaRegFile),
-    'inviteId' : IDL.Opt(IDL.Nat),
-    'note' : IDL.Text,
-    'sheetKey' : IDL.Text,
-    'discountBp' : IDL.Opt(IDL.Nat),
-    'number' : IDL.Text,
-    'quoteDay' : Day,
-    'prices' : OaRegPrices,
-    'workId' : IDL.Nat,
-    'validUntil' : IDL.Opt(Day),
-  });
-  const OaQuoteSaved = IDL.Record({
-    'netCents' : IDL.Int,
-    'oaQuoteId' : IDL.Nat,
-    'version' : IDL.Nat,
-  });
-  const Result_34 = IDL.Variant({ 'ok' : OaQuoteSaved, 'err' : IDL.Text });
   const AiUsage = IDL.Record({
     'model' : IDL.Text,
     'outputSha256' : IDL.Opt(IDL.Text),
@@ -18093,6 +18094,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_1],
         [],
       ),
+    'applyOaRead' : IDL.Func([IDL.Nat, OaQuoteInput, IDL.Int], [Result_34], []),
     'applyPlan' : IDL.Func(
         [IDL.Nat, PlanChange, IDL.Nat, IDL.Text],
         [Result_12],
