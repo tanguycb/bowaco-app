@@ -114,8 +114,8 @@ export function ReadList({ workId, onUse }: { workId: bigint; onUse: (full: OaRe
         {rows.map((r) => {
           const live = r.status === "open" || r.status === "voorstel";
           return (
-            <li key={String(r.id)} data-testid="or-row">
-              <span className="a-list__main">
+            <li key={String(r.id)} data-testid="or-row" style={{ flexWrap: "wrap" }}>
+              <span className="a-list__main" style={{ minWidth: "14rem" }}>
                 <b>{r.orgName}</b>
                 <span className="bw-muted">{[r.tenderCode, r.botName, r.name, R.by(r.createdByName, fmtTime(r.createdAt))].filter(Boolean).join(" · ")}{r.reason ? ` · ${r.reason}` : ""}</span>
               </span>
@@ -127,7 +127,7 @@ export function ReadList({ workId, onUse }: { workId: bigint; onUse: (full: OaRe
           );
         })}
       </ul>
-      {ask?.k === "cancel" && <Confirm open title={R.cancelTitle} text={R.cancelText} confirmLabel={R.cancel} busy={finish.isPending} onConfirm={() => finish.mutate(ask)} onClose={() => setAsk(null)} />}
+      {ask?.k === "cancel" && <Confirm open title={R.cancelTitle} text={R.cancelText} confirmLabel={R.cancelConfirm} cancelLabel={R.back} busy={finish.isPending} onConfirm={() => finish.mutate(ask)} onClose={() => setAsk(null)} />}
       {ask?.k === "reject" && (
         <Sheet title={R.rejectTitle} open onClose={() => setAsk(null)} footer={<><Button onClick={() => setAsk(null)}>{t.common.cancel}</Button><Button variant="danger" busy={finish.isPending} disabled={reason.trim().length === 0} onClick={() => finish.mutate(ask)} data-testid="or-reject-ok">{R.reject}</Button></>}>
           <Field label={R.rejectReason}><input className="bw-input" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} data-testid="or-reason" /></Field>

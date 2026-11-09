@@ -166,7 +166,7 @@ function TenderOaPanel({ s }: { s: TenderStatusView }) {
 
 function useRefresh() {
   const qc = useQueryClient();
-  return () => { for (const k of ["tender", "tenders", "oaQuotes", "tenderCompare"]) void qc.invalidateQueries({ queryKey: [k] }); };
+  return () => { for (const k of ["tender", "tenders", "oaQuotes", "tenderCompare", "oaReads"]) void qc.invalidateQueries({ queryKey: [k] }); };
 }
 
 // ── Excel inlezen ───────────────────────────────────────────────────────────
@@ -386,7 +386,8 @@ export function HandSheet({ workId, v, inv, onClose, read, orgPreset }: { workId
       {!loose && form === "totaal" && <Field label={O.handTotal}><input className="bw-input bw-num" inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} data-testid="oq-hand-total" /></Field>}
       {!loose && form === "hoofdstukken" && chapters.map((ch) => <Field key={ch} label={`${ch} · ${O.handChapter}`}><input className="bw-input bw-num" inputMode="decimal" value={chs[ch] ?? ""} onChange={(e) => setChs((x) => ({ ...x, [ch]: e.target.value }))} /></Field>)}
       {(loose || form === "posten") && (
-        <div className="bw-table-wrap">
+        // flexShrink 0: in .bw-sheet__body (een flexkolom) kromp de tabel anders tot 0 px (in Chrome gezien bij 3.8; zelfde les als 3.13).
+        <div className="bw-table-wrap" style={{ flexShrink: 0 }}>
           <table className="bw-table bw-table--stack pv-fill">
             <thead><tr><th>{P.colPost}</th><th className="bw-right">{O.handQty}</th><th className="bw-right">{O.handPrice}</th><th>{O.handIncluded}</th><th>{P.colRemark}</th></tr></thead>
             <tbody>
