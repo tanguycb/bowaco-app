@@ -18,6 +18,7 @@ import Json "mo:jayson/Json";
 import Types "../types";
 import TV "../types/tenderviews";
 import Config "Config";
+import Rights "Rights";
 import Tenders "Tenders";
 
 module {
@@ -48,6 +49,14 @@ module {
   // Review 3.8 M2: de inhoud die nu in de canister staat (opdrachten; begrensd door het aantal open opdrachten).
   public func liveBytes(s : Types.OaReadState) : Nat { var n = 0; for (b in s.content.values()) n += b.size(); n };
   public func proofBytes(s : Types.OaReadState) : Nat { var n = 0; for (b in s.proofContent.values()) n += b.size(); n };
+
+  // Is de persoon die de opdracht gaf nog kantoor met het volle zicht op die werf en de bedragen? (Zelf doen registreert namens hem;
+  // de bot zelf leest geen bedragen uit de app.)
+  public func officeOk(access : Types.AccessState, ctx : Rights.Ctx, personId : Nat, workId : Nat) : ?Types.Person {
+    let p = access.persons.get(personId) ?? return null;
+    if (p.archivedAt != null) return null;
+    if (Rights.may(ctx, p, #editTenders, null) and Rights.may(ctx, p, #readCosts, null) and Rights.tenderScope(ctx, p, workId) == #full) ?p else null;
+  };
 
   public func openOnWork(s : Types.OaReadState, workId : Nat) : Nat { jobsOf(s, workId).filter(isLive).size() };
 

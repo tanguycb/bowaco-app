@@ -493,14 +493,6 @@ module {
     #Object([("opdrachten", #Array(out.toArray()))]);
   };
 
-  // Is de persoon die de opdracht gaf nog kantoor met het volle zicht op die werf en de bedragen?
-  func officeOk(e : Env, personId : Nat, workId : Nat) : ?Types.Person {
-    let p = e.access.persons.get(personId) ?? return null;
-    if (p.archivedAt != null) return null;
-    let ctx = { works = e.works; settings = e.settings };
-    if (Rights.may(ctx, p, #editTenders, null) and Rights.may(ctx, p, #readCosts, null) and Rights.tenderScope(ctx, p, workId) == #full) ?p else null;
-  };
-
   func oaReadTool(e : Env, b : Bot, caller : Principal, jobId : Nat, args : Tool.Args, now : Int) : { #ok : (Json, ?Nat); #err : Text } {
     let j = e.oaRead.jobs.get(jobId) ?? return #err("Onbekende opdracht");
     if (j.status != #open) return #err("Voor deze opdracht is al een voorstel (of ze is afgesloten)");
@@ -534,7 +526,7 @@ module {
   };
 
   func autoRegister(e : Env, b : Bot, j : Types.OaReadJob, prop : Types.OaReadProposal, now : Int) : { #ok : (Nat, Nat); #err : Text } {
-    let p = officeOk(e, j.createdBy, j.workId) ?? return #err("wie de opdracht gaf, is geen kantoor meer op deze werf");
+    let p = OaRead.officeOk(e.access, { works = e.works; settings = e.settings }, j.createdBy, j.workId) ?? return #err("wie de opdracht gaf, is geen kantoor meer op deze werf");
     let i = OaRead.toInput(j, prop, today(now));
     let tctx : Tenders.Ctx = { settings = e.settings; access = e.access; org = e.org; oa = e.oa; works = e.works; quotes = e.quotes; files = e.files };
     let ctx = { works = e.works; settings = e.settings };
