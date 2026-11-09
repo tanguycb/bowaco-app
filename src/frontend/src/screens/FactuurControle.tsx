@@ -111,7 +111,9 @@ export function InvCheckPanel({ invoiceId, workId, file, canStart }: { invoiceId
   const { actor, isFetching } = useBackend();
   const toast = useToast();
   const refresh = useRefresh();
-  const q = useQuery({ queryKey: ["invChecks", String(invoiceId)], queryFn: () => actor!.listInvChecks(invoiceId), enabled: !!actor && !isFetching, retry: 0 });
+  const q = useQuery({ queryKey: ["invChecks", String(invoiceId), canStart], queryFn: () => actor!.listInvChecks(invoiceId), enabled: !!actor && !isFetching, retry: 0,
+    // Chrome-test 3.10: een bot antwoordt buiten de app; zolang er een opdracht wacht, kijkt de lijst elke 15 s opnieuw.
+    refetchInterval: (qq) => (qq.state.data ?? []).some((r) => r.status === "open" && r.way !== "caffeine") ? 15_000 : false });
   const [start, setStart] = useState(false);
   const [shown, setShown] = useState<InvCheckFull | null>(null);
   const [cancel, setCancel] = useState<InvCheckBrief | null>(null);
@@ -158,7 +160,7 @@ export function InvCheckPanel({ invoiceId, workId, file, canStart }: { invoiceId
           <ResultView full={shown} />
         </Sheet>
       )}
-      {cancel && <Confirm open title={C.cancelTitle} text={C.cancelText} confirmLabel={C.cancel} busy={finish.isPending} onConfirm={() => finish.mutate({ r: cancel, o: InvCheckOutcome.cancelled })} onClose={() => setCancel(null)} />}
+      {cancel && <Confirm open title={C.cancelTitle} text={C.cancelText} confirmLabel={C.cancelConfirm} cancelLabel={C.back} busy={finish.isPending} onConfirm={() => finish.mutate({ r: cancel, o: InvCheckOutcome.cancelled })} onClose={() => setCancel(null)} />}
     </section>
   );
 }
