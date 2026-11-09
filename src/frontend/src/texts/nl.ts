@@ -1375,10 +1375,12 @@ export const nl = {
       oa_offertes: "OA-offertes lezen (zonder bedragen)",
       oa_facturen: "OA-facturen lezen (zonder bedragen)",
       document_koppelen: "Document aan een werf koppelen",
-      voorstel_factuurcontrole: "Factuurcontrole voorstellen",
+      voorstel_factuurcontrole: "Een factuurcontrole voorstellen",
       inleesopdrachten: "Opdrachten om een OA-offerte in te lezen",
       inleesbestand: "Het bestand van een opdracht lezen (PDF of foto)",
       voorstel_oa_offerte: "Een ingelezen OA-offerte voorstellen (posten en prijzen)",
+      controleopdrachten: "Opdrachten om een factuur te controleren (met het dossier van die OA)",
+      controlebestand: "Het bestand van een controleopdracht lezen (PDF, foto of Peppol)",
     } as Record<string, string>,
     task: { "document-koppelen": "Document aan de juiste werf koppelen", factuurcontrole: "OA-factuur controleren", "oa-offerte-inlezen": "OA-offerte inlezen (posten en prijzen)" } as Record<string, string>,
     neverTask: {

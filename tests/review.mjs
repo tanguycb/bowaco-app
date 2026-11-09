@@ -967,7 +967,7 @@ else {
   const invApi = srcOf("mixins/InvCheckApi.mo");
   const invLib = srcOf("lib/InvCheck.mo");
   const withDossierSrc = botsSrc.slice(botsSrc.indexOf("func withDossier("), botsSrc.indexOf("// ── Proefmodus (3.5)"));
-  check("(3.10) een proefgeval van een OA-factuur krijgt het dossier ZONDER status (withStatus false), ook niet van eerdere facturen", /InvCheck\.dossier\([^)]*, false\)/.test(withDossierSrc) && /if withStatus \[\("status"/.test(invLib) && /#Object\(if withStatus base\.concat/.test(invLib));
+  check("(3.10) een proefgeval van een OA-factuur krijgt het dossier ZONDER status (withStatus false), ook niet van eerdere facturen", /InvCheck\.dossier\(invCtx\(e\), e\.tenders, inv, orgName\(e, inv\.orgId\), false\)/.test(withDossierSrc) && /if withStatus \[\("status"/.test(invLib) && /#Object\(if withStatus base\.concat/.test(invLib));
   const invPub = (invApi.match(/public (shared|query) \(\{ caller \}\) func \w+/g) ?? []).length;
   check("(3.10) InvCheckApi: elke publieke functie vraagt een actieve persoon en kantoor (icOffice/icInvoice/icJob of #useAi + #oaInvoicesAny); resultaat enkel via update-call met auditregel", invPub === 7 && (invApi.match(/Access\.requireActive\(access, caller\)/g) ?? []).length === invPub && /func icOffice[^\n]*oaInvoiceScope[^\n]*== #full/.test(invApi) && /public shared \(\{ caller \}\) func readInvCheck[\s\S]{0,500}bekeek:factuurcontrole:/.test(invApi) && !/public query[^\n]*InvCheckFull/.test(invApi), `${invPub} functies`);
   check("(3.10) runInvCheckAi: R33 na de await (persoon, kantoor, #useAi, opdracht nog open)", /await\* Caffeine\.chat[\s\S]{0,400}Access\.activePerson\(access, caller\)[\s\S]{0,200}icOffice\(q, j\.workId\)[\s\S]{0,120}#useAi[\s\S]{0,200}j\.status == #open/.test(invApi));
