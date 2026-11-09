@@ -2536,9 +2536,9 @@ await sec("── 3.4 + 3.13: de bot-rol");
   const botR = await fresh();
   const botP = (await botR.me()).principal;
   for (const [n, x] of [["werfleider", wl], ["calculator", calc], ["architect", arch], ["OA", oa], ["klant", klant], ["VC", vc]]) {
-    check(`${n} beheert geen bots (lijst, fiche, code, intrekken, voorstellen, logboek)`, (await rejects(x.listBots())) && (await rejects(x.saveBot({ id: [], rev: 0n, name: "x", vendor: "", model: "", tools: [], allWorks: false, works: [], docKinds: [], callsPerDay: 1n, tasks: [] }))) && (await rejects(x.newBotCode(1n))) && (await rejects(x.revokeBot(1n))) && (await rejects(x.botActions(false))) && (await rejects(x.botLog(0n, 1n))));
+    check(`${n} beheert geen bots (lijst, fiche, code, intrekken, voorstellen, logboek)`, (await rejects(x.listBots())) && (await rejects(x.saveBot({ id: [], rev: 0n, name: "x", vendor: "", model: "", tools: [], allWorks: false, works: [], docKinds: [], callsPerDay: 1n, tasks: [], instruction: [] }))) && (await rejects(x.newBotCode(1n))) && (await rejects(x.revokeBot(1n))) && (await rejects(x.botActions(false))) && (await rejects(x.botLog(0n, 1n))));
   }
-  const bid = (await admin.saveBot({ id: [], rev: 0n, name: "Proef bot (rollentest)", vendor: "Proef", model: "", tools: ["mijn_fiche", "werven"], allWorks: false, works: [A], docKinds: [], callsPerDay: 50n, tasks: [] })).ok;
+  const bid = (await admin.saveBot({ id: [], rev: 0n, name: "Proef bot (rollentest)", vendor: "Proef", model: "", tools: ["mijn_fiche", "werven"], allWorks: false, works: [A], docKinds: [], callsPerDay: 50n, tasks: [], instruction: [] })).ok;
   const code = (await admin.newBotCode(bid)).ok;
   check("admin maakt een bot en een koppelcode", !!bid && /^BOT-/.test(code?.code ?? ""));
   check("een persoon kan de koppelcode niet gebruiken", ((await wl.claimBotCode(code.code)).err ?? "").includes("persoon"));

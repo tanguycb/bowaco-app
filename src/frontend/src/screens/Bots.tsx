@@ -51,7 +51,7 @@ export function Bots() {
 
   const cols: Column<BotView>[] = [
     { key: "name", label: B.cols.name, render: (b) => <b>{b.name}</b> },
-    { key: "vendor", label: B.cols.vendor, render: (b) => [b.vendor, b.model].filter(Boolean).join(" · ") || "–" },
+    { key: "vendor", label: B.cols.vendor, render: (b) => [b.vendor, b.model, b.instruction].filter(Boolean).join(" · ") || "–" },
     { key: "linked", label: B.cols.linked, render: (b) => (b.principal ? B.linked : b.codePending ? B.codeRuns : B.notLinked) },
     { key: "works", label: B.cols.works, render: (b) => (b.allWorks ? B.allWorks : b.works.map((w) => workCode.get(String(w)) ?? `#${String(w)}`).join(", ") || "–") },
     { key: "calls", label: B.cols.calls, right: true, render: (b) => `${String(b.callsToday)} / ${String(b.callsPerDay)}` },
@@ -121,6 +121,20 @@ function BotSheet({ bot, info, works, kinds, onClose, onSaved }: { bot: BotView 
   const [name, setName] = useState(bot?.name ?? "");
   const [vendor, setVendor] = useState(bot?.vendor ?? "Anthropic");
   const [model, setModel] = useState(bot?.model ?? "");
+  const [instruction, setInstruction] = useState(bot?.instruction ?? "");
+  // 3.5: Zelf doen enkel als de laatste proefronde geslaagd is met dezelfde labels (de backend controleert dat ook).
+  const proofOf = (k: string) => bot?.proof.find((p) => p.task === k);
+  const labelsSame = !!bot && bot.vendor === vendor.trim() && bot.model === model.trim() && bot.instruction === instruction.trim();
+  const autoOk = (k: string) => { const p = proofOf(k); return !!p && p.autoAllowed && labelsSame; };
+  const proofLine = (k: string) => {
+    const p = proofOf(k);
+    if (!p) return null;
+    if (p.openRound !== undefined) return B.form.proofOpen;
+    if (p.roundId === undefined) return B.form.proofNone;
+    const pct = p.counted > 0n ? String((p.right * 100n) / p.counted) : "0";
+    if (!p.sameLabels || !labelsSame) return B.form.proofOther;
+    return p.passed ? B.form.proofOk(String(p.right), String(p.counted), pct) : B.form.proofLow(String(p.right), String(p.counted), pct);
+  };
   const [tools, setTools] = useState<string[]>(bot?.tools ?? ["mijn_fiche", "werven"]);
   const [allWorks, setAllWorks] = useState(bot?.allWorks ?? false);
   const [ws, setWs] = useState<string[]>((bot?.works ?? []).map(String));
@@ -136,6 +150,7 @@ function BotSheet({ bot, info, works, kinds, onClose, onSaved }: { bot: BotView 
         id: bot?.id, rev: bot?.rev ?? 0n, name: name.trim(), vendor: vendor.trim(), model: model.trim(), tools, allWorks,
         works: allWorks ? [] : ws.map((w) => BigInt(w)), docKinds: dk, callsPerDay: BigInt(n),
         tasks: info.tasks.map((x) => [x.key, tasks[x.key] ?? BotLevel.proposal] as [string, BotLevel]),
+        instruction: instruction.trim(),
       }));
     },
     onSuccess: onSaved,
@@ -150,6 +165,8 @@ function BotSheet({ bot, info, works, kinds, onClose, onSaved }: { bot: BotView 
         <Field label={F.vendor}><input className="bw-input" value={vendor} onChange={(e) => setVendor(e.target.value)} /></Field>
         <Field label={F.model}><input className="bw-input" value={model} onChange={(e) => setModel(e.target.value)} /></Field>
       </div>
+      <Field label={F.instruction}><input className="bw-input" value={instruction} maxLength={60} onChange={(e) => setInstruction(e.target.value)} /></Field>
+      <p className="bw-muted">{F.instructionHelp}</p>
       <fieldset className="bw-field">
         <legend className="bw-label">{F.tools}</legend>
         {info.tools.map((x) => (
@@ -177,7 +194,9 @@ function BotSheet({ bot, info, works, kinds, onClose, onSaved }: { bot: BotView 
         {info.tasks.map((x) => (
           <Field key={x.key} label={B.task[x.key] ?? x.key}>
             <Choice<BotLevel> label={B.task[x.key] ?? x.key} value={tasks[x.key] ?? BotLevel.proposal} onChange={(v) => setTasks({ ...tasks, [x.key]: v })}
-              options={[...(x.maxAuto ? [{ value: BotLevel.auto, label: levelText(BotLevel.auto) }] : []), { value: BotLevel.proposal, label: levelText(BotLevel.proposal) }, { value: BotLevel.never, label: levelText(BotLevel.never) }]} />
+              options={[...(x.maxAuto && (autoOk(x.key) || tasks[x.key] === BotLevel.auto) ? [{ value: BotLevel.auto, label: levelText(BotLevel.auto) }] : []), { value: BotLevel.proposal, label: levelText(BotLevel.proposal) }, { value: BotLevel.never, label: levelText(BotLevel.never) }]} />
+            {proofLine(x.key) && <span className="bw-muted">{proofLine(x.key)}</span>}
+            {tasks[x.key] === BotLevel.auto && !autoOk(x.key) && <span className="a-note a-note--bad">{F.autoOff}</span>}
           </Field>
         ))}
         <span className="bw-label">{F.never}</span>

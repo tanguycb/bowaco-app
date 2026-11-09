@@ -40,7 +40,7 @@ const roles = {
   bot: await backend("proef-bot-lek", cid),
 };
 if (!("bot" in (await roles.bot.myBot()))) {
-  const bid = ok(await admin.saveBot({ id: [], rev: 0n, name: "Proef bot (lektest)", vendor: "Proef", model: "", tools: ["mijn_fiche"], allWorks: false, works: [], docKinds: [], callsPerDay: 500n, tasks: [] }));
+  const bid = ok(await admin.saveBot({ id: [], rev: 0n, name: "Proef bot (lektest)", vendor: "Proef", model: "", tools: ["mijn_fiche"], allWorks: false, works: [], docKinds: [], callsPerDay: 500n, tasks: [], instruction: [] }));
   ok(await roles.bot.claimBotCode(ok(await admin.newBotCode(bid)).code));
 }
 await admin.addRobot(identity("robot-test").getPrincipal(), "Proefrobot", ["proef"]).catch(() => {});
@@ -138,7 +138,7 @@ const table = {
   claimBotCode: [AUTH.filter((r) => r !== "robot"), () => ["BOT-0000-0000-0000-0000"]],
   mcpInfo: [ADMIN, () => []],
   listBots: [ADMIN, () => []],
-  saveBot: [ADMIN, () => [{ id: [X], rev: 0n, name: "", vendor: "", model: "", tools: [], allWorks: false, works: [], docKinds: [], callsPerDay: 0n, tasks: [] }]],
+  saveBot: [ADMIN, () => [{ id: [X], rev: 0n, name: "", vendor: "", model: "", tools: [], allWorks: false, works: [], docKinds: [], callsPerDay: 0n, tasks: [], instruction: [] }]],
   newBotCode: [ADMIN, () => [X]],
   revokeBot: [ADMIN, () => [X]],
   botConnections: [ADMIN, () => [X]],
@@ -147,6 +147,17 @@ const table = {
   decideBotAction: [ADMIN, () => [X, false, ""]],
   undoBotAction: [ADMIN, () => [X]],
   botLog: [ADMIN, () => [0n, 1n]],
+  // 3.5: de proefbank, enkel de beheerder (#manageBots). Een bot krijgt de gevallen enkel via /mcp (proeftools, zie hieronder).
+  proofInfo: [ADMIN, () => []],
+  listProofSets: [ADMIN, () => []],
+  proofSetCases: [ADMIN, () => [X]],
+  listProofRounds: [ADMIN, () => []],
+  proofRoundCases: [ADMIN, () => [X]],
+  buildProofSet: [ADMIN, () => ["bestaat-niet", "x", 1n]],
+  archiveProofSet: [ADMIN, () => [X]],
+  startProofRound: [ADMIN, () => [X, { bot: X }]],
+  closeProofRound: [ADMIN, () => [X, false]],
+  runProofAi: [ADMIN, () => [X]],
   invitePerson: [["admin", "werfleider"], () => [invReq]],
   createRecoveryCode: [ADMIN, () => [X, 0n, ""]],
   confirmLink: [ADMIN, () => [someone]],
@@ -714,6 +725,8 @@ for (const k of Object.keys(table)) if (!methods.includes(k)) console.log(`· ta
       tries.push(["werven", {}], ["werf_documenten", { werfId: w }], ["oa_offertes", { werfId: w }], ["oa_facturen", { werfId: w }], ["document_koppelen", { werfId: w, bestandId: Number(file.id), soort: "vgplan" }]);
     }
     tries.push(["voorstel_factuurcontrole", { factuurId: Number(oaInv.id), oordeel: "in_orde" }], ["betalen", {}], ["verwijderen", { werfId: Number(A) }]);
+    // 3.5: zonder open proefronde geen proeftools (ook niet met een geraden geval).
+    tries.push(["proef_gevallen", {}], ["proef_antwoorden", { antwoorden: [{ geval: 1, werfId: Number(A), soort: "vgplan" }] }]);
     let botCalls = 0;
     for (const [n, a] of tries) {
       botCalls++;

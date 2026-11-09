@@ -271,7 +271,8 @@ mixin (
   func aiContext() : Text {
     var t = "Werven (id · code · gemeente):\n";
     var n = 0;
-    label l for (w in works.works.values()) {
+    // Nieuwste eerst (lopende werven zijn meestal de recentste), hoogstens Config.proofAiMaxWorks.
+    label l for ((_, w) in works.works.reverseEntries()) {
       if (n >= Config.proofAiMaxWorks) break l;
       if (w.archivedAt == null) { t #= w.id.toText() # " · " # w.code # " · " # w.address.city # "\n"; n += 1 };
     };

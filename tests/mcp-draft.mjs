@@ -31,7 +31,7 @@ const reg = await fetch(`${base}/register`, { method: "POST", headers: { "conten
 const regJ = await reg.json().catch(() => ({}));
 check("(2) /register via de gateway: 201 + client_id", reg.status === 201 && !!regJ.client_id, String(reg.status));
 
-const id = ok(await admin.saveBot({ id: [], rev: 0n, name: `Proef bot draft ${sfx}`, vendor: "Proef", model: "", tools: ["mijn_fiche", "werven", "werf_documenten"], allWorks: false, works: [W], docKinds: ["plannen"], callsPerDay: 50n, tasks: [] }));
+const id = ok(await admin.saveBot({ id: [], rev: 0n, name: `Proef bot draft ${sfx}`, vendor: "Proef", model: "", tools: ["mijn_fiche", "werven", "werf_documenten"], allWorks: false, works: [W], docKinds: ["plannen"], callsPerDay: 50n, tasks: [], instruction: [] }));
 ok(await bot.claimBotCode(ok(await admin.newBotCode(id)).code));
 const verifier = b64url(randomBytes(32));
 const challenge = b64url(createHash("sha256").update(verifier).digest());

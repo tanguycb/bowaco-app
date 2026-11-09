@@ -12,6 +12,7 @@
 //   node tests/mcp-3-13.mjs <canister-id>
 import { backend, freshBackend } from "../tools/lib.mjs";
 import { connect, FORBIDDEN, http, register, rpc, tool, pkce, REDIRECT } from "./mcp-lib.mjs";
+import { makeHistory, passProof } from "./proef-lib.mjs";
 
 const cid = process.argv[2];
 if (!cid) throw new Error("gebruik: node tests/mcp-3-13.mjs <canister-id>");
@@ -141,7 +142,16 @@ check("(7) een beslist voorstel kan niet opnieuw beslist worden", errOf(await ad
 ok(await admin.undoBotAction(a1.id));
 check("(7) een aanvaarde koppeling ongedaan maken: het document is weg", !(await admin.getDossier(W1)).documents.some((d) => d.id === d1.id));
 bA = (await admin.listBots()).find((b) => b.id === idA);
-ok(await admin.saveBot(F({ id: [idA], rev: bA.rev, tasks: [["document-koppelen", { auto: null }]] })));
+// 3.5: Zelf doen vraagt eerst een geslaagde proefronde (≥ 95 % op ≥ 50 gevallen) met dezelfde labels.
+check("(7) Zelf doen zonder proefronde: geweigerd (3.5)", errOf(await admin.saveBot(F({ id: [idA], rev: bA.rev, tasks: [["document-koppelen", { auto: null }]] }))).includes("proefronde"));
+const W3code = `P-MCP-${sfx}-3`;
+const W3 = await mkWork(W3code, "Proefwerf historiek 3.5");
+const hist = await makeHistory(calc, [{ id: W3, code: W3code }], ["plannen", "plaatsbeschrijving", "verzekering"], 52, sfx);
+ok(await admin.saveBot(F({ id: [idA], rev: bA.rev, works: [W1, W3] })));
+const pp = await passProof(admin, anon, cid, conA.access, idA, hist, `Proefset mcp ${sfx}`);
+check("(7) proefronde via de proeftools: geslaagd (3.5)", !!pp.round?.passed && pp.round.counted >= 50n, S({ round: pp.round, err: pp.play.error }));
+bA = (await admin.listBots()).find((b) => b.id === idA);
+ok(await admin.saveBot(F({ id: [idA], rev: bA.rev, works: [W1, W3], tasks: [["document-koppelen", { auto: null }]] })));
 const ze = await tool(anon, cid, conA.access, "document_koppelen", { werfId: Number(W1), bestandId: Number(fOpen2), soort: "asbestinventaris", reden: "proef extern" });
 check("(7) Zelf doen voor een soort die externen zien of leveren (asbestinventaris): toch een voorstel (review M1)", !ze.isError && ze.data.stand === "voorstel", ze.text);
 ok(await admin.decideBotAction(BigInt(ze.data.actie), false, "proef geweigerd"));

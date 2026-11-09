@@ -48,6 +48,19 @@ createServer((req, res) => {
     const usage = { prompt_tokens: 20000, completion_tokens: 10000, total_tokens: 30000, prompt_tokens_details: { cached_tokens: 0 } };
     let content = JSON.stringify({ werf: "W-901", documentsoort: "offerte-oa", firma: "Firma Voorbeeld bv", bedragCent: 123400, vertrouwen: 0.9 });
     if (parsed?.response_format?.json_schema?.name === "stub") content = JSON.stringify({ samenvatting: "nep" });
+    // 3.5: de proefbank (document koppelen). De nep kiest de werf waarvan de code in de bestandsnaam staat en de soort waarvan de sleutel
+    // erin staat (een proefbestand heet bv. "pb-ABC12-P-PB-ABC12-1-plannen-3.pdf"); zonder treffer: werf 0 en soort "onbekend".
+    if (parsed?.response_format?.json_schema?.name === "document_koppelen_v1") {
+      const u = String(parsed?.messages?.find((x) => x.role === "user")?.content ?? "");
+      const doc = (u.split("<<<DOCUMENT")[1] ?? "").split("DOCUMENT>>>")[0] ?? "";
+      const naam = (doc.match(/"naam":"([^"]*)"/) ?? [])[1] ?? "";
+      const lines = u.split("\n");
+      const werven = lines.filter((l) => /^\d+ · /.test(l)).map((l) => { const [id, code] = l.split(" · "); return { id: Number(id), code }; }).sort((a, b) => b.code.length - a.code.length);
+      const soorten = lines.filter((l) => /^[a-z0-9-]+ · /.test(l) && !/^\d+ · /.test(l)).map((l) => l.split(" · ")[0]).sort((a, b) => b.length - a.length);
+      const w = werven.find((x) => naam.includes(x.code));
+      const k = soorten.find((x) => naam.includes("-" + x + "-"));
+      content = JSON.stringify({ werfId: w ? w.id : 0, soort: k ?? "onbekend", vertrouwen: w && k ? 0.9 : 0.1 });
+    }
     if (m === "ongeldig") content = "dit is geen json";
     if (m === "groot") content = JSON.stringify({ werf: "W-901", documentsoort: "andere", firma: null, bedragCent: null, vertrouwen: 0.1, opvulling: "x".repeat(12000) });
     const message = m === "weiger" ? { role: "assistant", content: null, refusal: "nee" } : { role: "assistant", content };

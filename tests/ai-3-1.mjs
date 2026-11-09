@@ -53,7 +53,7 @@ for (const [n, x] of [["OA", oa], ["klant", klant], ["architect", arch], ["VC", 
 }
 for (const [n, x] of [["werfleider", wl], ["calculator", calc]]) {
   const ws = await x.listAiWorkers();
-  check(`(1) ${n} ziet de fiches zonder budgetcijfers, maar geen overzicht, logboek, beheer of proeftaak`, ws.length === 7 && ws.every((w) => w.budget.length === 0) && (await denied(x.aiOverview())) && (await denied(x.aiLog(0n, 10n))) && (await denied(x.refreshAiModels())) && (await denied(x.aiTestCall("routering"))) && (await denied(x.setAiSettings([], [], []))));
+  check(`(1) ${n} ziet de fiches zonder budgetcijfers, maar geen overzicht, logboek, beheer of proeftaak`, ws.length === 8 && ws.every((w) => w.budget.length === 0) && (await denied(x.aiOverview())) && (await denied(x.aiLog(0n, 10n))) && (await denied(x.refreshAiModels())) && (await denied(x.aiTestCall("routering"))) && (await denied(x.setAiSettings([], [], []))));
 }
 const me = await calc.me();
 check("(1) caps: de calculator mag AI gebruiken, enkel de admin beheert", un(me.caps)?.ai === true && un(me.caps)?.manageAi === false && un((await admin.me()).caps)?.manageAi === true && (un((await oa.me()).caps)?.ai ?? false) === false);

@@ -656,7 +656,7 @@ module {
   public let maxProofSets : Nat = 100;
   public let maxProofRounds : Nat = 2_000;
   public let maxProofLabel : Nat = 60; // instructieversie (label)
-  public let proofAiMaxWorks : Nat = 200; // werven in de vraag aan Caffeine AI
+  public let proofAiMaxWorks : Nat = 300; // werven in de vraag aan Caffeine AI
 
   // 2c.8: grenzen van de werfadministratie (begrensd, T17).
   public let maxInsurances : Nat = 2_000;

@@ -941,6 +941,19 @@ else {
   check("(3.13) enkel mixins/McpApi.mo (en de klok in main.mo) raken de OAuth-toestand", oauthFiles.every((f) => f === "mixins/McpApi.mo" || f === "main.mo"), oauthFiles.join(", "));
   const mcpSrc = srcOf("mixins/McpApi.mo");
   check("(3.13) goedkeuren enkel als actieve bot; inlogpagina en beheer enkel #manageBots", /_caffeineMcpApprove[\s\S]{0,300}Bots\.activeBot\(bots, caller\)/.test(mcpSrc) && /_caffeineMcpSetSignInOrigin[\s\S]{0,200}requireBotAdmin/.test(mcpSrc) && (mcpSrc.match(/requireBotAdmin\(caller\)/g) ?? []).length >= 12);
+  // (3.5) Proefbank: elke publieke functie enkel #manageBots; de proefmodus voert nooit iets uit (geen koppeling, actie, document of
+  // bestand); een geval toont enkel caseInput (nooit het antwoord of de verwijzing); geen blob of bedrag.
+  const proofApi = srcOf("mixins/ProofApi.mo");
+  const proofPub = (proofApi.match(/public (shared|query) \(\{ caller \}\) func \w+/g) ?? []).length;
+  check("(3.5) ProofApi: elke publieke functie vraagt requireProofAdmin (#manageBots)", proofPub >= 10 && (proofApi.match(/requireProofAdmin\(caller\)/g) ?? []).length >= proofPub + 1 && /Rights\.require\(\{ works; settings \}, p, #manageBots, null\)/.test(proofApi), `${proofPub} functies`);
+  const proofLib = srcOf("lib/Proof.mo").replace(/\/\/.*$/gm, "");
+  const proofCall = botsSrc.slice(botsSrc.indexOf("func proofCall("), botsSrc.indexOf("// ── Lezen"));
+  const writes = /documents\.add|applyDocLink|docLinkTool|newAction|files\.files\.add|bots\.actions|invoiceCheckTool|\.blob\b|\.amounts\b/;
+  check("(3.5) proefmodus voert nooit iets uit: geen document, actie, bestand, blob of bedrag in Proof.mo, ProofApi.mo en proofCall", !writes.test(proofLib) && !writes.test(proofApi.replace(/\/\/.*$/gm, "")) && !writes.test(proofCall) && proofCall.length > 500);
+  check("(3.5) proef_gevallen toont enkel caseInput en het geval-nummer, nooit het antwoord of de verwijzing", /\("geval", num\(pos\)\), \("invoer", input\)/.test(proofCall) && !/c\.answer[^,)]*\)\s*\]|"antwoord", |c\.ref|c\.workId/.test(proofCall.replace(/Proof\.compare\(def, c\.answer, given\)/, "")));
+  check("(3.5) het antwoord aan de bot zegt nooit juist of fout", !/outcome|#right|#wrong|juist/.test(proofCall.slice(proofCall.indexOf("// proef_antwoorden")).replace(/ans\.add\(c\.n, \{ n = c\.n; given; at = now; outcome \}\)/, "").replace(/let outcome = [^;]*;/, "")));
+  check("(3.5) de proeftools lopen langs een eigen poort vóór de gewone tools, met daglimiet en logboek", callBody.indexOf('tool == "proef_gevallen"') > callBody.indexOf("callsPerDay") && callBody.indexOf('tool == "proef_gevallen"') < callBody.indexOf("Rights.mayBot") && /logCall\(e, b, tool, null, argsSha/.test(callBody));
+  check("(3.5) Zelf doen bij het uitvoeren enkel met een geslaagde proefronde (effectiveLevel), en saveBot vraagt Proof.gate", /effectiveLevel\(e, b, "document-koppelen"\)/.test(botsSrc) && /Proof\.gate\(proof, #bot\(id\), k, vendor, model, instructionNew\)/.test(mcpSrc));
 }
 
 // ── securityreview 2c.9: S8 (klant op een werf zonder klantfirma ziet geen werfadministratie) en S16 (geen lus die een waarde vervangt
