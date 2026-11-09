@@ -56,7 +56,7 @@ function StartSheet({ target, onClose }: { target: AiCheckTargetIn; onClose: () 
   );
 }
 
-function Findings({ full, items }: { full: AiCheckFull; items?: TenderItemView[] }) {
+function Findings({ full, items, title = C.findingsTitle }: { full: AiCheckFull; items?: TenderItemView[]; title?: string }) {
   const label = (pos?: bigint) => {
     if (pos === undefined) return "";
     const x = items?.[Number(pos) - 1];
@@ -65,7 +65,7 @@ function Findings({ full, items }: { full: AiCheckFull; items?: TenderItemView[]
   if (full.findings.length === 0) return null;
   return (
     <>
-      <h3 className="bw-h4">{C.findingsTitle}</h3>
+      <h3 className="bw-h4">{title}</h3>
       <ul className="vs-findings" data-testid="ac-findings">
         {full.findings.map((f, k) => <li key={k}><span className={`a-tag ${f.severity === "fout" ? "a-tag--warn" : ""}`}>{C.severities[f.severity] ?? f.severity}</span> <b>{C.kinds[f.kind] ?? f.kind}</b>{f.pos !== undefined ? ` (${label(f.pos)})` : ""}: {f.text}{f.cents !== undefined ? ` (${fmtEuro(f.cents)})` : ""}</li>)}
       </ul>
@@ -96,7 +96,7 @@ function useChecks(target: AiCheckTargetIn) {
   });
 }
 
-function Rows({ rows, onOpen, onAgain, onCancel, busyOpen, busyAgain }: { rows: AiCheckBrief[]; onOpen: (r: AiCheckBrief) => void; onAgain: (r: AiCheckBrief) => void; onCancel: (r: AiCheckBrief) => void; busyOpen: boolean; busyAgain: boolean }) {
+function Rows({ rows, onOpen, onAgain, onCancel, busyOpen, busyAgain }: { rows: AiCheckBrief[]; onOpen: (r: AiCheckBrief) => void; onAgain: (r: AiCheckBrief) => void; onCancel: (r: AiCheckBrief) => void; busyOpen?: bigint; busyAgain?: bigint }) {
   return (
     <ul className="a-list">
       {rows.map((r) => {
@@ -108,8 +108,8 @@ function Rows({ rows, onOpen, onAgain, onCancel, busyOpen, busyAgain }: { rows: 
               <span className="bw-muted">{[C.by(r.createdByName, fmtTime(r.createdAt)), r.verdict ? C.verdicts[r.verdict] ?? r.verdict : "", r.stale ? C.stale : "", r.reason].filter(Boolean).join(" · ")}</span>
             </span>
             <span className="a-tag" data-testid="ac-status">{C.status[r.status] ?? r.status}</span>
-            {r.verdict && <Button variant="primary" busy={busyOpen} onClick={() => onOpen(r)} data-testid="ac-open">{C.open}</Button>}
-            {r.way === "caffeine" && r.status === "open" && <Button busy={busyAgain} onClick={() => onAgain(r)} data-testid="ac-again">{C.again}</Button>}
+            {r.verdict && <Button variant="primary" busy={busyOpen === r.id} onClick={() => onOpen(r)} data-testid="ac-open">{C.open}</Button>}
+            {r.way === "caffeine" && r.status === "open" && <Button busy={busyAgain === r.id} onClick={() => onAgain(r)} data-testid="ac-again">{C.again}</Button>}
             {live && <Button variant="quiet" onClick={() => onCancel(r)} data-testid="ac-cancel">{C.cancel}</Button>}
           </li>
         );
@@ -169,7 +169,7 @@ export function TenderCheckPanel({ tenderId, items, drafts, target0, isOpen, onU
       <p className="bw-muted">{C.tenderLead}</p>
       {isOpen && <Button onClick={() => setStart(true)} data-testid="ac-start">{C.start}</Button>}
       {q.data && rows.length === 0 && <p className="bw-muted">{C.none}</p>}
-      <Rows rows={rows} onOpen={(r) => open.mutate(r)} onAgain={(r) => again.mutate(r)} onCancel={setCancel} busyOpen={open.isPending} busyAgain={again.isPending} />
+      <Rows rows={rows} onOpen={(r) => open.mutate(r)} onAgain={(r) => again.mutate(r)} onCancel={setCancel} busyOpen={open.isPending ? open.variables?.id : undefined} busyAgain={again.isPending ? again.variables?.id : undefined} />
       {start && <StartSheet target={target} onClose={() => setStart(false)} />}
       {shown && (
         <Sheet title={C.resultTitle} open wide onClose={() => setShown(null)} side footer={<>
@@ -229,14 +229,14 @@ export function QuoteReviewPanel({ versionId }: { versionId: bigint }) {
         <div data-testid="ac-remarks">
           <p><b>{C.remarksSend}</b></p>
           <Head full={shown} />
-          {shown.findings.length === 0 ? <p className="bw-muted">{C.remarksNone}</p> : <Findings full={shown} />}
+          {shown.findings.length === 0 ? <p className="bw-muted">{C.remarksNone}</p> : <Findings full={shown} title={C.remarksTitle} />}
           <p className="bw-muted">{C.notChecked}</p>
           {shown.brief.status === "voorstel" && <Button variant="quiet" busy={finish.isPending} onClick={() => finish.mutate({ id: shown.brief.id, o: AiCheckOutcome.seen })} data-testid="ac-seen">{C.seen}</Button>}
         </div>
       )}
       {waiting && <p className="bw-muted" data-testid="ac-wait">{C.remarksWait}</p>}
       <Button onClick={() => setStart(true)} data-testid="ac-start">{C.startQuote}</Button>
-      {rows.length > 0 && <details><summary>{C.history(rows.length)}</summary><Rows rows={rows} onOpen={(r) => open.mutate(r)} onAgain={(r) => again.mutate(r)} onCancel={setCancel} busyOpen={open.isPending} busyAgain={again.isPending} /></details>}
+      {rows.length > 0 && <details><summary>{C.history(rows.length)}</summary><Rows rows={rows} onOpen={(r) => open.mutate(r)} onAgain={(r) => again.mutate(r)} onCancel={setCancel} busyOpen={open.isPending ? open.variables?.id : undefined} busyAgain={again.isPending ? again.variables?.id : undefined} /></details>}
       {start && <StartSheet target={target} onClose={() => setStart(false)} />}
       {cancel && <Confirm open title={C.cancelTitle} text={C.cancelText} confirmLabel={C.cancelConfirm} cancelLabel={C.back} busy={finish.isPending} onConfirm={() => { finish.mutate({ id: cancel.id, o: AiCheckOutcome.cancelled }); setCancel(null); }} onClose={() => setCancel(null)} />}
     </section>
