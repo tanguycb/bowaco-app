@@ -597,6 +597,144 @@ type BoardState__816524089 =
     absences : Map__230067015<Nat, Absence__191448577>;
     capacity : Map__230067015<Text, CapacityRule__34831421>
   };
+type BotActionKind__767934074 =
+  {
+    #docLink : {fileId : Nat; kind : Text; title : Text};
+    #invoiceCheck : {invoiceId : Nat; remarks : [Text]; verdict : Text};
+    #other : {data : [(Text, Text)]; tool : Text}
+  };
+type BotActionKind__955665991 =
+  {
+    #docLink : {fileId : Nat; kind : Text; title : Text};
+    #invoiceCheck : {invoiceId : Nat; remarks : [Text]; verdict : Text};
+    #other : {data : [(Text, Text)]; tool : Text}
+  };
+type BotActionState__837888700 =
+  {#accepted; #done; #expired; #failed : Text; #proposed; #rejected; #undone};
+type BotActionState__86019141 =
+  {#accepted; #done; #expired; #failed : Text; #proposed; #rejected; #undone};
+type BotAction__890365650 =
+  {
+    action : BotActionKind__767934074;
+    var appliedAt : ?Int;
+    at : Int;
+    botId : Nat;
+    var createdDoc : Bool;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId__967516914;
+    var docId : ?Nat;
+    var extra : Extra__945213800;
+    id : Nat;
+    var note : Text;
+    reason : Text;
+    var state : BotActionState__837888700;
+    task : Text;
+    workId : ?WorkId__929594816
+  };
+type BotAction__979433220 =
+  {
+    action : BotActionKind__955665991;
+    var appliedAt : ?Int;
+    at : Int;
+    botId : Nat;
+    var createdDoc : Bool;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId__197983893;
+    var docId : ?Nat;
+    var extra : Extra__701255983;
+    id : Nat;
+    var note : Text;
+    reason : Text;
+    var state : BotActionState__86019141;
+    task : Text;
+    workId : ?WorkId__756674504
+  };
+type BotCallOutcome__1017266928 =
+  {#error : Text; #limit; #ok; #refused : Text; #unknown};
+type BotCallOutcome__378551890 =
+  {#error : Text; #limit; #ok; #refused : Text; #unknown};
+type BotCall__541355969 =
+  {
+    actionId : ?Nat;
+    argsSha256 : Text;
+    at : Int;
+    botId : Nat;
+    id : Nat;
+    outcome : BotCallOutcome__1017266928;
+    tool : Text;
+    workId : ?WorkId__929594816
+  };
+type BotCall__605295153 =
+  {
+    actionId : ?Nat;
+    argsSha256 : Text;
+    at : Int;
+    botId : Nat;
+    id : Nat;
+    outcome : BotCallOutcome__378551890;
+    tool : Text;
+    workId : ?WorkId__756674504
+  };
+type BotLevel__440266352 = {#auto; #never; #proposal};
+type BotLevel__653976174 = {#auto; #never; #proposal};
+type BotState__111932722 =
+  {
+    actions : Map__230067015<Nat, BotAction__979433220>;
+    bots : Map__230067015<Nat, Bot__898405869>;
+    byCode : Map__230067015<Blob, Nat>;
+    byPrincipal : Map__230067015<Principal, Nat>;
+    daily : Map__230067015<Text, Nat>;
+    log : Map__230067015<Nat, BotCall__605295153>;
+    oauth : State__10756115
+  };
+type Bot__745295474 =
+  {
+    allWorks : Bool;
+    callsPerDay : Nat;
+    codeExpiresAt : Int;
+    codeHash : ?Blob;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    docKinds : [Text];
+    extra : Extra__945213800;
+    id : Nat;
+    model : Text;
+    name : Text;
+    principal : ?Principal;
+    rev : Nat;
+    revokedAt : ?Int;
+    revokedBy : ?PersonId__967516914;
+    tasks : [(Text, BotLevel__440266352)];
+    tools : [Text];
+    updatedAt : Int;
+    updatedBy : PersonId__967516914;
+    vendor : Text;
+    works : [WorkId__929594816]
+  };
+type Bot__898405869 =
+  {
+    allWorks : Bool;
+    callsPerDay : Nat;
+    codeExpiresAt : Int;
+    codeHash : ?Blob;
+    createdAt : Int;
+    createdBy : PersonId__197983893;
+    docKinds : [Text];
+    extra : Extra__701255983;
+    id : Nat;
+    model : Text;
+    name : Text;
+    principal : ?Principal;
+    rev : Nat;
+    revokedAt : ?Int;
+    revokedBy : ?PersonId__197983893;
+    tasks : [(Text, BotLevel__653976174)];
+    tools : [Text];
+    updatedAt : Int;
+    updatedBy : PersonId__197983893;
+    vendor : Text;
+    works : [WorkId__756674504]
+  };
 type CalendarBlock__116234807 =
   {
     archivedAt : ?Int;
@@ -643,6 +781,7 @@ type CapacityRule__80176380 =
     updatedAt : Int;
     updatedBy : PersonId__967516914
   };
+type Client__4154565 = {createdAt : Int; name : Text; redirectUris : [Text]};
 type CodeKind__234575351 = {#invite; #recovery};
 type CodeKind__972856206 = {#invite; #recovery};
 type CodeState__173380963 =
@@ -658,6 +797,14 @@ type CodeState__574295970 =
     #open;
     #revoked : {at : Int; by : PersonId__1007515609};
     #used : {at : Int; by : Principal}
+  };
+type Code__636879936 =
+  {
+    clientId : Text;
+    codeChallenge : Text;
+    expiresAt : Int;
+    redirectUri : Text;
+    user : Principal
   };
 type Confidential__201657688<T> = {#plain : T; #sealed : Sealed__938300689};
 type Confidential__339345263<T> = {#plain : T; #sealed : Sealed__968203891};
@@ -945,6 +1092,7 @@ type Extra__554422274 = [(Text, Text)];
 type Extra__593670818 = [(Text, Text)];
 type Extra__594079308 = [(Text, Text)];
 type Extra__646433706 = [(Text, Text)];
+type Extra__701255983 = [(Text, Text)];
 type Extra__708758806 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
 type Extra__758661032 = [(Text, Text)];
@@ -986,6 +1134,20 @@ type FrozenPost__1003738919 =
   {qtyMilli : Int; root : Nat; title : Text; unit : Text; unitCents : ?Int};
 type FrozenPost__688533546 =
   {qtyMilli : Int; root : Nat; title : Text; unit : Text; unitCents : ?Int};
+type Grant__208488789 =
+  {
+    var accessExpiresAt : Int;
+    var accessHash : Text;
+    clientId : Text;
+    createdAt : Int;
+    var refreshExpiresAt : Int;
+    var refreshHash : Text;
+    var retiredRefreshHash : ?Text;
+    var retried : Bool;
+    var rotatedAt : Int;
+    var supersededRefreshHashes : [Text];
+    user : Principal
+  };
 type Grant__318217616 =
   {
     #confirmHours;
@@ -3044,6 +3206,7 @@ type PersonId__1012124006 = Nat;
 type PersonId__184143711 = Nat;
 type PersonId__185004052 = Nat;
 type PersonId__192734764 = Nat;
+type PersonId__197983893 = Nat;
 type PersonId__199562452 = Nat;
 type PersonId__239248111 = Nat;
 type PersonId__24135035 = Nat;
@@ -4754,6 +4917,14 @@ type SiteMeeting__96235682 =
     updatedBy : PersonId__967516914;
     workId : WorkId__929594816
   };
+type State__10756115 =
+  {
+    clients : Map__230067015<Text, Client__4154565>;
+    codes : Map__230067015<Text, Code__636879936>;
+    grants : Map__230067015<Text, Grant__208488789>;
+    var signInOrigin : ?Text;
+    tokens : Map__230067015<Text, Text>
+  };
 type SurveyOpRecord__392605083 =
   {
     at : Int;
@@ -5457,6 +5628,7 @@ type WorkId__564296267 = Nat;
 type WorkId__642659770 = Nat;
 type WorkId__654334923 = Nat;
 type WorkId__72456761 = Nat;
+type WorkId__756674504 = Nat;
 type WorkId__815998652 = Nat;
 type WorkId__838834227 = Nat;
 type WorkId__864560573 = Nat;
@@ -5627,7 +5799,8 @@ type WorksState__605582232 =
   "20261101_033017" : OldActor__49271436 -> NewActor__193100407;
   "20261101_130000" : OldActor__390299613 -> NewActor__47798723;
   "20261101_155702" : OldActor__67970265 -> NewActor__813176251;
-  "20261106_180000" : OldActor__893970407 -> NewActor__680101125
+  "20261106_180000" : OldActor__893970407 -> NewActor__680101125;
+  "20261108_120000" : {} -> {bots : BotState__111932722}
 }
 actor  {
   stable access :
@@ -5665,6 +5838,16 @@ actor  {
       absenceChanges : Map__230067015<Nat, AbsenceChange__783558869>;
       absences : Map__230067015<Nat, Absence__781970149>;
       capacity : Map__230067015<Text, CapacityRule__80176380>
+    };
+  stable bots :
+    {
+      actions : Map__230067015<Nat, BotAction__890365650>;
+      bots : Map__230067015<Nat, Bot__745295474>;
+      byCode : Map__230067015<Blob, Nat>;
+      byPrincipal : Map__230067015<Principal, Nat>;
+      daily : Map__230067015<Text, Nat>;
+      log : Map__230067015<Nat, BotCall__541355969>;
+      oauth : State__10756115
     };
   stable ctr :
     {var root : Node__204828119<Text, Nat>; var size : Nat__227979830};
