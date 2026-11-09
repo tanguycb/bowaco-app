@@ -624,15 +624,32 @@ module {
       ("oa_facturen", ""),
       ("document_koppelen", "document-koppelen"),
       ("voorstel_factuurcontrole", "factuurcontrole"),
+      // 3.8: OA-offerte inlezen (de opdrachten, het bestand van een opdracht, het voorstel met de posten).
+      ("inleesopdrachten", "oa-offerte-inlezen"),
+      ("inleesbestand", "oa-offerte-inlezen"),
+      ("voorstel_oa_offerte", "oa-offerte-inlezen"),
     ];
   };
   // De taken met hun hoogste niveau: document koppelen is intern en terug te draaien (mag Zelf doen); factuurcontrole raakt
   // geld (hoogstens Voorstel, §6). Een nieuwe taak start altijd op Voorstel.
-  public func botTasks() : [(Text, { #auto; #proposal })] { [("document-koppelen", #auto), ("factuurcontrole", #proposal)] };
+  // 3.8: OA-offerte inlezen mag tot Zelf doen (= de app registreert de offerte zelf, ongedaan te maken door ze in te trekken), maar
+  // enkel na een geslaagde proefronde (Proof.gate); een nieuwe taak start op Voorstel.
+  public func botTasks() : [(Text, { #auto; #proposal })] { [("document-koppelen", #auto), ("factuurcontrole", #proposal), ("oa-offerte-inlezen", #auto)] };
   // NOOIT (vast in de code, niet in te stellen; er bestaat ook geen tool voor): betalen of definitief goedkeuren, versturen naar
   // een klant of OA, contracten, verwijderen, vertrouwelijke prijzen. Rights.mayBot weigert deze taken altijd.
   public func botNeverTasks() : [Text] { ["betalen-goedkeuren", "versturen", "contracten", "verwijderen", "vertrouwelijke-prijzen"] };
   public let maxBots : Nat = 20;
+  // 3.8: OA-offerte inlezen. De inhoud (PDF of foto voor een bot, tekst voor Caffeine AI) staat tijdelijk in de canister: een
+  // MCP-antwoord mag hoogstens ± 2 MB zijn (base64 = 4/3), dus hoogstens 1,35 MB per bestand.
+  public let oaReadMaxBytes : Nat = 1_350_000;
+  public let oaReadMaxText : Nat = 60_000; // tekens tekst voor Caffeine AI
+  public let oaReadMaxOpenPerWork : Nat = 20;
+  public let oaReadMaxJobs : Nat = 5_000;
+  public let oaReadMaxLines : Nat = 300;
+  public let oaReadMaxRemarks : Nat = 20;
+  public let oaReadAnswerBytes : Nat = 60_000; // antwoord van Caffeine AI (JSON met de posten)
+  public let oaReadExpire : Int = 2_592_000_000_000_000; // 30 dagen: een open opdracht vervalt, de inhoud gaat weg
+  public let oaReadMaxProofContent : Nat = 220; // inhoud van proefgevallen (hoogstens zoveel bestanden tegelijk)
   public let botMaxCallsPerDay : Nat = 2_000;
   public let botDefaultCallsPerDay : Nat = 100;
   public let botCodeValid : Int = 86_400_000_000_000; // de koppelcode: 24 u, eenmalig

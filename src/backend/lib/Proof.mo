@@ -23,9 +23,13 @@ import Rights "Rights";
 module {
   type Json = Json.Json;
 
-  public type Cmp = { #id; #key };
-  public type Field = { name : Text; cmp : Cmp; help : Text };
-  public type TaskDef = { key : Text; tool : Text; aiKey : Text; question : Text; fields : [Field] };
+  // 3.8: #code = een nummer zonder hoofdletters en spaties; #amount = eurocent met een marge (≤ € 1 of ≤ 0,5 %).
+  public type Cmp = { #id; #key; #code; #amount };
+  // secret = een bedrag: nooit in een query-view (R38), enkel juist of fout.
+  public type Field = { name : Text; cmp : Cmp; help : Text; secret : Bool };
+  // scope: #docs = werf én documentsoort op de fiche; #work = enkel de werf. content = het geval heeft een bestand dat de bot leest
+  // (proef_bestand) en dat de beheerder eerst in de proefbank laadt. aiKey "" = geen Caffeine-ronde (Caffeine leest geen PDF of foto).
+  public type TaskDef = { key : Text; tool : Text; aiKey : Text; question : Text; fields : [Field]; scope : { #docs; #work }; content : Bool };
 
   // 3.5: enkel document koppelen. 3.8–3.10 voegen hier hun taak toe (oa-offerte-inlezen, factuurcontrole, oa-offertes-vergelijken),
   // met hun eigen verwijzing (#oaQuote, #oaInvoice) en velden (bv. een bedrag met een marge = een nieuwe Cmp).
@@ -36,9 +40,23 @@ module {
       aiKey = "document-koppelen";
       question = "Bij welke werf en welke documentsoort hoort dit bestand? Gebruik je gewone tools (werven, mijn_fiche, werf_documenten) om te zoeken; je antwoord verandert niets in de app.";
       fields = [
-        { name = "werfId"; cmp = #id; help = "Het id van de werf (uit de tool werven)." },
-        { name = "soort"; cmp = #key; help = "De sleutel van de documentsoort (uit mijn_fiche)." },
+        { name = "werfId"; cmp = #id; help = "Het id van de werf (uit de tool werven)."; secret = false },
+        { name = "soort"; cmp = #key; help = "De sleutel van de documentsoort (uit mijn_fiche)."; secret = false },
       ];
+      scope = #docs;
+      content = false;
+    }, {
+      key = "oa-offerte-inlezen";
+      tool = "voorstel_oa_offerte";
+      aiKey = "";
+      question = "Lees de offerte van de onderaannemer (haal het bestand met proef_bestand) en geef het offertenummer, de datum en het totaal na korting zonder btw. Je antwoord verandert niets in de app.";
+      fields = [
+        { name = "nummer"; cmp = #code; help = "Het offertenummer zoals op de offerte."; secret = false },
+        { name = "datum"; cmp = #key; help = "De datum van de offerte (jjjj-mm-dd)."; secret = false },
+        { name = "totaal"; cmp = #amount; help = "Het totaal na korting zonder btw, in eurocent (geheel getal)."; secret = true },
+      ];
+      scope = #work;
+      content = true;
     }];
   };
 
@@ -51,6 +69,23 @@ module {
     files : Types.FileState;
     dossier : Types.DossierState;
     proof : Types.ProofState;
+    tenders : Types.TenderState; // 3.8: OA-offertes als proefgeval
+    org : Types.OrgState;
+    oaRead : Types.OaReadState; // 3.8: de inhoud van een proefgeval (proofContent)
+  };
+
+  public func contentKey(oaQuoteId : Nat) : Text { "q:" # oaQuoteId.toText() };
+
+  // 3.8: een OA-offerte die een INTERNE persoon met de hand registreerde naast een PDF of foto, nog geldig, niet ingelezen door een
+  // bot of de AI (dat is geen waarheid), met een nummer. Het bestand: van die werf, niet gearchiveerd.
+  public func oaQuoteOk(e : Env, q : Types.OaQuote) : ?Types.FileRef {
+    if (q.status != #received or q.source != #hand or q.number == "" or extraHas(q.extra, "inlezen") or not workOk(e, q.workId)) return null;
+    switch (e.access.persons.get(q.createdBy)) { case (?p) { if (not Rights.internal(p)) return null }; case null return null };
+    let fid = q.fileId ?? return null;
+    let f = e.files.files.get(fid) ?? return null;
+    if (f.archivedAt != null or f.workId != ?q.workId or (f.mime != "application/pdf" and not f.mime.startsWith(#text "image/"))) return null;
+    switch (e.tenders.amounts.get(q.id)) { case (?#plain(_)) {}; case _ return null };
+    ?f;
   };
 
   func extraHas(x : Types.Extra, k : Text) : Bool { x.any(func((a, _) : (Text, Text)) : Bool = a == k) };
@@ -70,6 +105,7 @@ module {
   // ── Testset uit de historiek ────────────────────────────────────────────
   // document-koppelen: elk bestand dat aan een document hangt dat een mens zo liet (ontvangen of goedgekeurd, geen bot-merk).
   public func buildCases(e : Env, taskKey : Text, max : Nat) : [Types.ProofCase] {
+    if (taskKey == "oa-offerte-inlezen") return buildOaCases(e, max);
     if (taskKey != "document-koppelen") return [];
     let seen = Map.empty<Nat, ()>();
     let found = List.empty<(Int, Nat, Nat, Text)>(); // (moment, bestand, werf, soort)
@@ -97,6 +133,55 @@ module {
     });
   };
 
+  func buildOaCases(e : Env, max : Nat) : [Types.ProofCase] {
+    let found = List.empty<Types.OaQuote>();
+    for (q in e.tenders.oaQuotes.values()) { switch (oaQuoteOk(e, q)) { case (?_) found.add(q); case null {} } };
+    let sorted = found.toArray().sort(func(a : Types.OaQuote, b : Types.OaQuote) : { #less; #equal; #greater } = if (a.createdAt > b.createdAt) #less else if (a.createdAt < b.createdAt) #greater else Nat.compare(b.id, a.id));
+    let n = Nat.min(max, sorted.size());
+    Array.tabulate<Types.ProofCase>(n, func i {
+      let q = sorted[i];
+      let net = switch (e.tenders.amounts.get(q.id)) { case (?#plain(a)) a.netCents; case _ 0 };
+      { n = i + 1; ref = #oaQuote(q.id); workId = ?q.workId; answer = [("nummer", q.number), ("datum", isoDay(q.quoteDay)), ("totaal", Int.toText(net))] };
+    });
+  };
+
+  public func isoDay(day : Nat) : Text {
+    let z = day + 719468;
+    let era = z / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if (mp < 10) mp + 3 else mp - 9;
+    let y = yoe + era * 400 + (if (m <= 2) 1 else 0);
+    let two = func(x : Nat) : Text { if (x < 10) "0" # x.toText() else x.toText() };
+    y.toText() # "-" # two(m) # "-" # two(d);
+  };
+
+  // Mag deze bot dit geval zien (de fiche van NU)?
+  public func caseInScope(ctx : Rights.Ctx, b : Types.Bot, def : TaskDef, c : Types.ProofCase) : Bool {
+    let w = c.workId ?? return false;
+    if (not Rights.botSeesWork(ctx, b, w)) return false;
+    switch (def.scope) {
+      case (#work) true;
+      case (#docs) Rights.botSeesDocKind(b, norm(#key, answerOf(c.answer, "soort")), false);
+    };
+  };
+
+  // 3.8: de inhoud van een proefgeval (enkel een OA-offerte), als de beheerder ze laadde.
+  public func caseContent(e : Env, c : Types.ProofCase) : ?(Types.FileRef, Blob) {
+    switch (c.ref) {
+      case (#oaQuote(qid)) {
+        let q = e.tenders.oaQuotes.get(qid) ?? return null;
+        let f = oaQuoteOk(e, q) ?? return null;
+        let b = e.oaRead.proofContent.get(contentKey(qid)) ?? return null;
+        ?(f, b);
+      };
+      case _ null;
+    };
+  };
+
   // Kan dit geval (nog) getoond worden? De invoer voor de bot of de AI, of null (= vervallen). Nooit het id, de werf of het antwoord.
   public func caseInput(e : Env, c : Types.ProofCase) : ?Json {
     switch (c.ref) {
@@ -108,6 +193,13 @@ module {
         switch (Dossier.kind(e.settings, answerOf(c.answer, "soort"))) { case (?k) { if (k.confidential or k.archived) return null }; case null return null };
         if (not Dossier.docsOf(e.dossier, w).any(func(d : Types.Document) : Bool = not d.confidential and d.fileIds.any(func x = x == fid))) return null;
         ?#Object([("bestand", #Object([("naam", #String(f.name)), ("type", #String(f.mime)), ("grootte", #Number(#Int(f.size)))]))]);
+      };
+      case (#oaQuote(qid)) {
+        // Enkel met geladen inhoud; nooit het nummer, de datum, een bedrag of het id.
+        let (f, _) = caseContent(e, c) ?? return null;
+        let q = e.tenders.oaQuotes.get(qid) ?? return null;
+        let firm = switch (e.org.orgs.get(q.orgId)) { case (?o) o.name; case null "" };
+        ?#Object([("bestand", #Object([("naam", #String(f.name)), ("type", #String(f.mime)), ("grootte", #Number(#Int(f.size)))])), ("firma", #String(firm)), ("inhoud", #String("haal het bestand met proef_bestand"))]);
       };
       case _ null;
     };
@@ -126,6 +218,16 @@ module {
         switch (Nat.fromText(t)) { case (?n) n.toText(); case null t };
       };
       case (#key) t.toLower();
+      case (#code) t.toLower().replace(#char ' ', "");
+      case (#amount) switch (Int.fromText(t)) { case (?n) Int.toText(n); case null t };
+    };
+  };
+
+  // Een bedrag met een marge: ≤ 100 cent of ≤ 0,5 % van het juiste bedrag.
+  func amountClose(g : Text, truth : Text) : Bool {
+    switch (Int.fromText(g.trim(#char ' ')), Int.fromText(truth)) {
+      case (?a, ?b) { let d = Int.abs(a - b); d <= 100 or d * 200 <= Int.abs(b) };
+      case _ false;
     };
   };
 
@@ -137,7 +239,11 @@ module {
     let wrong = List.empty<Text>();
     for (f in def.fields.values()) {
       let g = answerOf(given, f.name);
-      if (g == "" or norm(f.cmp, g) != norm(f.cmp, answerOf(truth, f.name))) wrong.add(f.name);
+      let bad = if (g == "") true else switch (f.cmp) {
+        case (#amount) not amountClose(g, answerOf(truth, f.name));
+        case _ norm(f.cmp, g) != norm(f.cmp, answerOf(truth, f.name));
+      };
+      if (bad) wrong.add(f.name);
     };
     if (wrong.isEmpty()) #right else #wrong(wrong.toArray());
   };

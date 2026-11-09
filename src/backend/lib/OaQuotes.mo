@@ -24,6 +24,7 @@ import Dossier "Dossier";
 import Ids "Ids";
 import Library "Library";
 import Post "Post";
+import QuoteCalc "QuoteCalc";
 import Rights "Rights";
 import TenderCalc "TenderCalc";
 import TenderCompare "TenderCompare";
@@ -350,6 +351,119 @@ module {
       };
     };
     (nChosen, nThanked, nMsg);
+  };
+
+  // ── Registreren: nakijken en rekenen (2c.3; 3.8: gedeeld door registerOaQuote en het inlezen door een bot op Zelf doen) ──
+  // De rechten van de persoon kijkt de beller na (office = kantoor met het volle zicht op die werf en de bedragen).
+  public type Prepared = { tender : ?Types.Tender; invite : ?Types.TenderInvite; tid : ?Nat; lines : [Types.OaQuoteLine]; chapterTotals : [(Text, Int)]; net : Int; form : Text };
+
+  public func prepare(settings : Types.SettingsState, org : Types.OrgState, tenders : TS, tctx : Tenders.Ctx, office : Nat -> Bool, i : TV.OaQuoteInput, today : Types.Day) : { #ok : Prepared; #err : Text } {
+    let tenderOf = func(id : Nat) : ?Types.Tender { let t = tenders.tenders.get(id) ?? return null; if (office(t.workId)) ?t else null };
+    // Op een prijsvraag (de uitnodiging zegt welke firma) of los.
+    var tender : ?Types.Tender = null;
+    var invite : ?Types.TenderInvite = null;
+    switch (i.inviteId) {
+      case (?iid) {
+        let inv = tenders.invites.get(iid) ?? return #err("Geen toegang");
+        let t = tenderOf(inv.tenderId) ?? return #err("Geen toegang");
+        if (t.status != #open) { return #err("De prijsvraag is " # Tenders.statusText(t.status) # ": een offerte registreren kan enkel zolang ze loopt") };
+        if (i.workId != t.workId or i.orgId != inv.orgId) { return #err("Werf of firma klopt niet met de uitnodiging") };
+        if (i.source == #sheet) {
+          if (i.sheetKey != inv.sheetKey) {
+            switch (tenders.sheetKeys.get(i.sheetKey)) {
+              case (?other) {
+                switch (tenders.invites.get(other)) {
+                  case (?o) { return #err("Deze Excel hoort bij " # Tenders.orgName(tctx, o.orgId) # (if (o.tenderId != t.id) " (een andere prijsvraag)" else "") # ", niet bij " # Tenders.orgName(tctx, inv.orgId)) };
+                  case null {};
+                };
+              };
+              case null {};
+            };
+            return #err("Deze Excel hoort niet bij deze prijsvraag of firma (de verborgen sleutel klopt niet). Voer de prijzen met de hand in naast de PDF.");
+          };
+        };
+        tender := ?t;
+        invite := ?inv;
+      };
+      case null {
+        if (not office(i.workId)) { return #err("Geen toegang") };
+        if (i.source != #hand) { return #err("Een losse OA-offerte registreer je met de hand") };
+        switch (org.orgs.get(i.orgId)) {
+          case (?o) { if (o.archivedAt != null or (o.kind != #subcontractor and o.kind != #supplier)) { return #err("Kies een onderaannemer of leverancier") } };
+          case null { return #err("Onbekende firma") };
+        };
+      };
+    };
+    if (i.source == #app) { return #err("Via de app dient enkel de firma zelf in") };
+    switch invite { case (?inv) { if (Tenders.oaQuotesOfInvite(tenders, inv, i.workId).size() >= Config.maxOaQuoteVersions) { return #err("Hoogstens " # Config.maxOaQuoteVersions.toText() # " versies per firma") } }; case null {} };
+    if (i.number.size() > 40) { return #err("Offertenummer: hoogstens 40 tekens") };
+    if (i.remark.size() > Config.maxNote or i.note.size() > Config.maxNote) { return #err("Opmerking te lang") };
+    switch (i.discountBp) { case (?bp) { if (bp > 5_000) { return #err("Korting: 0 tot 50 %") } }; case null {} };
+    if (i.quoteDay + 400 < today or i.quoteDay > today + 30) { return #err("Datum van de offerte buiten bereik") };
+    switch (i.validUntil) { case (?x) { if (x > today + 730 or x < i.quoteDay) { return #err("Geldig tot: na de datum, hoogstens twee jaar") } }; case null {} };
+    let tid = switch tender { case (?t) ?t.id; case null null };
+    // De prijzen en de bedragen (de server rekent alles opnieuw, G4).
+    let nItems = switch tid { case (?x) Tenders.ids(tenders.itemsByTender, x).size(); case null 0 };
+    var lines : [Types.OaQuoteLine] = [];
+    var chapterTotals : [(Text, Int)] = [];
+    var net : Int = 0;
+    var form = "posten";
+    switch (i.prices) {
+      case (#lines ls) {
+        let maxOwn = if (tid == null) Config.maxTenderItems else Config.maxTenderOwnLines;
+        if (ls.size() > nItems + maxOwn) { return #err("Te veel regels") };
+        lines := switch (regLines(settings, tenders, tid, ls, maxOwn)) { case (#ok x) x; case (#err e) return #err(e) };
+        if (lines.size() == 0) { return #err("Vul minstens één regel in") };
+        let tot = TenderCalc.totals(lines, i.discountBp, Tenders.chapterFn(tenders));
+        chapterTotals := tot.chapters;
+        net := tot.net;
+      };
+      case (#chapters cs) {
+        form := "hoofdstukken";
+        if (cs.size() == 0 or cs.size() > maxChapterTotals) { return #err("Geef 1 tot " # maxChapterTotals.toText() # " hoofdstuktotalen") };
+        let known = Map.empty<Text, Bool>();
+        switch tid { case (?x) { for (it in Tenders.itemsOf(tenders, x).values()) { known.add(it.chapter, true) } }; case null {} };
+        let seen = Map.empty<Text, Bool>();
+        var gross : Int = 0;
+        for ((n, v) in cs.values()) {
+          if (n.size() == 0 or n.size() > 200) { return #err("Hoofdstuk zonder naam") };
+          if (tid != null and not known.containsKey(n) and n != TenderCalc.ownChapter) { return #err("Onbekend hoofdstuk: " # n) };
+          if (seen.containsKey(n)) { return #err("Een hoofdstuk staat twee keer in de lijst") };
+          seen.add(n, true);
+          if (v < 0 or v > Config.maxAmountCents) { return #err("Hoofdstuktotaal: 0 tot € 1 miljard") };
+          gross += v;
+        };
+        chapterTotals := cs;
+        let d = switch (i.discountBp) { case (?bp) { if (bp == 0) 0 else QuoteCalc.roundDiv(gross * bp, 10_000) }; case null 0 };
+        net := gross - d;
+      };
+      case (#total v) {
+        form := "totaal";
+        // Review L6: het totaal is het bedrag na korting; een korting erbij zou dubbel tellen.
+        switch (i.discountBp) { case (?bp) { if (bp > 0) { return #err("Bij enkel een totaal geen korting: geef het totaal na korting") } }; case null {} };
+        if (v < 0 or v > Config.maxAmountCents) { return #err("Totaal: 0 tot € 1 miljard") };
+        net := v;
+      };
+    };
+    #ok({ tender; invite; tid; lines; chapterTotals; net; form });
+  };
+
+  // Bewaren (na prepare en het bestand). Geeft (id, versie); de auditregel schrijft de beller.
+  public func store(tenders : TS, ctr : Types.Counters, i : TV.OaQuoteInput, pr : Prepared, fileId : ?Nat, by : Nat, now : Int, extra : Types.Extra) : (Nat, Nat) {
+    let invite = pr.invite;
+    let tid = pr.tid;
+    let net = pr.net;
+    let lines = pr.lines;
+    let chapterTotals = pr.chapterTotals;
+    let form = pr.form;
+    let (version, supersedes) = switch invite { case (?inv) nextVersion(tenders, inv, i.workId); case null (1, null) };
+    let id = Ids.next(ctr, "oaQuote");
+    let q : Types.OaQuote = { id; workId = i.workId; orgId = i.orgId; tenderId = tid; inviteId = i.inviteId; number = i.number.trim(#char ' '); quoteDay = i.quoteDay; validUntil = i.validUntil; fileId; source = i.source; version; supersedes; status = #received; vatRegime = if (i.reverse) #reverse else #normal(2_100); note = i.note.trim(#char ' '); createdAt = now; createdBy = by; extra };
+    tenders.oaQuotes.add(id, q);
+    Tenders.addIndex(tenders.oaQuotesByWork, i.workId, id);
+    tenders.amounts.add(id, #plain({ oaQuoteId = id; netCents = net; discountBp = i.discountBp; lines; chapterTotals; remark = i.remark.trim(#char ' '); extra = [("rekenversie", TenderCalc.version.toText()), ("vorm", form)] }));
+    switch invite { case (?inv) { tenders.invites.add(inv.id, { inv with status = #received; answeredAt = ?now }) }; case null {} };
+    (id, version);
   };
 
   public func sortBriefs(xs : [TV.OaQuoteBrief]) : [TV.OaQuoteBrief] {

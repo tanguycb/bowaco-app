@@ -49,6 +49,29 @@ export function Proefbank() {
     onSettled: () => { setProgress(""); refresh(); },
     onError: fail,
   });
+  // 3.8: de bestanden van een testset met OA-offertes één keer laden (de bot leest ze via proef_bestand, nooit via een link).
+  const load = useMutation({
+    mutationFn: async (st: ProofSetView) => {
+      const needs = (await actor!.proofContentNeeds(st.id)).filter((x) => !x.loaded);
+      let done = 0;
+      let skipped = 0;
+      for (const x of needs) {
+        setProgress(P.loading(done + skipped, needs.length));
+        try {
+          if (Number(x.size) > 1_350_000) { skipped++; continue; }
+          const f = unwrap(await actor!.readConfidentialFile(x.fileId));
+          if (!f.blob) { skipped++; continue; }
+          const bytes = new Uint8Array(await f.blob.getBytes());
+          unwrap(await actor!.loadProofContent(st.id, x.n, bytes));
+          done++;
+        } catch { skipped++; }
+      }
+      return { done, skipped };
+    },
+    onSuccess: (r) => toast.show({ kind: r.skipped ? "error" : "ok", text: P.loaded(r.done, r.skipped) }),
+    onSettled: () => setProgress(""),
+    onError: fail,
+  });
   const i = info.data;
   const botName = new Map((bots.data ?? []).map((b) => [String(b.id), b.name]));
 
@@ -64,6 +87,7 @@ export function Proefbank() {
         <span className="a-row">
           <Button variant="quiet" onClick={() => setShowSet(s)}>{P.cases}</Button>
           {s.archivedAt === undefined ? <>
+            {s.task === "oa-offerte-inlezen" && <Button variant="quiet" title={P.loadNote} busy={load.isPending && load.variables?.id === s.id} onClick={() => load.mutate(s)} data-testid="pb-load">{P.load}</Button>}
             <Button variant="quiet" onClick={() => setStart(s)}>{P.newRound}</Button>
             <Button variant="quiet" busy={archive.isPending && archive.variables?.id === s.id} onClick={() => archive.mutate(s)}>{P.archive}</Button>
           </> : <span className="a-tag">{P.archived}</span>}

@@ -1075,6 +1075,7 @@ type DossierState__7485337 =
     info : Map__230067015<WorkId__838834227, WorkInfo__968164740>
   };
 type Extra__1018104949 = [(Text, Text)];
+type Extra__25764100 = [(Text, Text)];
 type Extra__262828561 = [(Text, Text)];
 type Extra__268650993 = [(Text, Text)];
 type Extra__276464624 = [(Text, Text)];
@@ -3217,6 +3218,7 @@ type PersonId__363464289 = Nat;
 type PersonId__377743261 = Nat;
 type PersonId__401825873 = Nat;
 type PersonId__471029118 = Nat;
+type PersonId__507537824 = Nat;
 type PersonId__518727946 = Nat;
 type PersonId__580701172 = Nat;
 type PersonId__597574414 = Nat;
@@ -3642,6 +3644,115 @@ type ProgressTotals__99627624 =
     vatBp : Nat;
     vatCents : Int
   };
+type ProofAnswer__890607118 =
+  {
+    at : Int;
+    given : [(Text, Text)];
+    n : Nat;
+    outcome : ProofOutcome__48219825
+  };
+type ProofAnswer__911903904 =
+  {
+    at : Int;
+    given : [(Text, Text)];
+    n : Nat;
+    outcome : ProofOutcome__354571523
+  };
+type ProofCase__53247178 =
+  {
+    answer : [(Text, Text)];
+    n : Nat;
+    ref : ProofRef__385909197;
+    workId : ?WorkId__929594816
+  };
+type ProofCase__715272424 =
+  {
+    answer : [(Text, Text)];
+    n : Nat;
+    ref : ProofRef__730699323;
+    workId : ?WorkId__516858541
+  };
+type ProofOutcome__354571523 =
+  {#none; #other : Text; #right; #void : Text; #wrong : [Text]};
+type ProofOutcome__48219825 =
+  {#none; #other : Text; #right; #void : Text; #wrong : [Text]};
+type ProofRef__385909197 =
+  {#doc : Nat; #file : Nat; #oaInvoice : Nat; #oaQuote : Nat; #other : Text};
+type ProofRef__730699323 =
+  {#doc : Nat; #file : Nat; #oaInvoice : Nat; #oaQuote : Nat; #other : Text};
+type ProofRoundState__664969970 = {#cancelled; #closed; #open; #other : Text};
+type ProofRoundState__75432292 = {#cancelled; #closed; #open; #other : Text};
+type ProofRound__11141850 =
+  {
+    cases : [Nat];
+    var closedAt : ?Int;
+    var closedBy : ?PersonId__967516914;
+    var counted : Nat;
+    var extra : Extra__945213800;
+    id : Nat;
+    instruction : Text;
+    model : Text;
+    var right : Nat;
+    setId : Nat;
+    startedAt : Int;
+    startedBy : PersonId__967516914;
+    var state : ProofRoundState__664969970;
+    subject : ProofSubject__1022374460;
+    task : Text;
+    vendor : Text
+  };
+type ProofRound__783127590 =
+  {
+    cases : [Nat];
+    var closedAt : ?Int;
+    var closedBy : ?PersonId__507537824;
+    var counted : Nat;
+    var extra : Extra__25764100;
+    id : Nat;
+    instruction : Text;
+    model : Text;
+    var right : Nat;
+    setId : Nat;
+    startedAt : Int;
+    startedBy : PersonId__507537824;
+    var state : ProofRoundState__75432292;
+    subject : ProofSubject__565820231;
+    task : Text;
+    vendor : Text
+  };
+type ProofSet__679262530 =
+  {
+    archivedAt : ?Int;
+    cases : [ProofCase__715272424];
+    createdAt : Int;
+    createdBy : PersonId__507537824;
+    extra : Extra__25764100;
+    id : Nat;
+    name : Text;
+    source : Text;
+    task : Text
+  };
+type ProofSet__786861216 =
+  {
+    archivedAt : ?Int;
+    cases : [ProofCase__53247178];
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    extra : Extra__945213800;
+    id : Nat;
+    name : Text;
+    source : Text;
+    task : Text
+  };
+type ProofState__159778891 =
+  {
+    answers : Map__230067015<Nat, Map__230067015<Nat, ProofAnswer__890607118>>;
+    openByBot : Map__230067015<Nat, Nat>;
+    rounds : Map__230067015<Nat, ProofRound__783127590>;
+    sets : Map__230067015<Nat, ProofSet__679262530>
+  };
+type ProofSubject__1022374460 = {#ai : Text; #bot : Nat; #other : Text};
+type ProofSubject__565820231 = {#ai : Text; #bot : Nat; #other : Text};
 type Proposal__579039857 =
   {
     at : Int;
@@ -5622,6 +5733,7 @@ type WorkId__386895530 = Nat;
 type WorkId__446306738 = Nat;
 type WorkId__448300686 = Nat;
 type WorkId__45236768 = Nat;
+type WorkId__516858541 = Nat;
 type WorkId__518175520 = Nat;
 type WorkId__547794872 = Nat;
 type WorkId__564296267 = Nat;
@@ -5800,7 +5912,8 @@ type WorksState__605582232 =
   "20261101_130000" : OldActor__390299613 -> NewActor__47798723;
   "20261101_155702" : OldActor__67970265 -> NewActor__813176251;
   "20261106_180000" : OldActor__893970407 -> NewActor__680101125;
-  "20261108_120000" : {} -> {bots : BotState__111932722}
+  "20261108_120000" : {} -> {bots : BotState__111932722};
+  "20261109_120000" : {} -> {proof : ProofState__159778891}
 }
 actor  {
   stable access :
@@ -5970,6 +6083,14 @@ actor  {
       inputs : Map__230067015<Nat, [ProgressInput__929691709]>;
       revisions : Map__230067015<Nat, ProgressRevision__1045399138>;
       statements : Map__230067015<Nat, ProgressStatement__884260518>
+    };
+  stable proof :
+    {
+      answers :
+        Map__230067015<Nat, Map__230067015<Nat, ProofAnswer__911903904>>;
+      openByBot : Map__230067015<Nat, Nat>;
+      rounds : Map__230067015<Nat, ProofRound__11141850>;
+      sets : Map__230067015<Nat, ProofSet__786861216>
     };
   stable purchases :
     {

@@ -19,6 +19,8 @@ import { roundDiv, totals, type Included } from "../tender/calc.ts";
 import { compare, sameResult, type CInput, type CResult } from "../tender/compare.ts";
 import "../app/prijsvraag.css";
 import { prepareUpload } from "../lib/uploadPrep";
+import type { OaReadFull, OaReadProposal } from "../backend";
+import { ReadBanner, ReadList, StartReadSheet } from "./OaInlezen";
 
 const O = t.oaOffertes;
 const P = t.prijsvragen;
@@ -32,6 +34,8 @@ export function WorkOaQuotes({ workId, caps }: { workId: bigint; caps: Caps; go:
   const office = caps.tenders;
   const list = useQuery({ queryKey: ["tenders", String(workId)], queryFn: () => actor!.listTenders(workId), enabled: !!actor && !isFetching, retry: 0 });
   const [loose, setLoose] = useState(false);
+  const [readLoose, setReadLoose] = useState(false);
+  const [use, setUse] = useState<OaReadFull | null>(null);
   if (list.error) return <p className="a-empty">{O.noRight}</p>;
   const rows = (list.data ?? []).filter((s) => s.status.__kind__ !== "cancelled");
   if (!office) return <LeaderPicks rows={rows} q={list} />;
@@ -39,14 +43,20 @@ export function WorkOaQuotes({ workId, caps }: { workId: bigint; caps: Caps; go:
     <section className="a-section" data-testid="oq-werf">
       <div className="a-row a-row--between">
         <h2 className="bw-h2">{O.title}</h2>
-        <Button icon="plus" onClick={() => setLoose(true)} data-testid="oq-loose">{O.loose}</Button>
+        <div className="a-row">
+          <Button icon="plus" onClick={() => setLoose(true)} data-testid="oq-loose">{O.loose}</Button>
+          <Button variant="quiet" onClick={() => setReadLoose(true)} data-testid="or-loose">{t.oaInlezen.startLoose}</Button>
+        </div>
       </div>
       <p className="bw-muted pv-lead">{O.lead}</p>
       <Loading q={list} />
       {list.data && rows.length === 0 && <p className="a-empty">{O.none}</p>}
       {rows.map((s) => <TenderOaPanel key={String(s.id)} s={s} />)}
+      <ReadList workId={workId} onUse={setUse} />
       <LooseList workId={workId} />
       {loose && <HandSheet workId={workId} v={null} inv={null} onClose={() => setLoose(false)} />}
+      {readLoose && <StartReadSheet target={{ workId }} onClose={() => setReadLoose(false)} />}
+      {use && <ReadUse workId={workId} full={use} onClose={() => setUse(null)} />}
     </section>
   );
 }
@@ -95,7 +105,19 @@ function LooseList({ workId }: { workId: bigint }) {
   );
 }
 
-type Sh = { k: "excel"; inv: TenderInviteView | null } | { k: "hand"; inv: TenderInviteView } | { k: "quote"; id: bigint };
+/** 3.8: het formulier met het voorstel (op een prijsvraag: eerst de prijsvraag lezen voor de posten). */
+function ReadUse({ workId, full, onClose }: { workId: bigint; full: OaReadFull; onClose: () => void }) {
+  const { actor, isFetching } = useBackend();
+  const tid = full.brief.tenderId;
+  const q = useQuery({ queryKey: ["tender", String(tid)], queryFn: async () => unwrap(await actor!.readTender(tid!)), enabled: !!actor && !isFetching && tid !== undefined });
+  if (tid === undefined) return <HandSheet workId={workId} v={null} inv={null} read={full} orgPreset={full.brief.orgId} onClose={onClose} />;
+  const v = q.data;
+  const inv = v?.invites.find((i) => i.id === full.brief.inviteId) ?? null;
+  if (!v || !inv) return null;
+  return <HandSheet workId={workId} v={v} inv={inv} read={full} onClose={onClose} />;
+}
+
+type Sh = { k: "excel"; inv: TenderInviteView | null } | { k: "hand"; inv: TenderInviteView } | { k: "quote"; id: bigint } | { k: "read"; inv: TenderInviteView };
 
 function TenderOaPanel({ s }: { s: TenderStatusView }) {
   const { actor, isFetching } = useBackend();
@@ -126,6 +148,7 @@ function TenderOaPanel({ s }: { s: TenderStatusView }) {
                 {cur && <Button variant="quiet" onClick={() => setSheet({ k: "quote", id: cur.id })}>{O.view}</Button>}
                 {isOpenT(v.status) && <Button onClick={() => setSheet({ k: "excel", inv })} data-testid="oq-excel">{O.readExcel}</Button>}
                 {isOpenT(v.status) && <Button variant="quiet" onClick={() => setSheet({ k: "hand", inv })} data-testid="oq-hand">{O.byHand}</Button>}
+                {isOpenT(v.status) && <Button variant="quiet" onClick={() => setSheet({ k: "read", inv })} data-testid="or-start">{t.oaInlezen.start}</Button>}
               </li>
             );
           })}
@@ -136,6 +159,7 @@ function TenderOaPanel({ s }: { s: TenderStatusView }) {
       {sheet?.k === "excel" && v && <ExcelSheet v={v} inv={sheet.inv} onHand={(inv) => setSheet({ k: "hand", inv })} onClose={() => setSheet(null)} />}
       {sheet?.k === "hand" && v && <HandSheet workId={v.workId} v={v} inv={sheet.inv} onClose={() => setSheet(null)} />}
       {sheet?.k === "quote" && <QuoteSheet id={sheet.id} onClose={() => setSheet(null)} />}
+      {sheet?.k === "read" && v && <StartReadSheet target={{ workId: v.workId, inviteId: sheet.inv.id, orgId: sheet.inv.orgId, orgName: sheet.inv.orgName }} onClose={() => setSheet(null)} />}
     </div>
   );
 }
@@ -241,25 +265,41 @@ function ExcelSheet({ v, inv, onHand, onClose }: { v: TenderView; inv: TenderInv
 // ── Met de hand (op een prijsvraag of los) ──────────────────────────────────
 type HandLine = { itemId: bigint | null; desc: string; unit: string; qty: string; price: string; incl: "yes" | "no" | "alt"; remark: string };
 
-function HandSheet({ workId, v, inv, onClose }: { workId: bigint; v: TenderView | null; inv: TenderInviteView | null; onClose: () => void }) {
+const centsIn = (c: bigint | undefined) => (c === undefined ? "" : (Number(c) / 100).toFixed(2).replace(".", ","));
+const pctIn = (bp: bigint | undefined) => (bp === undefined ? "" : (Number(bp) / 100).toString().replace(".", ","));
+const inclKey = (i: { __kind__: string }): HandLine["incl"] => (i.__kind__ === "no" ? "no" : i.__kind__ === "alt" ? "alt" : "yes");
+
+/** De regels van het formulier uit een voorstel (3.8): de posten van de prijsvraag met de prijs uit het voorstel, daarna de eigen regels. */
+function linesFrom(v: TenderView | null, inv: TenderInviteView | null, p: OaReadProposal): HandLine[] {
+  const own = p.lines.filter((l) => l.itemId === undefined || !(v && inv)).map((l) => ({ itemId: null, desc: l.description, unit: l.unit, qty: fmtQty(l.qtyMilli), price: centsIn(l.unitCents), incl: inclKey(l.included), remark: l.remark }));
+  if (!(v && inv)) return own.length ? own : [{ itemId: null, desc: "", unit: "", qty: "1", price: "", incl: "yes", remark: "" }];
+  const posts = v.items.map((x) => {
+    const l = p.lines.find((y) => y.itemId === x.id);
+    return { itemId: x.id, desc: x.title, unit: x.unit, qty: l ? fmtQty(l.qtyMilli) : fmtQty(x.qtyMilli), price: l ? centsIn(l.unitCents) : "", incl: l ? inclKey(l.included) : ("yes" as const), remark: l?.remark ?? "" };
+  });
+  return [...posts, ...own];
+}
+
+export function HandSheet({ workId, v, inv, onClose, read, orgPreset }: { workId: bigint; v: TenderView | null; inv: TenderInviteView | null; onClose: () => void; read?: OaReadFull; orgPreset?: bigint }) {
+  const pr = read?.proposal;
   const { actor, isFetching } = useBackend();
   const toast = useToast();
   const refresh = useRefresh();
   const loose = v === null || inv === null;
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: !!actor && !isFetching && loose });
-  const [form, setForm] = useState<"posten" | "hoofdstukken" | "totaal">("posten");
-  const [orgId, setOrgId] = useState("");
-  const [no, setNo] = useState("");
-  const [day, setDay] = useState(dayToInput(todayDay()));
-  const [valid, setValid] = useState("");
-  const [disc, setDisc] = useState("");
-  const [rev, setRev] = useState(true);
+  const [form, setForm] = useState<"posten" | "hoofdstukken" | "totaal">(pr && (pr.form === "hoofdstukken" || pr.form === "totaal") && v && inv ? pr.form : "posten");
+  const [orgId, setOrgId] = useState(orgPreset !== undefined ? String(orgPreset) : "");
+  const [no, setNo] = useState(pr?.number ?? "");
+  const [day, setDay] = useState(dayToInput(pr?.quoteDay ?? todayDay()));
+  const [valid, setValid] = useState(dayToInput(pr?.validUntil));
+  const [disc, setDisc] = useState(pctIn(pr?.discountBp));
+  const [rev, setRev] = useState(pr?.reverse ?? true);
   const [remark, setRemark] = useState("");
   const [note, setNote] = useState("");
-  const [total, setTotal] = useState("");
+  const [total, setTotal] = useState(centsIn(pr?.totalCents));
   const chapters = useMemo(() => [...new Set((v?.items ?? []).map((x) => x.chapter))], [v]);
-  const [chs, setChs] = useState<Record<string, string>>({});
-  const [lines, setLines] = useState<HandLine[]>(() => (v && inv ? v.items.map((x) => ({ itemId: x.id, desc: x.title, unit: x.unit, qty: fmtQty(x.qtyMilli), price: "", incl: "yes" as const, remark: "" })) : [{ itemId: null, desc: "", unit: "", qty: "1", price: "", incl: "yes" as const, remark: "" }]));
+  const [chs, setChs] = useState<Record<string, string>>(() => Object.fromEntries((pr?.chapterTotals ?? []).map(([n, c]) => [n, centsIn(c)])));
+  const [lines, setLines] = useState<HandLine[]>(() => pr ? linesFrom(v, inv, pr) : (v && inv ? v.items.map((x) => ({ itemId: x.id, desc: x.title, unit: x.unit, qty: fmtQty(x.qtyMilli), price: "", incl: "yes" as const, remark: "" })) : [{ itemId: null, desc: "", unit: "", qty: "1", price: "", incl: "yes" as const, remark: "" }]));
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -314,7 +354,9 @@ function HandSheet({ workId, v, inv, onClose }: { workId: bigint; v: TenderView 
         number: no.trim(), quoteDay: inputToDay(day)!, validUntil: inputToDay(valid), discountBp: bp === null || bp === 0n || (!loose && form === "totaal") ? undefined : bp, reverse: rev,
         prices: calc.prices, remark, note, file: f,
       };
-      unwrap(await actor!.registerOaQuote(input, calc.net));
+      const saved = unwrap(await actor!.registerOaQuote(input, calc.net));
+      // 3.8: het voorstel is overgenomen; de opdracht sluit en het bestand van de opdracht hangt aan de offerte.
+      if (read) unwrap(await actor!.finishOaRead(read.brief.id, { __kind__: "applied", applied: saved.oaQuoteId }));
       toast.show({ kind: "ok", text: O.handSaved });
       refresh();
       onClose();
@@ -324,6 +366,7 @@ function HandSheet({ workId, v, inv, onClose }: { workId: bigint; v: TenderView 
   return (
     <Sheet title={loose ? O.handLooseTitle : O.handTitle(inv!.orgName)} open onClose={onClose} side wide footer={<><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={!ready} onClick={() => void save()} data-testid="oq-hand-save">{progress !== null ? O.handFileBusy(progress) : O.handSave}</Button></>}>
       <p className="bw-muted">{loose ? O.handLooseLead : O.handLead}</p>
+      {read && pr && <ReadBanner read={read} />}
       {loose && (
         <Field label={O.handFirm}>
           <select className="bw-input" value={orgId} onChange={(e) => setOrgId(e.target.value)} data-testid="oq-hand-org">
@@ -363,7 +406,7 @@ function HandSheet({ workId, v, inv, onClose }: { workId: bigint; v: TenderView 
       {(loose || form === "posten") && <Button icon="plus" variant="quiet" onClick={() => setLines((ls) => [...ls, { itemId: null, desc: "", unit: "", qty: "1", price: "", incl: "yes", remark: "" }])}>{O.handAddLine}</Button>}
       <Field label={O.handRemark}><input className="bw-input" value={remark} onChange={(e) => setRemark(e.target.value)} /></Field>
       <Field label={O.handNote}><input className="bw-input" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
-      <Field label={O.handFile}><input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
+      {!read?.brief.fileId && <Field label={O.handFile}><input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>}
       {calc ? <p className="bw-mono"><b>{O.handNet(fmtEuro(calc.net))}</b></p> : <p className="bw-muted">{O.handBad}</p>}
     </Sheet>
   );

@@ -2676,6 +2676,54 @@ module {
     openByBot : Map.Map<Nat, Nat>; // bot → open ronde
   };
 
+  // ── 3.8: OA-offerte inlezen (PDF, foto of tekst → posten, altijd eerst een voorstel) ──
+  // klasse: vertrouwelijk (bedragen in het voorstel). Een inleesopdracht hoort bij één werf en één firma (en eventueel een
+  // uitnodiging van een prijsvraag). via = de bot die het bestand leest (MCP) of Caffeine AI (tekst). De inhoud (bytes van het
+  // bestand of de tekst) staat apart in OaReadState.content en verdwijnt zodra de opdracht afgesloten is.
+  public type OaReadVia = { #bot : Nat; #ai; #other : Text };
+  public type OaReadStatus = { #open; #proposed; #applied : Nat; #rejected : Text; #cancelled; #failed : Text; #other : Text };
+  public type OaReadLine = { itemId : ?Nat; description : Text; unit : Text; qtyMilli : Int; unitCents : ?Int; included : OaIncluded; remark : Text };
+  public type OaReadProposal = {
+    number : Text;
+    quoteDay : ?Day;
+    validUntil : ?Day;
+    discountBp : ?Nat;
+    reverse : ?Bool;
+    form : Text; // "posten" · "hoofdstukken" · "totaal"
+    lines : [OaReadLine];
+    chapterTotals : [(Text, Int)];
+    totalCents : ?Int;
+    remarks : [Text]; // onbetrouwbare tekst van de bot of de AI: enkel tonen
+    confidence : Nat; // 0–100
+    at : Int;
+    extra : Extra;
+  };
+  public type OaReadJob = {
+    id : Nat;
+    workId : WorkId;
+    orgId : Nat;
+    tenderId : ?Nat;
+    inviteId : ?Nat;
+    fileId : ?Nat; // het bestand (vertrouwelijk aan de werf) als het ook in de opslag staat
+    name : Text;
+    mime : Text;
+    size : Nat;
+    via : OaReadVia;
+    createdAt : Int;
+    createdBy : PersonId;
+    var status : OaReadStatus;
+    var proposal : ?OaReadProposal;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId;
+    var extra : Extra;
+  };
+  public type OaReadState = {
+    jobs : Map.Map<Nat, OaReadJob>;
+    byWork : Map.Map<Nat, [Nat]>;
+    content : Map.Map<Nat, Blob>; // opdracht → inhoud (weg na afsluiten)
+    proofContent : Map.Map<Text, Blob>; // "set:geval" → inhoud van een proefgeval (weg met de set)
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

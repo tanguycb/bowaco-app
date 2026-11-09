@@ -123,6 +123,9 @@ node tests/mcp-3-13.mjs "$cid"
 # 3.5: de proefbank (testset uit de historiek, proefronde via de proeftools van de bot, nooit uitvoeren, het antwoord zegt nooit juist of
 # fout, score per geval zonder inhoud, drempel 95 % op 50 met dezelfde labels, effectiveLevel, de Caffeine-weg droog en tegen de nep-dienst).
 node tests/proef-3-5.mjs "$cid"
+# 3.8: OA-offerte inlezen (opdracht voor een bot of Caffeine, inleesbestand als bijlage zonder URL, voorstel altijd eerst, overnemen in het
+# formulier, Caffeine-weg op tekst, proefbank met offertes die mensen ingaven en bedragen verborgen, Zelf doen = de app registreert, ongedaan).
+node tests/proef-3-8.mjs "$cid"
 # 2c.2: de prijsvraag-Excel heen en terug (zonder netwerk) en de prijsvraag door de backend (klaarzetten, toegang zonder werf,
 # Mijn prijsvragen, ontwerp, indienen, bijlagen, afsluiten, werfleider zonder bedragen, .did-controle). De klokproef (herinnering,
 # geen antwoord, 90 dagen na afsluiten) verzet de tijd van dit eigen net met ruim 90 dagen: daarom als LAATSTE canisterproef.

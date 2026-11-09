@@ -158,6 +158,18 @@ const table = {
   startProofRound: [ADMIN, () => [X, { bot: X }]],
   closeProofRound: [ADMIN, () => [X, false]],
   runProofAi: [ADMIN, () => [X]],
+  // 3.8: de bestanden van een testset met OA-offertes (enkel de beheerder).
+  proofContentNeeds: [ADMIN, () => [X]],
+  loadProofContent: [ADMIN, () => [X, 1n, new Uint8Array()]],
+  // 3.8: OA-offerte inlezen (kantoor met de bedragen: admin en calculator; het voorstel enkel via readOaRead, update-call met
+  // auditregel). De invoer is telkens ongeldig (lege inhoud, onbekende opdracht): geen wijziging.
+  startOaRead: [["admin", "calculator"], () => [{ workId: B, orgId: X, inviteId: [], way: { ai: null }, name: "x", mime: "text/plain", content: new Uint8Array(), blob: [] }]],
+  listOaReads: [["admin", "calculator"], () => [B]],
+  listOaReadBots: [["admin", "calculator"], () => [B]],
+  oaReadAiReady: [["admin", "calculator"], () => []],
+  readOaRead: [["admin", "calculator"], () => [X]],
+  runOaReadAi: [["admin", "calculator"], () => [X]],
+  finishOaRead: [["admin", "calculator"], () => [X, { cancelled: null }]],
   invitePerson: [["admin", "werfleider"], () => [invReq]],
   createRecoveryCode: [ADMIN, () => [X, 0n, ""]],
   confirmLink: [ADMIN, () => [someone]],
@@ -727,6 +739,8 @@ for (const k of Object.keys(table)) if (!methods.includes(k)) console.log(`· ta
     tries.push(["voorstel_factuurcontrole", { factuurId: Number(oaInv.id), oordeel: "in_orde" }], ["betalen", {}], ["verwijderen", { werfId: Number(A) }]);
     // 3.5: zonder open proefronde geen proeftools (ook niet met een geraden geval).
     tries.push(["proef_gevallen", {}], ["proef_antwoorden", { antwoorden: [{ geval: 1, werfId: Number(A), soort: "vgplan" }] }]);
+    // 3.8: OA-offerte inlezen buiten de fiche (ook de bijlagetools, die apart beantwoord worden).
+    tries.push(["inleesopdrachten", {}], ["inleesbestand", { opdracht: 1 }], ["voorstel_oa_offerte", { opdracht: 1, vorm: "totaal", totaalCent: 1 }], ["proef_bestand", { geval: 1 }]);
     let botCalls = 0;
     for (const [n, a] of tries) {
       botCalls++;

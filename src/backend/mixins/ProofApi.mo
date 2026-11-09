@@ -16,6 +16,7 @@ import Time "mo:core/Time";
 import Json "mo:jayson/Json";
 import Types "../types";
 import ProofViews "../types/proofviews";
+import OaReadViews "../types/oareadviews";
 import Access "../lib/Access";
 import AiPrompts "../lib/AiPrompts";
 import Bots "../lib/Bots";
@@ -33,6 +34,9 @@ mixin (
   works : Types.WorksState,
   files : Types.FileState,
   dossier : Types.DossierState,
+  org : Types.OrgState,
+  tenders : Types.TenderState,
+  oaRead : Types.OaReadState,
   robot : Types.RobotState,
   ai : Types.AiState,
   bots : Types.BotState,
@@ -42,7 +46,7 @@ mixin (
   isAiLive : () -> Bool,
 ) {
 
-  func proofEnv() : Proof.Env { { settings; access; works; files; dossier; proof } };
+  func proofEnv() : Proof.Env { { settings; access; works; files; dossier; proof; tenders; org; oaRead } };
 
   func requireProofAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);
@@ -61,8 +65,12 @@ mixin (
     };
   };
 
-  func values(xs : [(Text, Text)]) : [ProofViews.ProofValue] {
-    xs.map<(Text, Text), ProofViews.ProofValue>(func((f, v)) = { field = f; value = v; shown = valueLabel(f, v) });
+  // 3.8 (R38): een bedragveld (secret) komt nooit in een query-view: enkel of het ingevuld is; juist of fout staat in de uitkomst.
+  func values(task : Text, xs : [(Text, Text)]) : [ProofViews.ProofValue] {
+    let secret = func(f : Text) : Bool { switch (Proof.task(task)) { case (?d) d.fields.any(func(x : Proof.Field) : Bool = x.name == f and x.secret); case null true } };
+    xs.map<(Text, Text), ProofViews.ProofValue>(func((f, v)) {
+      if (secret(f)) { { field = f; value = ""; shown = if (v == "") "–" else "bedrag (verborgen)" } } else { { field = f; value = v; shown = valueLabel(f, v) } };
+    });
   };
 
   func subjectName(s : Types.ProofSubject) : Text {
@@ -99,7 +107,7 @@ mixin (
   public query ({ caller }) func proofSetCases(setId : Nat) : async [ProofViews.ProofCaseView] {
     ignore requireProofAdmin(caller);
     let s = proof.sets.get(setId) ?? return [];
-    s.cases.map<Types.ProofCase, ProofViews.ProofCaseView>(func c = { n = c.n; ref = Proof.refText(c.ref); workId = c.workId; workCode = switch (c.workId) { case (?w) workCodeOf(w); case null "" }; answer = c.answer });
+    s.cases.map<Types.ProofCase, ProofViews.ProofCaseView>(func c = { n = c.n; ref = Proof.refText(c.ref); workId = c.workId; workCode = switch (c.workId) { case (?w) workCodeOf(w); case null "" }; answer = c.answer.map<(Text, Text), (Text, Text)>(func((f, v)) = switch (Proof.task(s.task)) { case (?d) { if (d.fields.any(func(x : Proof.Field) : Bool = x.name == f and x.secret)) (f, "") else (f, v) }; case null (f, "") }) });
   };
 
   func roundView(r : Types.ProofRound) : ProofViews.ProofRoundView {
@@ -148,8 +156,8 @@ mixin (
         pos;
         n;
         ref = switch c { case (?x) Proof.refText(x.ref); case null "?" };
-        expected = switch c { case (?x) values(x.answer); case null [] };
-        given = switch a { case (?x) values(x.given); case null [] };
+        expected = switch c { case (?x) values(r.task, x.answer); case null [] };
+        given = switch a { case (?x) values(r.task, x.given); case null [] };
         outcome = switch a { case (?x) ?x.outcome; case null null };
         at = switch a { case (?x) ?x.at; case null null };
       };
@@ -178,8 +186,54 @@ mixin (
     if (s.archivedAt != null) return #err("Al gearchiveerd");
     if (proof.rounds.values().any(func(r : Types.ProofRound) : Bool = r.setId == setId and r.state == #open)) return #err("Er loopt nog een proefronde met deze set");
     proof.sets.add(setId, { s with archivedAt = ?Time.now() });
+    proofDropContent();
     Access.audit(audit, caller, ?p.id, null, "proef-set-archief", "set #" # setId.toText());
     #ok;
+  };
+
+  // ── 3.8: de bestanden van een testset met OA-offertes laden ─────────────
+  // Een bot leest het bestand van een proefgeval via proef_bestand, en dat komt uit de canister (nooit een opslag-URL). De beheerder
+  // laadt daarom elk bestand één keer: de browser haalt het (readConfidentialFile) en geeft de bytes door. Weg met de laatste set.
+  public query ({ caller }) func proofContentNeeds(setId : Nat) : async [OaReadViews.ProofContentNeed] {
+    ignore requireProofAdmin(caller);
+    let s = proof.sets.get(setId) ?? return [];
+    let e = proofEnv();
+    s.cases.filterMap<Types.ProofCase, OaReadViews.ProofContentNeed>(func c {
+      switch (c.ref) {
+        case (#oaQuote(qid)) {
+          let q = tenders.oaQuotes.get(qid) ?? return null;
+          let f = Proof.oaQuoteOk(e, q) ?? return null;
+          ?{ n = c.n; oaQuoteId = qid; fileId = f.id; name = f.name; mime = f.mime; size = f.size; loaded = oaRead.proofContent.containsKey(Proof.contentKey(qid)) };
+        };
+        case _ null;
+      };
+    });
+  };
+
+  public shared ({ caller }) func loadProofContent(setId : Nat, n : Nat, content : Blob) : async Result.Result<(), Text> {
+    let p = requireProofAdmin(caller);
+    let s = proof.sets.get(setId) ?? return #err("Onbekende testset");
+    if (s.archivedAt != null) return #err("Deze testset is gearchiveerd");
+    let c = Proof.caseOf(s, n) ?? return #err("Onbekend geval");
+    let qid = switch (c.ref) { case (#oaQuote(q)) q; case _ return #err("Dit geval heeft geen bestand om te laden") };
+    let q = tenders.oaQuotes.get(qid) ?? return #err("Onbekende OA-offerte");
+    let f = Proof.oaQuoteOk(proofEnv(), q) ?? return #err("Dit geval is niet meer bruikbaar");
+    if (content.size() == 0 or content.size() != f.size) return #err("Het bestand klopt niet (andere grootte)");
+    if (content.size() > Config.oaReadMaxBytes) return #err("Te groot om in te lezen (hoogstens 1,35 MB): dit geval doet niet mee");
+    let key = Proof.contentKey(qid);
+    if (not oaRead.proofContent.containsKey(key) and oaRead.proofContent.size() >= Config.oaReadMaxProofContent) return #err("Te veel geladen bestanden; archiveer eerst een oude testset");
+    oaRead.proofContent.add(key, content);
+    Access.audit(audit, caller, ?p.id, ?q.workId, "proef-bestand", "set #" # setId.toText() # " geval " # n.toText());
+    #ok;
+  };
+
+  // De inhoud die geen enkele lopende set (niet gearchiveerd) nog nodig heeft, weg.
+  func proofDropContent() {
+    let keep = Map.empty<Text, ()>();
+    for (s in proof.sets.values()) if (s.archivedAt == null) for (c in s.cases.values()) switch (c.ref) { case (#oaQuote(q)) keep.add(Proof.contentKey(q), ()); case _ {} };
+    let drop = List.empty<Text>();
+    for (k in oaRead.proofContent.keys()) if (not keep.containsKey(k)) drop.add(k);
+    for (k in drop.values()) oaRead.proofContent.remove(k);
   };
 
   // ── Rondes ───────────────────────────────────────────────────────────────
@@ -202,17 +256,25 @@ mixin (
         if (not Rights.botActive(b)) return #err("Deze bot is niet gekoppeld of ingetrokken");
         if (not b.tools.any(func t = t == def.tool)) return #err("De tool van deze taak staat niet op de fiche van de bot");
         if (Rights.botLevel(b, s.task) == #never) return #err("Deze taak staat op Nooit");
-        // Enkel gevallen die de bot met zijn fiche zou mogen zien (werf en documentsoort).
+        // Enkel gevallen die de bot met zijn fiche zou mogen zien (werf, en voor document koppelen ook de documentsoort).
+        // 3.8: een OA-offerte telt enkel mee als de beheerder het bestand al in de proefbank laadde (Proof.caseInput).
         let ok = s.cases.filter(func(c : Types.ProofCase) : Bool {
           let w = c.workId ?? return false;
-          let kind = Proof.norm(#key, Proof.answerOf(c.answer, "soort"));
-          let conf = switch (Dossier.kind(settings, kind)) { case (?k) k.confidential; case null true };
-          Rights.botSeesWork(ctx, b, w) and Rights.botSeesDocKind(b, kind, conf) and Proof.caseInput(proofEnv(), c) != null;
+          let kindOk = switch (def.scope) {
+            case (#work) true;
+            case (#docs) {
+              let kind = Proof.norm(#key, Proof.answerOf(c.answer, "soort"));
+              let conf = switch (Dossier.kind(settings, kind)) { case (?k) k.confidential; case null true };
+              Rights.botSeesDocKind(b, kind, conf);
+            };
+          };
+          Rights.botSeesWork(ctx, b, w) and kindOk and Proof.caseInput(proofEnv(), c) != null;
         });
         scope := Proof.scopeExtra({ allWorks = b.allWorks; works = b.works; kinds = b.docKinds });
         (b.vendor, b.model, Bots.instructionOf(b), ok.map<Types.ProofCase, Nat>(func c = c.n));
       };
       case (#ai(k)) {
+        if (def.aiKey == "") return #err("Deze taak heeft geen proefronde via Caffeine AI (Caffeine leest geen PDF of foto)");
         if (k != def.aiKey) return #err("Deze AI-fiche hoort niet bij deze taak");
         let w = ai.workers.get(k) ?? return #err("Deze AI-medewerker is nog niet ingericht (AI, fiches)");
         let ok = s.cases.filter(func(c : Types.ProofCase) : Bool = Proof.caseInput(proofEnv(), c) != null);

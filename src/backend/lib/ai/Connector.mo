@@ -305,15 +305,21 @@ module {
   // 3.5: de afloop van een proefoproep (proefbank op de Caffeine AI-weg). Zoals finish, maar ZONDER voorstel: de inhoud gaat enkel
   // terug naar de proefbank (die er een antwoord van maakt en vergelijkt). Afrekenen en het logboek zonder inhoud blijven gelijk.
   public func finishProof(e : Env, c : Types.AiCall, v : AiPrompts.Version, out : Caffeine.Outcome, allowed : Bool, who : Principal) : { #ok : Text; #err : Text } {
+    finishRaw(e, c, v, out, allowed, who, "proefbank", Config.maxProposalBytes);
+  };
+
+  // 3.8: idem voor een taak die haar antwoord zelf bewaart (OA-offerte inlezen: het voorstel staat op de inleesopdracht, met een
+  // groter plafond voor de posten). Een ongeldig antwoord geeft "" (de beller maakt er een mislukte opdracht van).
+  public func finishRaw(e : Env, c : Types.AiCall, v : AiPrompts.Version, out : Caffeine.Outcome, allowed : Bool, who : Principal, what : Text, maxBytes : Nat) : { #ok : Text; #err : Text } {
     let now = Time.now();
-    let tag = c.workerKey # " #" # c.id.toText() # " (proefbank)";
+    let tag = c.workerKey # " #" # c.id.toText() # " (" # what # ")";
     switch out {
       case (#ok r) {
         c.cycles := r.cycles;
         let cost = costOf(e, c, r.usage);
         c.outputSha256 := ?sha(r.content);
         if (not allowed) { end(c, #dropped, now); settle(e, c, cost, now); return #err("Geen toegang meer") };
-        if (r.content.size() > Config.maxProposalBytes or not validJson(r.content, v.required)) {
+        if (r.content.size() > maxBytes or not validJson(r.content, v.required)) {
           end(c, #invalid("antwoord past niet in het schema"), now);
           settle(e, c, cost, now);
           Access.audit(e.audit, who, c.personId, null, "ai-mislukt", tag # ": ongeldig antwoord");

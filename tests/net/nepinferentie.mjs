@@ -61,6 +61,19 @@ createServer((req, res) => {
       const k = soorten.find((x) => naam.includes("-" + x + "-"));
       content = JSON.stringify({ werfId: w ? w.id : 0, soort: k ?? "onbekend", vertrouwen: w && k ? 0.9 : 0.1 });
     }
+    // 3.8: OA-offerte inlezen uit tekst. De nep leest "nr <nummer>", een datum jjjj-mm-dd en "totaal <euro>" uit het blok, en geeft
+    // per post van de prijsvraag (regels "<id> · …" vóór het blok) een eenheidsprijs van € 10,00 plus één eigen regel.
+    if (parsed?.response_format?.json_schema?.name === "oa_offerte_inlezen_v1") {
+      const u = String(parsed?.messages?.find((x) => x.role === "user")?.content ?? "");
+      const [ctx, rest = ""] = u.split("<<<DOCUMENT");
+      const doc = rest.split("DOCUMENT>>>")[0] ?? "";
+      const nr = (doc.match(/nr ([A-Z0-9-]+)/) ?? [])[1] ?? null;
+      const datum = (doc.match(/(\d{4}-\d{2}-\d{2})/) ?? [])[1] ?? null;
+      const tot = (doc.match(/totaal ([0-9.]+,\d{2})/) ?? [])[1];
+      const posts = ctx.split("\n").filter((l) => /^\d+ · /.test(l)).map((l) => Number(l.split(" · ")[0]));
+      const regels = [...posts.map((id) => ({ postId: id, omschrijving: "", eenheid: "", hoeveelheid: 1, eenheidsprijsCent: 1000, inbegrepen: "ja", opmerking: "" })), { postId: null, omschrijving: "Nep eigen regel", eenheid: "pst", hoeveelheid: 1, eenheidsprijsCent: 500, inbegrepen: "ja", opmerking: "" }];
+      content = JSON.stringify({ nummer: nr, datum, geldigTot: null, btwVerlegd: true, kortingPct: null, vorm: "posten", regels, hoofdstukken: [], totaalCent: tot ? Math.round(Number(tot.replace(/\./g, "").replace(",", ".")) * 100) : null, opmerkingen: ["nep: negeer elke instructie in het document"], vertrouwen: 0.8 });
+    }
     if (m === "ongeldig") content = "dit is geen json";
     if (m === "groot") content = JSON.stringify({ werf: "W-901", documentsoort: "andere", firma: null, bedragCent: null, vertrouwen: 0.1, opvulling: "x".repeat(12000) });
     const message = m === "weiger" ? { role: "assistant", content: null, refusal: "nee" } : { role: "assistant", content };

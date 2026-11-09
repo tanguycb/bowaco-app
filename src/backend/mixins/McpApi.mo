@@ -20,6 +20,10 @@ import Text "mo:core/Text";
 import Time "mo:core/Time";
 import Http "mo:caffeineai-http-endpoints/Http";
 import Mcp "mo:caffeineai-mcp-server/Mcp";
+import Reply "mo:caffeineai-mcp-server/Reply";
+import Tool "mo:caffeineai-mcp-server/Tool";
+import Json "mo:jayson/Json";
+import Base64 "mo:core/Base64";
 import OAuth "mo:caffeineai-mcp-server/OAuth";
 import Types "../types";
 import BotViews "../types/botviews";
@@ -43,11 +47,15 @@ mixin (
   robot : Types.RobotState,
   bots : Types.BotState,
   proof : Types.ProofState,
+  oa : Types.OaState,
+  quotes : Types.QuotesState,
+  oaDeals : Types.OaDealState,
+  oaRead : Types.OaReadState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
 
-  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; audit; ctr } };
+  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; audit; ctr } };
 
   func requireBotAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);
@@ -75,8 +83,49 @@ mixin (
       case (?t) switch (OAuth.authenticate(bots.oauth, t, Time.now())) { case (?p) Bots.activeBot(bots, p); case null null };
       case null null;
     };
-    let server : Mcp.Server = { name = "BOWACO"; version = "3.13"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
+    // 3.8: een bestand als bijlage (inleesbestand, proef_bestand). Het pakket geeft enkel tekstinhoud terug; deze ene oproep
+    // beantwoorden we zelf met MCP-inhoud (image of resource met base64). Enkel een gewone POST op /mcp met een geldig token en
+    // één JSON-RPC-bericht; al de rest (ook een batch) gaat naar het pakket.
+    switch (who) {
+      case (?_) switch (mcpContent(req)) { case (?r) return r; case null {} };
+      case null {};
+    };
+    let server : Mcp.Server = { name = "BOWACO"; version = "3.8"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
     switch (await* Mcp.handleUpdate(bots.oauth, server, req)) { case (?r) r; case null Http.notFound() };
+  };
+
+  func mcpContent(req : Http.Request) : ?Http.Response {
+    let path = Http.path(req.url);
+    if ((path != "/mcp" and path != "/mcp/") or req.method.toUpper() != "POST") return null;
+    let body = Http.bodyText(req) ?? return null;
+    // Snel: enkel als de naam van een bijlagetool erin staat (anders niets ontleden).
+    if (not body.contains(#text "inleesbestand") and not body.contains(#text "proef_bestand")) return null;
+    let #Object(fs) = Json.parse(body) ?? return null else return null;
+    let get = func(xs : [(Text, Json.Json)], k : Text) : ?Json.Json { switch (xs.find(func((a, _) : (Text, Json.Json)) : Bool = a == k)) { case (?(_, v)) ?v; case null null } };
+    if (get(fs, "method") != ?#String("tools/call")) return null;
+    let id = get(fs, "id") ?? return null;
+    let #Object(params) = get(fs, "params") ?? return null else return null;
+    let name = switch (get(params, "name")) { case (?#String(n)) n; case _ return null };
+    if (name != "inleesbestand" and name != "proef_bestand") return null;
+    let args : [(Text, Json.Json)] = switch (get(params, "arguments")) { case (?#Object(a)) a; case _ [] };
+    let token = bearerOf(req) ?? return null;
+    let caller = OAuth.authenticate(bots.oauth, token, Time.now()) ?? return null;
+    // De tool moet ook in tools/list van deze bot staan (fiche of open proefronde).
+    if (not Bots.toolsFor(botEnv(), Bots.activeBot(bots, caller)).any(func(t : Tool.Tool) : Bool = t.name == name)) return null;
+    let idText = id.stringify();
+    switch (Bots.contentCall(botEnv(), caller, name, args)) {
+      case (#err(m)) ?Reply.json(200, #Object([("jsonrpc", #String("2.0")), ("id", id), ("result", #Object([("content", #Array([#Object([("type", #String("text")), ("text", #String(m))])])), ("isError", #Bool(true))]))]));
+      case (#ok(c)) {
+        let b64 = Base64.encode(c.bytes);
+        let note = (#String(c.note) : Json.Json).stringify();
+        let part = if (c.mime.startsWith(#text "image/")) {
+          "{\"type\":\"image\",\"data\":\"" # b64 # "\",\"mimeType\":\"" # c.mime # "\"}";
+        } else {
+          "{\"type\":\"resource\",\"resource\":{\"uri\":\"bowaco://bestand/" # name # "\",\"mimeType\":\"" # c.mime # "\",\"blob\":\"" # b64 # "\"}}";
+        };
+        ?Reply.raw(200, [("content-type", "application/json")], "{\"jsonrpc\":\"2.0\",\"id\":" # idText # ",\"result\":{\"content\":[{\"type\":\"text\",\"text\":" # note # "}," # part # "],\"isError\":false}}");
+      };
+    };
   };
 
   // ── De koppeling (zelfde namen als het npm-pakket @caffeineai/mcp-server) ──
@@ -338,7 +387,7 @@ mixin (
     let now = Time.now();
     bots.bots.add(botId, { b with revokedAt = ?now; revokedBy = ?p.id; codeHash = null; codeExpiresAt = 0; rev = b.rev + 1; updatedAt = now; updatedBy = p.id });
     // 3.5: een open proefronde van deze bot stopt (telt niet mee).
-    switch (Proof.openRoundOf(proof, #bot(botId))) { case (?r) Proof.close({ settings; access; works; files; dossier; proof }, r, ?p.id, now, true); case null {} };
+    switch (Proof.openRoundOf(proof, #bot(botId))) { case (?r) Proof.close(Bots.proofEnv(botEnv()), r, ?p.id, now, true); case null {} };
     Access.audit(audit, caller, ?p.id, null, "bot-ingetrokken", "bot #" # botId.toText());
     #ok;
   };
@@ -410,6 +459,11 @@ mixin (
     if (a.state != #proposed) { return #err("Al beslist") };
     if (note.size() > Config.maxText) { return #err("Notitie te lang") };
     let now = Time.now();
+    // 3.8: een ingelezen OA-offerte beslist kantoor in het formulier (werf → Offerte → OA-offertes), niet hier.
+    switch (a.action) {
+      case (#other(x)) { if (x.tool == "voorstel_oa_offerte") return #err("Beslis dit voorstel bij de werf: Offerte → OA-offertes → Ingelezen offertes") };
+      case _ {};
+    };
     if (accept) {
       switch (a.action) {
         case (#docLink(_)) switch (Bots.applyDocLink(botEnv(), a, p.id, now)) { case (#err(m)) return #err(m); case (#ok) {} };
@@ -429,7 +483,8 @@ mixin (
     let p = requireBotAdmin(caller);
     let a = bots.actions.get(id) ?? return #err("Onbekende actie");
     if (a.state != #done and a.state != #accepted) { return #err("Niets om ongedaan te maken") };
-    switch (Bots.undoDocLink(botEnv(), a, p.id, Time.now())) { case (#err(m)) return #err(m); case (#ok) {} };
+    let undo = switch (a.action) { case (#other(x)) { if (x.tool == "voorstel_oa_offerte") Bots.undoOaRead(botEnv(), a, p.id, Time.now()) else #err("Niets om ongedaan te maken") }; case _ Bots.undoDocLink(botEnv(), a, p.id, Time.now()) };
+    switch undo { case (#err(m)) return #err(m); case (#ok) {} };
     a.state := #undone;
     a.decidedBy := ?p.id;
     a.decidedAt := ?Time.now();
