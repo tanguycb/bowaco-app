@@ -3288,6 +3288,8 @@ export const nl = {
     rejectReason: "Reden",
     rejectOk: "Afgewezen",
     cancelTitle: "Opdracht annuleren",
+    cancelConfirm: "Opdracht annuleren",
+    back: "Terug",
     cancelText: "De opdracht verdwijnt en het bestand wordt niet meer gelezen. De offerte zelf registreer je met de hand.",
     cancelOk: "Geannuleerd",
     banner: (who: string, pct: number) => `Voorstel van ${who} (zekerheid ${pct} %). Kijk elke regel na vóór je registreert.`,
