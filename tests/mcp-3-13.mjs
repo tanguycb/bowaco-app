@@ -53,7 +53,7 @@ const invOther = invAll.find((i) => i.workId !== W1);
 check("opzet: twee proefwerven, vier losse bestanden (één vertrouwelijk), een OA-factuur van een andere werf", !!W1 && !!W2 && !!invOther, S({ W1, W2, inv: invOther?.id }));
 
 // ── (1) Enkel de beheerder ──────────────────────────────────────────────
-const F = (o = {}) => ({ id: [], rev: 0n, name: `Proef bot ${sfx}`, vendor: "Anthropic", model: "Claude (label)", tools: ["mijn_fiche", "werven", "werf_documenten", "oa_offertes", "oa_facturen", "document_koppelen", "voorstel_factuurcontrole"], allWorks: false, works: [W1], docKinds: ["plannen", "asbestinventaris", "plaatsbeschrijving", "verzekering"], callsPerDay: 200n, tasks: [], ...o });
+const F = (o = {}) => ({ id: [], rev: 0n, name: `Proef bot ${sfx}`, vendor: "Anthropic", model: "Claude (label)", tools: ["mijn_fiche", "werven", "werf_documenten", "oa_offertes", "oa_facturen", "document_koppelen", "voorstel_factuurcontrole"], allWorks: false, works: [W1], docKinds: ["plannen", "asbestinventaris", "plaatsbeschrijving", "verzekering"], callsPerDay: 200n, tasks: [], instruction: [], ...o });
 for (const [n, x] of [["werfleider", wl], ["calculator", calc], ["OA", oa], ["anoniem", anon]]) {
   const rs = await Promise.all([x.listBots(), x.saveBot(F()), x.newBotCode(1n), x.revokeBot(1n), x.botActions(false), x.botLog(0n, 5n), x.mcpInfo(), x._caffeineMcpSetSignInOrigin("https://x.example"), x.botConnections(1n), x.decideBotAction(1n, true, ""), x.undoBotAction(1n)].map(denied));
   check(`(1) ${n} beheert geen bots`, rs.every(Boolean), S(rs));
