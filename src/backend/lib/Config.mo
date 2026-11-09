@@ -588,7 +588,7 @@ module {
 
   // ── AI-connector (stap 3.1, ontwerp 3.1 §2) ─────────────────────────────
   // De sleutels van de AI-medewerkers (fiches): de app kent de taak (lib/AiPrompts.mo), de fiche de instellingen.
-  public func aiWorkerKeys() : [Text] { ["routering", "offerte-review", "prijsvraag-opstellen", "werfverslag-spraak", "oa-offerte-inlezen", "oa-offertes-vergelijken", "oa-factuurcontrole"] };
+  public func aiWorkerKeys() : [Text] { ["routering", "offerte-review", "prijsvraag-opstellen", "werfverslag-spraak", "oa-offerte-inlezen", "oa-offertes-vergelijken", "oa-factuurcontrole", "document-koppelen"] }; // 3.5: "document-koppelen" = de proefbank op de Caffeine AI-weg
   public let aiMaxConcurrent : Nat = 3; // lopende caffeine-oproepen in de hele app (één per persoon)
   public let aiCyclesMax : Nat = 60_000_000_000; // meegegeven per outcall (± 1,5 × de IC-prijs voor 256 kB antwoord); pricing v2 geeft de rest terug
   public let aiCyclesFloor : Nat = 500_000_000_000; // daaronder geen AI-oproep (de canister mag niet bevriezen)
@@ -643,6 +643,20 @@ module {
   public let botMaxRemark : Nat = 500;
   public let botMaxList : Nat = 200; // hoogstens zoveel rijen per lees-tool
   public let botActionExpire : Int = 2_592_000_000_000_000; // 30 dagen: een onbeslist voorstel vervalt
+
+  // ── Proefbank (stap 3.5, bouwplan §6 "Autonomie per taak", eigenaar 08-11) ──
+  // Zelf doen kan pas aan als de LAATSTE gesloten proefronde van die bot (of AI-fiche) voor die taak minstens proofMinPct % juist is
+  // op minstens proofMinCases gevallen, met dezelfde leverancier, hetzelfde model en dezelfde instructieversie als de fiche nu.
+  public let proofMinPct : Nat = 95;
+  public let proofMinCases : Nat = 50;
+  public let proofMaxCases : Nat = 200; // per testset
+  public let proofBatch : Nat = 20; // gevallen per oproep van proef_gevallen
+  public let proofMaxAnswers : Nat = 25; // antwoorden per oproep van proef_antwoorden
+  public let proofRoundDays : Int = 1_209_600_000_000_000; // 14 dagen: daarna sluit de klok een open ronde (geen antwoord = fout)
+  public let maxProofSets : Nat = 100;
+  public let maxProofRounds : Nat = 2_000;
+  public let maxProofLabel : Nat = 60; // instructieversie (label)
+  public let proofAiMaxWorks : Nat = 200; // werven in de vraag aan Caffeine AI
 
   // 2c.8: grenzen van de werfadministratie (begrensd, T17).
   public let maxInsurances : Nat = 2_000;

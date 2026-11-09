@@ -302,6 +302,36 @@ module {
     };
   };
 
+  // 3.5: de afloop van een proefoproep (proefbank op de Caffeine AI-weg). Zoals finish, maar ZONDER voorstel: de inhoud gaat enkel
+  // terug naar de proefbank (die er een antwoord van maakt en vergelijkt). Afrekenen en het logboek zonder inhoud blijven gelijk.
+  public func finishProof(e : Env, c : Types.AiCall, v : AiPrompts.Version, out : Caffeine.Outcome, allowed : Bool, who : Principal) : { #ok : Text; #err : Text } {
+    let now = Time.now();
+    let tag = c.workerKey # " #" # c.id.toText() # " (proefbank)";
+    switch out {
+      case (#ok r) {
+        c.cycles := r.cycles;
+        let cost = costOf(e, c, r.usage);
+        c.outputSha256 := ?sha(r.content);
+        if (not allowed) { end(c, #dropped, now); settle(e, c, cost, now); return #err("Geen toegang meer") };
+        if (r.content.size() > Config.maxProposalBytes or not validJson(r.content, v.required)) {
+          end(c, #invalid("antwoord past niet in het schema"), now);
+          settle(e, c, cost, now);
+          Access.audit(e.audit, who, c.personId, null, "ai-mislukt", tag # ": ongeldig antwoord");
+          return #ok(""); // telt als fout antwoord (geen geldige velden)
+        };
+        end(c, #done, now);
+        settle(e, c, cost, now);
+        #ok(r.content);
+      };
+      case (#refused r) { c.cycles := r.cycles; end(c, #refused, now); settle(e, c, costOf(e, c, r.usage), now); #ok("") };
+      case (#invalid x) { end(c, #invalid(x.why), now); settle(e, c, if (x.charged) c.reservedCents else 0, now); #err("De AI-dienst weigerde de vraag: " # x.why) };
+      case (#unsure why) { end(c, #unsure(why), now); settle(e, c, c.reservedCents, now); #err("Geen zeker antwoord van de AI-dienst; probeer later opnieuw") };
+      case (#noFunds why) { end(c, #failed("geen tegoed: " # why), now); settle(e, c, 0, now); #err("De AI-dienst is nu niet beschikbaar (tegoed)") };
+      case (#retry why or #rateLimited why) { end(c, #failed(why), now); settle(e, c, 0, now); #err("De AI-dienst is nu niet beschikbaar; probeer later opnieuw") };
+      case (#modelUnknown _) { end(c, #failed("model onbekend"), now); settle(e, c, 0, now); #err("Het model van de fiche is onbekend bij Caffeine") };
+    };
+  };
+
   // ── De catalogus (§2.3): één outcall; de vorige blijft staan als het ophalen mislukt ──
   public func refresh<system>(ai : Types.AiState, now : Int) : async* { #ok : Nat; #err : Text } {
     switch (await* Caffeine.models<system>()) {

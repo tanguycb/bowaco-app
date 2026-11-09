@@ -2627,6 +2627,55 @@ module {
     oauth : OAuth.State; // caffeineai-mcp-server: klanten, codes, koppelingen (enkel hashes van tokens)
   };
 
+  // ── Proefbank (stap 3.5, bouwplan §6 "Autonomie per taak") ──
+  // Eigen stabiel veld `proof` (deelvorm, OldActor = {}). Een testset = gevallen met een VERWIJZING naar gegevens in de app en het
+  // juiste antwoord (velden); een proefronde = één set voor één onderwerp (een bot via MCP of een AI-fiche van Caffeine), met de labels
+  // van dat moment (leverancier, model, instructieversie). Het juiste antwoord en de score ziet enkel de beheerder (#manageBots).
+  // Varianten met een reservetag (M0170).
+  public type ProofSubject = { #bot : Nat; #ai : Text; #other : Text };
+  public type ProofRef = { #file : Nat; #doc : Nat; #oaQuote : Nat; #oaInvoice : Nat; #other : Text };
+  // klasse: intern. answer = (veld, waarde) zoals in Proof.tasks; nooit inhoud van een bestand.
+  public type ProofCase = { n : Nat; ref : ProofRef; workId : ?WorkId; answer : [(Text, Text)] };
+  public type ProofSet = {
+    id : Nat;
+    task : Text;
+    name : Text;
+    source : Text; // "historiek"
+    cases : [ProofCase];
+    createdAt : Int;
+    createdBy : PersonId;
+    archivedAt : ?Int;
+    extra : Extra;
+  };
+  // #wrong = de foute velden; #none = geen antwoord (telt als fout); #void = het geval is intussen onbruikbaar (telt niet mee).
+  public type ProofOutcome = { #right; #wrong : [Text]; #none; #void : Text; #other : Text };
+  public type ProofAnswer = { n : Nat; given : [(Text, Text)]; at : Int; outcome : ProofOutcome };
+  public type ProofRoundState = { #open; #closed; #cancelled; #other : Text };
+  public type ProofRound = {
+    id : Nat;
+    setId : Nat;
+    task : Text;
+    subject : ProofSubject;
+    vendor : Text;
+    model : Text;
+    instruction : Text;
+    cases : [Nat]; // de aangeboden gevallen (nummers uit de set), in de volgorde van aanbieden
+    startedAt : Int;
+    startedBy : PersonId;
+    var state : ProofRoundState;
+    var closedAt : ?Int;
+    var closedBy : ?PersonId; // null = vanzelf (alles beantwoord of verlopen)
+    var right : Nat;
+    var counted : Nat; // gevallen in de noemer (zonder de vervallen)
+    var extra : Extra;
+  };
+  public type ProofState = {
+    sets : Map.Map<Nat, ProofSet>;
+    rounds : Map.Map<Nat, ProofRound>;
+    answers : Map.Map<Nat, Map.Map<Nat, ProofAnswer>>; // ronde → geval → antwoord
+    openByBot : Map.Map<Nat, Nat>; // bot → open ronde
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

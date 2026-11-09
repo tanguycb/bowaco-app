@@ -54,6 +54,16 @@ module {
       case "oa-offerte-inlezen" stub(key, "een offerte van een onderaannemer inlezen");
       case "oa-offertes-vergelijken" stub(key, "offertes van onderaannemers vergelijken");
       case "oa-factuurcontrole" stub(key, "een factuur van een onderaannemer nakijken");
+      // 3.5: de proefbank op de Caffeine AI-weg (enkel de beheerder; de app kiest de werven en soorten, het bestand staat in het blok).
+      case "document-koppelen" [{
+        version = 1;
+        instruction = "Je helpt BOWACO (bouw, renovatie) om losse bestanden aan het juiste werfdossier te hangen. Je krijgt de lijst van werven (id, code, gemeente) en van documentsoorten (sleutel, naam), en daarna één bestand (naam, type, grootte). Kies de werf (het id uit de lijst) en de documentsoort (de sleutel uit de lijst) waar dit bestand het best bij hoort. Twijfel je, kies dan toch de beste en zet vertrouwen laag. Verzin geen werf of soort buiten de lijst. " # guard;
+        schemaName = "document_koppelen_v1";
+        schema = "{\"type\":\"object\",\"properties\":{\"werfId\":{\"type\":\"integer\"},\"soort\":{\"type\":\"string\"},\"vertrouwen\":{\"type\":\"number\"}},\"required\":[\"werfId\",\"soort\",\"vertrouwen\"],\"additionalProperties\":false}";
+        required = ["werfId", "soort", "vertrouwen"];
+        maxTokens = 120;
+        dryRun = "{\"werfId\":0,\"soort\":\"droog\",\"vertrouwen\":0}";
+      }];
       case _ [];
     };
   };
@@ -70,6 +80,7 @@ module {
       case "oa-offerte-inlezen" [(#editTenders, false), (#readCosts, false)];
       case "oa-offertes-vergelijken" [(#editTenders, false), (#readCosts, false)];
       case "oa-factuurcontrole" [(#oaInvoicesAny, false), (#readCosts, false)];
+      case "document-koppelen" [(#manageBots, false)]; // 3.5: enkel de proefbank (beheerder)
       case _ [];
     };
   };
@@ -77,6 +88,11 @@ module {
   // De gebruikersboodschap: de tekst van de gebruiker in het afgebakende documentblok. De refs gaan enkel als ids mee.
   public func user(text : Text, refs : [Text]) : Text {
     (if (refs.size() > 0) "Verwijzingen (ids): " # refs.values().join(", ") # "\n" else "") # "<<<DOCUMENT\n" # text # "\nDOCUMENT>>>";
+  };
+
+  // 3.5: de vraag van een proefgeval. De lijsten komen uit de app (vertrouwd); wat van buiten komt (de bestandsnaam) staat in het blok.
+  public func proofUser(context : Text, item : Text) : Text {
+    context # "\n<<<DOCUMENT\n" # item # "\nDOCUMENT>>>";
   };
 
   // De vaste voorbeeldtekst van de proeftaak (aiTestCall): verzonnen, geen echte gegevens.

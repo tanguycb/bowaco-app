@@ -28,6 +28,7 @@ import Bots "../lib/Bots";
 import Config "../lib/Config";
 import Dossier "../lib/Dossier";
 import Ids "../lib/Ids";
+import Proof "../lib/Proof";
 import Rights "../lib/Rights";
 
 mixin (
@@ -41,11 +42,12 @@ mixin (
   oaInvoices : Types.OaInvoiceState,
   robot : Types.RobotState,
   bots : Types.BotState,
+  proof : Types.ProofState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
 
-  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; audit; ctr } };
+  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; audit; ctr } };
 
   func requireBotAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);
@@ -180,6 +182,19 @@ mixin (
       callsPerDay = b.callsPerDay;
       callsToday = Bots.callsToday(bots, b.id, now);
       tasks = Config.botTasks().map<(Text, { #auto; #proposal }), (Text, Types.BotLevel)>(func((k, _)) = (k, Rights.botLevel(b, k)));
+      effective = Config.botTasks().map<(Text, { #auto; #proposal }), (Text, Types.BotLevel)>(func((k, _)) = (k, Bots.effectiveLevel(botEnv(), b, k)));
+      instruction = Bots.instructionOf(b);
+      proof = Proof.tasks().map<Proof.TaskDef, BotViews.BotProofView>(func d {
+        let last = Proof.latestClosed(proof, #bot(b.id), d.key);
+        let open = switch (Proof.openRoundOf(proof, #bot(b.id))) { case (?r) if (r.task == d.key) ?r.id else null; case null null };
+        switch last {
+          case (?r) {
+            let same = Proof.sameLabels(r, b.vendor, b.model, Bots.instructionOf(b));
+            { task = d.key; roundId = ?r.id; right = r.right; counted = r.counted; passed = Proof.passed(r); sameLabels = same; autoAllowed = same and Proof.passed(r); openRound = open };
+          };
+          case null ({ task = d.key; roundId = null; right = 0; counted = 0; passed = false; sameLabels = false; autoAllowed = false; openRound = open });
+        };
+      });
       openActions = open;
       connections = connectionsOf(b).size();
       revokedAt = b.revokedAt;
@@ -229,10 +244,25 @@ mixin (
     };
     if (i.callsPerDay == 0 or i.callsPerDay > Config.botMaxCallsPerDay) { return #err("Oproepen per dag: 1 tot " # Config.botMaxCallsPerDay.toText()) };
     if (not uniq<(Text, Types.BotLevel)>(i.tasks, func(a, b) = a.0 == b.0)) { return #err("Elke taak hoogstens één keer") };
+    switch (i.instruction) { case (?x) { if (x.size() > Config.maxProofLabel) return #err("Instructieversie: hoogstens " # Config.maxProofLabel.toText() # " tekens") }; case null {} };
     for ((k, l) in i.tasks.values()) {
       if (Config.botNeverTasks().any(func n = n == k)) { return #err("Deze taak staat vast op Nooit") };
       let cap = switch (Config.botTasks().find(func((x, _) : (Text, { #auto; #proposal })) : Bool = x == k)) { case (?(_, c)) c; case null return #err("Onbekende taak: " # k) };
       if (l == #auto and cap != #auto) { return #err("De taak " # k # " kan hoogstens Voorstel zijn (ze raakt geld of afspraken)") };
+    };
+    // 3.5: Zelf doen pas na een geslaagde LAATSTE proefronde met dezelfde leverancier, hetzelfde model en dezelfde instructieversie.
+    let instructionNew = switch (i.instruction) {
+      case (?x) Access.cleanText(x, Config.maxProofLabel) ?? "";
+      case null switch (i.id) { case (?id) switch (bots.bots.get(id)) { case (?b) Bots.instructionOf(b); case null "" }; case null "" };
+    };
+    for ((k, l) in i.tasks.values()) {
+      if (l == #auto) {
+        let id = switch (i.id) { case (?x) x; case null return #err("Zelf doen kan pas na een geslaagde proefronde: bewaar de bot eerst op Voorstel") };
+        switch (Proof.gate(proof, #bot(id), k, vendor, model, instructionNew)) { case (#err(m)) return #err(m); case (#ok) {} };
+      };
+    };
+    let withInstr = func(x : Types.Extra) : Types.Extra {
+      x.filter(func((a, _) : (Text, Text)) : Bool = a != "instructie").concat(if (instructionNew == "") [] else [("instructie", instructionNew)]);
     };
     let now = Time.now();
     switch (i.id) {
@@ -260,7 +290,7 @@ mixin (
           createdBy = p.id;
           updatedAt = now;
           updatedBy = p.id;
-          extra = [];
+          extra = withInstr([]);
         });
         Access.audit(audit, caller, ?p.id, null, "bot-gemaakt", "bot #" # id.toText() # " " # name);
         #ok(id);
@@ -269,7 +299,7 @@ mixin (
         let b = bots.bots.get(id) ?? return #err("Onbekende bot");
         if (b.revokedAt != null) { return #err("Deze bot is ingetrokken") };
         if (b.rev != i.rev) { return #err("Intussen gewijzigd: herlaad de fiche") };
-        bots.bots.add(id, { b with name; vendor; model; tools = i.tools; allWorks = i.allWorks; works = i.works; docKinds = i.docKinds; callsPerDay = i.callsPerDay; tasks = i.tasks; rev = b.rev + 1; updatedAt = now; updatedBy = p.id });
+        bots.bots.add(id, { b with name; vendor; model; tools = i.tools; allWorks = i.allWorks; works = i.works; docKinds = i.docKinds; callsPerDay = i.callsPerDay; tasks = i.tasks; rev = b.rev + 1; updatedAt = now; updatedBy = p.id; extra = withInstr(b.extra) });
         Access.audit(audit, caller, ?p.id, null, "bot-fiche", "bot #" # id.toText() # " rev " # (b.rev + 1).toText());
         #ok(id);
       };
@@ -307,6 +337,8 @@ mixin (
     switch (b.codeHash) { case (?h) bots.byCode.remove(h); case null {} };
     let now = Time.now();
     bots.bots.add(botId, { b with revokedAt = ?now; revokedBy = ?p.id; codeHash = null; codeExpiresAt = 0; rev = b.rev + 1; updatedAt = now; updatedBy = p.id });
+    // 3.5: een open proefronde van deze bot stopt (telt niet mee).
+    switch (Proof.openRoundOf(proof, #bot(botId))) { case (?r) Proof.close({ settings; access; works; files; dossier; proof }, r, ?p.id, now, true); case null {} };
     Access.audit(audit, caller, ?p.id, null, "bot-ingetrokken", "bot #" # botId.toText());
     #ok;
   };

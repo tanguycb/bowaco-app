@@ -20,13 +20,28 @@ module {
     docKinds : [Text];
     callsPerDay : Nat;
     callsToday : Nat;
-    tasks : [(Text, Types.BotLevel)]; // het niveau dat geldt, voor elke taak van Config.botTasks
+    tasks : [(Text, Types.BotLevel)]; // het niveau op de fiche, voor elke taak van Config.botTasks
+    effective : [(Text, Types.BotLevel)]; // 3.5: het niveau dat NU geldt (Zelf doen enkel met een geslaagde laatste proefronde)
+    instruction : Text; // 3.5: instructieversie (label)
+    proof : [BotProofView]; // 3.5: de stand van de proefbank per taak met een proefbank
     openActions : Nat;
     connections : Nat;
     revokedAt : ?Int;
     rev : Nat;
     createdAt : Int;
     updatedAt : Int;
+  };
+
+  // 3.5: de laatste gesloten proefronde van deze bot voor een taak, en of Zelf doen daarmee kan.
+  public type BotProofView = {
+    task : Text;
+    roundId : ?Nat;
+    right : Nat;
+    counted : Nat;
+    passed : Bool; // ≥ drempel op ≥ minimum gevallen
+    sameLabels : Bool; // zelfde leverancier, model en instructieversie als de fiche nu
+    autoAllowed : Bool; // passed en sameLabels
+    openRound : ?Nat;
   };
 
   public type BotInput = {
@@ -41,6 +56,7 @@ module {
     docKinds : [Text];
     callsPerDay : Nat;
     tasks : [(Text, Types.BotLevel)];
+    instruction : ?Text; // 3.5: instructieversie (label); null = ongewijzigd (oude klanten)
   };
 
   public type NewBotCode = { code : Text; expiresAt : Int };
