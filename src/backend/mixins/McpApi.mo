@@ -189,7 +189,7 @@ mixin (
         let open = switch (Proof.openRoundOf(proof, #bot(b.id))) { case (?r) if (r.task == d.key) ?r.id else null; case null null };
         switch last {
           case (?r) {
-            let same = Proof.sameLabels(r, b.vendor, b.model, Bots.instructionOf(b));
+            let same = Proof.sameLabels(r, b.vendor, b.model, Bots.instructionOf(b)) and Proof.scopeOk(r, { allWorks = b.allWorks; works = b.works; kinds = b.docKinds });
             { task = d.key; roundId = ?r.id; right = r.right; counted = r.counted; passed = Proof.passed(r); sameLabels = same; autoAllowed = same and Proof.passed(r); openRound = open };
           };
           case null ({ task = d.key; roundId = null; right = 0; counted = 0; passed = false; sameLabels = false; autoAllowed = false; openRound = open });
@@ -258,7 +258,7 @@ mixin (
     for ((k, l) in i.tasks.values()) {
       if (l == #auto) {
         let id = switch (i.id) { case (?x) x; case null return #err("Zelf doen kan pas na een geslaagde proefronde: bewaar de bot eerst op Voorstel") };
-        switch (Proof.gate(proof, #bot(id), k, vendor, model, instructionNew)) { case (#err(m)) return #err(m); case (#ok) {} };
+        switch (Proof.gate(proof, #bot(id), k, vendor, model, instructionNew, ?{ allWorks = i.allWorks; works = i.works; kinds = i.docKinds })) { case (#err(m)) return #err(m); case (#ok) {} };
       };
     };
     let withInstr = func(x : Types.Extra) : Types.Extra {

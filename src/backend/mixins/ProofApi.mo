@@ -195,6 +195,7 @@ mixin (
     if (proof.rounds.size() >= Config.maxProofRounds) return #err("Te veel proefrondes");
     switch (Proof.openRoundOf(proof, subject)) { case (?_) return #err("Er loopt al een proefronde voor deze bot of AI-fiche"); case null {} };
     let ctx = { works; settings };
+    var scope : Types.Extra = [];
     let (vendor, model, instruction, picked) : (Text, Text, Text, [Nat]) = switch subject {
       case (#bot(id)) {
         let b = bots.bots.get(id) ?? return #err("Onbekende bot");
@@ -204,8 +205,11 @@ mixin (
         // Enkel gevallen die de bot met zijn fiche zou mogen zien (werf en documentsoort).
         let ok = s.cases.filter(func(c : Types.ProofCase) : Bool {
           let w = c.workId ?? return false;
-          Rights.botSeesWork(ctx, b, w) and Rights.botSeesDocKind(b, Proof.norm(#key, Proof.answerOf(c.answer, "soort")), false) and Proof.caseInput(proofEnv(), c) != null;
+          let kind = Proof.norm(#key, Proof.answerOf(c.answer, "soort"));
+          let conf = switch (Dossier.kind(settings, kind)) { case (?k) k.confidential; case null true };
+          Rights.botSeesWork(ctx, b, w) and Rights.botSeesDocKind(b, kind, conf) and Proof.caseInput(proofEnv(), c) != null;
         });
+        scope := Proof.scopeExtra({ allWorks = b.allWorks; works = b.works; kinds = b.docKinds });
         (b.vendor, b.model, Bots.instructionOf(b), ok.map<Types.ProofCase, Nat>(func c = c.n));
       };
       case (#ai(k)) {
@@ -238,7 +242,7 @@ mixin (
       var closedBy = null;
       var right = 0;
       var counted = 0;
-      var extra = [];
+      var extra = scope;
     };
     proof.rounds.add(id, round);
     switch subject { case (#bot(b)) proof.openByBot.add(b, id); case _ {} };
@@ -310,19 +314,28 @@ mixin (
     let item = switch input { case (?i) i.stringify(); case null "" };
     let userText = AiPrompts.proofUser(aiContext(), item);
     let live = proofAiReal();
+    // Review 3.5 M2: één oproep tegelijk per ronde (anders twee betaalde oproepen voor hetzelfde geval); het merk vervalt na 5 min.
+    let now0 = Time.now();
+    switch (Proof.extraGet(r.extra, "bezig")) {
+      case (?t) { switch (Int.fromText(t)) { case (?at) { if (now0 - at < 300_000_000_000) return #err("Deze proefronde draait al; wacht even") }; case null {} } };
+      case null {};
+    };
+    let unmark = func() { r.extra := r.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "bezig") };
+    if (live) r.extra := r.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "bezig").concat([("bezig", Int.toText(now0))]);
     let content : Text = if (not live) v.dryRun else {
-      if (not w.enabled or w.budgetMonthCents == 0) return #err(w.name # " staat uit (AI, fiches)");
-      if (not ai.models.containsKey(w.modelAlias)) return #err("Het model van de fiche staat niet in de catalogus");
-      if (ai.runningByPerson.containsKey(p.id)) return #err("Je hebt al een AI-oproep lopen; wacht even");
-      if (ai.runningByPerson.size() >= Config.aiMaxConcurrent) return #err("AI is bezig, probeer zo meteen");
+      if (not w.enabled or w.budgetMonthCents == 0) { unmark(); return #err(w.name # " staat uit (AI, fiches)") };
+      if (not ai.models.containsKey(w.modelAlias)) { unmark(); return #err("Het model van de fiche staat niet in de catalogus") };
+      if (ai.runningByPerson.containsKey(p.id)) { unmark(); return #err("Je hebt al een AI-oproep lopen; wacht even") };
+      if (ai.runningByPerson.size() >= Config.aiMaxConcurrent) { unmark(); return #err("AI is bezig, probeer zo meteen") };
       let e = { settings; access; robot; ai; audit; ctr };
       let now = Time.now();
-      let reserve = switch (Connector.reserve(e, w, caller, ?p.id, null, now)) { case (#ok x) x; case (#err t) return #err(t) };
+      let reserve = switch (Connector.reserve(e, w, caller, ?p.id, null, now)) { case (#ok x) x; case (#err t) { unmark(); return #err(t) } };
       let call = Connector.newCall(e, w, #caffeine, #user(p.id), ?p.id, null, w.modelAlias, Connector.sha(userText), userText.size(), reserve, false, now);
       call.extra := [("proefronde", r.id.toText())];
       ai.runningByPerson.add(p.id, call.id);
       let out = await* Caffeine.chat<system>(w.modelAlias, v, userText);
       if (ai.runningByPerson.get(p.id) == ?call.id) ai.runningByPerson.remove(p.id);
+      unmark();
       // R33: na de await opnieuw: nog beheerder, ronde nog open, geval nog niet beantwoord.
       let still = switch (Access.activePerson(access, caller)) { case (?q) Rights.may({ works; settings }, q, #manageBots, null); case null false };
       switch (Connector.finishProof(e, call, v, out, still and r.state == #open, caller)) { case (#ok t) t; case (#err m) return #err(m) };

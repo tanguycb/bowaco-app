@@ -59,7 +59,7 @@ module {
   // Voorstel. saveBot weigert Zelf doen al zonder geslaagde ronde; dit vangt een wissel of een oude fiche op bij het uitvoeren.
   public func effectiveLevel(e : Env, b : Bot, task : Text) : Types.BotLevel {
     switch (Rights.botLevel(b, task)) {
-      case (#auto) switch (Proof.gate(e.proof, #bot(b.id), task, b.vendor, b.model, instructionOf(b))) { case (#ok) #auto; case (#err(_)) #proposal };
+      case (#auto) switch (Proof.gate(e.proof, #bot(b.id), task, b.vendor, b.model, instructionOf(b), ?{ allWorks = b.allWorks; works = b.works; kinds = b.docKinds })) { case (#ok) #auto; case (#err(_)) #proposal };
       case l l;
     };
   };
@@ -382,6 +382,12 @@ module {
     let set = e.proof.sets.get(r.setId) ?? return #refused(no);
     let penv : Proof.Env = { settings = e.settings; access = e.access; works = e.works; files = e.files; dossier = e.dossier; proof = e.proof };
     let ans = Proof.answersOf(e.proof, r.id);
+    // Review 3.5 L2: de fiche van NU (een werf of soort die intussen van de fiche ging = vervallen, geen invoer meer).
+    let ctx = { works = e.works; settings = e.settings };
+    let inScope = func(c : Types.ProofCase) : Bool {
+      let w = c.workId ?? return false;
+      Rights.botSeesWork(ctx, b, w) and Rights.botSeesDocKind(b, Proof.norm(#key, Proof.answerOf(c.answer, "soort")), false);
+    };
     let caseAt = func(pos : Nat) : ?Types.ProofCase { if (pos == 0 or pos > r.cases.size()) null else Proof.caseOf(set, r.cases[pos - 1]) };
     let left = func() : Nat { var k = 0; for (n in r.cases.values()) if (not ans.containsKey(n)) k += 1; k };
     if (tool == "proef_gevallen") {
@@ -392,7 +398,7 @@ module {
         if (out.size() >= Config.proofBatch) break l;
         if (not ans.containsKey(n)) {
           switch (Proof.caseOf(set, n)) {
-            case (?c) switch (Proof.caseInput(penv, c)) {
+            case (?c) switch (if (inScope(c)) Proof.caseInput(penv, c) else null) {
               case (?input) out.add(#Object([("geval", num(pos)), ("invoer", input)]));
               case null ans.add(n, { n; given = []; at = now; outcome = #void("onbruikbaar") });
             };
@@ -419,7 +425,7 @@ module {
             skipped.add(#Object([("geval", num(pos)), ("waarom", str("al beantwoord"))]));
           } else {
             let given = def.fields.map<Proof.Field, (Text, Text)>(func f = (f.name, Proof.jsonValue(Tool.field(fs, f.name))));
-            let outcome = if (Proof.caseInput(penv, c) == null) #void("onbruikbaar") else Proof.compare(def, c.answer, given);
+            let outcome = if (not inScope(c) or Proof.caseInput(penv, c) == null) #void("onbruikbaar") else Proof.compare(def, c.answer, given);
             ans.add(c.n, { n = c.n; given; at = now; outcome });
             received += 1;
           };

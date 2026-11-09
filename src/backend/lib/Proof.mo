@@ -104,6 +104,9 @@ module {
         let f = e.files.files.get(fid) ?? return null;
         let w = c.workId ?? return null;
         if (not fileOk(e, f, w) or not workOk(e, w)) return null;
+        // Review 3.5 M1: ook de soort en het document opnieuw (intussen vertrouwelijk of gearchiveerd = vervallen).
+        switch (Dossier.kind(e.settings, answerOf(c.answer, "soort"))) { case (?k) { if (k.confidential or k.archived) return null }; case null return null };
+        if (not Dossier.docsOf(e.dossier, w).any(func(d : Types.Document) : Bool = not d.confidential and d.fileIds.any(func x = x == fid))) return null;
         ?#Object([("bestand", #Object([("naam", #String(f.name)), ("type", #String(f.mime)), ("grootte", #Number(#Int(f.size)))]))]);
       };
       case _ null;
@@ -214,11 +217,25 @@ module {
     r.vendor == vendor and r.model == model and r.instruction == instruction;
   };
 
+  // Review 3.5 L1: de reikwijdte van de fiche bij de start (werven en soorten). Een bredere fiche dan bij de ronde = een nieuwe ronde.
+  public type Scope = { allWorks : Bool; works : [Nat]; kinds : [Text] };
+  public func scopeExtra(s : Scope) : Types.Extra {
+    [("alleWerven", if (s.allWorks) "1" else "0"), ("werven", s.works.values().map(func(w : Nat) : Text = w.toText()).join(",")), ("soorten", s.kinds.values().join(","))];
+  };
+  public func scopeOk(r : Types.ProofRound, s : Scope) : Bool {
+    let all = extraGet(r.extra, "alleWerven") == ?"1";
+    let ws = (extraGet(r.extra, "werven") ?? "").split(#char ',').toArray();
+    let ks = (extraGet(r.extra, "soorten") ?? "").split(#char ',').toArray();
+    if (extraGet(r.extra, "alleWerven") == null) return true; // een ronde zonder reikwijdte (Caffeine)
+    (all or (not s.allWorks and s.works.all(func w = ws.any(func x = x == w.toText())))) and s.kinds.all(func k = ks.any(func x = x == k));
+  };
+
   // De drempel voor Zelf doen.
-  public func gate(ps : Types.ProofState, s : Types.ProofSubject, taskKey : Text, vendor : Text, model : Text, instruction : Text) : { #ok; #err : Text } {
+  public func gate(ps : Types.ProofState, s : Types.ProofSubject, taskKey : Text, vendor : Text, model : Text, instruction : Text, scope : ?Scope) : { #ok; #err : Text } {
     let need = "minstens " # Config.proofMinPct.toText() # " % juist op minstens " # Config.proofMinCases.toText() # " gevallen";
     let r = latestClosed(ps, s, taskKey) ?? return #err("Zelf doen kan pas na een geslaagde proefronde (" # need # ")");
     if (not sameLabels(r, vendor, model, instruction)) return #err("Zelf doen: het model of de instructieversie wijzigde sinds de laatste proefronde. Eerst een nieuwe proefronde (" # need # ")");
+    switch scope { case (?sc) { if (not scopeOk(r, sc)) return #err("Zelf doen: de fiche ziet nu meer werven of documentsoorten dan bij de laatste proefronde. Eerst een nieuwe proefronde (" # need # ")") }; case null {} };
     if (not passed(r)) return #err("Zelf doen: de laatste proefronde haalde de drempel niet (" # r.right.toText() # " / " # r.counted.toText() # "; " # need # ")");
     #ok;
   };

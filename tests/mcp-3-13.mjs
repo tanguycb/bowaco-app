@@ -174,7 +174,7 @@ check("(7) na een wijziging door een mens: niet meer ongedaan te maken", errOf(a
 const W1inv = invAll.find((i) => i.workId === W1);
 // Een factuur op een werf van de fiche: zet de werf van een bestaande proeffactuur op de fiche.
 bA = (await admin.listBots()).find((b) => b.id === idA);
-ok(await admin.saveBot(F({ id: [idA], rev: bA.rev, works: [W1, invOther.workId], tasks: [["document-koppelen", { auto: null }]] })));
+ok(await admin.saveBot(F({ id: [idA], rev: bA.rev, works: [W1, invOther.workId], tasks: [] })));
 const inv0 = (await admin.listOaInvoices([invOther.workId], [])).find((i) => i.id === invOther.id);
 const fc = await tool(anon, cid, conA.access, "voorstel_factuurcontrole", { factuurId: Number(invOther.id), oordeel: "afwijking", opmerkingen: [`Proef: ${MARK}`, "uren kloppen niet"] });
 const inv1 = (await admin.listOaInvoices([invOther.workId], [])).find((i) => i.id === invOther.id);
