@@ -32,7 +32,9 @@ const denied = async (p) => { try { const r = await p; return !!(r && typeof r =
 const sfx = Date.now().toString(36).slice(-5).toUpperCase();
 const today = BigInt(Math.floor(Date.now() / 86_400_000));
 const Y = { yes: null };
-const NOAMOUNT = /cents|bedrag|1234|2500|https?:\/\/|!caf!/i;
+const NOAMOUNT_RE = /cents|bedrag|1234|2500|https?:\/\/|!caf!/i;
+// tijdstempels (ns) kunnen toevallig 1234 of 2500 bevatten: getallen van 13+ cijfers eerst weg
+const NOAMOUNT = { test: (s) => NOAMOUNT_RE.test(String(s).replace(/\d{13,}/g, "")) };
 
 const [admin, calc, wl, oa, arch, klant] = await Promise.all(["proef-admin", "proef-calculator", "proef-werfleider", "proef-oa2", "proef-architect", "proef-klant"].map((n) => backend(n, cid)));
 const anon = await backend(null, cid);
