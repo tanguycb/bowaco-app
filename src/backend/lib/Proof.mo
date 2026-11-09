@@ -24,7 +24,8 @@ module {
   type Json = Json.Json;
 
   // 3.8: #code = een nummer zonder hoofdletters en spaties; #amount = eurocent met een marge (≤ € 1 of ≤ 0,5 %).
-  public type Cmp = { #id; #key; #code; #amount };
+  // 3.10: #verdict = goedkeuren tegenover niet goedkeuren (navragen en weigeren tellen als "niet goedkeuren": een mens betwistte).
+  public type Cmp = { #id; #key; #code; #amount; #verdict };
   // secret = een bedrag: nooit in een query-view (R38), enkel juist of fout.
   public type Field = { name : Text; cmp : Cmp; help : Text; secret : Bool };
   // scope: #docs = werf én documentsoort op de fiche; #work = enkel de werf. content = het geval heeft een bestand dat de bot leest
@@ -57,6 +58,16 @@ module {
       ];
       scope = #work;
       content = true;
+    }, {
+      // 3.10: de taak heet zoals de bot-taak (factuurcontrole). Het juiste antwoord = wat een mens met de factuur deed: goedgekeurd
+      // = goedkeuren, betwist = niet goedkeuren (navragen of weigeren). Het dossier komt erbij (lib/Bots.mo withDossier), zonder status.
+      key = "factuurcontrole";
+      tool = "voorstel_factuurcontrole";
+      aiKey = "";
+      question = "Controleer de factuur van de onderaannemer: haal het bestand met proef_bestand en leg het naast het dossier (registratie, regels, controle van de app, afgesproken prijs, eerdere facturen en offertes, regie-uren). Zou BOWACO ze goedkeuren, navragen of weigeren? Je antwoord verandert niets in de app.";
+      fields = [{ name = "oordeel"; cmp = #verdict; help = "goedkeuren, navragen of weigeren."; secret = false }];
+      scope = #work;
+      content = true;
     }];
   };
 
@@ -72,6 +83,7 @@ module {
     tenders : Types.TenderState; // 3.8: OA-offertes als proefgeval
     org : Types.OrgState;
     oaRead : Types.OaReadState; // 3.8: de inhoud van een proefgeval (proofContent)
+    oaInvoices : Types.OaInvoiceState; // 3.10: OA-facturen als proefgeval
   };
 
   public func contentKey(oaQuoteId : Nat) : Text { "q:" # oaQuoteId.toText() };
@@ -85,6 +97,21 @@ module {
     let f = e.files.files.get(fid) ?? return null;
     if (f.archivedAt != null or f.workId != ?q.workId or (f.mime != "application/pdf" and not f.mime.startsWith(#text "image/"))) return null;
     switch (e.tenders.amounts.get(q.id)) { case (?#plain(_)) {}; case _ return null };
+    ?f;
+  };
+
+  // 3.10: de inhoud van een proefgeval met een OA-factuur (zelfde opslag als 3.8, eigen voorvoegsel).
+  public func invContentKey(invoiceId : Nat) : Text { "f:" # invoiceId.toText() };
+
+  // 3.10: een OA-factuur waarover een INTERNE persoon besliste (goedgekeurd of betwist), met een bijlage (PDF of foto) van die werf.
+  // Een factuur die nog loopt of ingetrokken is, is geen waarheid.
+  public func invoiceOk(e : Env, inv : Types.OaInvoice) : ?Types.FileRef {
+    if ((inv.status != #approved and inv.status != #disputed) or not workOk(e, inv.workId)) return null;
+    let d = inv.decision ?? return null;
+    switch (e.access.persons.get(d.by)) { case (?p) { if (not Rights.internal(p)) return null }; case null return null };
+    let fid = inv.fileId ?? return null;
+    let f = e.files.files.get(fid) ?? return null;
+    if (f.archivedAt != null or f.workId != ?inv.workId or (f.mime != "application/pdf" and not f.mime.startsWith(#text "image/"))) return null;
     ?f;
   };
 
@@ -106,6 +133,7 @@ module {
   // document-koppelen: elk bestand dat aan een document hangt dat een mens zo liet (ontvangen of goedgekeurd, geen bot-merk).
   public func buildCases(e : Env, taskKey : Text, max : Nat) : [Types.ProofCase] {
     if (taskKey == "oa-offerte-inlezen") return buildOaCases(e, max);
+    if (taskKey == "factuurcontrole") return buildInvCases(e, max);
     if (taskKey != "document-koppelen") return [];
     let seen = Map.empty<Nat, ()>();
     let found = List.empty<(Int, Nat, Nat, Text)>(); // (moment, bestand, werf, soort)
@@ -145,6 +173,17 @@ module {
     });
   };
 
+  func buildInvCases(e : Env, max : Nat) : [Types.ProofCase] {
+    let found = List.empty<Types.OaInvoice>();
+    for (inv in e.oaInvoices.invoices.values()) { switch (invoiceOk(e, inv)) { case (?_) found.add(inv); case null {} } };
+    let sorted = found.toArray().sort(func(a : Types.OaInvoice, b : Types.OaInvoice) : { #less; #equal; #greater } = if (a.updatedAt > b.updatedAt) #less else if (a.updatedAt < b.updatedAt) #greater else Nat.compare(b.id, a.id));
+    let n = Nat.min(max, sorted.size());
+    Array.tabulate<Types.ProofCase>(n, func i {
+      let inv = sorted[i];
+      { n = i + 1; ref = #oaInvoice(inv.id); workId = ?inv.workId; answer = [("oordeel", if (inv.status == #approved) "goedkeuren" else "weigeren")] };
+    });
+  };
+
   public func isoDay(day : Nat) : Text {
     let z = day + 719468;
     let era = z / 146097;
@@ -178,6 +217,12 @@ module {
         let b = e.oaRead.proofContent.get(contentKey(qid)) ?? return null;
         ?(f, b);
       };
+      case (#oaInvoice(id)) {
+        let inv = e.oaInvoices.invoices.get(id) ?? return null;
+        let f = invoiceOk(e, inv) ?? return null;
+        let b = e.oaRead.proofContent.get(invContentKey(id)) ?? return null;
+        ?(f, b);
+      };
       case _ null;
     };
   };
@@ -201,6 +246,11 @@ module {
         let firm = switch (e.org.orgs.get(q.orgId)) { case (?o) o.name; case null "" };
         ?#Object([("bestand", #Object([("naam", #String(f.name)), ("type", #String(f.mime)), ("grootte", #Number(#Int(f.size)))])), ("firma", #String(firm)), ("inhoud", #String("haal het bestand met proef_bestand"))]);
       };
+      case (#oaInvoice(_)) {
+        // Enkel met geladen inhoud; het dossier (zonder status of beslissing) zet lib/Bots.mo erbij. Nooit het id of het antwoord.
+        let (f, _) = caseContent(e, c) ?? return null;
+        ?#Object([("bestand", #Object([("naam", #String(f.name)), ("type", #String(f.mime)), ("grootte", #Number(#Int(f.size)))])), ("inhoud", #String("haal het bestand met proef_bestand"))]);
+      };
       case _ null;
     };
   };
@@ -220,6 +270,7 @@ module {
       case (#key) t.toLower();
       case (#code) t.toLower().replace(#char ' ', "");
       case (#amount) switch (Int.fromText(t)) { case (?n) Int.toText(n); case null t };
+      case (#verdict) switch (t.toLower()) { case "goedkeuren" "goedkeuren"; case ("navragen" or "weigeren") "niet"; case _ "?" # t };
     };
   };
 

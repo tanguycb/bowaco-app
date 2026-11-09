@@ -51,11 +51,17 @@ mixin (
   quotes : Types.QuotesState,
   oaDeals : Types.OaDealState,
   oaRead : Types.OaReadState,
+  plan : Types.PlanState,
+  reports : Types.ReportState,
+  workStarts : Types.WorkStartState,
+  surveys : Types.SurveyState,
+  purchases : Types.PurchaseState,
+  invCheck : Types.InvCheckState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
 
-  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; audit; ctr } };
+  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; plan; reports; workStarts; surveys; purchases; invCheck; audit; ctr } };
 
   func requireBotAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);
@@ -90,7 +96,7 @@ mixin (
       case (?_) switch (mcpContent(req)) { case (?r) return r; case null {} };
       case null {};
     };
-    let server : Mcp.Server = { name = "BOWACO"; version = "3.8"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
+    let server : Mcp.Server = { name = "BOWACO"; version = "3.10"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
     switch (await* Mcp.handleUpdate(bots.oauth, server, req)) { case (?r) r; case null Http.notFound() };
   };
 
@@ -99,7 +105,7 @@ mixin (
     if ((path != "/mcp" and path != "/mcp/") or req.method.toUpper() != "POST") return null;
     let body = Http.bodyText(req) ?? return null;
     // Snel: enkel als de naam van een bijlagetool erin staat (anders niets ontleden).
-    if (not body.contains(#text "inleesbestand") and not body.contains(#text "proef_bestand")) return null;
+    if (not body.contains(#text "inleesbestand") and not body.contains(#text "proef_bestand") and not body.contains(#text "controlebestand")) return null;
     let #Object(fs) = Json.parse(body) ?? return null else return null;
     let get = func(xs : [(Text, Json.Json)], k : Text) : ?Json.Json { switch (xs.find(func((a, _) : (Text, Json.Json)) : Bool = a == k)) { case (?(_, v)) ?v; case null null } };
     if (get(fs, "method") != ?#String("tools/call")) return null;
@@ -108,7 +114,7 @@ mixin (
     let id = switch (get(fs, "id")) { case (?#String(t)) #String(t); case (?#Number(n)) #Number(n); case _ return null };
     let #Object(params) = get(fs, "params") ?? return null else return null;
     let name = switch (get(params, "name")) { case (?#String(n)) n; case _ return null };
-    if (name != "inleesbestand" and name != "proef_bestand") return null;
+    if (name != "inleesbestand" and name != "proef_bestand" and name != "controlebestand") return null;
     let args : [(Text, Json.Json)] = switch (get(params, "arguments")) { case (?#Object(a)) a; case _ [] };
     let token = bearerOf(req) ?? return null;
     let caller = OAuth.authenticate(bots.oauth, token, Time.now()) ?? return null;
@@ -464,6 +470,8 @@ mixin (
     // 3.8: een ingelezen OA-offerte beslist kantoor in het formulier (werf → Offerte → OA-offertes), niet hier.
     switch (a.action) {
       case (#other(x)) { if (x.tool == "voorstel_oa_offerte") return #err("Beslis dit voorstel bij de werf: Offerte → OA-offertes → Ingelezen offertes") };
+      // 3.10: een factuurcontrole bij een opdracht volgt de beslissing over de factuur zelf (OA-facturen), niet hier.
+      case (#invoiceCheck(_)) { if (a.extra.any(func((k, _) : (Text, Text)) : Bool = k == "controleopdracht")) return #err("Beslis over de factuur zelf: OA-facturen → de factuur (goedkeuren of betwisten)") };
       case _ {};
     };
     if (accept) {

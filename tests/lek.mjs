@@ -171,6 +171,16 @@ const table = {
   runOaReadAi: [["admin", "calculator"], () => [X]],
   finishOaRead: [["admin", "calculator"], () => [X, { cancelled: null }]],
   applyOaRead: [["admin", "calculator"], () => [X, { inviteId: [], workId: B, orgId: X, source: { hand: null }, sheetKey: "", number: "", quoteDay: 0n, validUntil: [], discountBp: [], reverse: true, prices: { total: 0n }, remark: "", note: "", file: [] }, 0n]],
+  // 3.10: OA-factuurcontrole (kantoor met het volle zicht op de OA-facturen: admin en calculator; het resultaat enkel via
+  // readInvCheck, update-call met auditregel). De invoer is telkens ongeldig (lege inhoud): geen wijziging.
+  startInvCheck: [["admin", "calculator"], () => [{ invoiceId: oaInv.id, way: { ai: null }, name: "x", mime: "text/plain", content: new Uint8Array() }]],
+  listInvChecks: [["admin", "calculator"], () => [oaInv.id]],
+  listInvCheckBots: [["admin", "calculator"], () => [B]],
+  invCheckAiReady: [["admin", "calculator"], () => []],
+  // Een onbekende opdracht: voor iedereen "Geen toegang" (geen id-orakel).
+  readInvCheck: [NONE, () => [X]],
+  runInvCheckAi: [NONE, () => [X]],
+  finishInvCheck: [NONE, () => [X, { cancelled: null }]],
   invitePerson: [["admin", "werfleider"], () => [invReq]],
   createRecoveryCode: [ADMIN, () => [X, 0n, ""]],
   confirmLink: [ADMIN, () => [someone]],
@@ -742,6 +752,8 @@ for (const k of Object.keys(table)) if (!methods.includes(k)) console.log(`· ta
     tries.push(["proef_gevallen", {}], ["proef_antwoorden", { antwoorden: [{ geval: 1, werfId: Number(A), soort: "vgplan" }] }]);
     // 3.8: OA-offerte inlezen buiten de fiche (ook de bijlagetools, die apart beantwoord worden).
     tries.push(["inleesopdrachten", {}], ["inleesbestand", { opdracht: 1 }], ["voorstel_oa_offerte", { opdracht: 1, vorm: "totaal", totaalCent: 1 }], ["proef_bestand", { geval: 1 }]);
+    // 3.10: OA-factuurcontrole buiten de fiche (ook de bijlagetool en het voorstel bij een opdracht).
+    tries.push(["controleopdrachten", {}], ["controlebestand", { opdracht: 1 }], ["voorstel_factuurcontrole", { opdracht: 1, voorstel: "goedkeuren" }]);
     let botCalls = 0;
     for (const [n, a] of tries) {
       botCalls++;

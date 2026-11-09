@@ -59,7 +59,7 @@ for (const [n, x] of [["werfleider", wl], ["calculator", calc], ["OA", oa], ["an
   check(`(1) ${n} beheert geen bots`, rs.every(Boolean), S(rs));
 }
 const info = await admin.mcpInfo();
-check("(1) mcpInfo: 10 tools, 3 taken (document koppelen en OA-offerte inlezen (3.8) mogen Zelf doen, factuurcontrole niet), 5 Nooit-taken", info.tools.length === 10 && info.tasks.length === 3 && info.tasks.find((t) => t.key === "oa-offerte-inlezen")?.maxAuto === true && info.tasks.find((t) => t.key === "document-koppelen")?.maxAuto === true && info.tasks.find((t) => t.key === "factuurcontrole")?.maxAuto === false && info.never.length === 5, S(info));
+check("(1) mcpInfo: 12 tools (3.10: + controleopdrachten, controlebestand), 3 taken (document koppelen en OA-offerte inlezen (3.8) mogen Zelf doen, factuurcontrole niet), 5 Nooit-taken", info.tools.length === 12 && info.tasks.length === 3 && info.tasks.find((t) => t.key === "oa-offerte-inlezen")?.maxAuto === true && info.tasks.find((t) => t.key === "document-koppelen")?.maxAuto === true && info.tasks.find((t) => t.key === "factuurcontrole")?.maxAuto === false && info.never.length === 5, S(info));
 check("(1) inlogpagina: ongeldig adres geweigerd, https://host aanvaard", errOf(await admin._caffeineMcpSetSignInOrigin("https://x.example/pad")).includes("Ongeldig") && isOk(await admin._caffeineMcpSetSignInOrigin("https://proef-3-13.example")) && (await anon._caffeineMcpSignInOrigin())[0] === "https://proef-3-13.example");
 
 // ── (2) De fiche ────────────────────────────────────────────────────────

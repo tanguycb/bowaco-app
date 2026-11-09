@@ -628,6 +628,9 @@ module {
       ("inleesopdrachten", "oa-offerte-inlezen"),
       ("inleesbestand", "oa-offerte-inlezen"),
       ("voorstel_oa_offerte", "oa-offerte-inlezen"),
+      // 3.10: OA-factuurcontrole (de opdrachten met het dossier, het bestand van een opdracht; het voorstel = voorstel_factuurcontrole).
+      ("controleopdrachten", "factuurcontrole"),
+      ("controlebestand", "factuurcontrole"),
     ];
   };
   // De taken met hun hoogste niveau: document koppelen is intern en terug te draaien (mag Zelf doen); factuurcontrole raakt
@@ -652,6 +655,16 @@ module {
   public let oaReadMaxLiveBytes : Nat = 100_000_000; // review 3.8 M2: alle inhoud van open opdrachten samen
   public let oaReadMaxProofBytes : Nat = 150_000_000; // idem voor de geladen proefbestanden
   public let oaReadMaxProofContent : Nat = 220; // inhoud van proefgevallen (hoogstens zoveel bestanden tegelijk)
+  // 3.10: OA-factuurcontrole. Zelfde grens per bestand als 3.8 (MCP-antwoord); tekst voor Caffeine AI; bevindingen begrensd.
+  public let invCheckMaxBytes : Nat = 1_350_000;
+  public let invCheckMaxText : Nat = 60_000;
+  public let invCheckMaxOpenPerWork : Nat = 30;
+  public let invCheckMaxJobs : Nat = 5_000;
+  public let invCheckMaxFindings : Nat = 30;
+  public let invCheckAnswerBytes : Nat = 40_000;
+  public let invCheckExpire : Int = 1_209_600_000_000_000; // 14 dagen
+  public let invCheckMaxLiveBytes : Nat = 100_000_000;
+  public let invCheckKeep : Int = 7_776_000_000_000_000; // review 3.10 M3: afgesloten opdrachten na 90 dagen weg
   public let botMaxCallsPerDay : Nat = 2_000;
   public let botDefaultCallsPerDay : Nat = 100;
   public let botCodeValid : Int = 86_400_000_000_000; // de koppelcode: 24 u, eenmalig

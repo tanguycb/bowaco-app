@@ -945,6 +945,7 @@ type Day__253571679 = Nat;
 type Day__315760598 = Nat;
 type Day__432051804 = Nat;
 type Day__543083322 = Nat;
+type Day__602383878 = Nat;
 type Day__667596731 = Nat;
 type Day__672613163 = Nat;
 type Day__691174369 = Nat;
@@ -1075,6 +1076,7 @@ type DossierState__7485337 =
     info : Map__230067015<WorkId__838834227, WorkInfo__968164740>
   };
 type Extra__1018104949 = [(Text, Text)];
+type Extra__219484659 = [(Text, Text)];
 type Extra__25764100 = [(Text, Text)];
 type Extra__262828561 = [(Text, Text)];
 type Extra__268650993 = [(Text, Text)];
@@ -2494,6 +2496,7 @@ type OaDealState__105177660 =
   };
 type OaIncluded__281997571 = {#alt : Text; #no; #yes};
 type OaIncluded__60770566 = {#alt : Text; #no; #yes};
+type OaIncluded__989588226 = {#alt : Text; #no; #yes};
 type OaInvoiceAmounts__1005394496 =
   {
     extra : Extra__708758806;
@@ -2769,6 +2772,127 @@ type OaRate__729299425 =
     unit : Text;
     validFrom : Day__162369424
   };
+type OaReadJob__177760653 =
+  {
+    createdAt : Int;
+    createdBy : PersonId__1070033768;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId__1070033768;
+    var extra : Extra__219484659;
+    fileId : ?Nat;
+    id : Nat;
+    inviteId : ?Nat;
+    mime : Text;
+    name : Text;
+    orgId : Nat;
+    var proposal : ?OaReadProposal__1009564710;
+    size : Nat;
+    var status : OaReadStatus__211383617;
+    tenderId : ?Nat;
+    via : OaReadVia__148269161;
+    workId : WorkId__305950378
+  };
+type OaReadJob__567720431 =
+  {
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId__967516914;
+    var extra : Extra__945213800;
+    fileId : ?Nat;
+    id : Nat;
+    inviteId : ?Nat;
+    mime : Text;
+    name : Text;
+    orgId : Nat;
+    var proposal : ?OaReadProposal__850242293;
+    size : Nat;
+    var status : OaReadStatus__145352219;
+    tenderId : ?Nat;
+    via : OaReadVia__874556098;
+    workId : WorkId__929594816
+  };
+type OaReadLine__531077180 =
+  {
+    description : Text;
+    included : OaIncluded__281997571;
+    itemId : ?Nat;
+    qtyMilli : Int;
+    remark : Text;
+    unit : Text;
+    unitCents : ?Int
+  };
+type OaReadLine__592566906 =
+  {
+    description : Text;
+    included : OaIncluded__989588226;
+    itemId : ?Nat;
+    qtyMilli : Int;
+    remark : Text;
+    unit : Text;
+    unitCents : ?Int
+  };
+type OaReadProposal__1009564710 =
+  {
+    at : Int;
+    chapterTotals : [(Text, Int)];
+    confidence : Nat;
+    discountBp : ?Nat;
+    extra : Extra__219484659;
+    form : Text;
+    lines : [OaReadLine__592566906];
+    number : Text;
+    quoteDay : ?Day__602383878;
+    remarks : [Text];
+    reverse : ?Bool;
+    totalCents : ?Int;
+    validUntil : ?Day__602383878
+  };
+type OaReadProposal__850242293 =
+  {
+    at : Int;
+    chapterTotals : [(Text, Int)];
+    confidence : Nat;
+    discountBp : ?Nat;
+    extra : Extra__945213800;
+    form : Text;
+    lines : [OaReadLine__531077180];
+    number : Text;
+    quoteDay : ?Day__162369424;
+    remarks : [Text];
+    reverse : ?Bool;
+    totalCents : ?Int;
+    validUntil : ?Day__162369424
+  };
+type OaReadState__749995344 =
+  {
+    byWork : Map__230067015<Nat, [Nat]>;
+    content : Map__230067015<Nat, Blob>;
+    jobs : Map__230067015<Nat, OaReadJob__177760653>;
+    proofContent : Map__230067015<Text, Blob>
+  };
+type OaReadStatus__145352219 =
+  {
+    #applied : Nat;
+    #cancelled;
+    #failed : Text;
+    #open;
+    #other : Text;
+    #proposed;
+    #rejected : Text
+  };
+type OaReadStatus__211383617 =
+  {
+    #applied : Nat;
+    #cancelled;
+    #failed : Text;
+    #open;
+    #other : Text;
+    #proposed;
+    #rejected : Text
+  };
+type OaReadVia__148269161 = {#ai; #bot : Nat; #other : Text};
+type OaReadVia__874556098 = {#ai; #bot : Nat; #other : Text};
 type OaState__978871092 =
   {
     orgContacts : Map__230067015<OrgId__98679714, OrgContact__467829229>;
@@ -3204,6 +3328,7 @@ type PersonContact__279373132 =
   };
 type PersonId__1007515609 = Nat;
 type PersonId__1012124006 = Nat;
+type PersonId__1070033768 = Nat;
 type PersonId__184143711 = Nat;
 type PersonId__185004052 = Nat;
 type PersonId__192734764 = Nat;
@@ -5728,6 +5853,7 @@ type WorkDone__366546212 =
 type WorkId__111716167 = Nat;
 type WorkId__171501769 = Nat;
 type WorkId__299750985 = Nat;
+type WorkId__305950378 = Nat;
 type WorkId__35351127 = Nat;
 type WorkId__386895530 = Nat;
 type WorkId__446306738 = Nat;
@@ -5913,7 +6039,8 @@ type WorksState__605582232 =
   "20261101_155702" : OldActor__67970265 -> NewActor__813176251;
   "20261106_180000" : OldActor__893970407 -> NewActor__680101125;
   "20261108_120000" : {} -> {bots : BotState__111932722};
-  "20261109_120000" : {} -> {proof : ProofState__159778891}
+  "20261109_120000" : {} -> {proof : ProofState__159778891};
+  "20261110_090000" : {} -> {oaRead : OaReadState__749995344}
 }
 actor  {
   stable access :
@@ -6039,6 +6166,13 @@ actor  {
       byWork : Map__230067015<Nat, [Nat]>;
       invoices : Map__230067015<Nat, OaInvoice__811173031>;
       keys : Map__230067015<Text, Nat>
+    };
+  stable oaRead :
+    {
+      byWork : Map__230067015<Nat, [Nat]>;
+      content : Map__230067015<Nat, Blob>;
+      jobs : Map__230067015<Nat, OaReadJob__567720431>;
+      proofContent : Map__230067015<Text, Blob>
     };
   stable org :
     {

@@ -4,6 +4,7 @@
 // drempel. Goedkeuren vraagt de inhoudingsplicht-raadpleging van vandaag (met referentie) of een gemotiveerde uitzondering;
 // betwisten vraagt een reden. De werfleider ziet de regels met hoeveelheden en uren, nooit een bedrag (oaInvoiceQty). De OA ziet
 // enkel de status van zijn eigen facturen (MijnFacturenPage), als de beheerder dat aanzette. Bevestigen in een paneel.
+import { InvCheckPanel } from "./FactuurControle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ExternalBlob, OaInvoiceLineKind, OaInvoiceStatus, OrgKind, WithholdingResult, type Caps, type OaInvoiceFullView, type OaInvoiceInput, type OaInvoiceLine, type OaInvoiceQtyView, type OaLineQty, type OaPostOption, type OaVatRegime } from "../backend";
@@ -367,6 +368,7 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
         <h2 className="bw-h3">{T.control} {flagN > 0 ? <span className="a-tag a-tag--warn">{T.flagCount(flagN)}</span> : <span className="a-tag a-tag--ok">{T.noFlags}</span>}</h2>
         <LinesControl lines={v.lines.map((l) => ({ q: l.q, m: l.m }))} />
       </section>
+      <InvCheckPanel invoiceId={id} workId={b.workId} file={v.file} canStart={v.canDecide && (b.status === OaInvoiceStatus.registered || b.status === OaInvoiceStatus.disputed)} />
 
       <Sheet title={T.approveTitle} open={sheet === "approve"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={!canApprove || (flagN > 0 && reason.trim().length < 5)} onClick={() => void approve()} data-testid="oi-approve-go">{T.approve}</Button></>}>
         <p>{T.approveLead}</p>

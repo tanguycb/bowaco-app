@@ -87,7 +87,7 @@ export function Proefbank() {
         <span className="a-row">
           <Button variant="quiet" onClick={() => setShowSet(s)}>{P.cases}</Button>
           {s.archivedAt === undefined ? <>
-            {s.task === "oa-offerte-inlezen" && <Button variant="quiet" title={P.loadNote} busy={load.isPending && load.variables?.id === s.id} onClick={() => load.mutate(s)} data-testid="pb-load">{P.load}</Button>}
+            {(s.task === "oa-offerte-inlezen" || s.task === "factuurcontrole") && <Button variant="quiet" title={P.loadNote} busy={load.isPending && load.variables?.id === s.id} onClick={() => load.mutate(s)} data-testid="pb-load">{P.load}</Button>}
             <Button variant="quiet" onClick={() => setStart(s)}>{P.newRound}</Button>
             <Button variant="quiet" busy={archive.isPending && archive.variables?.id === s.id} onClick={() => archive.mutate(s)}>{P.archive}</Button>
           </> : <span className="a-tag">{P.archived}</span>}

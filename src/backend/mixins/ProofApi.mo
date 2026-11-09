@@ -38,6 +38,7 @@ mixin (
   org : Types.OrgState,
   tenders : Types.TenderState,
   oaRead : Types.OaReadState,
+  oaInvoices : Types.OaInvoiceState,
   robot : Types.RobotState,
   ai : Types.AiState,
   bots : Types.BotState,
@@ -47,7 +48,7 @@ mixin (
   isAiLive : () -> Bool,
 ) {
 
-  func proofEnv() : Proof.Env { { settings; access; works; files; dossier; proof; tenders; org; oaRead } };
+  func proofEnv() : Proof.Env { { settings; access; works; files; dossier; proof; tenders; org; oaRead; oaInvoices } };
 
   func requireProofAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);
@@ -206,6 +207,12 @@ mixin (
           let f = Proof.oaQuoteOk(e, q) ?? return null;
           ?{ n = c.n; oaQuoteId = qid; fileId = f.id; name = f.name; mime = f.mime; size = f.size; loaded = oaRead.proofContent.containsKey(Proof.contentKey(qid)) };
         };
+        // 3.10: een OA-factuur (oaQuoteId = 0; het bestand is de bijlage van de factuur).
+        case (#oaInvoice(iid)) {
+          let inv = oaInvoices.invoices.get(iid) ?? return null;
+          let f = Proof.invoiceOk(e, inv) ?? return null;
+          ?{ n = c.n; oaQuoteId = 0; fileId = f.id; name = f.name; mime = f.mime; size = f.size; loaded = oaRead.proofContent.containsKey(Proof.invContentKey(iid)) };
+        };
         case _ null;
       };
     });
@@ -216,22 +223,31 @@ mixin (
     let s = proof.sets.get(setId) ?? return #err("Onbekende testset");
     if (s.archivedAt != null) return #err("Deze testset is gearchiveerd");
     let c = Proof.caseOf(s, n) ?? return #err("Onbekend geval");
-    let qid = switch (c.ref) { case (#oaQuote(q)) q; case _ return #err("Dit geval heeft geen bestand om te laden") };
-    let q = tenders.oaQuotes.get(qid) ?? return #err("Onbekende OA-offerte");
-    let f = Proof.oaQuoteOk(proofEnv(), q) ?? return #err("Dit geval is niet meer bruikbaar");
+    let (key, f, workId) = switch (c.ref) {
+      case (#oaQuote(qid)) {
+        let q = tenders.oaQuotes.get(qid) ?? return #err("Onbekende OA-offerte");
+        let f = Proof.oaQuoteOk(proofEnv(), q) ?? return #err("Dit geval is niet meer bruikbaar");
+        (Proof.contentKey(qid), f, q.workId);
+      };
+      case (#oaInvoice(iid)) {
+        let inv = oaInvoices.invoices.get(iid) ?? return #err("Onbekende OA-factuur");
+        let f = Proof.invoiceOk(proofEnv(), inv) ?? return #err("Dit geval is niet meer bruikbaar");
+        (Proof.invContentKey(iid), f, inv.workId);
+      };
+      case _ return #err("Dit geval heeft geen bestand om te laden");
+    };
     if (content.size() == 0 or content.size() != f.size) return #err("Het bestand klopt niet (andere grootte)");
     if (content.size() > Config.oaReadMaxBytes) return #err("Te groot om in te lezen (hoogstens 1,35 MB): dit geval doet niet mee");
-    let key = Proof.contentKey(qid);
     if (not oaRead.proofContent.containsKey(key) and (oaRead.proofContent.size() >= Config.oaReadMaxProofContent or OaRead.proofBytes(oaRead) + content.size() > Config.oaReadMaxProofBytes)) return #err("Te veel geladen bestanden; archiveer eerst een oude testset");
     oaRead.proofContent.add(key, content);
-    Access.audit(audit, caller, ?p.id, ?q.workId, "proef-bestand", "set #" # setId.toText() # " geval " # n.toText());
+    Access.audit(audit, caller, ?p.id, ?workId, "proef-bestand", "set #" # setId.toText() # " geval " # n.toText());
     #ok;
   };
 
   // De inhoud die geen enkele lopende set (niet gearchiveerd) nog nodig heeft, weg.
   func proofDropContent() {
     let keep = Map.empty<Text, ()>();
-    for (s in proof.sets.values()) if (s.archivedAt == null) for (c in s.cases.values()) switch (c.ref) { case (#oaQuote(q)) keep.add(Proof.contentKey(q), ()); case _ {} };
+    for (s in proof.sets.values()) if (s.archivedAt == null) for (c in s.cases.values()) switch (c.ref) { case (#oaQuote(q)) keep.add(Proof.contentKey(q), ()); case (#oaInvoice(i)) keep.add(Proof.invContentKey(i), ()); case _ {} };
     let drop = List.empty<Text>();
     for (k in oaRead.proofContent.keys()) if (not keep.containsKey(k)) drop.add(k);
     for (k in drop.values()) oaRead.proofContent.remove(k);

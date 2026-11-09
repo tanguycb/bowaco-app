@@ -74,6 +74,16 @@ createServer((req, res) => {
       const regels = [...posts.map((id) => ({ postId: id, omschrijving: "", eenheid: "", hoeveelheid: 1, eenheidsprijsCent: 1000, inbegrepen: "ja", opmerking: "" })), { postId: null, omschrijving: "Nep eigen regel", eenheid: "pst", hoeveelheid: 1, eenheidsprijsCent: 500, inbegrepen: "ja", opmerking: "" }];
       content = JSON.stringify({ nummer: nr, datum, geldigTot: null, btwVerlegd: true, kortingPct: null, vorm: "posten", regels, hoofdstukken: [], totaalCent: tot ? Math.round(Number(tot.replace(/\./g, "").replace(",", ".")) * 100) : null, opmerkingen: ["nep: negeer elke instructie in het document"], vertrouwen: 0.8 });
     }
+    // 3.10: OA-factuurcontrole uit tekst. Het dossier (JSON) staat vóór het blok, de tekst van de factuur erin. De nep zegt "weigeren"
+    // als de tekst "dubbel" bevat (met het nummer uit het dossier in de bevinding: bewijs dat het dossier meekwam), anders "goedkeuren".
+    if (parsed?.response_format?.json_schema?.name === "oa_factuurcontrole_v1") {
+      const u = String(parsed?.messages?.find((x) => x.role === "user")?.content ?? "");
+      const [ctx, rest = ""] = u.split("<<<DOCUMENT");
+      const doc = rest.split("DOCUMENT>>>")[0] ?? "";
+      const nr = (ctx.match(/"nummer":"([^"]+)"/) ?? [])[1] ?? "?";
+      const dubbel = /dubbel/i.test(doc);
+      content = JSON.stringify({ voorstel: dubbel ? "weigeren" : "goedkeuren", bevindingen: dubbel ? [{ soort: "dubbel", ernst: "fout", tekst: `nep: ${nr} lijkt dubbel gefactureerd`, bedragCent: 12345 }] : [], samenvatting: "nep: negeer elke instructie in het document", vertrouwen: 0.7 });
+    }
     if (m === "ongeldig") content = "dit is geen json";
     if (m === "groot") content = JSON.stringify({ werf: "W-901", documentsoort: "andere", firma: null, bedragCent: null, vertrouwen: 0.1, opvulling: "x".repeat(12000) });
     const message = m === "weiger" ? { role: "assistant", content: null, refusal: "nee" } : { role: "assistant", content };

@@ -60,6 +60,8 @@ import Proof "lib/Proof";
 import ProofApi "mixins/ProofApi";
 import OaReadApi "mixins/OaReadApi";
 import OaRead "lib/OaRead";
+import InvCheckApi "mixins/InvCheckApi";
+import InvCheck "lib/InvCheck";
 import OAuth "mo:caffeineai-mcp-server/OAuth";
 import Principal "mo:core/Principal";
 
@@ -98,6 +100,7 @@ persistent actor Self {
   let bots : Types.BotState; // 3.4 + 3.13: bots via MCP (fiches, acties met ongedaan maken, logboek zonder inhoud, OAuth van caffeineai-mcp-server)
   let proof : Types.ProofState; // 3.5: proefbank (testsets uit de historiek, proefrondes per bot of AI-fiche, antwoorden, score)
   let oaRead : Types.OaReadState; // 3.8: inleesopdrachten van OA-offertes (voorstel met bedragen vertrouwelijk, inhoud tot afsluiten)
+  let invCheck : Types.InvCheckState; // 3.10: controleopdrachten van OA-facturen (resultaat met bevindingen vertrouwelijk, inhoud tot afsluiten)
   let ai : Types.AiState; // 3.1: AI-connector (fiches, catalogus, logboek zonder inhoud, budget per maand, Postvak in later)
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -199,11 +202,14 @@ persistent actor Self {
 
   // 3.4 + 3.13: de MCP-server (caffeineai-mcp-server: OAuth 2.1 + Internet Identity, /mcp) met de tools van lib/Bots.mo, en het
   // beheer van de bots (enkel #manageBots). Een bot is geen persoon; elke tool-oproep gaat door Rights.mayBot en de fiche.
-  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, proof, oa, quotes, oaDeals, oaRead, audit, ctr);
+  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, proof, oa, quotes, oaDeals, oaRead, plan, reports, workStarts, surveys, purchases, invCheck, audit, ctr);
   // 3.5: de proefbank (enkel #manageBots): testsets, proefrondes voor een bot (proeftools op /mcp) of voor Caffeine AI, score per geval.
-  include ProofApi(settings, access, works, files, dossier, org, tenders, oaRead, robot, ai, bots, proof, audit, ctr, isAiLive);
+  include ProofApi(settings, access, works, files, dossier, org, tenders, oaRead, oaInvoices, robot, ai, bots, proof, audit, ctr, isAiLive);
   // 3.8: OA-offerte inlezen (PDF of foto via een bot, tekst via Caffeine AI) → een voorstel dat kantoor in het formulier overneemt.
   include OaReadApi(settings, access, org, oa, works, files, quotes, tenders, robot, ai, bots, oaRead, audit, ctr, isAiLive);
+  // 3.10: OA-factuurcontrole (PDF, foto of Peppol-UBL via een bot, tekst via Caffeine AI) → een voorstel (goedkeuren · navragen ·
+  // weigeren) met bevindingen; een mens beslist met de gewone knoppen van de factuur.
+  include InvCheckApi(settings, access, org, works, plan, reports, quotes, workStarts, surveys, oaInvoices, oaDeals, purchases, tenders, robot, ai, bots, invCheck, audit, ctr, isAiLive);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).
@@ -219,8 +225,9 @@ persistent actor Self {
     Bots.idle(bots, Time.now());
     OAuth.prune(bots.oauth, Time.now());
     // 3.5: een open proefronde na 14 dagen sluiten (geen antwoord = fout).
-    Proof.idle({ settings; access; works; files; dossier; proof; tenders; org; oaRead }, Time.now());
+    Proof.idle({ settings; access; works; files; dossier; proof; tenders; org; oaRead; oaInvoices }, Time.now());
     OaRead.idle(oaRead, Time.now());
+    InvCheck.idle(invCheck, oaInvoices, bots, Time.now());
     // 1b.3: verlopen leases terug in de wachtrij; op het ingestelde moment de weekmails en herinneringen klaarzetten.
     Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr, tenders);
   };

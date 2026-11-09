@@ -2724,6 +2724,41 @@ module {
     proofContent : Map.Map<Text, Blob>; // "set:geval" → inhoud van een proefgeval (weg met de set)
   };
 
+  // ── OA-factuurcontrole (stap 3.10, bouwplan §6 "Twee wegen voor AI") ──
+  // Eigen stabiel veld `invCheck` (deelvorm, OldActor = {}). Een CONTROLEOPDRACHT hoort bij één OA-factuur (2.11, ook een werfdeel
+  // van een aankoop van 2c.7): een bot leest het bestand (PDF, foto of Peppol-UBL) via MCP, of Caffeine AI leest de geplakte tekst,
+  // en legt het naast wat de app al weet (registratie, controle van 2.11/2c.7, afspraak, eerdere facturen, uren). De uitkomst is
+  // ALTIJD een voorstel (goedkeuren · navragen · weigeren) met bevindingen; een mens beslist met de gewone knoppen van de factuur.
+  // Nooit goedkeuren of betalen (Config.botNeverTasks). Het resultaat is vertrouwelijk (bedragen in de bevindingen, R38): enkel via
+  // readInvCheck (update-call met auditregel). De inhoud (bytes of tekst) staat apart in content en verdwijnt bij het afsluiten.
+  public type InvCheckVia = { #bot : Nat; #ai; #other : Text };
+  public type InvCheckStatus = { #open; #proposed; #closed : Text; #cancelled; #failed : Text; #other : Text };
+  public type InvCheckFinding = { kind : Text; severity : Text; text : Text; cents : ?Int; extra : Extra };
+  public type InvCheckResult = { verdict : Text; findings : [InvCheckFinding]; summary : Text; confidence : Nat; at : Int; extra : Extra };
+  public type InvCheckJob = {
+    id : Nat;
+    workId : WorkId;
+    invoiceId : Nat;
+    orgId : Nat;
+    name : Text;
+    mime : Text;
+    size : Nat;
+    via : InvCheckVia;
+    createdAt : Int;
+    createdBy : PersonId;
+    var status : InvCheckStatus;
+    var result : ?InvCheckResult;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId;
+    var extra : Extra;
+  };
+  public type InvCheckState = {
+    jobs : Map.Map<Nat, InvCheckJob>;
+    byWork : Map.Map<Nat, [Nat]>;
+    content : Map.Map<Nat, Blob>; // opdracht → inhoud (weg na afsluiten)
+    extra : Map.Map<Text, Text>; // reserve
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;
