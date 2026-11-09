@@ -57,7 +57,7 @@ for (const [n, x] of [["werfleider", wl], ["calculator", calc], ["OA", oa], ["an
   check(`(1) ${n} beheert de proefbank niet`, rs.every(Boolean), S(rs));
 }
 const info = await admin.proofInfo();
-check("(1) proofInfo: taak document-koppelen met velden werfId en soort, drempel 95 % op 50 (Config)", info.minPct === 95n && info.minCases === 50n && info.tasks.length === 3 && S(info.tasks[0].fields.map((f) => f.name)) === S(["werfId", "soort"]) && info.tasks[1].key === "oa-offerte-inlezen" && info.tasks[2].key === "factuurcontrole", S(info));
+check("(1) proofInfo: taak document-koppelen met velden werfId en soort, drempel 95 % op 50 (Config)", info.minPct === 95n && info.minCases === 50n && info.tasks.length === 5 && info.tasks[3].key === "offertes-vergelijken" && info.tasks[4].key === "offerte-nalezen" && S(info.tasks[0].fields.map((f) => f.name)) === S(["werfId", "soort"]) && info.tasks[1].key === "oa-offerte-inlezen" && info.tasks[2].key === "factuurcontrole", S(info));
 
 // ── (2) Testset uit de historiek ────────────────────────────────────────
 check("(2) onbekende taak, 0 gevallen en te veel gevallen geweigerd", errOf(await admin.buildProofSet("betalen", "x", 10n)).includes("Onbekende") && errOf(await admin.buildProofSet("document-koppelen", "x", 0n)).includes("Aantal") && errOf(await admin.buildProofSet("document-koppelen", "x", 201n)).includes("Aantal"));

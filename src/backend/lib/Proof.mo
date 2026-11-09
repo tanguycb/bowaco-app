@@ -19,13 +19,19 @@ import Types "../types";
 import Config "Config";
 import Dossier "Dossier";
 import Rights "Rights";
+import OaQuotes "OaQuotes";
+import Tenders "Tenders";
+import Sha256 "mo:sha2/Sha256";
+import Time "mo:core/Time";
+import Blob "mo:core/Blob";
 
 module {
   type Json = Json.Json;
 
   // 3.8: #code = een nummer zonder hoofdletters en spaties; #amount = eurocent met een marge (≤ € 1 of ≤ 0,5 %).
   // 3.10: #verdict = goedkeuren tegenover niet goedkeuren (navragen en weigeren tellen als "niet goedkeuren": een mens betwistte).
-  public type Cmp = { #id; #key; #code; #amount; #verdict };
+  // 3.9: #picks = per post de gekozen offerte ("post=offerte;…"); juist = minstens 80 % van de posten die een mens koos, gelijk.
+  public type Cmp = { #id; #key; #code; #amount; #verdict; #picks };
   // secret = een bedrag: nooit in een query-view (R38), enkel juist of fout.
   public type Field = { name : Text; cmp : Cmp; help : Text; secret : Bool };
   // scope: #docs = werf én documentsoort op de fiche; #work = enkel de werf. content = het geval heeft een bestand dat de bot leest
@@ -68,6 +74,25 @@ module {
       fields = [{ name = "oordeel"; cmp = #verdict; help = "goedkeuren, navragen of weigeren."; secret = false }];
       scope = #work;
       content = true;
+    }, {
+      // 3.9: een prijsvraag die een INTERNE persoon afsloot, met de keuze per post. Het dossier (zonder de keuze) zet lib/Bots.mo erbij.
+      key = "offertes-vergelijken";
+      tool = "voorstel_vergelijking";
+      aiKey = "";
+      question = "Vergelijk de offertes van de onderaannemers in het dossier en kies per post de firma die BOWACO volgens jou neemt (offerte = het offerte-id uit het dossier). Antwoord met keuzes: een lijst van {post, offerte}. Je antwoord verandert niets in de app.";
+      fields = [{ name = "keuzes"; cmp = #picks; help = "Per post de offerte: een lijst van {post, offerte}."; secret = false }];
+      scope = #work;
+      content = false;
+    }, {
+      // 3.11: een verstuurde offerteversie; de proefbank bouwt in drie van de vier gevallen één fout in (eenheidsprijs, btw, totaal)
+      // en weet zo het juiste antwoord. Het dossier (met de ingebouwde fout) zet lib/Bots.mo erbij.
+      key = "offerte-nalezen";
+      tool = "opmerkingen_offerte";
+      aiKey = "";
+      question = "Lees de offerte in het dossier na. Zit er een fout in de eenheidsprijzen (een prijs die er ver naast ligt), in de btw (tarief tegenover de werf) of in het totaal (klopt niet met subtotaal + btw)? Antwoord met fout: eenheidsprijs, btw, totaal of geen. Je antwoord verandert niets in de app.";
+      fields = [{ name = "fout"; cmp = #key; help = "geen, eenheidsprijs, btw of totaal: de soort van de ernstigste fout."; secret = false }];
+      scope = #work;
+      content = false;
     }];
   };
 
@@ -84,6 +109,7 @@ module {
     org : Types.OrgState;
     oaRead : Types.OaReadState; // 3.8: de inhoud van een proefgeval (proofContent)
     oaInvoices : Types.OaInvoiceState; // 3.10: OA-facturen als proefgeval
+    quotes : Types.QuotesState; // 3.11: verstuurde offerteversies als proefgeval
   };
 
   public func contentKey(oaQuoteId : Nat) : Text { "q:" # oaQuoteId.toText() };
@@ -134,6 +160,8 @@ module {
   public func buildCases(e : Env, taskKey : Text, max : Nat) : [Types.ProofCase] {
     if (taskKey == "oa-offerte-inlezen") return buildOaCases(e, max);
     if (taskKey == "factuurcontrole") return buildInvCases(e, max);
+    if (taskKey == "offertes-vergelijken") return buildTenderCases(e, max);
+    if (taskKey == "offerte-nalezen") return buildQuoteCases(e, max);
     if (taskKey != "document-koppelen") return [];
     let seen = Map.empty<Nat, ()>();
     let found = List.empty<(Int, Nat, Nat, Text)>(); // (moment, bestand, werf, soort)
@@ -181,6 +209,68 @@ module {
     Array.tabulate<Types.ProofCase>(n, func i {
       let inv = sorted[i];
       { n = i + 1; ref = #oaInvoice(inv.id); workId = ?inv.workId; answer = [("oordeel", if (inv.status == #approved) "goedkeuren" else "weigeren")] };
+    });
+  };
+
+  // 3.9: de keuze van een mens op een afgesloten prijsvraag: "positie=offerte;…" (enkel posten met een gekozen, nog geldende offerte).
+  public func tenderTruth(e : Env, t : Types.Tender) : Text {
+    let items = Tenders.itemsOf(e.tenders, t.id);
+    let out = List.empty<Text>();
+    for ((k, x) in items.enumerate()) {
+      switch (e.tenders.choices.get(x.id)) {
+        case (?#plain(c)) switch (c.oaQuoteId) { case (?q) { if (OaQuotes.isCurrent(e.tenders, t, q)) out.add((k + 1).toText() # "=" # q.toText()) }; case null {} };
+        case _ {};
+      };
+    };
+    out.values().join(";");
+  };
+  public func tenderOk(e : Env, t : Types.Tender) : Bool {
+    let by = switch (t.status) { case (#closed(x)) x.by; case _ return false };
+    switch (e.access.persons.get(by)) { case (?p) { if (not Rights.internal(p)) return false }; case null return false };
+    workOk(e, t.workId) and OaQuotes.current(e.tenders, t).size() > 0;
+  };
+  public func refId(r : Types.ProofRef, prefix : Text) : ?Nat {
+    switch r { case (#other(t)) { if (t.startsWith(#text prefix)) Nat.fromText(Text.fromIter(t.chars().drop(prefix.size()))) else null }; case _ null };
+  };
+
+  func buildTenderCases(e : Env, max : Nat) : [Types.ProofCase] {
+    let found = List.empty<(Types.Tender, Text)>();
+    for (t in e.tenders.tenders.values()) {
+      if (tenderOk(e, t)) { let truth = tenderTruth(e, t); if (truth != "") found.add((t, truth)) };
+    };
+    let sorted = found.toArray().sort(func(a : (Types.Tender, Text), b : (Types.Tender, Text)) : { #less; #equal; #greater } = if (a.0.updatedAt > b.0.updatedAt) #less else if (a.0.updatedAt < b.0.updatedAt) #greater else Nat.compare(b.0.id, a.0.id));
+    let n = Nat.min(max, sorted.size());
+    Array.tabulate<Types.ProofCase>(n, func i {
+      let (t, truth) = sorted[i];
+      { n = i + 1; ref = #other("prijsvraag:" # t.id.toText()); workId = ?t.workId; answer = [("keuzes", truth)] };
+    });
+  };
+
+  // 3.11: een verstuurde versie die een interne persoon verstuurde, met hetzelfde btw-tarief als de werf en minstens één post met
+  // een prijs. De ingebouwde fout volgt uit de plaats in de set (geen, eenheidsprijs, btw, totaal om de beurt).
+  public let mutations : [Text] = ["geen", "eenheidsprijs", "btw", "totaal"];
+  public func quoteOk(e : Env, v : Types.QuoteVersion) : ?Types.Quote {
+    let s = v.sent ?? return null;
+    if (v.status != #sent and v.status != #accepted and v.status != #superseded) return null;
+    switch (e.access.persons.get(s.by)) { case (?p) { if (not Rights.internal(p)) return null }; case null return null };
+    let q = e.quotes.quotes.get(v.quoteId) ?? return null;
+    if (q.archivedAt != null or not workOk(e, q.workId)) return null;
+    switch (e.works.works.get(q.workId)) { case (?w) { if (w.vatBp != v.vatBp) return null }; case null return null };
+    if (s.subtotalCents <= 0) return null;
+    ?q;
+  };
+  func buildQuoteCases(e : Env, max : Nat) : [Types.ProofCase] {
+    let found = List.empty<(Types.QuoteVersion, Types.Quote)>();
+    for (v in e.quotes.versions.values()) { switch (quoteOk(e, v)) { case (?q) found.add((v, q)); case null {} } };
+    let sorted = found.toArray().sort(func(a : (Types.QuoteVersion, Types.Quote), b : (Types.QuoteVersion, Types.Quote)) : { #less; #equal; #greater } = if (a.0.updatedAt > b.0.updatedAt) #less else if (a.0.updatedAt < b.0.updatedAt) #greater else Nat.compare(b.0.id, a.0.id));
+    let n = Nat.min(max, sorted.size());
+    // Review 3.9 M2: de soort fout en de post volgen uit een hash van de versie en het moment van de set (niet uit de plaats).
+    let seed = Int.toText(Time.now()) # "|" # e.proof.sets.size().toText();
+    Array.tabulate<Types.ProofCase>(n, func i {
+      let (v, q) = sorted[i];
+      let h = Sha256.fromBlob(#sha256, ("bowaco-proef-3.11|" # seed # "|" # v.id.toText()).encodeUtf8()).toArray();
+      let m = mutations[h[0].toNat() % mutations.size()];
+      { n = i + 1; ref = #other("offerteversie:" # v.id.toText()); workId = ?q.workId; answer = [("fout", m), ("k", (h[1].toNat() * 256 + h[2].toNat()).toText())] };
     });
   };
 
@@ -246,6 +336,18 @@ module {
         let firm = switch (e.org.orgs.get(q.orgId)) { case (?o) o.name; case null "" };
         ?#Object([("bestand", #Object([("naam", #String(f.name)), ("type", #String(f.mime)), ("grootte", #Number(#Int(f.size)))])), ("firma", #String(firm)), ("inhoud", #String("haal het bestand met proef_bestand"))]);
       };
+      case (#other(_)) {
+        // 3.9 + 3.11: geen bestand; het dossier zet lib/Bots.mo erbij. Nooit het id, de keuze of de ingebouwde fout.
+        switch (refId(c.ref, "prijsvraag:")) {
+          case (?tid) { let t = e.tenders.tenders.get(tid) ?? return null; if (not tenderOk(e, t)) return null; return ?#Object([("inhoud", #String("zie het dossier"))]) };
+          case null {};
+        };
+        switch (refId(c.ref, "offerteversie:")) {
+          case (?vid) { let v = e.quotes.versions.get(vid) ?? return null; if (quoteOk(e, v) == null) return null; return ?#Object([("inhoud", #String("zie het dossier"))]) };
+          case null {};
+        };
+        null;
+      };
       case (#oaInvoice(_)) {
         // Enkel met geladen inhoud; het dossier (zonder status of beslissing) zet lib/Bots.mo erbij. Nooit het id of het antwoord.
         let (f, _) = caseContent(e, c) ?? return null;
@@ -271,6 +373,7 @@ module {
       case (#code) t.toLower().replace(#char ' ', "");
       case (#amount) switch (Int.fromText(t)) { case (?n) Int.toText(n); case null t };
       case (#verdict) switch (t.toLower()) { case "goedkeuren" "goedkeuren"; case ("navragen" or "weigeren") "niet"; case _ "?" # t };
+      case (#picks) t;
     };
   };
 
@@ -280,6 +383,28 @@ module {
       case (?a, ?b) { let d = Int.abs(a - b); d <= 100 or d * 200 <= Int.abs(b) };
       case _ false;
     };
+  };
+
+  // 3.9: "post=offerte;…" → per post de offerte; juist als ≥ 80 % van de posten van de mens dezelfde offerte kreeg.
+  func pickMap(t : Text) : Map.Map<Text, Text> {
+    let m = Map.empty<Text, Text>();
+    for (part in t.split(#char ';')) {
+      let kv = part.split(#char '=').toArray();
+      if (kv.size() == 2) {
+        let k = switch (Nat.fromText(kv[0].trim(#char ' '))) { case (?n) n.toText(); case null "" };
+        let v = switch (Nat.fromText(kv[1].trim(#char ' '))) { case (?n) n.toText(); case null "" };
+        if (k != "" and v != "" and not m.containsKey(k)) m.add(k, v);
+      };
+    };
+    m;
+  };
+  func picksClose(g : Text, truth : Text) : Bool {
+    let tm = pickMap(truth);
+    if (tm.size() == 0) return false;
+    let gm = pickMap(g);
+    var same = 0;
+    for ((k, v) in tm.entries()) { if (gm.get(k) == ?v) same += 1 };
+    same * 100 >= 80 * tm.size();
   };
 
   public func answerOf(xs : [(Text, Text)], k : Text) : Text {
@@ -292,6 +417,7 @@ module {
       let g = answerOf(given, f.name);
       let bad = if (g == "") true else switch (f.cmp) {
         case (#amount) not amountClose(g, answerOf(truth, f.name));
+        case (#picks) not picksClose(g, answerOf(truth, f.name));
         case _ norm(f.cmp, g) != norm(f.cmp, answerOf(truth, f.name));
       };
       if (bad) wrong.add(f.name);
@@ -430,6 +556,21 @@ module {
     switch j {
       case (?#String(t)) Text.fromIter(t.chars().take(80));
       case (?#Number(#Int(i))) Int.toText(i);
+      // 3.9: keuzes = een lijst van {post, offerte} → "post=offerte;…" (hoogstens 500 posten).
+      case (?#Array(xs)) {
+        let out = List.empty<Text>();
+        label l for (x in xs.values()) {
+          if (out.size() >= 500) break l;
+          switch x {
+            case (#Object(fs)) {
+              let get = func(k : Text) : ?Nat { switch (fs.find(func((a, _) : (Text, Json)) : Bool = a == k)) { case (?(_, #Number(#Int(i)))) { if (i >= 0) ?Int.abs(i) else null }; case _ null } };
+              switch (get("post"), get("offerte")) { case (?p, ?q) out.add(p.toText() # "=" # q.toText()); case _ {} };
+            };
+            case _ {};
+          };
+        };
+        out.values().join(";");
+      };
       case _ "";
     };
   };

@@ -19,6 +19,7 @@ import { CalculatorStart } from "./Aandacht";
 import { OpenConfidential } from "./Dossier";
 import { ChapterMargin, FormPanel, KindSheet, SubgroupHead } from "./OfferteVorm";
 import { prepareUpload } from "../lib/uploadPrep";
+import { QuoteReviewPanel } from "./Nakijken";
 
 const O = t.offertes;
 const FORMS: ContractForm[] = [ContractForm.vh, ContractForm.fixed, ContractForm.regie, ContractForm.estimate, ContractForm.budget, ContractForm.perAttachment];
@@ -583,7 +584,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       {sheet?.kind === "libChapters" && model && <LibChapters m={model} edit={edit} onClose={() => setSheet(null)} />}
       {sheet?.kind === "header" && model && <HeaderSheet m={model} orgs={orgs.data ?? []} workVatBp={v.workVatBp} damage={read.form?.kind === QuoteKind.damage} edit={edit} onClose={() => setSheet(null)} />}
       {sheet?.kind === "kind" && <KindSheet read={read} orgs={orgs.data ?? []} onClose={() => setSheet(null)} onDone={() => { setSheet(null); void load(); }} />}
-      {sheet?.kind === "send" && model && totals && <SendSheet total={totals.total} findings={findings} loaded={!!ruleSet} onSend={async (reason) => { await send(reason); }} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "send" && model && totals && <SendSheet versionId={v.id} total={totals.total} findings={findings} loaded={!!ruleSet} onSend={async (reason) => { await send(reason); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "signed" && <SignedSheet workId={read.quote.workId} onDone={async (fileId, note) => { await registerSigned(fileId, note); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "decide" && <DecideSheet accepted={sheet.accepted} onDone={async (note) => { await decide(sheet.accepted, note); }} onClose={() => setSheet(null)} />}
       {sheet?.kind === "archive" && <ArchiveSheet onDone={async (reason) => { await archive(reason); }} onClose={() => setSheet(null)} />}
@@ -1128,7 +1129,7 @@ function LibChapters({ m, edit, onClose }: { m: M.Model; edit: (f: (m: M.Model) 
   );
 }
 
-function SendSheet({ total, findings, loaded, onSend, onClose }: { total: bigint; findings: Finding[]; loaded: boolean; onSend: (reason: string) => Promise<void>; onClose: () => void }) {
+function SendSheet({ versionId, total, findings, loaded, onSend, onClose }: { versionId: bigint; total: bigint; findings: Finding[]; loaded: boolean; onSend: (reason: string) => Promise<void>; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
   const bl = blocks(findings);
@@ -1138,6 +1139,7 @@ function SendSheet({ total, findings, loaded, onSend, onClose }: { total: bigint
     <Sheet title={O.sendTitle} open onClose={onClose} side footer={<Button variant="primary" icon="share" busy={busy} disabled={!loaded || bl.length > 0 || !reasonOk} onClick={() => { setBusy(true); void onSend(reason.trim()).finally(() => setBusy(false)); }}>{O.send}</Button>}>
       <div className="a-form">
         <p>{O.sendLead}</p>
+        <QuoteReviewPanel versionId={versionId} />
         <dl className="a-dl"><dt>{O.total}</dt><dd className="bw-mono">{fmtEuro(total)}</dd></dl>
         {!loaded && <p className="a-tag a-tag--warn">{O.sendNoRules}</p>}
         {bl.length > 0 && (

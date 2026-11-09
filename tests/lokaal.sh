@@ -129,6 +129,11 @@ node tests/proef-3-8.mjs "$cid"
 # 3.10: OA-factuurcontrole (opdracht voor een bot of Caffeine, controlebestand als bijlage zonder URL, dossier uit de controle van 2.11/2c.7,
 # altijd een voorstel, nooit goedkeuren of betalen, resultaat enkel via readInvCheck, proefbank uit facturen waarover een mens besliste).
 node tests/proef-3-10.mjs "$cid"
+# 3.9: OA-offertes controleren + vergelijken (opdracht per prijsvraag voor een bot of Caffeine, dossier zonder verkoopprijzen, altijd
+# een voorstel per post, één klik = kiezen + overnemen in een ontwerpversie, verouderd na een nieuwe offerte, proefbank uit prijsvragen).
+node tests/proef-3-9.mjs "$cid"
+# 3.11: offerte nalezen vóór verzending (enkel opmerkingen, niet blokkerend, versturen sluit de opdracht, proefbank met ingebouwde fouten).
+node tests/proef-3-11.mjs "$cid"
 # 2c.2: de prijsvraag-Excel heen en terug (zonder netwerk) en de prijsvraag door de backend (klaarzetten, toegang zonder werf,
 # Mijn prijsvragen, ontwerp, indienen, bijlagen, afsluiten, werfleider zonder bedragen, .did-controle). De klokproef (herinnering,
 # geen antwoord, 90 dagen na afsluiten) verzet de tijd van dit eigen net met ruim 90 dagen: daarom als LAATSTE canisterproef.

@@ -57,11 +57,14 @@ mixin (
   surveys : Types.SurveyState,
   purchases : Types.PurchaseState,
   invCheck : Types.InvCheckState,
+  library : Types.LibraryState,
+  quoteForms : Types.QuoteFormState,
+  aiCheck : Types.AiCheckState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
 
-  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; plan; reports; workStarts; surveys; purchases; invCheck; audit; ctr } };
+  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; plan; reports; workStarts; surveys; purchases; invCheck; library; quoteForms; aiCheck; audit; ctr } };
 
   func requireBotAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);
@@ -96,7 +99,7 @@ mixin (
       case (?_) switch (mcpContent(req)) { case (?r) return r; case null {} };
       case null {};
     };
-    let server : Mcp.Server = { name = "BOWACO"; version = "3.10"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
+    let server : Mcp.Server = { name = "BOWACO"; version = "3.11"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
     switch (await* Mcp.handleUpdate(bots.oauth, server, req)) { case (?r) r; case null Http.notFound() };
   };
 
@@ -469,7 +472,12 @@ mixin (
     let now = Time.now();
     // 3.8: een ingelezen OA-offerte beslist kantoor in het formulier (werf → Offerte → OA-offertes), niet hier.
     switch (a.action) {
-      case (#other(x)) { if (x.tool == "voorstel_oa_offerte") return #err("Beslis dit voorstel bij de werf: Offerte → OA-offertes → Ingelezen offertes") };
+      case (#other(x)) {
+        if (x.tool == "voorstel_oa_offerte") return #err("Beslis dit voorstel bij de werf: Offerte → OA-offertes → Ingelezen offertes");
+        // 3.9 + 3.11: een vergelijking kies je bij de prijsvraag, opmerkingen bij een offerte lees je bij het versturen.
+        if (x.tool == "voorstel_vergelijking") return #err("Bekijk dit voorstel bij de prijsvraag: Offerte → OA-offertes → Vergelijken");
+        if (x.tool == "opmerkingen_offerte") return #err("Bekijk deze opmerkingen bij de offerte (Versturen)");
+      };
       // 3.10: een factuurcontrole bij een opdracht volgt de beslissing over de factuur zelf (OA-facturen), niet hier.
       case (#invoiceCheck(_)) { if (a.extra.any(func((k, _) : (Text, Text)) : Bool = k == "controleopdracht")) return #err("Beslis over de factuur zelf: OA-facturen → de factuur (goedkeuren of betwisten)") };
       case _ {};

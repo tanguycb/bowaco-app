@@ -13,6 +13,7 @@ import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, pa
 import { Loading } from "./common";
 import { fmtQty, parseQty } from "./Offertes";
 import { Field } from "./Werven";
+import { TenderCheckPanel } from "./Nakijken";
 import { QuoteSheet, download, unitOf } from "./Prijsvragen";
 import { readTenderSheet, MAX_BYTES, type SheetResult } from "../tender/sheetread.ts";
 import { roundDiv, totals, type Included } from "../tender/calc.ts";
@@ -558,6 +559,7 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
         </details>
       )}
       {(() => { const n = d.history.filter((x) => !x.current).length; return n > 0 ? <p className="bw-muted">{O.cmpHistory(n)}</p> : null; })()}
+      <TenderCheckPanel tenderId={d.tenderId} items={d.items} drafts={d.drafts} target0={target} isOpen={open} onUse={(m, rs) => { setPicks(m); setReasons((r) => ({ ...r, ...rs })); }} />
       <div className="oq-bar">
         <span className="bw-mono" data-testid="oq-choice">{O.cmpChoice(Number(live.choice.chosen), d.items.length, fmtEuro(live.choice.total))}</span>
         {dirty && <span className="a-tag a-tag--warn">{O.cmpUnsaved}</span>}

@@ -2759,6 +2759,37 @@ module {
     extra : Map.Map<Text, Text>; // reserve
   };
 
+  // ── OA-offertes controleren + vergelijken (3.9) en nalezen van de klantofferte vóór verzending (3.11) ──
+  // Eigen stabiel veld `aiCheck` (deelvorm, OldActor = {}). Een NAKIJKOPDRACHT hoort bij één prijsvraag (#tender, 3.9) of bij één
+  // ontwerpversie van een klantofferte (#quote, 3.11). Er is geen bestand: een bot leest het dossier van de app via MCP
+  // (vergelijkopdrachten/naleesopdrachten), Caffeine AI leest hetzelfde dossier. De uitkomst is ALTIJD een voorstel: per post een
+  // firma (3.9) en/of opmerkingen. Een mens kiest en neemt over (3.9) of verstuurt (3.11); een bot verstuurt of wijzigt nooit.
+  // Het resultaat is vertrouwelijk (prijzen, R38): enkel via readAiCheck (update-call met auditregel). `basis` = de stand waarop
+  // het voorstel rekende (de geldende OA-offertes of de rev van de versie): anders = "verouderd".
+  public type AiCheckTarget = { #tender : Nat; #quote : Nat; #other : Text };
+  public type AiCheckFinding = { kind : Text; severity : Text; text : Text; ref : ?Nat; cents : ?Int; extra : Extra };
+  public type AiCheckPick = { itemId : Nat; oaQuoteId : ?Nat; reason : Text };
+  public type AiCheckResult = { verdict : Text; picks : [AiCheckPick]; findings : [AiCheckFinding]; summary : Text; confidence : Nat; at : Int; extra : Extra };
+  public type AiCheckJob = {
+    id : Nat;
+    workId : WorkId;
+    target : AiCheckTarget;
+    via : InvCheckVia;
+    basis : Text;
+    createdAt : Int;
+    createdBy : PersonId;
+    var status : InvCheckStatus;
+    var result : ?AiCheckResult;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId;
+    var extra : Extra;
+  };
+  public type AiCheckState = {
+    jobs : Map.Map<Nat, AiCheckJob>;
+    byWork : Map.Map<Nat, [Nat]>;
+    extra : Map.Map<Text, Text>; // reserve
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

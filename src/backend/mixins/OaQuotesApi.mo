@@ -19,6 +19,7 @@ import Time "mo:core/Time";
 import Types "../types";
 import TV "../types/tenderviews";
 import Access "../lib/Access";
+import AiCheck "../lib/AiCheck";
 import Config "../lib/Config";
 import Dossier "../lib/Dossier";
 import Ids "../lib/Ids";
@@ -44,6 +45,8 @@ mixin (
   quotes : Types.QuotesState,
   tenders : Types.TenderState,
   oaDeals : Types.OaDealState,
+  bots : Types.BotState,
+  aiCheck : Types.AiCheckState,
   audit : Types.AuditState,
   ctr : Types.Counters,
 ) {
@@ -236,6 +239,11 @@ mixin (
     let p = Access.requireActive(access, caller);
     oqRequire(p);
     let t = oqTender(p, tenderId) ?? return #err("Geen toegang");
+    oqSave(caller, p, t, picks);
+  };
+
+  // 3.9: ook voor applyTenderCheck (één klik: kiezen + overnemen in één call).
+  func oqSave(caller : Principal, p : Types.Person, t : Types.Tender, picks : [TV.TenderPickInput]) : Result.Result<Nat, Text> {
     // Review M1: kiezen en overnemen enkel zolang de prijsvraag loopt (na afsluiten of annuleren ligt de keuze vast).
     if (t.status != #open) { return #err("De prijsvraag is " # Tenders.statusText(t.status) # ": de keuze ligt vast") };
     let items = Tenders.itemsOf(tenders, t.id);
@@ -285,6 +293,10 @@ mixin (
     Rights.require(ctx, p, #editQuote, null);
     let t = oqTender(p, tenderId) ?? return #err("Geen toegang");
     Rights.require(ctx, p, #readQuotes, ?t.workId);
+    oqApply(caller, p, t, versionId);
+  };
+
+  func oqApply(caller : Principal, p : Types.Person, t : Types.Tender, versionId : Nat) : Result.Result<TV.TenderApplyResult, Text> {
     // Review M1: kiezen en overnemen enkel zolang de prijsvraag loopt (na afsluiten of annuleren ligt de keuze vast).
     if (t.status != #open) { return #err("De prijsvraag is " # Tenders.statusText(t.status) # ": de keuze ligt vast") };
     let v = quotes.versions.get(versionId) ?? return #err("Onbekende versie");
@@ -356,5 +368,36 @@ mixin (
       Access.audit(audit, caller, ?p.id, ?t.workId, "offerte-oa-overgenomen", q0.number # " v" # v.version.toText() # ": " # changed.toText() # " van " # n.toText() # " posten gewijzigd uit " # t.code # "; bibliotheek " # mem.added.toText() # " nieuw, " # mem.kept.toText() # " ongewijzigd, " # mem.archived.toText() # " vervangen");
     };
     #ok({ lines = n; changed; libCosts = mem.chosen.size(); memory = mem.added + mem.kept; skipped });
+  };
+
+  // ── 3.9: een voorstel van een nakijkopdracht met één klik overnemen ──────
+  // De mens bekeek de voorgestelde firma per post (en paste ze eventueel aan) en neemt ze in één call over: eerst als keuze bewaren
+  // (zoals saveTenderChoices), dan in een ontwerpversie van de klantofferte zetten (zoals applyTenderChoices: aankoopprijs en firma;
+  // de marge volgt de klasse van de firma of het hoofdstuk, QuoteCalc v2). Mislukt het overnemen, dan draait alles terug (trap): nooit
+  // een halve stand. Een voorstel op een verouderde stand (nieuwe offerte, gewijzigde prijsvraag) wordt geweigerd.
+  public shared ({ caller }) func applyTenderCheck(jobId : Nat, picks : [TV.TenderPickInput], versionId : Nat) : async Result.Result<TV.TenderApplyResult, Text> {
+    let p = Access.requireActive(access, caller);
+    oqRequire(p);
+    let ctx = { works; settings };
+    Rights.require(ctx, p, #editQuote, null);
+    let j = aiCheck.jobs.get(jobId) ?? return #err("Geen toegang");
+    let tid = switch (j.target) { case (#tender x) x; case _ return #err("Geen toegang") };
+    let t = oqTender(p, tid) ?? return #err("Geen toegang");
+    if (j.workId != t.workId) { return #err("Geen toegang") };
+    Rights.require(ctx, p, #readQuotes, ?t.workId);
+    let now = Time.now();
+    AiCheck.settle(tenders, quotes, bots, j, now);
+    if (j.status != #proposed) { return #err("Deze opdracht heeft geen open voorstel") };
+    if (AiCheck.basisOf(j) != AiCheck.tenderBasis(tenders, t) or j.basis != AiCheck.tenderBasis(tenders, t)) { return #err("Er kwam intussen een nieuwe offerte binnen of de prijsvraag wijzigde: laat opnieuw nakijken of kies zelf") };
+    let v = quotes.versions.get(versionId) ?? return #err("Onbekende versie");
+    if (v.quoteId != t.quoteId) { return #err("Deze versie hoort bij een andere offerte") };
+    if (v.status != #draft) { return #err("Versie " # v.version.toText() # " is " # Quotes.statusText(v.status) # ": kies een ontwerpversie") };
+    if (picks.size() == 0) { return #err("Kies minstens één post") };
+    switch (oqSave(caller, p, t, picks)) { case (#ok _) {}; case (#err e) return #err(e) };
+    let r = switch (oqApply(caller, p, t, versionId)) { case (#ok x) x; case (#err e) Runtime.trap("Niets overgenomen: " # e) };
+    AiCheck.follow(bots, j, true, ?p.id, now);
+    AiCheck.close(j, #closed("overgenomen"), ?p.id, now);
+    Access.audit(audit, caller, ?p.id, ?t.workId, "vergelijking-overgenomen", "opdracht #" # j.id.toText() # " " # t.code # ": " # r.lines.toText() # " posten in versie " # v.version.toText());
+    #ok(r);
   };
 };

@@ -36,6 +36,7 @@ import OaDeals "OaDeals";
 import OaQuotes "OaQuotes";
 import OaRead "OaRead";
 import InvCheck "InvCheck";
+import AiCheck "AiCheck";
 import OaInvoice "OaInvoice";
 import Tenders "Tenders";
 
@@ -65,6 +66,10 @@ module {
     surveys : Types.SurveyState;
     purchases : Types.PurchaseState;
     invCheck : Types.InvCheckState;
+    // 3.9 + 3.11: nakijkopdrachten (het dossier van een prijsvraag of een ontwerpversie)
+    library : Types.LibraryState;
+    quoteForms : Types.QuoteFormState;
+    aiCheck : Types.AiCheckState;
     audit : Types.AuditState;
     ctr : Types.Counters;
   };
@@ -297,6 +302,48 @@ module {
         required = ["opdracht"];
         readOnly = true;
       },
+      // 3.9: OA-offertes controleren + vergelijken.
+      {
+        name = "vergelijkopdrachten";
+        description = "Je open opdrachten om de offertes van onderaannemers op een prijsvraag na te kijken en te vergelijken: opdracht, werf en het dossier van BOWACO (de posten van de prijsvraag, per firma de geldende offerte met prijzen per post, voorbehouden, geldigheid, btw, eerdere prijzen en tarieven met datum). Hoogstens 5 per oproep. Enkel aankoopprijzen van die firma's; nooit verkoopprijzen of marges.";
+        input = [];
+        required = [];
+        readOnly = true;
+      },
+      {
+        name = "voorstel_vergelijking";
+        description = "Stuur je voorstel bij een vergelijkopdracht: per post een firma (offerte-id uit het dossier, of null) met een reden, en je bevindingen. Dit is altijd een voorstel: BOWACO kiest en neemt zelf over in de offerte aan de klant. Je kiest nooit zelf en verstuurt niets.";
+        input = [
+          ("opdracht", Tool.integer("Het nummer van de opdracht (uit vergelijkopdrachten).")),
+          ("keuzes", Tool.arrayOf(Tool.objectOf([("post", Tool.integer("De positie van de post in het dossier (1, 2, …).")), ("offerte", Tool.integer("Het offerte-id uit het dossier; weglaten of null = geen bruikbare offerte.")), ("reden", Tool.string("Waarom (hoogstens 300 tekens)."))], ["post"], "Eén keuze."), "Per post de voorgestelde firma.")),
+          ("bevindingen", Tool.arrayOf(Tool.objectOf([("soort", Tool.string("Bv. ontbreekt, hoeveelheid, eenheid, voorbehoud, geldigheid, btw, prijs, tarief, ander.")), ("ernst", Tool.enumeration(["info", "let_op", "fout"], "Hoe erg.")), ("tekst", Tool.string("Wat je vond (hoogstens 500 tekens).")), ("post", Tool.integer("De positie van de post, als het over één post gaat.")), ("bedragCent", Tool.integer("Een bedrag in eurocent, als dat er is."))], ["tekst"], "Eén bevinding."), "Wat je vond (hoogstens 40).")),
+          ("samenvatting", Tool.string("Een korte samenvatting (hoogstens 1000 tekens).")),
+          ("vertrouwen", Tool.number("Hoe zeker je bent, 0 tot 1.")),
+        ];
+        required = ["opdracht"];
+        readOnly = false;
+      },
+      // 3.11: de klantofferte nalezen vóór verzending.
+      {
+        name = "naleesopdrachten";
+        description = "Je open opdrachten om een offerte aan een klant na te lezen vóór ze verstuurd wordt: opdracht, werf en het dossier (kop, posten met aankoopprijs, marge en verkoopprijs, tekstblokken, totalen, posten uit de opmeting of de prijsvraag die niet in de offerte staan). Hoogstens 5 per oproep.";
+        input = [];
+        required = [];
+        readOnly = true;
+      },
+      {
+        name = "opmerkingen_offerte";
+        description = "Stuur je opmerkingen bij een naleesopdracht: oordeel (in_orde of opmerkingen) en per opmerking soort, ernst, tekst, post en bedrag. Enkel opmerkingen: je wijzigt en verstuurt nooit iets; BOWACO ziet ze bij het versturen.";
+        input = [
+          ("opdracht", Tool.integer("Het nummer van de opdracht (uit naleesopdrachten).")),
+          ("oordeel", Tool.enumeration(["in_orde", "opmerkingen"], "in_orde (niets van belang) of opmerkingen.")),
+          ("opmerkingen", Tool.arrayOf(Tool.objectOf([("soort", Tool.string("Bv. vergeten-post, eenheidsprijs, marge, tekst, btw, vermelding, totaal, ander.")), ("ernst", Tool.enumeration(["info", "let_op", "fout"], "Hoe erg.")), ("tekst", Tool.string("Wat je vond (hoogstens 500 tekens).")), ("post", Tool.integer("De positie van de post, als het over één post gaat.")), ("bedragCent", Tool.integer("Een bedrag in eurocent, als dat er is."))], ["tekst"], "Eén opmerking."), "Je opmerkingen (hoogstens 40).")),
+          ("samenvatting", Tool.string("Een korte samenvatting (hoogstens 1000 tekens).")),
+          ("vertrouwen", Tool.number("Hoe zeker je bent, 0 tot 1.")),
+        ];
+        required = ["opdracht", "oordeel"];
+        readOnly = false;
+      },
       // 3.10: OA-factuurcontrole.
       {
         name = "controleopdrachten";
@@ -351,7 +398,7 @@ module {
         input = [(
           "antwoorden",
           Tool.arrayOf(
-            Tool.objectOf([("geval", Tool.integer("Het nummer van het geval.")), ("werfId", Tool.integer("Document koppelen: het id van de werf.")), ("soort", Tool.string("Document koppelen: de sleutel van de documentsoort.")), ("nummer", Tool.string("OA-offerte inlezen: het offertenummer.")), ("datum", Tool.string("OA-offerte inlezen: de datum, jjjj-mm-dd.")), ("totaal", Tool.integer("OA-offerte inlezen: het totaal na korting zonder btw in eurocent.")), ("oordeel", Tool.enumeration(["goedkeuren", "navragen", "weigeren"], "OA-factuurcontrole: je voorstel."))], ["geval"], "Eén antwoord met de velden van je taak (zie antwoordvelden in proef_gevallen)."),
+            Tool.objectOf([("geval", Tool.integer("Het nummer van het geval.")), ("werfId", Tool.integer("Document koppelen: het id van de werf.")), ("soort", Tool.string("Document koppelen: de sleutel van de documentsoort.")), ("nummer", Tool.string("OA-offerte inlezen: het offertenummer.")), ("datum", Tool.string("OA-offerte inlezen: de datum, jjjj-mm-dd.")), ("totaal", Tool.integer("OA-offerte inlezen: het totaal na korting zonder btw in eurocent.")), ("oordeel", Tool.enumeration(["goedkeuren", "navragen", "weigeren"], "OA-factuurcontrole: je voorstel.")), ("keuzes", Tool.arrayOf(Tool.objectOf([("post", Tool.integer("De positie van de post.")), ("offerte", Tool.integer("Het offerte-id."))], ["post", "offerte"], "Eén keuze."), "Offertes vergelijken: per post de offerte.")), ("fout", Tool.enumeration(["geen", "eenheidsprijs", "btw", "totaal"], "Offerte nalezen: de soort van de ernstigste fout."))], ["geval"], "Eén antwoord met de velden van je taak (zie antwoordvelden in proef_gevallen)."),
             "Je antwoorden.",
           ),
         )];
@@ -422,7 +469,7 @@ module {
     };
     let ctx = { works = e.works; settings = e.settings };
     // De werf van de oproep: rechtstreeks (werfId) of via de factuur.
-    let needsWork = tool == "werf_documenten" or tool == "oa_offertes" or tool == "oa_facturen" or tool == "document_koppelen" or tool == "voorstel_factuurcontrole" or tool == "voorstel_oa_offerte";
+    let needsWork = tool == "werf_documenten" or tool == "oa_offertes" or tool == "oa_facturen" or tool == "document_koppelen" or tool == "voorstel_factuurcontrole" or tool == "voorstel_oa_offerte" or tool == "voorstel_vergelijking" or tool == "opmerkingen_offerte";
     // 3.10: met een opdracht = de werf van de opdracht, enkel een open opdracht van DEZE bot (anders dezelfde weigering).
     let withJob = tool == "voorstel_factuurcontrole" and Tool.field(args, "opdracht") != null and Tool.field(args, "opdracht") != ?#Null;
     let scopeWork : ?Nat = if (not needsWork) null else if withJob invJobWork(e, b, Tool.nat(args, "opdracht")) else switch (tool, Tool.nat(args, "factuurId")) {
@@ -430,11 +477,14 @@ module {
       case ("voorstel_factuurcontrole", null) null;
       // 3.8: de werf van de opdracht, enkel een opdracht voor DEZE bot (een andere = dezelfde weigering, geen orakel).
       case ("voorstel_oa_offerte", _) jobWork(e, b, Tool.nat(args, "opdracht"));
+      // 3.9 + 3.11: idem voor een nakijkopdracht van de juiste soort.
+      case ("voorstel_vergelijking", _) checkJobWork(e, b, Tool.nat(args, "opdracht"), "vergelijking");
+      case ("opmerkingen_offerte", _) checkJobWork(e, b, Tool.nat(args, "opdracht"), "nalezen");
       case _ workId;
     };
     if (needsWork and scopeWork == null) {
       logCall(e, b, tool, workId, argsSha, #refused("werf"), null);
-      return #err(if (tool == "voorstel_factuurcontrole" or tool == "voorstel_oa_offerte") "Geen toegang: deze tool of deze werf staat niet op je fiche" else "Geef een geldige werfId");
+      return #err(if (tool == "voorstel_factuurcontrole" or tool == "voorstel_oa_offerte" or tool == "voorstel_vergelijking" or tool == "opmerkingen_offerte") "Geen toegang: deze tool of deze werf staat niet op je fiche" else "Geef een geldige werfId");
     };
     if (not Rights.mayBot(ctx, b, tool, scopeWork)) {
       logCall(e, b, tool, scopeWork, argsSha, #refused("fiche"), null);
@@ -450,6 +500,10 @@ module {
       case "voorstel_factuurcontrole" if withJob invCheckTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now) else invoiceCheckTool(e, b, caller, scopeWork ?? 0, args, now);
       case "controleopdrachten" #ok(invJobs(e, b), null);
       case "inleesopdrachten" #ok(readJobs(e, b), null);
+      case "vergelijkopdrachten" #ok(checkJobs(e, b, "vergelijking"), null);
+      case "naleesopdrachten" #ok(checkJobs(e, b, "nalezen"), null);
+      case "voorstel_vergelijking" checkTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now);
+      case "opmerkingen_offerte" checkTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now);
       case "voorstel_oa_offerte" oaReadTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now);
       case _ #err("Onbekende tool");
     };
@@ -460,7 +514,7 @@ module {
   };
 
   public func proofEnv(e : Env) : Proof.Env {
-    { settings = e.settings; access = e.access; works = e.works; files = e.files; dossier = e.dossier; proof = e.proof; tenders = e.tenders; org = e.org; oaRead = e.oaRead; oaInvoices = e.oaInvoices };
+    { settings = e.settings; access = e.access; works = e.works; files = e.files; dossier = e.dossier; proof = e.proof; tenders = e.tenders; org = e.org; oaRead = e.oaRead; oaInvoices = e.oaInvoices; quotes = e.quotes };
   };
 
   // 3.10: de context van de controle van 2.11/2c.7 (OaInvoice.control).
@@ -511,6 +565,84 @@ module {
     j.extra := InvCheck.extraSet(j.extra, "actie", a.id.toText());
     Access.audit(e.audit, caller, null, ?j.workId, "bot-voorstel", "bot #" # b.id.toText() # " factuurcontrole #" # a.id.toText() # " (opdracht #" # j.id.toText() # ")");
     #ok(#Object([("actie", num(a.id)), ("stand", str("voorstel")), ("uitleg", str("BOWACO beslist over de factuur; jij keurt nooit goed en betaalt nooit."))]), ?a.id);
+  };
+
+  // ── 3.9 + 3.11: nakijkopdrachten ───────────────────────────────────────
+  public func tenderCtx(e : Env, now : Int) : AiCheck.TenderCtx {
+    { settings = e.settings; library = e.library; quotes = e.quotes; tenders = e.tenders; oaDeals = e.oaDeals; org = e.org; today = today(now) };
+  };
+  public func quoteCtx(e : Env) : AiCheck.QuoteCtx {
+    { settings = e.settings; quotes = e.quotes; quoteForms = e.quoteForms; works = e.works; org = e.org; tenders = e.tenders; surveys = e.surveys };
+  };
+
+  // De werf van een open nakijkopdracht van deze bot en van deze soort (anders null: dezelfde weigering, geen orakel).
+  func checkJobWork(e : Env, b : Bot, id : ?Nat, kind : Text) : ?Nat {
+    let j = e.aiCheck.jobs.get(id ?? return null) ?? return null;
+    if (j.via != #bot(b.id) or j.status != #open or AiCheck.kindKey(j.target) != kind) return null;
+    ?j.workId;
+  };
+
+  func checkJobs(e : Env, b : Bot, kind : Text) : Json {
+    let ctx = { works = e.works; settings = e.settings };
+    let now = Time.now();
+    let out = List.empty<Json>();
+    var bytes = 0;
+    label l for (j in e.aiCheck.jobs.values()) {
+      if (out.size() >= Config.aiCheckJobsPerCall) break l;
+      if (j.via == #bot(b.id) and j.status == #open and AiCheck.kindKey(j.target) == kind and Rights.botSeesWork(ctx, b, j.workId)) {
+        let d : ?Json = switch (j.target) {
+          case (#tender id) switch (AiCheck.openTender(e.tenders, id)) { case (?t) ?AiCheck.tenderDossier(tenderCtx(e, now), t); case null null };
+          case (#quote id) switch (AiCheck.draftVersion(e.quotes, id)) { case (?(v, q)) ?AiCheck.quoteDossier(quoteCtx(e), q, v, null); case null null };
+          case (#other _) null;
+        };
+        // Review 3.9 M1: een bytebudget per oproep (oudste eerst; het eerste dossier altijd); de rest bij de volgende oproep.
+        switch d {
+          case (?x) {
+            let n = x.stringify().size();
+            if (out.size() > 0 and bytes + n > Config.aiCheckBytesPerCall) break l;
+            bytes += n;
+            out.add(AiCheck.botJob(j, workCode(e, j.workId), x));
+          };
+          case null {};
+        };
+      };
+    };
+    #Object([("opdrachten", #Array(out.toArray()))]);
+  };
+
+  // Het voorstel bij een nakijkopdracht: altijd een voorstel (kiezen, overnemen en versturen doet een mens; Nooit-lijst).
+  func checkTool(e : Env, b : Bot, caller : Principal, jobId : Nat, args : Tool.Args, now : Int) : { #ok : (Json, ?Nat); #err : Text } {
+    let j = e.aiCheck.jobs.get(jobId) ?? return #err("Onbekende opdracht");
+    if (j.status != #open) return #err("Voor deze opdracht is al een voorstel (of ze is afgesloten)");
+    let (res, tool, task, basis) = switch (j.target) {
+      case (#tender id) {
+        let t = AiCheck.openTender(e.tenders, id) ?? return #err("Deze prijsvraag loopt niet meer");
+        let n = Tenders.itemsOf(e.tenders, t.id).size();
+        let basis = AiCheck.tenderBasis(e.tenders, t);
+        switch (AiCheck.parseTender(#Object(args), now, [("bot", b.id.toText()), ("basis", basis)], n, func(pos : Nat) : ?Nat = AiCheck.itemAt(e.tenders, t, pos), func(it : Nat, q : Nat) : ?Text = AiCheck.pickErr(e.tenders, t, it, q), true)) {
+          case (#ok x) (x, "voorstel_vergelijking", "offertes-vergelijken", basis);
+          case (#err m) return #err(m);
+        };
+      };
+      case (#quote id) {
+        let (v, _) = AiCheck.draftVersion(e.quotes, id) ?? return #err("Deze offerte is geen ontwerp meer");
+        let basis = AiCheck.quoteBasis(v);
+        switch (AiCheck.parseQuote(#Object(args), now, [("bot", b.id.toText()), ("basis", basis)], AiCheck.lineCount(quoteCtx(e), v))) {
+          case (#ok x) (x, "opmerkingen_offerte", "offerte-nalezen", basis);
+          case (#err m) return #err(m);
+        };
+      };
+      case (#other _) return #err("Onbekende opdracht");
+    };
+    ignore basis;
+    if (openActions(e, b.id) >= Config.botMaxOpenActions) return #err("Te veel open voorstellen; wacht tot BOWACO ze bekeek");
+    let a = newAction(e, b, task, ?j.workId, #other({ tool; data = [("opdracht", j.id.toText()), ("oordeel", res.verdict), ("keuzes", res.picks.size().toText()), ("bevindingen", res.findings.size().toText())] }), "", now);
+    a.extra := [("nakijkopdracht", j.id.toText())];
+    j.result := ?res;
+    j.status := #proposed;
+    j.extra := AiCheck.extraSet(j.extra, "actie", a.id.toText());
+    Access.audit(e.audit, caller, null, ?j.workId, "bot-voorstel", "bot #" # b.id.toText() # " " # task # " #" # a.id.toText() # " (opdracht #" # j.id.toText() # ")");
+    #ok(#Object([("actie", num(a.id)), ("stand", str("voorstel")), ("uitleg", str(if (task == "offertes-vergelijken") "BOWACO kiest en neemt zelf over; jij kiest nooit." else "BOWACO ziet je opmerkingen bij het versturen; jij wijzigt en verstuurt nooit."))]), ?a.id);
   };
 
   // ── 3.8: de bijlagen (inleesbestand, proef_bestand) ─────────────────────
@@ -671,6 +803,28 @@ module {
       case (#oaInvoice(id), #Object(fs)) switch (e.oaInvoices.invoices.get(id)) {
         case (?inv) #Object(fs.concat([("dossier", InvCheck.dossier(invCtx(e), e.tenders, inv, orgName(e, inv.orgId), false))]));
         case null input;
+      };
+      // 3.9: de prijsvraag zonder de keuze van de mens (= het antwoord). 3.11: de verstuurde versie met de ingebouwde fout.
+      case (#other(_), #Object(fs)) {
+        switch (Proof.refId(c.ref, "prijsvraag:")) {
+          case (?tid) switch (e.tenders.tenders.get(tid)) { case (?t) return #Object(fs.concat([("dossier", AiCheck.tenderDossier(tenderCtx(e, Time.now()), t))])); case null return input };
+          case null {};
+        };
+        switch (Proof.refId(c.ref, "offerteversie:")) {
+          case (?vid) switch (e.quotes.versions.get(vid)) {
+            case (?v) switch (e.quotes.quotes.get(v.quoteId)) {
+              case (?q) {
+                let kind = Proof.answerOf(c.answer, "fout");
+                let k = switch (Nat.fromText(Proof.answerOf(c.answer, "k"))) { case (?x) x; case null 0 };
+                return #Object(fs.concat([("dossier", AiCheck.quoteDossier(quoteCtx(e), q, v, if (kind == "geen" or kind == "") null else ?{ kind; k }))]));
+              };
+              case null return input;
+            };
+            case null return input;
+          };
+          case null {};
+        };
+        input;
       };
       case _ input;
     };

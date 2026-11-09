@@ -631,13 +631,19 @@ module {
       // 3.10: OA-factuurcontrole (de opdrachten met het dossier, het bestand van een opdracht; het voorstel = voorstel_factuurcontrole).
       ("controleopdrachten", "factuurcontrole"),
       ("controlebestand", "factuurcontrole"),
+      // 3.9: OA-offertes controleren + vergelijken (de opdrachten met het dossier van de prijsvraag, het voorstel per post).
+      ("vergelijkopdrachten", "offertes-vergelijken"),
+      ("voorstel_vergelijking", "offertes-vergelijken"),
+      // 3.11: de klantofferte nalezen vóór verzending (de opdrachten met het dossier van de versie, de opmerkingen).
+      ("naleesopdrachten", "offerte-nalezen"),
+      ("opmerkingen_offerte", "offerte-nalezen"),
     ];
   };
   // De taken met hun hoogste niveau: document koppelen is intern en terug te draaien (mag Zelf doen); factuurcontrole raakt
   // geld (hoogstens Voorstel, §6). Een nieuwe taak start altijd op Voorstel.
   // 3.8: OA-offerte inlezen mag tot Zelf doen (= de app registreert de offerte zelf, ongedaan te maken door ze in te trekken), maar
   // enkel na een geslaagde proefronde (Proof.gate); een nieuwe taak start op Voorstel.
-  public func botTasks() : [(Text, { #auto; #proposal })] { [("document-koppelen", #auto), ("factuurcontrole", #proposal), ("oa-offerte-inlezen", #auto)] };
+  public func botTasks() : [(Text, { #auto; #proposal })] { [("document-koppelen", #auto), ("factuurcontrole", #proposal), ("oa-offerte-inlezen", #auto), ("offertes-vergelijken", #proposal), ("offerte-nalezen", #proposal)] }; // 3.9 + 3.11: hoogstens Voorstel (kiezen, overnemen en versturen doet een mens)
   // NOOIT (vast in de code, niet in te stellen; er bestaat ook geen tool voor): betalen of definitief goedkeuren, versturen naar
   // een klant of OA, contracten, verwijderen, vertrouwelijke prijzen. Rights.mayBot weigert deze taken altijd.
   public func botNeverTasks() : [Text] { ["betalen-goedkeuren", "versturen", "contracten", "verwijderen", "vertrouwelijke-prijzen"] };
@@ -665,6 +671,19 @@ module {
   public let invCheckExpire : Int = 1_209_600_000_000_000; // 14 dagen
   public let invCheckMaxLiveBytes : Nat = 100_000_000;
   public let invCheckKeep : Int = 7_776_000_000_000_000; // review 3.10 M3: afgesloten opdrachten na 90 dagen weg
+  // 3.9 + 3.11: nakijkopdrachten (geen bestand: het dossier komt uit de app). Begrensd zoals 3.10.
+  public let aiCheckMaxOpenPerWork : Nat = 30;
+  public let aiCheckMaxJobs : Nat = 5_000;
+  public let aiCheckMaxFindings : Nat = 40;
+  public let aiCheckMaxPicks : Nat = 500;
+  public let aiCheckAnswerBytes : Nat = 80_000;
+  public let aiCheckJobsPerCall : Nat = 5;
+  public let aiCheckBytesPerCall : Nat = 900_000; // review 3.9 M1: dossiers per oproep samen (een MCP-antwoord blijft onder 2 MB)
+  public let aiCheckMaxDossierOffers : Nat = 12; // review 3.9 M1: offertes in één dossier (de nieuwste eerst)
+  public let aiCheckMaxResultBytes : Nat = 64_000; // review 3.9 L8: tekst in één bewaard resultaat // dossiers per oproep van een bot (een prijsvraag kan groot zijn)
+  public let aiCheckMaxDossierLines : Nat = 400; // posten in een dossier
+  public let aiCheckExpire : Int = 1_209_600_000_000_000; // 14 dagen
+  public let aiCheckKeep : Int = 7_776_000_000_000_000; // afgesloten opdrachten na 90 dagen weg
   public let botMaxCallsPerDay : Nat = 2_000;
   public let botDefaultCallsPerDay : Nat = 100;
   public let botCodeValid : Int = 86_400_000_000_000; // de koppelcode: 24 u, eenmalig

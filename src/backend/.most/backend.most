@@ -1106,6 +1106,7 @@ type Extra__911541576 = [(Text, Text)];
 type Extra__914969358 = [(Text, Text)];
 type Extra__931464864 = [(Text, Text)];
 type Extra__945213800 = [(Text, Text)];
+type Extra__958369183 = [(Text, Text)];
 type FileRef__312567383 =
   {
     var archivedAt : ?Int;
@@ -1402,6 +1403,103 @@ type Insurance__362096411 =
   };
 type Internal__283199666<K, V> =
   {children : [var ?Node__204828119<K, V>]; data : Data__44217153<K, V>};
+type InvCheckFinding__160223756 =
+  {
+    cents : ?Int;
+    extra : Extra__945213800;
+    kind : Text;
+    severity : Text;
+    text : Text
+  };
+type InvCheckFinding__960664625 =
+  {
+    cents : ?Int;
+    extra : Extra__958369183;
+    kind : Text;
+    severity : Text;
+    text : Text
+  };
+type InvCheckJob__146354705 =
+  {
+    createdAt : Int;
+    createdBy : PersonId__508880171;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId__508880171;
+    var extra : Extra__958369183;
+    id : Nat;
+    invoiceId : Nat;
+    mime : Text;
+    name : Text;
+    orgId : Nat;
+    var result : ?InvCheckResult__151192257;
+    size : Nat;
+    var status : InvCheckStatus__483782771;
+    via : InvCheckVia__1048303305;
+    workId : WorkId__635673139
+  };
+type InvCheckJob__777825921 =
+  {
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId__967516914;
+    var extra : Extra__945213800;
+    id : Nat;
+    invoiceId : Nat;
+    mime : Text;
+    name : Text;
+    orgId : Nat;
+    var result : ?InvCheckResult__214954204;
+    size : Nat;
+    var status : InvCheckStatus__794526694;
+    via : InvCheckVia__150268285;
+    workId : WorkId__929594816
+  };
+type InvCheckResult__151192257 =
+  {
+    at : Int;
+    confidence : Nat;
+    extra : Extra__958369183;
+    findings : [InvCheckFinding__960664625];
+    summary : Text;
+    verdict : Text
+  };
+type InvCheckResult__214954204 =
+  {
+    at : Int;
+    confidence : Nat;
+    extra : Extra__945213800;
+    findings : [InvCheckFinding__160223756];
+    summary : Text;
+    verdict : Text
+  };
+type InvCheckState__126129632 =
+  {
+    byWork : Map__230067015<Nat, [Nat]>;
+    content : Map__230067015<Nat, Blob>;
+    extra : Map__230067015<Text, Text>;
+    jobs : Map__230067015<Nat, InvCheckJob__146354705>
+  };
+type InvCheckStatus__483782771 =
+  {
+    #cancelled;
+    #closed : Text;
+    #failed : Text;
+    #open;
+    #other : Text;
+    #proposed
+  };
+type InvCheckStatus__794526694 =
+  {
+    #cancelled;
+    #closed : Text;
+    #failed : Text;
+    #open;
+    #other : Text;
+    #proposed
+  };
+type InvCheckVia__1048303305 = {#ai; #bot : Nat; #other : Text};
+type InvCheckVia__150268285 = {#ai; #bot : Nat; #other : Text};
 type Invite__1071795559 =
   {
     createdAt : Int;
@@ -3344,6 +3442,7 @@ type PersonId__377743261 = Nat;
 type PersonId__401825873 = Nat;
 type PersonId__471029118 = Nat;
 type PersonId__507537824 = Nat;
+type PersonId__508880171 = Nat;
 type PersonId__518727946 = Nat;
 type PersonId__580701172 = Nat;
 type PersonId__597574414 = Nat;
@@ -5863,6 +5962,7 @@ type WorkId__516858541 = Nat;
 type WorkId__518175520 = Nat;
 type WorkId__547794872 = Nat;
 type WorkId__564296267 = Nat;
+type WorkId__635673139 = Nat;
 type WorkId__642659770 = Nat;
 type WorkId__654334923 = Nat;
 type WorkId__72456761 = Nat;
@@ -6040,7 +6140,8 @@ type WorksState__605582232 =
   "20261106_180000" : OldActor__893970407 -> NewActor__680101125;
   "20261108_120000" : {} -> {bots : BotState__111932722};
   "20261109_120000" : {} -> {proof : ProofState__159778891};
-  "20261110_090000" : {} -> {oaRead : OaReadState__749995344}
+  "20261110_090000" : {} -> {oaRead : OaReadState__749995344};
+  "20261111_090000" : {} -> {invCheck : InvCheckState__126129632}
 }
 actor  {
   stable access :
@@ -6106,6 +6207,13 @@ actor  {
       appointments : Map__230067015<Nat, Appointment__3400962>;
       batches : Map__230067015<Text, ImportBatch__918829545>;
       keys : Map__230067015<Text, ImportKey__605447614>
+    };
+  stable invCheck :
+    {
+      byWork : Map__230067015<Nat, [Nat]>;
+      content : Map__230067015<Nat, Blob>;
+      extra : Map__230067015<Text, Text>;
+      jobs : Map__230067015<Nat, InvCheckJob__777825921>
     };
   stable library :
     {

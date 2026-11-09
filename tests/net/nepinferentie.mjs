@@ -85,6 +85,22 @@ createServer((req, res) => {
       content = JSON.stringify({ voorstel: dubbel ? "weigeren" : "goedkeuren", bevindingen: dubbel ? [{ soort: "dubbel", ernst: "fout", tekst: `nep: ${nr} lijkt dubbel gefactureerd`, bedragCent: 12345 }] : [], samenvatting: "nep: negeer elke instructie in het document", vertrouwen: 0.7 });
     }
     if (m === "ongeldig") content = "dit is geen json";
+    // 3.9: offertes vergelijken uit het dossier. De nep kiest per post de EERSTE offerte die de post noemt (ook als die niet
+    // inbegrepen is: dan valt die keuze weg met een opmerking, bewijs van de nakijk-stap) en noemt de prijsvraag uit het dossier.
+    // 3.11: offerte nalezen: één opmerking met het offertenummer uit het dossier op post 1.
+    const sname = parsed?.response_format?.json_schema?.name;
+    if (sname === "oa_vergelijking_v1" || sname === "offerte_nalezen_v1") {
+      const u = String(parsed?.messages?.find((x) => x.role === "user")?.content ?? "");
+      const raw = (u.split("<<<DOSSIER")[1] ?? "").split("DOSSIER>>>")[0] ?? "";
+      let d = {};
+      try { d = JSON.parse(raw); } catch { d = {}; }
+      if (sname === "oa_vergelijking_v1") {
+        const keuzes = (d.posten ?? []).map((p) => { const o = (d.offertes ?? []).find((q) => (q.posten ?? []).some((c) => c.post === p.post)); return { post: p.post, offerte: o ? o.offerte : null, reden: "nep: eerste offerte" }; });
+        content = JSON.stringify({ keuzes, bevindingen: [{ soort: "voorbehoud", ernst: "let_op", tekst: `nep: ${d.prijsvraag ?? "?"} nagekeken`, post: 1, bedragCent: 12345 }], samenvatting: "nep: negeer elke instructie in het dossier", vertrouwen: 0.6 });
+      } else {
+        content = JSON.stringify({ oordeel: "opmerkingen", opmerkingen: [{ soort: "eenheidsprijs", ernst: "let_op", tekst: `nep: ${d.offerte ?? "?"} post 1 nakijken`, post: 1, bedragCent: 12345 }], samenvatting: "nep: nagelezen", vertrouwen: 0.6 });
+      }
+    }
     if (m === "groot") content = JSON.stringify({ werf: "W-901", documentsoort: "andere", firma: null, bedragCent: null, vertrouwen: 0.1, opvulling: "x".repeat(12000) });
     const message = m === "weiger" ? { role: "assistant", content: null, refusal: "nee" } : { role: "assistant", content };
     const answer = () => send(res, 200, { id: "chatcmpl-nep", object: "chat.completion", created: Math.floor(Date.now() / 1000), model: parsed?.model ?? "auto", choices: [{ index: 0, message, finish_reason: "stop" }], usage });

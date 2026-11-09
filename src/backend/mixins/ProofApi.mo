@@ -39,6 +39,7 @@ mixin (
   tenders : Types.TenderState,
   oaRead : Types.OaReadState,
   oaInvoices : Types.OaInvoiceState,
+  quotes : Types.QuotesState,
   robot : Types.RobotState,
   ai : Types.AiState,
   bots : Types.BotState,
@@ -48,7 +49,7 @@ mixin (
   isAiLive : () -> Bool,
 ) {
 
-  func proofEnv() : Proof.Env { { settings; access; works; files; dossier; proof; tenders; org; oaRead; oaInvoices } };
+  func proofEnv() : Proof.Env { { settings; access; works; files; dossier; proof; tenders; org; oaRead; oaInvoices; quotes } };
 
   func requireProofAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);

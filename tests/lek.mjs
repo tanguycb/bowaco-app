@@ -181,6 +181,15 @@ const table = {
   readInvCheck: [NONE, () => [X]],
   runInvCheckAi: [NONE, () => [X]],
   finishInvCheck: [NONE, () => [X, { cancelled: null }]],
+  // 3.9 + 3.11: nakijkopdrachten (kantoor met de prijzen; een onbekend doel of een onbekende opdracht: voor iedereen "Geen toegang").
+  startAiCheck: [NONE, () => [{ target: { tender: X }, way: { ai: null } }]],
+  listAiChecks: [NONE, () => [{ quote: X }]],
+  listAiCheckBots: [NONE, () => [{ tender: X }]],
+  aiCheckAiReady: [["admin", "calculator"], () => ["vergelijking"]],
+  readAiCheck: [NONE, () => [X]],
+  runAiCheckAi: [NONE, () => [X]],
+  finishAiCheck: [NONE, () => [X, { cancelled: null }]],
+  applyTenderCheck: [NONE, () => [X, [], X]],
   invitePerson: [["admin", "werfleider"], () => [invReq]],
   createRecoveryCode: [ADMIN, () => [X, 0n, ""]],
   confirmLink: [ADMIN, () => [someone]],
@@ -754,6 +763,8 @@ for (const k of Object.keys(table)) if (!methods.includes(k)) console.log(`· ta
     tries.push(["inleesopdrachten", {}], ["inleesbestand", { opdracht: 1 }], ["voorstel_oa_offerte", { opdracht: 1, vorm: "totaal", totaalCent: 1 }], ["proef_bestand", { geval: 1 }]);
     // 3.10: OA-factuurcontrole buiten de fiche (ook de bijlagetool en het voorstel bij een opdracht).
     tries.push(["controleopdrachten", {}], ["controlebestand", { opdracht: 1 }], ["voorstel_factuurcontrole", { opdracht: 1, voorstel: "goedkeuren" }]);
+    // 3.9 + 3.11: nakijkopdrachten buiten de fiche.
+    tries.push(["vergelijkopdrachten", {}], ["voorstel_vergelijking", { opdracht: 1 }], ["naleesopdrachten", {}], ["opmerkingen_offerte", { opdracht: 1, oordeel: "in_orde" }]);
     let botCalls = 0;
     for (const [n, a] of tries) {
       botCalls++;
