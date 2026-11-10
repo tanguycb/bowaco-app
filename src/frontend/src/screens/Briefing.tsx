@@ -15,6 +15,7 @@ function useBriefing() {
 }
 
 const whenText = (s: BrSection, i: BrItem) => {
+  if (s.key === "week") return i.day !== undefined ? fmtDayNum(i.day) : "";
   if (i.days === undefined) return i.day !== undefined ? fmtDayNum(i.day) : "";
   const d = Number(i.days);
   return s.key === "proposals" || s.key === "invoices" || s.key === "clients" ? T.waiting(d) : `${i.day !== undefined ? fmtDayNum(i.day) + " · " : ""}${T.daysTo(d)}`;

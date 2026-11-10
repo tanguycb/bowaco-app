@@ -3835,7 +3835,7 @@ export const nl = {
     leadAll: "Alle werven met een getekende offerte, de grootste afwijkingen bovenaan. Open een werf voor de uitsplitsing per onderaannemer, hoofdstuk en soort post.",
     noBase: "Nog geen getekende offerte op deze werf: de nacalculatie vergelijkt met de getekende offerte.",
     noWorks: "Nog geen werven met een getekende offerte.",
-    running: "De werf loopt nog: facturen kunnen nog volgen. Minder kosten dan gepland valt pas op bij een opgeleverde werf.",
+    running: "De werf loopt nog: facturen kunnen nog volgen, dus de werkelijke marge is voorlopig te hoog (ook de kost van meerwerk komt pas met zijn facturen). Minder kosten dan gepland valt pas op bij een opgeleverde werf.",
     planned: "Gepland",
     actual: "Werkelijk",
     sell: "Verkoop (excl. btw)",

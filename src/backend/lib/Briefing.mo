@@ -93,13 +93,24 @@ module {
         };
       };
     };
+    // Taken te laat: één punt per werf (aantal, de ergste achterstand en de titel van die taak), anders verdrinkt de rest.
     let cals = Map.empty<Nat, Plan.Cal>();
+    let late = Map.empty<Nat, (Nat, Nat, Text, Nat)>(); // aantal, ergste achterstand (dagen), titel, einddag
     for (t in c.plan.tasks.values()) {
       if (t.archivedAt == null and t.status != #done and t.percent < 100 and visible(t.workId)) {
         let cal = switch (cals.get(t.workId)) { case (?x) x; case null { let x = Plan.calFor(c.plan, c.works, t.workId); cals.add(t.workId, x); x } };
         let end = Plan.endDay(cal, t.start, t.workdays);
-        if (end < today) { xs.add(item(c, ?t.workId, "Taak te laat: " # t.title, Nat.toText(today - end) # " dagen na het geplande einde", ?end, ?((end : Int) - today))) };
+        if (end < today) {
+          let d = today - end;
+          switch (late.get(t.workId)) {
+            case (?(n, worst, title, e)) { if (d > worst) { late.add(t.workId, (n + 1, d, t.title, end)) } else { late.add(t.workId, (n + 1, worst, title, e)) } };
+            case null { late.add(t.workId, (1, d, t.title, end)) };
+          };
+        };
       };
+    };
+    for ((w, (n, worst, title, e)) in late.entries()) {
+      xs.add(item(c, ?w, n.toText() # (if (n == 1) " taak" else " taken") # " te laat", "ergste: " # title # ", " # worst.toText() # " dagen na het geplande einde", ?e, ?((e : Int) - today)));
     };
     section("attention", "Vraagt aandacht", xs.toArray(), byDays);
   };
