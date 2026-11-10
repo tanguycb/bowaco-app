@@ -9470,6 +9470,46 @@ export interface TimeSlot {
     toMin: bigint;
     fromMin: bigint;
 }
+export interface TodoAct {
+    to: string;
+    kind: string;
+    refs: Array<bigint>;
+    text: string;
+    refText: string;
+}
+export interface TodoItem {
+    by: string;
+    to: string;
+    age: bigint;
+    day?: bigint;
+    key: string;
+    ref: [string, bigint];
+    sub: string;
+    title: string;
+    urgency: bigint;
+    acts: Array<TodoAct>;
+    kind: string;
+    detail: string;
+    snoozedUntil?: bigint;
+    workId?: bigint;
+    workCode: string;
+}
+export interface TodoPage {
+    day: bigint;
+    total: bigint;
+    urgent: bigint;
+    capped: boolean;
+    items: Array<TodoItem>;
+    snoozed: bigint;
+    kinds: Array<[string, bigint]>;
+}
+export interface TodoQuery {
+    day: bigint;
+    kind: string;
+    offset: bigint;
+    limit: bigint;
+    snoozed: boolean;
+}
 export interface TradeInput {
     key: string;
     order: bigint;
@@ -10478,6 +10518,7 @@ export interface backendInterface {
     myOaInvoices(): Promise<Array<MyOaInvoice>>;
     myProposals(): Promise<Array<ProposalView>>;
     myPurchases(): Promise<Array<MyPurchaseView>>;
+    myTodo(q: TodoQuery): Promise<TodoPage>;
     myWorks(): Promise<Array<ExternalWork>>;
     nacalcOverview(): Promise<Result_76>;
     nacalcSettings(): Promise<NcSettings>;
@@ -10687,6 +10728,7 @@ export interface backendInterface {
     shareInsuranceAttest(id: bigint, share: boolean): Promise<Result_1>;
     shareMinMeerVersion(versionId: bigint): Promise<Result_1>;
     siteAdminSettings(): Promise<SiteAdminSettings>;
+    snoozeTodo(key: string, until: bigint | null): Promise<Result_1>;
     startAiCheck(i: AiCheckStart): Promise<Result_7>;
     startInvCheck(i: InvCheckStart): Promise<Result_7>;
     startOaRead(i: OaReadStart): Promise<Result_7>;

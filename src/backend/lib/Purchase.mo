@@ -266,6 +266,15 @@ module {
   };
 
   // Wat het werfverslag zegt over deze firma op die werf en die dag: personen en uren (alle geldige aanwezigheden, regie of niet).
+  // Een dag is open zolang de aankoop meetelt (niet ingetrokken, niet goedgekeurd) en het werfdeel van die werf nog niet goedgekeurd of
+  // ingetrokken is (gedeeld door PurchaseApi en Te doen, 4b.1).
+  public func claimOpen(ps : Types.PurchaseState, oi : Types.OaInvoiceState, c : Types.HourClaim) : Bool {
+    let x = switch (ps.purchases.get(c.purchaseId)) { case (?y) y; case null return false };
+    if (x.status == #withdrawn or x.status == #approved) { return false };
+    for (pid in x.parts.values()) { switch (oi.invoices.get(pid)) { case (?i) { if (i.workId == c.workId and (i.status == #approved or i.status == #withdrawn)) { return false } }; case null {} } };
+    true;
+  };
+
   public func reportHours(reports : Types.ReportState, workId : Nat, orgId : Nat, day : Day) : (Nat, Int) {
     var persons = 0;
     var minutes = 0;

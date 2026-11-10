@@ -64,6 +64,7 @@ import InvCheckApi "mixins/InvCheckApi";
 import NacalcApi "mixins/NacalcApi";
 import BriefingApi "mixins/BriefingApi";
 import InvCheck "lib/InvCheck";
+import TodoApi "mixins/TodoApi";
 import AiCheckApi "mixins/AiCheckApi";
 import AiCheck "lib/AiCheck";
 import OAuth "mo:caffeineai-mcp-server/OAuth";
@@ -106,6 +107,7 @@ persistent actor Self {
   let oaRead : Types.OaReadState; // 3.8: inleesopdrachten van OA-offertes (voorstel met bedragen vertrouwelijk, inhoud tot afsluiten)
   let aiCheck : Types.AiCheckState; // 3.9 + 3.11: nakijkopdrachten (OA-offertes vergelijken per prijsvraag, offerte nalezen vóór verzending)
   let invCheck : Types.InvCheckState; // 3.10: controleopdrachten van OA-facturen (resultaat met bevindingen vertrouwelijk, inhoud tot afsluiten)
+  let todo : Types.TodoState; // 4b.1: Te doen (enkel wat iemand uitstelde; de lijst zelf wordt berekend)
   let ai : Types.AiState; // 3.1: AI-connector (fiches, catalogus, logboek zonder inhoud, budget per maand, Postvak in later)
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -222,6 +224,9 @@ persistent actor Self {
   include NacalcApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, purchases, minMeer, sales, audit);
   // 4.4: maandagbriefing (enkel lezen, zonder bedragen; voor de zaakvoerder).
   include BriefingApi(settings, access, org, works, plan, reports, dossier, permits, siteAdmin, quotes, minMeer, oaRead, aiCheck, invCheck, purchases);
+
+  // 4b.1: Te doen (één lijst per persoon, de handeling als knop, uitstellen; geen bedragen).
+  include TodoApi(settings, access, org, works, plan, board, reports, permits, quotes, quoteDocs, workStarts, minMeer, oaInvoices, purchases, oaDeals, siteAdmin, tenders, oaRead, aiCheck, invCheck, bots, audit, todo);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

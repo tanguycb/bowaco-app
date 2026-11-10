@@ -174,6 +174,18 @@ module {
     memberAs(ctx, p, w, #architect) or memberAs(ctx, p, w, #onderaannemer) or memberAs(ctx, p, w, #klant) or memberAs(ctx, p, w, #veiligheidscoordinator);
   };
 
+  // 4b.1 (review M4): de werven waar p ÜBERHAUPT iets kan zien, als snelle voorfilter: null = mogelijk alle werven (admin, calculator,
+  // werfleider met "ziet alles"); anders de werven met een actief lidmaatschap (persoonlijk of via zijn firma). Een noodzakelijke
+  // voorwaarde voor seesWork (nooit ruimer): de echte beslissing blijft seesWork/may.
+  public func candidateWorks(ctx : Ctx, p : Person) : ?Map.Map<WorkId, ()> {
+    if (has(p, #admin) or has(p, #calculator) or (has(p, #werfleider) and ctx.settings.werfleiderZietAlles)) { return null };
+    let m = Map.empty<WorkId, ()>();
+    for (x in ctx.works.memberships.values()) {
+      if (x.endedAt == null and (x.personId == ?p.id or (x.personId == null and x.orgId != null and x.orgId == p.orgId))) { m.add(x.workId, ()) };
+    };
+    ?m;
+  };
+
   func leaderOn(ctx : Ctx, p : Person, w : WorkId) : Bool {
     has(p, #werfleider) and seesWork(ctx, p, w);
   };

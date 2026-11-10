@@ -25,7 +25,7 @@ import { Vandaag } from "../screens/Vandaag";
 import { Werfverslag } from "../screens/Werfverslag";
 import { OutboxSheet } from "../screens/Verslagen";
 import { MijnUren } from "../screens/Extern";
-import { Bell } from "../screens/Meldingen";
+import { TodoPage, TodoTeller } from "../screens/TeDoen";
 import { PlanningHub } from "../screens/PlanningTabs";
 import { IntroCard, StartBanner, useStartState } from "../screens/Start";
 import { introKind, startParam } from "./start";
@@ -213,6 +213,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const screen = (() => {
     switch (page) {
       case "overzicht": return <Overzicht go={go} caps={caps} />;
+      case "te-doen": return <TodoPage go={go} home={caps.home} />;
       case "vandaag":
         if (caps.writeReports) return <Vandaag go={go} caps={caps} />;
         return <Home kind={page} go={go} caps={caps} />;
@@ -300,7 +301,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
     <div className={bar.length > 0 ? "a-app a-app--bottom" : "a-app"}>
       <aside className="a-side">
         <div className="a-side__brand"><Wordmark size={17} sub={t.app.sub} /></div>
-        <div className="a-row--tight"><Bell go={go} home={caps.home} />
+        <div className="a-row--tight"><TodoTeller go={go} />
         {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}</div>
         {navList()}
         <div className="a-me">
@@ -314,7 +315,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       <div className="a-main">
         <header className="a-bar">
           <span className="a-bar__brand"><Wordmark size={16} sub={t.app.sub} /></span>
-          <Bell go={go} home={caps.home} />
+          <TodoTeller go={go} />
           {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
           {bar.length === 0 && <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>}
         </header>

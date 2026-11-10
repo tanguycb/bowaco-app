@@ -654,6 +654,9 @@ const table = {
   auditCount: [ADMIN, () => []],
   myNotifications: [ACTIVE, () => [true]],
   markNotificationsRead: [ACTIVE, () => [[]]],
+  // 4b.1: Te doen (iedere actieve persoon zijn eigen lijst; wat erin staat bewijst tests/proef-4b-1.mjs per regel en per rol).
+  myTodo: [ACTIVE, () => [{ day: BigInt(Math.floor(Date.now() / 86_400_000)), offset: 0n, limit: 1n, snoozed: false, kind: "" }]],
+  snoozeTodo: [ACTIVE, () => ["", []]],
   exportIntern: [ADMIN, () => []],
   exportConfidential: [ADMIN, () => []],
   exportChunk: [ADMIN, () => ["persons", 0n, 1n]], // 1.9: export in stukken (O-11)

@@ -5881,6 +5881,46 @@ export const MyPurchaseView = IDL.Record({
   'decidedAt' : IDL.Opt(IDL.Int),
   'reason' : IDL.Text,
 });
+export const TodoQuery = IDL.Record({
+  'day' : IDL.Nat,
+  'kind' : IDL.Text,
+  'offset' : IDL.Nat,
+  'limit' : IDL.Nat,
+  'snoozed' : IDL.Bool,
+});
+export const TodoAct = IDL.Record({
+  'to' : IDL.Text,
+  'kind' : IDL.Text,
+  'refs' : IDL.Vec(IDL.Nat),
+  'text' : IDL.Text,
+  'refText' : IDL.Text,
+});
+export const TodoItem = IDL.Record({
+  'by' : IDL.Text,
+  'to' : IDL.Text,
+  'age' : IDL.Nat,
+  'day' : IDL.Opt(IDL.Nat),
+  'key' : IDL.Text,
+  'ref' : IDL.Tuple(IDL.Text, IDL.Nat),
+  'sub' : IDL.Text,
+  'title' : IDL.Text,
+  'urgency' : IDL.Nat,
+  'acts' : IDL.Vec(TodoAct),
+  'kind' : IDL.Text,
+  'detail' : IDL.Text,
+  'snoozedUntil' : IDL.Opt(IDL.Nat),
+  'workId' : IDL.Opt(IDL.Nat),
+  'workCode' : IDL.Text,
+});
+export const TodoPage = IDL.Record({
+  'day' : IDL.Nat,
+  'total' : IDL.Nat,
+  'urgent' : IDL.Nat,
+  'capped' : IDL.Bool,
+  'items' : IDL.Vec(TodoItem),
+  'snoozed' : IDL.Nat,
+  'kinds' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+});
 export const ExternalWork = IDL.Record({
   'id' : WorkId,
   'status' : WorkStatus,
@@ -9377,6 +9417,7 @@ export const idlService = IDL.Service({
   'myOaInvoices' : IDL.Func([], [IDL.Vec(MyOaInvoice)], ['query']),
   'myProposals' : IDL.Func([], [IDL.Vec(ProposalView)], ['query']),
   'myPurchases' : IDL.Func([], [IDL.Vec(MyPurchaseView)], ['query']),
+  'myTodo' : IDL.Func([TodoQuery], [TodoPage], ['query']),
   'myWorks' : IDL.Func([], [IDL.Vec(ExternalWork)], ['query']),
   'nacalcOverview' : IDL.Func([], [Result_76], []),
   'nacalcSettings' : IDL.Func([], [NcSettings], ['query']),
@@ -9719,6 +9760,7 @@ export const idlService = IDL.Service({
   'shareInsuranceAttest' : IDL.Func([IDL.Nat, IDL.Bool], [Result_1], []),
   'shareMinMeerVersion' : IDL.Func([IDL.Nat], [Result_1], []),
   'siteAdminSettings' : IDL.Func([], [SiteAdminSettings], ['query']),
+  'snoozeTodo' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_1], []),
   'startAiCheck' : IDL.Func([AiCheckStart], [Result_7], []),
   'startInvCheck' : IDL.Func([InvCheckStart], [Result_7], []),
   'startOaRead' : IDL.Func([OaReadStart], [Result_7], []),
@@ -15575,6 +15617,46 @@ export const idlFactory = ({ IDL }) => {
     'decidedAt' : IDL.Opt(IDL.Int),
     'reason' : IDL.Text,
   });
+  const TodoQuery = IDL.Record({
+    'day' : IDL.Nat,
+    'kind' : IDL.Text,
+    'offset' : IDL.Nat,
+    'limit' : IDL.Nat,
+    'snoozed' : IDL.Bool,
+  });
+  const TodoAct = IDL.Record({
+    'to' : IDL.Text,
+    'kind' : IDL.Text,
+    'refs' : IDL.Vec(IDL.Nat),
+    'text' : IDL.Text,
+    'refText' : IDL.Text,
+  });
+  const TodoItem = IDL.Record({
+    'by' : IDL.Text,
+    'to' : IDL.Text,
+    'age' : IDL.Nat,
+    'day' : IDL.Opt(IDL.Nat),
+    'key' : IDL.Text,
+    'ref' : IDL.Tuple(IDL.Text, IDL.Nat),
+    'sub' : IDL.Text,
+    'title' : IDL.Text,
+    'urgency' : IDL.Nat,
+    'acts' : IDL.Vec(TodoAct),
+    'kind' : IDL.Text,
+    'detail' : IDL.Text,
+    'snoozedUntil' : IDL.Opt(IDL.Nat),
+    'workId' : IDL.Opt(IDL.Nat),
+    'workCode' : IDL.Text,
+  });
+  const TodoPage = IDL.Record({
+    'day' : IDL.Nat,
+    'total' : IDL.Nat,
+    'urgent' : IDL.Nat,
+    'capped' : IDL.Bool,
+    'items' : IDL.Vec(TodoItem),
+    'snoozed' : IDL.Nat,
+    'kinds' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
+  });
   const ExternalWork = IDL.Record({
     'id' : WorkId,
     'status' : WorkStatus,
@@ -18972,6 +19054,7 @@ export const idlFactory = ({ IDL }) => {
     'myOaInvoices' : IDL.Func([], [IDL.Vec(MyOaInvoice)], ['query']),
     'myProposals' : IDL.Func([], [IDL.Vec(ProposalView)], ['query']),
     'myPurchases' : IDL.Func([], [IDL.Vec(MyPurchaseView)], ['query']),
+    'myTodo' : IDL.Func([TodoQuery], [TodoPage], ['query']),
     'myWorks' : IDL.Func([], [IDL.Vec(ExternalWork)], ['query']),
     'nacalcOverview' : IDL.Func([], [Result_76], []),
     'nacalcSettings' : IDL.Func([], [NcSettings], ['query']),
@@ -19338,6 +19421,7 @@ export const idlFactory = ({ IDL }) => {
     'shareInsuranceAttest' : IDL.Func([IDL.Nat, IDL.Bool], [Result_1], []),
     'shareMinMeerVersion' : IDL.Func([IDL.Nat], [Result_1], []),
     'siteAdminSettings' : IDL.Func([], [SiteAdminSettings], ['query']),
+    'snoozeTodo' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_1], []),
     'startAiCheck' : IDL.Func([AiCheckStart], [Result_7], []),
     'startInvCheck' : IDL.Func([InvCheckStart], [Result_7], []),
     'startOaRead' : IDL.Func([OaReadStart], [Result_7], []),

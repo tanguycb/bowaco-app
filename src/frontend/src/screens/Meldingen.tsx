@@ -1,5 +1,5 @@
-// In-app meldingen (bouwplan §8.6 en rij 1.7, R18: iedereen leest enkel zijn eigen). Een bel in de kop met het aantal
-// nieuwe meldingen; tikken = de lijst, met doorklikken naar de werf, de planning of Mijn uren.
+// In-app meldingen (bouwplan §8.6 en rij 1.7, R18: iedereen leest enkel zijn eigen). 4b.1: de bel in de kop is weg; de nieuwe meldingen
+// staan in Te doen, en deze lijst (ook de gelezen) opent vanuit Te doen met "Alle meldingen".
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { NotificationView } from "../backend";
@@ -11,22 +11,6 @@ import { Loading } from "./common";
 
 const M = t.notes;
 
-export function Bell({ go, home }: { go: (to: string) => void; home: string }) {
-  const { actor, isFetching } = useBackend();
-  const on = !!actor && !isFetching;
-  const [open, setOpen] = useState(false);
-  const unread = useQuery({ queryKey: ["notes"], queryFn: () => actor!.myNotifications(true), enabled: on, refetchInterval: 60_000, refetchOnWindowFocus: true, retry: 0 });
-  const n = unread.data?.length ?? 0;
-  return (
-    <>
-      <button type="button" className={`bw-conn${n > 0 ? " a-bell--on" : ""}`} aria-label={n > 0 ? M.unread(n) : M.title} onClick={() => setOpen(true)}>
-        <Icon name="bell" size={16} />{n > 0 ? n : ""}
-      </button>
-      {open && <NotesSheet go={go} home={home} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
 /** 2b.3: een melding springt naar het tabblad van de werf waar het over gaat (#/werven/12/offerte …). */
 const TAB_OF: [RegExp, string][] = [
   [/^(planning|afwezigheid|vallen|valt|remming)/, "planning"],
@@ -37,7 +21,8 @@ const TAB_OF: [RegExp, string][] = [
   [/^(verslag|probleem)/, "verslagen"],
 ];
 
-function target(n: NotificationView, home: string): string | null {
+/** 4b.1: ook gebruikt door Te doen (een regel "melding" springt naar dezelfde plek). */
+export function noteTarget(n: Pick<NotificationView, "kind" | "workId">, home: string): string | null {
   if (n.kind === "uren-bevestigen") return "uren";
   if (n.workId === undefined) return home === "week" ? "week" : null;
   if (n.kind.startsWith("planning")) return home === "week" ? "week" : `werven/${n.workId}/planning`;
@@ -45,7 +30,7 @@ function target(n: NotificationView, home: string): string | null {
   return tab ? `werven/${n.workId}/${tab}` : `werven/${n.workId}`;
 }
 
-function NotesSheet({ go, home, onClose }: { go: (to: string) => void; home: string; onClose: () => void }) {
+export function NotesSheet({ go, home, onClose }: { go: (to: string) => void; home: string; onClose: () => void }) {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const all = useQuery({ queryKey: ["notesAll"], queryFn: () => actor!.myNotifications(false), enabled: !!actor && !isFetching });
@@ -73,7 +58,7 @@ function NotesSheet({ go, home, onClose }: { go: (to: string) => void; home: str
             <span className="bw-label">{M.groups[g.key]} · {g.items.length}{g.unread > 0 ? ` · ${M.unread(g.unread)}` : ""}</span>
             <ul className="a-list">
               {shown.map((n) => {
-                const to = target(n, home);
+                const to = noteTarget(n, home);
                 return (
                   <li key={String(n.id)}>
                     <span className="a-list__main">

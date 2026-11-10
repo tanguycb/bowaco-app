@@ -15,7 +15,7 @@ const item = (key: string, label: string, icon: IconName, match: string[] = [key
 
 /** De sleutels van alle schermen die iemand mag openen (ook zonder menu-item): de bladwijzers van vroeger blijven werken. */
 export function pagesFor(caps: Caps): Set<string> {
-  const s = new Set<string>([caps.home, "login", "werven"]);
+  const s = new Set<string>([caps.home, "login", "werven", "te-doen"]); // 4b.1: Te doen voor iedereen (teller in de kop)
   if (caps.writeReports) { s.add("vandaag"); s.add("verslag"); }
   if (caps.workStarts) s.add("werfstart");
   if (caps.home === "week") s.add("uren");

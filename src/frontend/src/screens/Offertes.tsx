@@ -15,7 +15,7 @@ import { makePdf, pdfFromRead, pdfName } from "../pdf/adapt.ts";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page, useWorks } from "./common";
-import { CalculatorStart } from "./Aandacht";
+import { TodoBlock } from "./TeDoen";
 import { OpenConfidential } from "./Dossier";
 import { ChapterMargin, FormPanel, KindSheet, SubgroupHead } from "./OfferteVorm";
 import { prepareUpload } from "../lib/uploadPrep";
@@ -141,7 +141,8 @@ function QuotesOverview({ caps, go }: { caps: Caps; go: (to: string) => void }) 
   return (
     <Page label={O.label} title={O.title} actions={caps.editQuotes && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{O.newQuote}</Button>}>
       <p className="bw-muted" style={{ maxWidth: 760 }}>{caps.quotePrices ? O.lead : O.leadTotals}</p>
-      {caps.home === "offertes" && <CalculatorStart go={go} />}
+      {/* 4b.1: de start van de calculator (aanvragen, wacht op de klant, voorstellen) staat in Te doen. */}
+      {caps.home === "offertes" && <TodoBlock go={go} home={caps.home} hideEmpty />}
       <div className="a-row" style={{ gap: 16 }}>
         <input className="bw-input" style={{ maxWidth: 420 }} type="search" aria-label={O.search} placeholder={O.search} value={q} onChange={(e) => setQ(e.target.value)} />
         <label className="a-check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} /> {O.showArchived}</label>

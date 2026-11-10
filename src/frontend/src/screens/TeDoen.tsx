@@ -1,0 +1,243 @@
+// Te doen (stap 4b.1, bouwplan §9 fase 4b): één lijst per persoon, het dringendste eerst, met de handeling als knop bij elke regel en
+// "Uitstellen tot". Eén query (myTodo); de rechten per regel beslist de backend (lib/Todo.mo), de browser toont enkel wat hij krijgt.
+// De bel en "Vraagt aandacht" gaan erin op: de teller in de kop opent deze lijst, de startschermen tonen er de eerste regels van.
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Principal } from "@icp-sdk/core/principal";
+import { useState } from "react";
+import type { TodoAct, TodoItem, TodoPage as TodoPageView } from "../backend";
+import { Button, Icon, Sheet, useToast } from "../design";
+import { t } from "../texts/nl";
+import { dayToInput, errText, fmtDayNum, inputToDay, todayDay, unwrap, useBackend } from "../util";
+import { Loading, Page } from "./common";
+import { NotesSheet, noteTarget } from "./Meldingen";
+
+const T = t.todo;
+const N = Number;
+const PAGE = 50;
+
+type Q = { snoozed: boolean; kind: string; offset: number };
+/** De gewone eerste pagina: de teller in de kop, het blok op het startscherm en de pagina delen deze ene query (review L10). */
+const FIRST: Q = { snoozed: false, kind: "", offset: 0 };
+
+/** De lijst van de ingelogde persoon, per pagina van 50. Elke 30 s een lichte navraag (geen push op Caffeine; queries zijn gratis). */
+export function useTodo(q: Q) {
+  const { actor, isFetching } = useBackend();
+  const day = todayDay();
+  return useQuery<TodoPageView>({
+    queryKey: ["todo", String(day), q.snoozed, q.kind, q.offset],
+    queryFn: () => actor!.myTodo({ day, offset: BigInt(q.offset), limit: BigInt(PAGE), snoozed: q.snoozed, kind: q.kind }),
+    enabled: !!actor && !isFetching,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 0,
+  });
+}
+
+/** De handelingen van een regel: meteen uitvoeren (gelezen, bevestigen, aanvaarden) of naar de plek gaan. */
+function useActs(go: (to: string) => void, home: string) {
+  const { actor } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const run = useMutation({
+    mutationFn: async ({ a }: { a: TodoAct; key: string }) => {
+      switch (a.kind) {
+        case "gelezen": await actor!.markNotificationsRead(a.refs); return T.done;
+        case "koppeling-bevestigen": unwrap(await actor!.confirmLink(Principal.fromText(a.refText))); return t.common.saved;
+        case "bot-aanvaarden": unwrap(await actor!.decideBotAction(a.refs[0], true, "")); return t.common.saved;
+        case "bot-weigeren": unwrap(await actor!.decideBotAction(a.refs[0], false, "")); return t.common.saved;
+        case "taak-bevestigen": unwrap(await actor!.confirmAssignment(a.refs[0], true, "")); return t.common.saved;
+        default: return "";
+      }
+    },
+    onSuccess: (text) => {
+      if (text) toast.show({ kind: "ok", text });
+      void qc.invalidateQueries({ queryKey: ["todo"] });
+      void qc.invalidateQueries({ queryKey: ["notes"] });
+      void qc.invalidateQueries({ queryKey: ["notesAll"] });
+    },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  /** Waar een regel heen gaat: een melding volgt de regels van de vroegere bel. */
+  const where = (x: TodoItem): string | null => (x.kind === "melding" ? noteTarget({ kind: x.sub, workId: x.workId }, home) : x.to || null);
+  const fire = (x: TodoItem, a: TodoAct) => {
+    if (a.kind === "open" || !["gelezen", "koppeling-bevestigen", "bot-aanvaarden", "bot-weigeren", "taak-bevestigen"].includes(a.kind)) {
+      const to = a.to || where(x);
+      if (to) go(to);
+      return;
+    }
+    run.mutate({ a, key: x.key });
+  };
+  const busy = (x: TodoItem, a: TodoAct) => run.isPending && run.variables?.key === x.key && run.variables?.a === a;
+  /** Een tik op de regel zelf: naar de plek (een melding telt dan als gelezen). */
+  const openRow = (x: TodoItem) => {
+    const to = where(x);
+    if (x.kind === "melding") { const g = x.acts.find((a) => a.kind === "gelezen"); if (g) run.mutate({ a: g, key: x.key }); }
+    if (to) go(to);
+  };
+  return { fire, busy, openRow, where };
+}
+
+/** De volgende maandag na vandaag. */
+function nextMonday(today: bigint): bigint {
+  const wd = (N(today) + 3) % 7; // 0 = maandag (zoals Plan.weekday)
+  return today + BigInt(7 - wd);
+}
+
+/** Uitstellen tot: snelle keuzes en een eigen dag (geen venster van de browser, R: geen window.confirm). */
+function SnoozeSheet({ item, onClose }: { item: TodoItem; onClose: () => void }) {
+  const { actor } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const today = todayDay();
+  const [own, setOwn] = useState(dayToInput(today + 2n));
+  const save = useMutation({
+    mutationFn: async (until: bigint) => unwrap(await actor!.snoozeTodo(item.key, until)),
+    onSuccess: () => { toast.show({ kind: "ok", text: T.snoozed }); void qc.invalidateQueries({ queryKey: ["todo"] }); onClose(); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  const choices: [string, bigint][] = [[T.snoozeTomorrow, today + 1n], [T.snoozeMonday, nextMonday(today)], [T.snoozeWeek, today + 7n], [T.snoozeMonth, today + 30n]];
+  const ownDay = inputToDay(own);
+  return (
+    <Sheet title={T.snoozeTitle} open onClose={onClose} footer={<Button onClick={onClose}>{t.common.close}</Button>}>
+      <p className="bw-muted a-note-small">{T.snoozeLead}</p>
+      <p><b>{item.workCode ? `${item.workCode} · ` : ""}{item.title}</b></p>
+      <div className="a-row" data-testid="todo-snooze-choices">
+        {choices.map(([label, d]) => (
+          <Button key={label} busy={save.isPending && save.variables === d} onClick={() => save.mutate(d)}>{label} · {fmtDayNum(d)}</Button>
+        ))}
+      </div>
+      <label className="bw-field">
+        <span className="bw-label">{T.snoozeDate}</span>
+        <input type="date" className="bw-input" value={own} min={dayToInput(today + 1n)} onChange={(e) => setOwn(e.target.value)} />
+      </label>
+      <Button variant="primary" disabled={!ownDay || ownDay <= today} busy={save.isPending && save.variables === ownDay} onClick={() => ownDay && save.mutate(ownDay)}>{T.snoozeOk}</Button>
+    </Sheet>
+  );
+}
+
+/** Eén regel: titel en detail (tik = naar de plek), de knoppen, Uitstellen of Terugzetten. */
+function Row({ x, acts, onSnooze }: { x: TodoItem; acts: ReturnType<typeof useActs>; onSnooze: (x: TodoItem) => void }) {
+  const { actor } = useBackend();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const back = useMutation({
+    mutationFn: async () => unwrap(await actor!.snoozeTodo(x.key, null)),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["todo"] }),
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
+  const to = acts.where(x);
+  const meta = [x.detail, x.age > 0 && x.kind !== "melding" ? T.age(N(x.age)) : "", x.snoozedUntil !== undefined ? T.snoozedUntil(fmtDayNum(x.snoozedUntil)) : ""].filter(Boolean).join(" · ");
+  return (
+    <li className="a-todo" data-kind={x.kind} data-key={x.key} data-urgency={N(x.urgency)}>
+      <button type="button" className="a-list__btn a-todo__main" disabled={!to} onClick={() => acts.openRow(x)}>
+        <span className="a-list__main">
+          <b>{x.workCode ? `${x.workCode} · ` : ""}{x.title}</b>
+          {meta && <span className="bw-muted">{meta}</span>}
+          {x.by && <span className="a-todo__by" data-testid="todo-by"><span className="a-todo__sq" aria-hidden="true" />{x.by}</span>}
+        </span>
+      </button>
+      <span className="a-todo__acts">
+        {x.acts.map((a, i) => (
+          <Button key={`${a.kind}${i}`} variant={i === 0 ? "primary" : "secondary"} busy={acts.busy(x, a)} onClick={() => acts.fire(x, a)} data-act={a.kind}>{a.text}</Button>
+        ))}
+        {x.snoozedUntil !== undefined
+          ? <Button variant="quiet" busy={back.isPending} onClick={() => back.mutate()} data-act="terugzetten">{T.unsnooze}</Button>
+          : <Button variant="quiet" icon="clock" onClick={() => onSnooze(x)} data-act="uitstellen">{T.snooze}</Button>}
+      </span>
+    </li>
+  );
+}
+
+/** De regels gegroepeerd per dringendheid (Nu · Vandaag · Deze week · Later). */
+function Groups({ items, acts, onSnooze }: { items: TodoItem[]; acts: ReturnType<typeof useActs>; onSnooze: (x: TodoItem) => void }) {
+  return (
+    <>
+      {[0, 1, 2, 3].map((u) => {
+        const xs = items.filter((x) => N(x.urgency) === u);
+        if (xs.length === 0) return null;
+        return (
+          <div key={u} className="a-attn" data-urgency={u}>
+            <span className="bw-label a-attn__h">{u === 0 && <Icon name="alert" size={14} />} {T.urgency[u]} · {xs.length}</span>
+            <ul className="a-list a-todo-list">{xs.map((x) => <Row key={x.key} x={x} acts={acts} onSnooze={onSnooze} />)}</ul>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** De pagina Te doen (#/te-doen): filter per soort, het uitgestelde apart, alle meldingen (ook gelezen) achter een knop. */
+export function TodoPage({ go, home }: { go: (to: string) => void; home: string }) {
+  const [snoozed, setSnoozed] = useState(false);
+  const [kind, setKind] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [snooze, setSnooze] = useState<TodoItem | null>(null);
+  const [notes, setNotes] = useState(false);
+  const q = useTodo({ snoozed, kind, offset });
+  const all = useTodo(FIRST); // de tellers per soort over de hele lijst (dezelfde query als de teller in de kop)
+  const acts = useActs(go, home);
+  const d = q.data;
+  const kinds = (all.data?.kinds ?? []).slice().sort((a, b) => N(b[1]) - N(a[1]));
+  const pick = (k: string) => { setKind(k); setSnoozed(false); setOffset(0); };
+  const total = N(d?.total ?? 0n);
+  return (
+    <Page title={T.title} actions={<Button variant="quiet" icon="bell" onClick={() => setNotes(true)}>{T.notesAll}</Button>}>
+      <p className="bw-muted a-note-small">{T.lead}</p>
+      <div className="a-row a-todo-filter" role="group" aria-label={T.title}>
+        <Button variant={!snoozed && kind === "" ? "primary" : "secondary"} onClick={() => pick("")}>{T.filterAll} · {N(all.data?.total ?? 0n)}</Button>
+        {kinds.map(([k, n]) => (
+          <Button key={k} variant={!snoozed && kind === k ? "primary" : "secondary"} onClick={() => pick(k)} data-kind={k}>{T.kinds[k] ?? k} · {N(n)}</Button>
+        ))}
+        {(all.data?.snoozed ?? 0n) > 0n && <Button variant={snoozed ? "primary" : "quiet"} icon="clock" onClick={() => { setSnoozed(true); setKind(""); setOffset(0); }} data-testid="todo-snoozed">{T.snoozedTab(N(all.data!.snoozed))}</Button>}
+      </div>
+      <Loading q={q} />
+      {d && d.items.length === 0 && <p className="a-empty" data-testid="todo-leeg">{snoozed ? T.nothingSnoozed : T.nothing}</p>}
+      {d && <Groups items={d.items} acts={acts} onSnooze={setSnooze} />}
+      {d && total > PAGE && (
+        <div className="a-row" data-testid="todo-pages">
+          <Button variant="quiet" icon="back" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE))}>{T.prev}</Button>
+          <span className="bw-muted bw-num">{T.range(offset + 1, Math.min(offset + PAGE, total), total)}</span>
+          <Button variant="quiet" icon="next" disabled={offset + PAGE >= total} onClick={() => setOffset((o) => o + PAGE)}>{T.next}</Button>
+        </div>
+      )}
+      {d?.capped && <p className="bw-muted a-note-small">{T.capped}</p>}
+      {snoozed && <Button variant="quiet" icon="back" onClick={() => { setSnoozed(false); setOffset(0); }}>{T.back}</Button>}
+      {snooze && <SnoozeSheet item={snooze} onClose={() => setSnooze(null)} />}
+      {notes && <NotesSheet go={go} home={home} onClose={() => setNotes(false)} />}
+    </Page>
+  );
+}
+
+/** Het blok bovenaan een startscherm: de eerste regels en "Alles bekijken". */
+export function TodoBlock({ go, home, hideEmpty, max = 6 }: { go: (to: string) => void; home: string; hideEmpty?: boolean; max?: number }) {
+  const q = useTodo(FIRST);
+  const acts = useActs(go, home);
+  const [snooze, setSnooze] = useState<TodoItem | null>(null);
+  const d = q.data;
+  const total = N(d?.total ?? 0n);
+  if (hideEmpty && d && total === 0) return null;
+  return (
+    <section className="a-section" data-testid="te-doen">
+      <div className="a-row a-row--between">
+        <h2 className="bw-h2">{T.title} {total > 0 && <span className="bw-muted bw-num">({total})</span>}</h2>
+        {total > 0 && <Button variant="quiet" onClick={() => go("te-doen")}>{T.all(total)}</Button>}
+      </div>
+      {!d && <Loading q={q} />}
+      {d && total === 0 && <p className="a-empty">{T.nothing}</p>}
+      {d && <Groups items={d.items.slice(0, max)} acts={acts} onSnooze={setSnooze} />}
+      {snooze && <SnoozeSheet item={snooze} onClose={() => setSnooze(null)} />}
+    </section>
+  );
+}
+
+/** De teller in de kop (waar de bel stond): het aantal regels, opvallend als er iets dringend is. */
+export function TodoTeller({ go }: { go: (to: string) => void }) {
+  const q = useTodo(FIRST);
+  const n = N(q.data?.total ?? 0n);
+  const urgent = N(q.data?.urgent ?? 0n) > 0;
+  return (
+    <button type="button" className={`bw-conn${urgent ? " a-bell--on" : ""}`} aria-label={n > 0 ? T.teller(n) : T.title} title={T.title} onClick={() => go("te-doen")} data-testid="todo-teller">
+      <Icon name="list" size={16} />{n > 0 ? n : ""}
+    </button>
+  );
+}

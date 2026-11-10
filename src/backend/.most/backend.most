@@ -298,6 +298,84 @@ type AiCall__675158033 =
     workId : ?WorkId__929594816;
     workerKey : Text
   };
+type AiCheckFinding__415036069 =
+  {
+    cents : ?Int;
+    extra : Extra__945213800;
+    kind : Text;
+    ref : ?Nat;
+    severity : Text;
+    text : Text
+  };
+type AiCheckFinding__433776192 =
+  {
+    cents : ?Int;
+    extra : Extra__795045143;
+    kind : Text;
+    ref : ?Nat;
+    severity : Text;
+    text : Text
+  };
+type AiCheckJob__182182072 =
+  {
+    basis : Text;
+    createdAt : Int;
+    createdBy : PersonId__665178636;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId__665178636;
+    var extra : Extra__795045143;
+    id : Nat;
+    var result : ?AiCheckResult__1025557378;
+    var status : InvCheckStatus__930508921;
+    target : AiCheckTarget__994680509;
+    via : InvCheckVia__97332809;
+    workId : WorkId__228603041
+  };
+type AiCheckJob__866158416 =
+  {
+    basis : Text;
+    createdAt : Int;
+    createdBy : PersonId__967516914;
+    var decidedAt : ?Int;
+    var decidedBy : ?PersonId__967516914;
+    var extra : Extra__945213800;
+    id : Nat;
+    var result : ?AiCheckResult__254273522;
+    var status : InvCheckStatus__794526694;
+    target : AiCheckTarget__919445551;
+    via : InvCheckVia__150268285;
+    workId : WorkId__929594816
+  };
+type AiCheckPick__382779230 = {itemId : Nat; oaQuoteId : ?Nat; reason : Text};
+type AiCheckPick__794287065 = {itemId : Nat; oaQuoteId : ?Nat; reason : Text};
+type AiCheckResult__1025557378 =
+  {
+    at : Int;
+    confidence : Nat;
+    extra : Extra__795045143;
+    findings : [AiCheckFinding__433776192];
+    picks : [AiCheckPick__794287065];
+    summary : Text;
+    verdict : Text
+  };
+type AiCheckResult__254273522 =
+  {
+    at : Int;
+    confidence : Nat;
+    extra : Extra__945213800;
+    findings : [AiCheckFinding__415036069];
+    picks : [AiCheckPick__382779230];
+    summary : Text;
+    verdict : Text
+  };
+type AiCheckState__993385848 =
+  {
+    byWork : Map__230067015<Nat, [Nat]>;
+    extra : Map__230067015<Text, Text>;
+    jobs : Map__230067015<Nat, AiCheckJob__182182072>
+  };
+type AiCheckTarget__919445551 = {#other : Text; #quote : Nat; #tender : Nat};
+type AiCheckTarget__994680509 = {#other : Text; #quote : Nat; #tender : Nat};
 type AiInboundState__102153406 =
   {#applied : Nat; #classified : Nat; #new; #rejected : Text};
 type AiInboundState__108953064 =
@@ -1099,6 +1177,7 @@ type Extra__701255983 = [(Text, Text)];
 type Extra__708758806 = [(Text, Text)];
 type Extra__741696500 = [(Text, Text)];
 type Extra__758661032 = [(Text, Text)];
+type Extra__795045143 = [(Text, Text)];
 type Extra__868753233 = [(Text, Text)];
 type Extra__888094855 = [(Text, Text)];
 type Extra__905353614 = [(Text, Text)];
@@ -1498,8 +1577,18 @@ type InvCheckStatus__794526694 =
     #other : Text;
     #proposed
   };
+type InvCheckStatus__930508921 =
+  {
+    #cancelled;
+    #closed : Text;
+    #failed : Text;
+    #open;
+    #other : Text;
+    #proposed
+  };
 type InvCheckVia__1048303305 = {#ai; #bot : Nat; #other : Text};
 type InvCheckVia__150268285 = {#ai; #bot : Nat; #other : Text};
+type InvCheckVia__97332809 = {#ai; #bot : Nat; #other : Text};
 type Invite__1071795559 =
   {
     createdAt : Int;
@@ -3446,6 +3535,7 @@ type PersonId__508880171 = Nat;
 type PersonId__518727946 = Nat;
 type PersonId__580701172 = Nat;
 type PersonId__597574414 = Nat;
+type PersonId__665178636 = Nat;
 type PersonId__677245278 = Nat;
 type PersonId__778496465 = Nat;
 type PersonId__801913222 = Nat;
@@ -5951,6 +6041,7 @@ type WorkDone__366546212 =
   };
 type WorkId__111716167 = Nat;
 type WorkId__171501769 = Nat;
+type WorkId__228603041 = Nat;
 type WorkId__299750985 = Nat;
 type WorkId__305950378 = Nat;
 type WorkId__35351127 = Nat;
@@ -6141,7 +6232,8 @@ type WorksState__605582232 =
   "20261108_120000" : {} -> {bots : BotState__111932722};
   "20261109_120000" : {} -> {proof : ProofState__159778891};
   "20261110_090000" : {} -> {oaRead : OaReadState__749995344};
-  "20261111_090000" : {} -> {invCheck : InvCheckState__126129632}
+  "20261111_090000" : {} -> {invCheck : InvCheckState__126129632};
+  "20261112_090000" : {} -> {aiCheck : AiCheckState__993385848}
 }
 actor  {
   stable access :
@@ -6168,6 +6260,12 @@ actor  {
       runningByPerson : Map__230067015<PersonId__967516914, Nat>;
       spent : Map__230067015<Text, Nat>;
       workers : Map__230067015<Text, AiWorker__849922024>
+    };
+  stable aiCheck :
+    {
+      byWork : Map__230067015<Nat, [Nat]>;
+      extra : Map__230067015<Text, Text>;
+      jobs : Map__230067015<Nat, AiCheckJob__866158416>
     };
   stable audit :
     {

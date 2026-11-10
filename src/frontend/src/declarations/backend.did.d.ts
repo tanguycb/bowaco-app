@@ -7976,6 +7976,46 @@ export interface TicketInfo {
   'workId' : [] | [WorkId],
 }
 export interface TimeSlot { 'toMin' : bigint, 'fromMin' : bigint }
+export interface TodoAct {
+  'to' : string,
+  'kind' : string,
+  'refs' : Array<bigint>,
+  'text' : string,
+  'refText' : string,
+}
+export interface TodoItem {
+  'by' : string,
+  'to' : string,
+  'age' : bigint,
+  'day' : [] | [bigint],
+  'key' : string,
+  'ref' : [string, bigint],
+  'sub' : string,
+  'title' : string,
+  'urgency' : bigint,
+  'acts' : Array<TodoAct>,
+  'kind' : string,
+  'detail' : string,
+  'snoozedUntil' : [] | [bigint],
+  'workId' : [] | [bigint],
+  'workCode' : string,
+}
+export interface TodoPage {
+  'day' : bigint,
+  'total' : bigint,
+  'urgent' : bigint,
+  'capped' : boolean,
+  'items' : Array<TodoItem>,
+  'snoozed' : bigint,
+  'kinds' : Array<[string, bigint]>,
+}
+export interface TodoQuery {
+  'day' : bigint,
+  'kind' : string,
+  'offset' : bigint,
+  'limit' : bigint,
+  'snoozed' : boolean,
+}
 export interface TradeInput {
   'key' : string,
   'order' : bigint,
@@ -8795,6 +8835,7 @@ export interface _SERVICE {
   'myOaInvoices' : ActorMethod<[], Array<MyOaInvoice>>,
   'myProposals' : ActorMethod<[], Array<ProposalView>>,
   'myPurchases' : ActorMethod<[], Array<MyPurchaseView>>,
+  'myTodo' : ActorMethod<[TodoQuery], TodoPage>,
   'myWorks' : ActorMethod<[], Array<ExternalWork>>,
   'nacalcOverview' : ActorMethod<[], Result_76>,
   'nacalcSettings' : ActorMethod<[], NcSettings>,
@@ -9044,6 +9085,7 @@ export interface _SERVICE {
   'shareInsuranceAttest' : ActorMethod<[bigint, boolean], Result_1>,
   'shareMinMeerVersion' : ActorMethod<[bigint], Result_1>,
   'siteAdminSettings' : ActorMethod<[], SiteAdminSettings>,
+  'snoozeTodo' : ActorMethod<[string, [] | [bigint]], Result_1>,
   'startAiCheck' : ActorMethod<[AiCheckStart], Result_7>,
   'startInvCheck' : ActorMethod<[InvCheckStart], Result_7>,
   'startOaRead' : ActorMethod<[OaReadStart], Result_7>,

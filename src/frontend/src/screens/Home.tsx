@@ -9,6 +9,7 @@ import { BoardAttention } from "./Weekbord";
 import type { Caps } from "../backend";
 import { MyTenderList } from "./Prijsvragen";
 import { MijnAttesten, MijnContracten } from "./Attesten";
+import { TodoBlock } from "./TeDoen";
 
 const TITLE: Record<string, string> = { vandaag: t.home.vandaag, week: t.home.week, offertes: t.home.offertes, werven: t.home.werven };
 
@@ -16,6 +17,8 @@ export function Home({ kind, go, caps }: { kind: string; go: (to: string) => voi
   const works = useWorks();
   return (
     <Page title={TITLE[kind] ?? t.home.werven}>
+      {/* 4b.1: externen krijgen hun eigen Te doen (bevestigen, prijsvragen, akkoord) bovenaan. */}
+      {caps && !caps.readTeam && <TodoBlock go={go} home={caps.home} hideEmpty />}
       {kind === "week" && caps?.myTenders && <MyTenderList go={go} embedded />}
       {kind === "week" && caps?.myDeals && <MijnContracten />}
       {kind === "week" && caps?.myDeals && <MijnAttesten />}

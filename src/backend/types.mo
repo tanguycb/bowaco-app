@@ -2790,6 +2790,14 @@ module {
     extra : Map.Map<Text, Text>; // reserve
   };
 
+  // ── Te doen (stap 4b.1, bouwplan §9 fase 4b) ──
+  // Eigen stabiel veld `todo` (deelvorm, OldActor = {}). De lijst zelf wordt elke keer berekend (lib/Todo.mo); bewaard wordt enkel
+  // wat iemand UITSTELDE: per persoon de sleutel van de regel ("<bron>:<id>") → de dag tot wanneer. Klasse: intern, enkel van die persoon.
+  public type TodoState = {
+    snoozes : Map.Map<PersonId, Map.Map<Text, Day>>;
+    extra : Map.Map<Text, Text>; // reserve
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

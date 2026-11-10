@@ -124,3 +124,15 @@
   .v-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   .m-workcard > .bw-btn { width: auto; align-self: flex-start; }
 }
+
+/* 4b.1 Te doen: een regel met titel links en de knoppen rechts (op de gsm eronder), het vierkant van een assistent. */
+.a-todo-list > li.a-todo { flex-wrap: wrap; }
+.a-todo__main { flex: 1 1 260px; min-width: 0; }
+.a-todo__main:disabled { cursor: default; }
+.a-todo__acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; flex: 0 1 auto; }
+.a-todo__by { display: inline-flex; align-items: center; gap: 6px; font-size: var(--bw-fs-xs); color: var(--bw-ink-2, var(--bw-ink)); }
+.a-todo__sq { width: 10px; height: 10px; border-radius: 2px; background: var(--bw-accent); display: inline-block; }
+.a-todo-filter { margin: 4px 0 12px; }
+@media (max-width: 640px) {
+  .a-todo__acts { width: 100%; justify-content: flex-start; }
+}

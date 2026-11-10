@@ -8,7 +8,7 @@ import { useCached } from "../offline/cached";
 import { useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
 import { fmtDayNum, todayDay, useBackend } from "../util";
-import { AttentionBlock } from "./Aandacht";
+import { TodoBlock } from "./TeDoen";
 import { EmptyState, Loading, Page, WorkPhase } from "./common";
 import { PermitsOnSite } from "./Vergunningen";
 
@@ -47,7 +47,8 @@ export function Vandaag({ go, caps }: { go: (to: string) => void; caps: Caps }) 
         {works.map((w) => <WorkCard key={String(w.id)} w={w} day={day} go={go} />)}
       </div>
       {caps.permits && <PermitsOnSite />}
-      {caps.readOrgPlanning && <AttentionBlock caps={caps} go={go} />}
+      {/* 4b.1: Vraagt aandacht ging op in Te doen (de regels van de werfleider). */}
+      <TodoBlock go={go} home={caps.home} />
     </Page>
   );
 }

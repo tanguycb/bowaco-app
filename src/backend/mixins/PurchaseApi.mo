@@ -596,12 +596,7 @@ mixin (
     purchases.claimsByWork.add(c.workId, Quotes.ids(purchases.claimsByWork, c.workId).filter(func y = y != c.id));
   };
   // Een dag is open zolang de aankoop meetelt (niet ingetrokken) en het werfdeel van die werf nog niet goedgekeurd is.
-  func puClaimOpen(c : Types.HourClaim) : Bool {
-    let x = switch (purchases.purchases.get(c.purchaseId)) { case (?y) y; case null return false };
-    if (x.status == #withdrawn or x.status == #approved) { return false };
-    for (pid in x.parts.values()) { switch (oaInvoices.invoices.get(pid)) { case (?i) { if (i.workId == c.workId and (i.status == #approved or i.status == #withdrawn)) { return false } }; case null {} } };
-    true;
-  };
+  func puClaimOpen(c : Types.HourClaim) : Bool { Purchase.claimOpen(purchases, oaInvoices, c) };
   func puClaimView(c : Types.HourClaim, st : Text, p : Types.Person) : PV.HourClaimView {
     let (rn, rh) = Purchase.reportHours(reports, c.workId, c.orgId, c.day);
     let x = purchases.purchases.get(c.purchaseId);

@@ -10,7 +10,7 @@ import { overzichtBlocks } from "../app/start";
 import { useCached } from "../offline/cached";
 import { t } from "../texts/nl";
 import { todayDay, useBackend } from "../util";
-import { AttentionBlock } from "./Aandacht";
+import { TodoBlock } from "./TeDoen";
 import { BriefingBlock } from "./Briefing";
 import { EmptyState, factsOf, Loading, Page, useStages, useWorks } from "./common";
 import { TaskList, useDashboard } from "./Dashboard";
@@ -27,7 +27,8 @@ export function Overzicht({ go, caps }: { go: (to: string) => void; caps: Caps }
     <Page title={t.overzicht.title} actions={caps.createWork && <Button variant="primary" icon="plus" onClick={() => setRequest(true)}>{t.wervenFase.newRequest}</Button>}>
       {blocks.includes("start") && <AanDeSlag caps={caps} go={go} />}
       {blocks.includes("briefing") && !empty && <BriefingBlock go={go} />}
-      {blocks.includes("aandacht") && <AttentionBlock caps={caps} go={go} hideEmpty={empty} />}
+      {/* 4b.1: Vraagt aandacht en de bel gingen op in Te doen. */}
+      {blocks.includes("aandacht") && <TodoBlock go={go} home={caps.home} hideEmpty={empty} />}
       {empty ? (
         <EmptyState title={t.leeg.overzicht.t} text={t.leeg.overzicht.d} action={caps.createWork && <Button variant="primary" icon="plus" onClick={() => setRequest(true)}>{t.leeg.request}</Button>} />
       ) : (

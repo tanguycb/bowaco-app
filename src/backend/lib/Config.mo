@@ -575,6 +575,16 @@ module {
   // samen (instelbaar in Beheer → Opmeting & facturatie; de browser rekent ermee, frontend/src/nacalc/calc.ts).
   public let ncPctBpDefault : Nat = 1_000;
   public let ncMinCentsDefault : Nat = 25_000;
+  // 4b.1 Te doen: hoogstens zoveel regels per pagina en per bron (de rest telt mee in "capped"), uitgestelde regels per persoon,
+  // hoe ver vooruit uitstellen mag, de lengte van een sleutel en het venster voor bevestigingen en conflicten.
+  public let todoMaxPage : Nat = 100;
+  public let todoMaxPerSource : Nat = 200;
+  public let todoMaxSnoozes : Nat = 300;
+  public let todoSnoozeMaxDays : Nat = 366;
+  public let todoMaxKey : Nat = 100;
+  public let todoAhead : Nat = 21; // dagen vooruit: bevestigingen van een OA, deadlines, vervaldagen
+  public let todoWarnAhead : Nat = 30; // dagen vooruit: attesten, verzekeringen
+  public let todoBoardWeeks : Nat = 6; // weken van het weekbord voor dubbel geboekt / afwezig (zoals Vraagt aandacht)
   public let brMaxItems : Nat = 15; // 4.4: punten per onderdeel van de maandagbriefing (het totaal telt alles)
   public let ncMaxWorks : Nat = 400; // werven per overzicht (daarboven: melding "skipped")
   public let mmPassOnBpDefault : Nat = 2_000;
