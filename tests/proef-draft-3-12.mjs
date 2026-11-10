@@ -140,7 +140,8 @@ check("(2) de tekst van de bot is bewaard als gegevens (zonder stuur- en bidi-te
 const again = await call(conA.access, "voorstel_oa_offerte", { opdracht: Number(jA), vorm: "totaal", totaalCent: 1, btwVerlegd: true });
 check("(2) een tweede voorstel op dezelfde opdracht: geweigerd", again.isError);
 const log = await admin.botLog(0n, 60n);
-check("(2) het logboek toont elke poging (tool, uitkomst), zonder inhoud", log.filter((c) => c.botId === botA.id).length >= 12 && log.some((c) => c.botId === botA.id && "refused" in c.outcome) && !S(log).includes(MARK) && !S(log).includes("SP-"), `${log.filter((c) => c.botId === botA.id).length} regels`);
+// Een tool die niet op de fiche staat, bestaat voor deze bot niet (het pakket antwoordt "Unknown tool"): die poging staat niet in het logboek.
+check("(2) het logboek toont elke oproep van een tool op de fiche (ook de geweigerde), zonder inhoud", log.filter((c) => c.botId === botA.id).length >= 8 && log.some((c) => c.botId === botA.id && "refused" in c.outcome) && !S(log).includes(MARK) && !S(log).includes("SP-"), `${log.filter((c) => c.botId === botA.id).length} regels`);
 
 // ── (4) Een ingetrokken koppeling en een ingetrokken bot ────────────────
 const consA = await admin.botConnections(botA.id);
