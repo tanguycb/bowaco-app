@@ -350,7 +350,7 @@ function Fiche({ w, caps, go, works }: { w: WorkView; caps: Caps; go: (to: strin
         </>}
         <dt>{t.werven.leader}</dt><dd>{w.leaderPersonId === undefined && leaders.length ? leaders.map((m) => m.name).join(", ") : personName(w.leaderPersonId)}</dd>
         {/* externen zien de andere firma's op de werf niet (listMembers, 1.9): geen VC-regel en geen analytische code voor hen */}
-        {caps.readTeam && <><dt>{t.werven.vc}</dt><dd>{vcs.length ? vcs.map((m) => m.name).join(", ") : <span className="a-tag a-tag--warn">{t.werven.noVc}</span>}</dd></>}
+        {caps.readTeam && <><dt>{t.werven.vc}</dt><dd>{vcs.length ? vcs.map((m) => m.name).join(", ") : <span className="a-tag a-tag--warn a-tag--wrap">{t.werven.noVc}</span>}</dd></>}
         <dt>{t.werven.period}</dt><dd className="bw-num">{w.plannedStart !== undefined || w.plannedEnd !== undefined ? `${fmtDayNum(w.plannedStart)} – ${fmtDayNum(w.plannedEnd)}` : t.common.none}</dd>
         <dt>{t.werven.vat}</dt><dd>{Number(w.vatBp) / 100} %{w.vatNote ? <span className="bw-muted"> · {w.vatNote}</span> : null}</dd>
         {caps.readTeam && <><dt>{t.werven.analytic}</dt><dd className="bw-mono">{w.analyticCode ?? <>{w.code} <span className="bw-muted">{t.werven.analyticSame}</span></>}</dd></>}

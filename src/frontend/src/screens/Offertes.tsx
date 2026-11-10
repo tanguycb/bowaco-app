@@ -921,6 +921,12 @@ function Controls({ m, findings, loaded, onJump }: { m: M.Model; findings: Findi
     </section>
   );
 }
+/** Opknapronde F8: "m2 · m²", "set · set" → de naam één keer; verschillen sleutel en naam ("sog · som of geheel (forfait)"), dan beide. */
+function unitLabel(u: UnitView): string {
+  const norm = (x: string) => x.toLowerCase().replace(/²/g, "2").replace(/³/g, "3").replace(/[\s.]/g, "");
+  return norm(u.key) === norm(u.name) ? u.name : `${u.key} · ${u.name}`;
+}
+
 function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.Model; lineKey: string; editable: boolean; units: UnitView[]; orgs: OrgView[]; edit: (f: (m: M.Model) => void) => void; onClose: () => void }) {
   const l = m.lines.find((x) => x.key === lineKey);
   if (!l) return null;
@@ -961,7 +967,7 @@ function LineSheet({ m, lineKey, editable, units, orgs, edit, onClose }: { m: M.
             <div className="a-grid3 q-sheet-qty">
               <label className="bw-field"><span className="bw-label">{O.qtyLong}</span><NumCell col="sheet-qty" label={O.qtyLong} value={fmtQty(l.qtyMilli)} onCommit={(s) => { if (ro) return true; const q = parseQty(s); if (q === null) return false; up({ qtyMilli: q }); return true; }} /></label>
               <label className="bw-field"><span className="bw-label">{O.unit}</span>
-                <select className="bw-input" disabled={ro} value={l.unit} onChange={(e) => up({ unit: e.target.value })}>{units.map((u) => <option key={u.key} value={u.key}>{u.key} · {u.name}</option>)}</select>
+                <select className="bw-input" disabled={ro} value={l.unit} onChange={(e) => up({ unit: e.target.value })}>{units.map((u) => <option key={u.key} value={u.key}>{unitLabel(u)}</option>)}</select>
               </label>
               <label className="bw-field"><span className="bw-label">{O.form}<Info text={t.uitleg.contractvorm} label={t.uitleg.label} /></span>
                 <select className="bw-input" disabled={ro} value={l.form} onChange={(e) => up({ form: e.target.value })}>{FORMS.map((f) => <option key={f} value={f}>{O.forms[f]}</option>)}</select>

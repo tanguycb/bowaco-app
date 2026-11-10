@@ -11,9 +11,10 @@ export function Steps({ steps, current, visited, onGo }: { steps: string[]; curr
               className="bw-steps__btn"
               disabled={!onGo || i > max || i === current}
               aria-current={i === current ? "step" : undefined}
+              aria-label={`${i + 1} ${s}`}
               onClick={() => onGo?.(i)}
             >
-              <span className="bw-steps__t"><span className="bw-steps__n">{i + 1}</span>{s}</span>
+              <span className="bw-steps__t"><span className="bw-steps__n">{i + 1}</span><span className="bw-steps__l">{s}</span></span>
             </button>
           </li>
         ))}

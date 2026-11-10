@@ -100,7 +100,7 @@ export function QuarterExport({ today }: { today: bigint }) {
       <p className="bw-muted">{T.list.quarterLead}</p>
       <div className="a-row" style={{ gap: 6 }}>
         <input className="bw-input" style={{ width: 90 }} inputMode="numeric" aria-label="Jaar" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, ""))} />
-        <select className="bw-input" aria-label="Kwartaal" value={quarter} onChange={(e) => setQuarter(e.target.value)}>{[1, 2, 3, 4].map((k) => <option key={k} value={String(k)}>K{k}</option>)}</select>
+        <select className="bw-input" style={{ width: "auto" }} aria-label="Kwartaal" value={quarter} onChange={(e) => setQuarter(e.target.value)}>{[1, 2, 3, 4].map((k) => <option key={k} value={String(k)}>K{k}</option>)}</select>
         <Button variant="primary" busy={go.isPending} onClick={() => go.mutate()}>{T.list.quarterGo}</Button>
       </div>
     </div>

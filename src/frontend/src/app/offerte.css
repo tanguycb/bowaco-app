@@ -93,10 +93,14 @@
 /* gsm: de editor is een desktopscherm; op de gsm lezen (werfleider) met labels per cel, zonder horizontale scroll */
 @media (max-width: 899px) {
   .q-row--head { display: none; }
-  .q-row, .q-row--full, .q-row--sell, .q-row--totals { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 10px; padding: 10px; }
+  /* Opknapronde F5: een kolom is minstens zo breed als een bedrag erin (velden tellen niet mee), zodat "€ 33.333,00" niet
+     afgekapt wordt; alle cellen bovenaan, zodat label en waarde van Aankoop/Marge (veld) en Prijs/Totaal (tekst) gelijk staan. */
+  .q-row, .q-row--full, .q-row--sell, .q-row--totals { grid-template-columns: repeat(4, minmax(min-content, 1fr)); gap: 4px 10px; padding: 10px; align-items: start; }
+  .q-row .q-in--num { text-align: left; padding-left: 1px; padding-right: 1px; }
+  .q-row > .q-r.bw-mono, .q-row > .q-r > .bw-mono { line-height: 34px; white-space: nowrap; }
   .q-row > span:first-child { grid-column: 1 / 2; }
   .q-row .q-desc, .q-row .q-desc--wide { grid-column: 1 / -1; order: -1; }
-  [data-l]::before { content: attr(data-l); display: block; font: 500 10px var(--bw-font-mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--bw-ink-2); }
+  [data-l]::before { content: attr(data-l); display: block; font: 500 10px/14px var(--bw-font-mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--bw-ink-2); }
   .q-r { text-align: left; }
   .q-tools { grid-column: 1 / -1; justify-content: flex-start; }
   .q-ch__head { grid-template-columns: minmax(0, 1fr) auto; }

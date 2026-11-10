@@ -7,7 +7,7 @@ import type { Caps, SalesSettingsView } from "../backend";
 import { Button, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, parsePct, unwrap, useBackend } from "../util";
-import { Loading } from "./common";
+import { Loading, Page } from "./common";
 import { FactuurSheet } from "./FactuurSheet";
 import { whenText } from "./Facturen";
 import { downloadFactuurPdf, pdfData } from "../sales/adapt";
@@ -23,8 +23,8 @@ export function SalesWorklist({ caps, go }: { caps: Caps; go: (to: string) => vo
   const [open, setOpen] = useState<bigint | null>(null);
   const v = q.data;
   return (
+    <Page label={t.menu.facturatie} title={T.list.tab}>
     <section className="a-section" data-testid="sales-worklist">
-      <h1 className="bw-h1">{T.list.tab}</h1>
       {!v ? <Loading q={q} /> : <>
         <h2 className="bw-h2">{T.list.due}</h2>
         {v.due.length === 0 ? <p className="bw-muted">{T.list.dueNone}</p> : (
@@ -58,6 +58,7 @@ export function SalesWorklist({ caps, go }: { caps: Caps; go: (to: string) => vo
       </>}
       {open !== null && <FactuurSheet id={open} caps={caps} onClose={() => { setOpen(null); void qc.invalidateQueries({ queryKey: ["salesWorklist"] }); }} onOpen={setOpen} />}
     </section>
+    </Page>
   );
 }
 

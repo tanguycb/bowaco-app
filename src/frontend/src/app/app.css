@@ -258,7 +258,9 @@ span.wb-absent.wb-chip--mini { display: inline-block; padding: 0; cursor: defaul
 .a-pick { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 44px; justify-content: center; }
 @media (max-width: 899px) {
   .a-tabs { padding: 8px 16px 0; }
-  .a-app--bottom .a-main { padding-bottom: 76px; }
+  .a-app--bottom .a-main { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  /* Opknapronde F4: een kleverige knoppenrij (Terug / Volgende) blijft boven de vaste onderbalk (69 px + safe-area). */
+  .a-app--bottom .m-foot { bottom: calc(69px + env(safe-area-inset-bottom)); }
   .a-bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--bw-surface); border-top: 1px solid var(--bw-line); }
   .a-bottom__item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; border: 0; border-radius: var(--bw-radius); background: transparent; color: var(--bw-ink-2); font: 500 12px var(--bw-font-text); text-decoration: none; cursor: pointer; }
   .a-bottom__item[aria-current="page"] { color: var(--bw-ink); font-weight: 600; background: var(--bw-sunken); }
@@ -266,3 +268,44 @@ span.wb-absent.wb-chip--mini { display: inline-block; padding: 0; cursor: defaul
   .a-bottom__main { background: var(--bw-ink); color: var(--bw-on-inverse); font-weight: 600; }
 }
 .a-me__link--sheet small { display: block; font-weight: 400; color: var(--bw-ink-2); }
+
+/* Opknapronde F1: de schermen van 2c.5–2c.8 (facturen, min-meerstaat, nacalculatie, offertevorm, betalingen) gebruiken
+   a-tablewrap/a-table/a-num/a-click/a-card, maar die klassen bestonden nergens: de tabellen stonden in kale browserstijl.
+   Zelfde stijl als het Table-onderdeel (bw-table) en de kaart (bw-card). */
+.a-tablewrap { overflow-x: auto; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); }
+.a-table { width: 100%; border-collapse: collapse; font-size: var(--bw-fs-sm); font-variant-numeric: tabular-nums; }
+.a-table th { text-align: left; font-family: var(--bw-font-mono); font-size: var(--bw-fs-xs); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--bw-ink-2); padding: 9px 14px; border-bottom: 1px solid var(--bw-line); background: var(--bw-surface-2); white-space: nowrap; }
+.a-table td { padding: 11px 14px; border-bottom: 1px solid var(--bw-line); vertical-align: middle; }
+.a-table tbody tr:last-child td { border-bottom: 0; }
+.a-table .a-num { text-align: right; white-space: nowrap; }
+.a-table tr.a-table__group th { background: var(--bw-sunken); color: var(--bw-ink); }
+.a-table tr.a-click { cursor: pointer; }
+.a-table tr.a-click:hover td { background: var(--bw-surface-2); }
+.a-card { display: flex; flex-direction: column; gap: 10px; background: var(--bw-surface); border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); padding: var(--bw-space-4); min-width: 0; }
+
+/* Opknapronde F3: een tabbalk die breder is dan de pagina (Beheer: tien tabbladen) loopt op de desktop om naar een tweede
+   regel in plaats van tabbladen onzichtbaar buiten beeld te laten. Op de gsm blijft hij horizontaal scrollen. */
+@media (min-width: 900px) {
+  .a-tabs { flex-wrap: wrap; overflow-x: visible; }
+}
+
+/* Opknapronde F6: een tag met een zin (geen code) mag omlopen binnen zijn kader. */
+/* Opknapronde F6: een lang label ("Veiligheidscoördinator") breekt af (met koppelteken) in plaats van over de waarde te lopen. */
+.a-dl dt { min-width: 0; overflow-wrap: break-word; hyphens: auto; }
+.a-tag--wrap { white-space: normal; max-width: 100%; }
+
+/* Opknapronde F7: een werfcode als knop naast een lijstregel breekt nooit ("P-" / "A"). */
+.a-nowrap { flex: none; white-space: nowrap; }
+/* Opknapronde F7: "Let op: …" met de tekst erachter is één alinea over de hele breedte, geen smalle kolommen. */
+.a-alert:has(> strong:first-child) { display: block; }
+
+/* Opknapronde F2: in een lijstregel met code- of statustags (nowrap) kreeg de titel (flex: 1, basis 0) op de gsm geen breedte
+   meer: één letter per regel. Op de gsm staan de tags (en de pijl) nu op een eigen regel boven de titel; de titel krijgt de
+   volle breedte. */
+@media (max-width: 640px) {
+  .a-list__btn:has(> .a-tag) { flex-wrap: wrap; row-gap: 4px; }
+  .a-list__btn:has(> .a-tag) > .a-list__main { order: 1; flex-basis: 100%; }
+  .a-list__btn:has(> .a-tag) > .bw-icon:last-child { margin-left: auto; }
+  /* F7: de werfcode-knop naast de regel (nowrap) gaat op de gsm onder de regel staan in plaats van de titel te versmallen. */
+  .a-list > li:has(> .a-nowrap) { flex-wrap: wrap; }
+}

@@ -76,7 +76,7 @@ function ListPage({ caps, go }: { caps: Caps; go: (to: string) => void }) {
                 <Icon name="next" size={18} />
               </button>
               {/* 2b.3: werklijst → de werf, op het tabblad Facturatie */}
-              <Button variant="quiet" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
+              <Button variant="quiet" className="a-nowrap" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
             </li>
           ))}
         </ul>

@@ -102,6 +102,13 @@
 .bw-steps__btn[disabled] { cursor: default; }
 .bw-steps__t { display: flex; gap: 5px; font-size: var(--bw-fs-xs); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .bw-steps__n { font-family: var(--bw-font-mono); }
+/* Opknapronde F4: op de gsm krijgt de huidige stap de ruimte voor zijn naam; de andere stappen tonen enkel hun cijfer. */
+@media (max-width: 640px) {
+  .bw-steps__list { display: flex; }
+  .bw-steps__item { flex: 1 1 0; }
+  .bw-steps__item--now { flex: 3 1 auto; }
+  .bw-steps__item:not(.bw-steps__item--now) .bw-steps__l { display: none; }
+}
 .bw-steps__item--done .bw-steps__btn::before { background: var(--bw-ink); }
 .bw-steps__item--now .bw-steps__btn::before { background: var(--bw-accent); }
 .bw-steps__item--now .bw-steps__btn { color: var(--bw-ink); font-weight: 600; }
