@@ -44,7 +44,19 @@ const s0 = await admin.getSettings();
 const setIn = (z) => ({ werfleiderZietAlles: z, inviteDays: s0.inviteDays, threshold30bisCents: s0.threshold30bisCents, thresholdCheckinatworkCents: s0.thresholdCheckinatworkCents });
 ok(await admin.setSettings(setIn(false)));
 const Q = (o = {}) => ({ day: cDay, offset: 0n, limit: 100n, snoozed: false, kind: "", ...o });
-const todo = async (x, o) => x.myTodo(Q(o));
+// Zonder limit/offset: alle pagina's (op een volle canister staan er meer dan 100 regels).
+const todo = async (x, o = {}) => {
+  if ("limit" in o || "offset" in o) return x.myTodo(Q(o));
+  let first = null;
+  const all = [];
+  for (let off = 0n; ; off += 100n) {
+    const p = await x.myTodo(Q({ ...o, offset: off }));
+    first ??= p;
+    all.push(...p.items);
+    if (all.length >= Number(p.total) || p.items.length === 0) break;
+  }
+  return { ...first, items: all };
+};
 const keys = (p) => p.items.map((i) => i.key);
 const has = (p, k) => p.items.some((i) => i.key === k);
 const item = (p, k) => p.items.find((i) => i.key === k);

@@ -144,7 +144,9 @@ check("(B3) enkel de werf van de fiche: W1 erin, W2 en W3 niet (ook niet de offe
 check("(B2b) de beheerder ziet het vertrouwelijke document wel; de bot niet (enkel niet-vertrouwelijke soorten op de fiche), het gewone document wel", S(v).includes("Proef contract 44") && !text.includes("Proef contract 44") && text.includes("Proef keuring 44"));
 check("(B3) geen bedragen, prijzen, URL's of vertrouwelijke woorden", !FORBIDDEN.test(text) && !/€/.test(text), (text.match(FORBIDDEN) ?? [""])[0]);
 check("(B3) de briefing van de bot = die van de beheerder voor W1 (dezelfde punten)", d.onderdelen.find((o) => o.onderdeel === "Planning van de week")?.punten.some((p) => p.werf === CODE1) && d.onderdelen.find((o) => o.onderdeel.startsWith("Facturen"))?.punten.some((p) => p.werf === CODE1));
-const log = await admin.botLog(0n, 200n);
+// 4b.1: alle pagina's (hoogstens 2 000 regels), zoals proef-3-8: na een lange reeks vallen de eigen regels anders buiten de laatste 200.
+const log = [];
+for (let from = 0n; from < 2000n; from += 200n) { const page = await admin.botLog(from, 200n); log.push(...page); if (page.length < 200) break; }
 const mine = log.filter((c) => c.tool === "maandagbriefing");
 check("(B3) logboek: de oproepen (ok en geweigerd) zonder inhoud (enkel een hash van de argumenten)", mine.some((c) => "ok" in c.outcome) && mine.every((c) => /^[0-9a-f]{64}$/.test(c.argsSha256)) && !S(mine).includes(CODE1) && !S(mine).includes("Proef metselen"), S(mine.slice(0, 2)));
 

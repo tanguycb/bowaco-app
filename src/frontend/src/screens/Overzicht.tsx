@@ -26,9 +26,9 @@ export function Overzicht({ go, caps }: { go: (to: string) => void; caps: Caps }
   return (
     <Page title={t.overzicht.title} actions={caps.createWork && <Button variant="primary" icon="plus" onClick={() => setRequest(true)}>{t.wervenFase.newRequest}</Button>}>
       {blocks.includes("start") && <AanDeSlag caps={caps} go={go} />}
-      {blocks.includes("briefing") && !empty && <BriefingBlock go={go} />}
-      {/* 4b.1: Vraagt aandacht en de bel gingen op in Te doen. */}
+      {/* 4b.1: Vraagt aandacht en de bel gingen op in Te doen; het werk staat vóór de briefing. */}
       {blocks.includes("aandacht") && <TodoBlock go={go} home={caps.home} hideEmpty={empty} />}
+      {blocks.includes("briefing") && !empty && <BriefingBlock go={go} />}
       {empty ? (
         <EmptyState title={t.leeg.overzicht.t} text={t.leeg.overzicht.d} action={caps.createWork && <Button variant="primary" icon="plus" onClick={() => setRequest(true)}>{t.leeg.request}</Button>} />
       ) : (

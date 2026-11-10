@@ -26,6 +26,8 @@ sed -i '' -E "s/(public let mailLiveAnyCanister : Bool = )false/\1true/" "$cfg"
 sed -i '' -E "s/(public let aiLiveAnyCanister : Bool = )false/\1true/" "$cfg"
 # 2d.1: de meetfunctie meetKlok enkel in de testbouw (tools/meetlat.mjs weigert een upload met true).
 sed -i '' -E "s/(public let measureAnyCanister : Bool = )false/\1true/" "$cfg"
+# 4b.1: de reeks maakt intussen meer dan 20 bots (elke proef haar eigen); in de testbouw mag het er 80 zijn. De upload houdt 20.
+sed -i '' -E "s/(public let maxBots : Nat = )20;/\180;/" "$cfg"
 mops build --output src/backend/dist
 mv "$cfg.echt" "$cfg"
 # mail-caffeine: de nep-maildienst (speelt de integratiecanister van Caffeine na; enkel op dit eigen net).

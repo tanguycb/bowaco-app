@@ -307,7 +307,9 @@ check("(7) een wissel van instructieversie: Zelf doen geldt niet meer", (() => t
 }
 
 // ── Logboek zonder inhoud ───────────────────────────────────────────────
-const bl = await admin.botLog(0n, 200n);
+// 4b.1: alle pagina's (hoogstens 2 000 regels): na een lange reeks met veel bots vallen de regels van deze proef anders buiten de laatste 200.
+const bl = [];
+for (let from = 0n; from < 2000n; from += 200n) { const page = await admin.botLog(from, 200n); bl.push(...page); if (page.length < 200) break; }
 check("(8) logboek: inleesbestand, voorstel_oa_offerte en proef_bestand met een controlegetal, zonder inhoud", ["inleesbestand", "voorstel_oa_offerte", "proef_bestand"].every((t) => bl.some((c) => c.tool === t)) && !S(bl).includes(`PRF-${sfx}`) && !S(bl).includes("81250"));
 const au = await admin.auditLog(0n, 300n);
 check("(8) audit zonder bedragen", au.filter((e) => /oa-inlezen|bot-zelf/.test(e.action)).every((e) => !/81\.?250|€/.test(e.detail)));
