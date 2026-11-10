@@ -226,7 +226,7 @@ mixin (
   };
 
   // ── Caffeine AI-weg (het dossier) ─────────────────────────────────────
-  func acAiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") != ?"aan" };
+  func acAiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") == ?"uit" };
 
   func acDossier(j : Types.AiCheckJob) : ?(Text, Nat) {
     switch (j.target) {
@@ -252,7 +252,10 @@ mixin (
     let (dossierJson, n) = acDossier(j) ?? return #err(switch (j.target) { case (#tender _) "Deze prijsvraag loopt niet meer"; case _ "Deze versie is geen ontwerp meer" });
     let w = ai.workers.get(acWorker(j.target)) ?? return #err("De fiche hiervoor is nog niet ingericht (Beheer → AI-medewerkers)");
     let v = AiPrompts.version(w.key, w.instructionVersion) ?? return #err("Onbekende instructieversie");
-    let userText = "Dossier van BOWACO (JSON):\n<<<DOSSIER\n" # dossierJson.replace(#text "DOSSIER>>>", "DOSSIER >>>") # "\nDOSSIER>>>";
+    // 3.12 (review M7): het dossier van een klantofferte draagt de titel, de teksten en de posten van die klant. Dat vertrekt enkel als
+    // de fiche "Klantgegevens mogen mee" op ja heeft (de vlag deed tot nu niets).
+    switch (j.target) { case (#quote _) { if (not w.clientData) return #err("Deze taak stuurt de offerte van de klant mee. Zet op de fiche \"Klantgegevens mogen mee\" op ja (Beheer → AI-medewerkers), of laat een bot nalezen.") }; case _ {} };
+    let userText = "Dossier van BOWACO (JSON):\n<<<DOSSIER\n" # AiPrompts.fence(dossierJson) # "\nDOSSIER>>>";
     if (userText.size() > Config.aiMaxInputBytes) { return #err("Te groot om via Caffeine na te kijken; laat een bot het doen") };
     let live = acAiReal();
     let now0 = Time.now();

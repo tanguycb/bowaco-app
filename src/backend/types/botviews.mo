@@ -63,7 +63,8 @@ module {
 
   public type BotToolInfo = { name : Text; task : Text; readOnly : Bool };
   public type BotTaskInfo = { key : Text; maxAuto : Bool };
-  public type McpInfo = { signInOrigin : ?Text; tools : [BotToolInfo]; tasks : [BotTaskInfo]; never : [Text] };
+  // 3.12: redirectHosts = de toegelaten toepassingen (hosts waar een koppeling naar terug mag), redirectDefault = de standaardlijst.
+  public type McpInfo = { signInOrigin : ?Text; tools : [BotToolInfo]; tasks : [BotTaskInfo]; never : [Text]; redirectHosts : [Text]; redirectDefault : [Text] };
 
   public type BotActionDetail = {
     #docLink : { fileId : Nat; fileName : Text; kind : Text; title : Text };
@@ -93,7 +94,8 @@ module {
 
   public type BotCallView = { id : Nat; botId : Nat; botName : Text; tool : Text; workId : ?WorkId; argsSha256 : Text; at : Int; outcome : Types.BotCallOutcome; actionId : ?Nat };
 
-  public type BotConnectionView = { id : Text; clientName : Text; createdAt : Int; expiresAt : Int };
+  // 3.12: target = waar de toepassing naar terugkeert (host, "dit toestel" of een schema): de naam kiest de toepassing zelf.
+  public type BotConnectionView = { id : Text; clientName : Text; target : Text; createdAt : Int; expiresAt : Int };
 
   // Wat de toestemmingspagina /mcp-authorize over de ingelogde identiteit moet weten.
   public type MyBot = { #none; #bot : { name : Text; vendor : Text }; #person; #revoked };

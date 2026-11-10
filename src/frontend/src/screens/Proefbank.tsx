@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { ProofRoundCaseView, ProofRoundView, ProofSetView, ProofSubject, ProofValue } from "../backend";
-import { Button, Choice, Sheet, Table, useToast, type Column } from "../design";
+import { Button, Choice, Confirm, Sheet, Table, useToast, type Column } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -26,6 +26,8 @@ export function Proefbank() {
   const [newSet, setNewSet] = useState(false);
   const [showSet, setShowSet] = useState<ProofSetView | null>(null);
   const [start, setStart] = useState<ProofSetView | null>(null);
+  // 3.12 (review L): eerst zeggen wat er naar de leverancier van de bot gaat, dan pas laden (vroeger enkel een tooltip).
+  const [askLoad, setAskLoad] = useState<ProofSetView | null>(null);
   const [showRound, setShowRound] = useState<ProofRoundView | null>(null);
   const [closing, setClosing] = useState<{ r: ProofRoundView; cancel: boolean } | null>(null);
   const [progress, setProgress] = useState<string>("");
@@ -87,7 +89,7 @@ export function Proefbank() {
         <span className="a-row">
           <Button variant="quiet" onClick={() => setShowSet(s)}>{P.cases}</Button>
           {s.archivedAt === undefined ? <>
-            {(s.task === "oa-offerte-inlezen" || s.task === "factuurcontrole") && <Button variant="quiet" title={P.loadNote} busy={load.isPending && load.variables?.id === s.id} onClick={() => load.mutate(s)} data-testid="pb-load">{P.load}</Button>}
+            {(s.task === "oa-offerte-inlezen" || s.task === "factuurcontrole") && <Button variant="quiet" busy={load.isPending && load.variables?.id === s.id} onClick={() => setAskLoad(s)} data-testid="pb-load">{P.load}</Button>}
             <Button variant="quiet" onClick={() => setStart(s)}>{P.newRound}</Button>
             <Button variant="quiet" busy={archive.isPending && archive.variables?.id === s.id} onClick={() => archive.mutate(s)}>{P.archive}</Button>
           </> : <span className="a-tag">{P.archived}</span>}
@@ -154,6 +156,7 @@ export function Proefbank() {
 
       {newSet && i && <NewSetSheet tasks={i.tasks.map((x) => x.key)} max={Number(i.maxCases)} onClose={() => setNewSet(false)} onDone={(n) => { setNewSet(false); refresh(); toast.show({ kind: "ok", text: P.setMade(n) }); }} />}
       {showSet && <SetSheet set={showSet} onClose={() => setShowSet(null)} />}
+      <Confirm open={!!askLoad} title={P.loadTitle} text={P.loadNote} confirmLabel={P.load} onConfirm={() => { if (askLoad) load.mutate(askLoad); setAskLoad(null); }} onClose={() => setAskLoad(null)} />
       {start && i && <StartSheet set={start} aiKey={i.tasks.find((x) => x.key === start.task)?.aiKey ?? ""} onClose={() => setStart(null)} onDone={() => { setStart(null); refresh(); toast.show({ kind: "ok", text: P.roundStarted }); }} />}
       {showRound && <RoundSheet round={showRound} onClose={() => setShowRound(null)} />}
       {closing && (
@@ -228,6 +231,7 @@ function StartSheet({ set, aiKey, onClose, onDone }: { set: ProofSetView; aiKey:
       <Loading q={bots} />
       <Field label={P.subject}><Choice label={P.subject} value={pick} onChange={setWho} options={options} /></Field>
       <p className="bw-muted">{P.botNote}</p>
+      <p className="a-note">{P.roundNote}</p>
       {go.error && <p className="a-err">{errText(go.error)}</p>}
     </Sheet>
   );

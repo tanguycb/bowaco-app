@@ -278,6 +278,8 @@ module {
     let nQ = cur0.size();
     let hist = Map.empty<Nat, TV.CmpHistory>();
     for (h in input.history.values()) hist.add(h.itemId, h);
+    let onTender = Map.empty<Nat, ()>();
+    for (q in cur0.values()) onTender.add(q.orgId, ());
     let posts = List.empty<Json>();
     label p for ((xi, x) in items.enumerate()) {
       if (xi >= Config.aiCheckMaxDossierLines) break p;
@@ -291,7 +293,15 @@ module {
         ("eenheid", ?safe(x.unit, 20)),
         ("hoeveelheidMilli", ?num(x.qtyMilli)),
         ("vorm", ?str(formKey(x.form))),
-        ("vorigePrijzen", switch h { case (?y) { if (y.lastByOrg.size() == 0) null else ?#Array(y.lastByOrg.map<(Nat, Int), Json>(func((o, v)) = #Object([("firma", safe(orgName(c.org, o), 120)), ("eenheidsprijsCent", num(v))]))) }; case null null }),
+        // 3.12 (review M6): enkel de eerdere prijzen van de firma's die NU een geldende offerte op deze prijsvraag hebben. Het
+        // prijsgeheugen kent ook firma's van andere werven; hun naam en prijs horen niet in dit dossier (de mediaan blijft: geen namen).
+        ("vorigePrijzen", switch h {
+          case (?y) {
+            let mine = y.lastByOrg.filter(func((o, _) : (Nat, Int)) : Bool = onTender.containsKey(o));
+            if (mine.size() == 0) null else ?#Array(mine.map<(Nat, Int), Json>(func((o, v)) = #Object([("firma", safe(orgName(c.org, o), 120)), ("eenheidsprijsCent", num(v))])));
+          };
+          case null null;
+        }),
         ("mediaan12mCent", switch h { case (?y) oNum(Library_median(y.recent)); case null null }),
       ]));
     };
@@ -333,6 +343,7 @@ module {
         ("offerte", ?num(q.id)),
         ("firma", ?safe(orgName(c.org, q.orgId), 120)),
         ("nummer", ?safe(q.number, 60)),
+        ("ingelezenDoorBotNietNagekeken", oTrue(Tenders.byBot(q))),
         ("datum", ?str(OaRead.isoDay(q.quoteDay))),
         ("geldigTot", switch (q.validUntil) { case (?d) ?str(OaRead.isoDay(d)); case null null }),
         ("verlopen", switch (q.validUntil) { case (?d) oTrue(d < c.today); case null null }),

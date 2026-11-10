@@ -285,9 +285,17 @@ module {
   // Klokronde: een open opdracht na 30 dagen laten vervallen (de inhoud gaat weg). Begrensd.
   public func idle(s : Types.OaReadState, now : Int) {
     var n = 0;
+    // 3.12 (review L): afgesloten opdrachten na 90 dagen weg, zoals bij de factuurcontrole (review 3.10 M3). Zonder opruimen bleef de
+    // grens van oaReadMaxJobs na 5.000 opdrachten voorgoed bereikt.
+    let old = List.empty<Job>();
     label l for (j in s.jobs.values()) {
       if (n >= 50) break l;
-      if (isLive(j) and now - j.createdAt > Config.oaReadExpire) { close(s, j, #failed("vervallen na 14 dagen"), null, now); n += 1 };
+      if (isLive(j)) { if (now - j.createdAt > Config.oaReadExpire) { close(s, j, #failed("vervallen na 14 dagen"), null, now); n += 1 } } else if (now - (j.decidedAt ?? j.createdAt) > Config.oaReadKeep) { old.add(j); n += 1 };
+    };
+    for (j in old.values()) {
+      s.jobs.remove(j.id);
+      s.content.remove(j.id);
+      s.byWork.add(j.workId, (s.byWork.get(j.workId) ?? []).filter(func(x : Nat) : Bool = x != j.id));
     };
   };
 };

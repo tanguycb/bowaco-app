@@ -142,7 +142,7 @@ function TenderOaPanel({ s }: { s: TenderStatusView }) {
               <li key={String(inv.id)} data-testid="oq-invite">
                 <span className="a-list__main">
                   <b>{inv.orgName}</b>
-                  <span className="bw-muted">{cur ? `${O.version(Number(cur.version))} · ${O.source[cur.source] ?? cur.source}${cur.number ? ` · ${cur.number}` : ""} · ${fmtDayNum(cur.quoteDay)}${cur.validUntil !== undefined ? ` · ${P.validUntil} ${fmtDayNum(cur.validUntil)}` : ""}` : O.noAnswer}{inv.oaQuotes.length > 1 ? ` · ${O.cmpHistory(inv.oaQuotes.length - 1)}` : ""}</span>
+                  <span className="bw-muted">{cur ? `${O.version(Number(cur.version))} · ${cur.byBot ? O.byBot : O.source[cur.source] ?? cur.source}${cur.number ? ` · ${cur.number}` : ""} · ${fmtDayNum(cur.quoteDay)}${cur.validUntil !== undefined ? ` · ${P.validUntil} ${fmtDayNum(cur.validUntil)}` : ""}` : O.noAnswer}{inv.oaQuotes.length > 1 ? ` · ${O.cmpHistory(inv.oaQuotes.length - 1)}` : ""}</span>
                 </span>
                 {inv.outcome.__kind__ !== "open" && <span className="a-tag">{P.outcome[inv.outcome.__kind__]}</span>}
                 {cur?.status.__kind__ === "withdrawn" && <span className="a-tag a-tag--bad" data-testid="oq-withdrawn-tag">{O.withdrawnTag}</span>}
@@ -500,7 +500,7 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
       const lowT = (qid: bigint) => d.calc.lowestTotal.includes(qid);
       const bytes = await comparePdf({
         code: d.code, title: d.title, work: `${v.workCode} ${v.workName}`, made: fmtTime(BigInt(Date.now()) * 1_000_000n),
-        firms: quotes.map((x) => ({ name: x.quote.orgName, meta: [x.quote.number, fmtDayNum(x.quote.quoteDay), O.version(Number(x.quote.version)), O.source[x.quote.source] ?? ""].filter(Boolean).join(" · ") })),
+        firms: quotes.map((x) => ({ name: x.quote.orgName, meta: [x.quote.number, fmtDayNum(x.quote.quoteDay), O.version(Number(x.quote.version)), x.quote.byBot ? O.byBot : O.source[x.quote.source] ?? ""].filter(Boolean).join(" · ") })),
         rows: d.items.map((x) => {
           const pick = picks.get(String(x.id));
           return {
@@ -534,7 +534,7 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
       <div className="bw-table-wrap">
         <table className="bw-table oq-matrix" data-testid="oq-matrix">
           <thead>
-            <tr><th>{P.colNr}</th><th>{O.cmpPost}</th><th className="bw-right">{O.cmpQty}</th>{quotes.map((x) => <th key={String(x.quote.id)} className="bw-right">{x.quote.orgName}<span className="oq-sub">{[x.quote.number, O.version(Number(x.quote.version)), O.source[x.quote.source]].filter(Boolean).join(" · ")}</span></th>)}</tr>
+            <tr><th>{P.colNr}</th><th>{O.cmpPost}</th><th className="bw-right">{O.cmpQty}</th>{quotes.map((x) => <th key={String(x.quote.id)} className="bw-right">{x.quote.orgName}<span className="oq-sub">{[x.quote.number, O.version(Number(x.quote.version)), x.quote.byBot ? O.byBot : O.source[x.quote.source]].filter(Boolean).join(" · ")}</span></th>)}</tr>
           </thead>
           <tbody>
             {chapters.map((ch) => (

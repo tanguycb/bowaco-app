@@ -99,7 +99,7 @@ export function ReadList({ workId, onUse }: { workId: bigint; onUse: (full: OaRe
   const [ask, setAsk] = useState<{ k: "reject" | "cancel"; r: OaReadBrief } | null>(null);
   const [reason, setReason] = useState("");
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
-  const open = useMutation({ mutationFn: async (r: OaReadBrief) => unwrap(await actor!.readOaRead(r.id)), onSuccess: onUse, onError: fail });
+  const open = useMutation({ mutationFn: async (r: OaReadBrief) => unwrap(await actor!.readOaRead(r.id)), onSuccess: onUse, onError: fail, gcTime: 0 });
   const finish = useMutation({
     mutationFn: async (x: { k: "reject" | "cancel"; r: OaReadBrief }) => unwrap(await actor!.finishOaRead(x.r.id, x.k === "reject" ? { __kind__: "rejected", rejected: reason } : { __kind__: "cancelled", cancelled: null })),
     onSuccess: (_d, x) => { toast.show({ kind: "ok", text: x.k === "reject" ? R.rejectOk : R.cancelOk }); setAsk(null); setReason(""); refresh(); },

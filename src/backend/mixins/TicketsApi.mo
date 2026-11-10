@@ -71,7 +71,7 @@ mixin (
     let id = robot.ticketIndex.get(Codes.ticketHash(ticket)) ?? return #err("Onbekend ticket");
     let t = robot.tickets.get(id) ?? return #err("Onbekend ticket");
     // 3.1: een AI-ticket enkel voor een robot met de soort "ai" (R28: nooit meer dan nodig).
-    if (ai.callByTicket.containsKey(id) and not (switch (robot.robots.get(caller)) { case (?r) r.kinds.any(func k = k == "ai"); case null false })) { return #err("Dit programma mag geen AI-taken doen") };
+    if (ai.callByTicket.containsKey(id) and (not Config.aiGatewayEnabled or not (switch (robot.robots.get(caller)) { case (?r) r.kinds.any(func k = k == "ai"); case null false }))) { return #err("Dit programma mag geen AI-taken doen") };
     if (t.state != #open) { return #err("Ticket al gebruikt of verlopen") };
     if (Time.now() > t.expiresAt) { return #err("Ticket verlopen") };
     // R28: de persoon kan intussen afgezet zijn; dan geen werk meer op zijn naam.
@@ -99,6 +99,9 @@ mixin (
     let call = switch (ai.callByTicket.get(ticketId)) { case (?cid) ai.log.get(cid); case null null };
     switch call {
       case (?c) {
+        // 3.12 (review M4): een voorstel bij een AI-ticket enkel met de gateway aan en enkel door een robot met de soort "ai" (checkTicket
+        // eiste dat al, submitProposal niet: elke robot kon het voorstel van een gecontroleerd AI-ticket schrijven).
+        if (not Config.aiGatewayEnabled or not (switch (robot.robots.get(caller)) { case (?r) r.kinds.any(func k = k == "ai"); case null false })) { return #err("Dit programma mag geen AI-taken doen") };
         if (kind != "ai:" # c.workerKey) { return #err("Verkeerde soort voorstel voor deze AI-taak") };
         if (c.state != #running) { return #err("Deze AI-oproep is al afgesloten") };
       };

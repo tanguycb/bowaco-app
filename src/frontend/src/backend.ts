@@ -842,6 +842,7 @@ export interface BotConnectionView {
     expiresAt: bigint;
     clientName: string;
     createdAt: bigint;
+    target: string;
 }
 export interface BotInput {
     id?: bigint;
@@ -3098,7 +3099,9 @@ export interface McpInfo {
     tasks: Array<BotTaskInfo>;
     signInOrigin?: string;
     tools: Array<BotToolInfo>;
+    redirectDefault: Array<string>;
     never: Array<string>;
+    redirectHosts: Array<string>;
 }
 export interface MeView {
     blockedUntil?: bigint;
@@ -4564,6 +4567,7 @@ export interface OaQuoteBrief {
     fileId?: bigint;
     number: string;
     quoteDay: Day;
+    byBot: boolean;
     current: boolean;
     vatRegime: OaVatRegime;
     validUntil?: Day;
@@ -10605,6 +10609,7 @@ export interface backendInterface {
     setMailTest(on: boolean, address: string): Promise<Result_9>;
     setMarginClass(i: MarginClassInput): Promise<Result_7>;
     setMarginClassLink(key: string, classId: bigint | null): Promise<Result_1>;
+    setMcpRedirectHosts(hosts: Array<string>): Promise<Result_1>;
     setMemberGrants(membershipId: bigint, grants: Array<Grant>): Promise<Result_1>;
     setMinMeerOverride(workId: bigint, i: MmOverrideInput): Promise<Result_1>;
     setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_7>;
@@ -16424,6 +16429,20 @@ export class Backend implements backendInterface {
             return from_candid_Result_1_n3(this._uploadFile, this._downloadFile, result);
         }
     }
+    async setMcpRedirectHosts(arg0: Array<string>): Promise<Result_1> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setMcpRedirectHosts(arg0);
+                return from_candid_Result_1_n3(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setMcpRedirectHosts(arg0);
+            return from_candid_Result_1_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async setMemberGrants(arg0: bigint, arg1: Array<Grant>): Promise<Result_1> {
         if (this.processError) {
             try {
@@ -21898,18 +21917,24 @@ function from_candid_record_n1209(_uploadFile: (file: ExternalBlob) => Promise<U
     tasks: Array<_BotTaskInfo>;
     signInOrigin: [] | [string];
     tools: Array<_BotToolInfo>;
+    redirectDefault: Array<string>;
     never: Array<string>;
+    redirectHosts: Array<string>;
 }): {
     tasks: Array<BotTaskInfo>;
     signInOrigin?: string;
     tools: Array<BotToolInfo>;
+    redirectDefault: Array<string>;
     never: Array<string>;
+    redirectHosts: Array<string>;
 } {
     return {
         tasks: value.tasks,
         signInOrigin: record_opt_to_undefined(from_candid_opt_n5(_uploadFile, _downloadFile, value.signInOrigin)),
         tools: value.tools,
-        never: value.never
+        redirectDefault: value.redirectDefault,
+        never: value.never,
+        redirectHosts: value.redirectHosts
     };
 }
 function from_candid_record_n121(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -26732,6 +26757,7 @@ function from_candid_record_n190(_uploadFile: (file: ExternalBlob) => Promise<Ui
     fileId: [] | [bigint];
     number: string;
     quoteDay: _Day;
+    byBot: boolean;
     current: boolean;
     vatRegime: _OaVatRegime;
     validUntil: [] | [_Day];
@@ -26750,6 +26776,7 @@ function from_candid_record_n190(_uploadFile: (file: ExternalBlob) => Promise<Ui
     fileId?: bigint;
     number: string;
     quoteDay: Day;
+    byBot: boolean;
     current: boolean;
     vatRegime: OaVatRegime;
     validUntil?: Day;
@@ -26769,6 +26796,7 @@ function from_candid_record_n190(_uploadFile: (file: ExternalBlob) => Promise<Ui
         fileId: record_opt_to_undefined(from_candid_opt_n12(_uploadFile, _downloadFile, value.fileId)),
         number: value.number,
         quoteDay: value.quoteDay,
+        byBot: value.byBot,
         current: value.current,
         vatRegime: from_candid_OaVatRegime_n194(_uploadFile, _downloadFile, value.vatRegime),
         validUntil: record_opt_to_undefined(from_candid_opt_n47(_uploadFile, _downloadFile, value.validUntil))

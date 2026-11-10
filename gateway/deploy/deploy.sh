@@ -8,6 +8,13 @@
 # Het script kopieert ENKEL de code (geen geheimen) en vraagt nooit een sleutel: sleutels (fase 3) zet je zelf op de
 # server in /etc/bowaco-postbode/sleutels.env (root 0600; gewone instellingen in postbode.env).
 set -euo pipefail
+# 3.12 (securityreview, eigenaar 08-11): de gateway-weg VIEL AF. De mail gaat via Caffeine, AI via Caffeine AI en de MCP-connector; de
+# app weigert elke gateway-ingang (Config.aiGatewayEnabled = false). Dit script zet daarom niets meer online, tenzij de eigenaar dat
+# uitdrukkelijk opnieuw beslist (BOWACO_GATEWAY_TOCH=1) én de schakelaar in de app bewust aanzet.
+if [[ "${BOWACO_GATEWAY_TOCH:-}" != "1" ]]; then
+  echo "De gateway is niet meer in gebruik (beslissing 08-11, securityreview 3.12). Er wordt niets online gezet."
+  exit 1
+fi
 cmd=${1:-}
 host=${2:-}
 if [[ -z "$cmd" || -z "$host" ]]; then

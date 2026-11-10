@@ -9,8 +9,14 @@ cd "$repo"
 # wordt na de bouw altijd teruggezet; de upload (tools/push.sh) bouwt uit een schone kopie van git.
 cfg=src/backend/lib/Config.mo
 testhash=$(node -e 'const c=require("fs").readFileSync(process.env.HOME+"/.bowaco/test-opstartcode.txt","utf8").trim().toUpperCase().replace(/[\s-]/g,"");const b=c.length===19&&c.startsWith("BOW")?c.slice(3):c;console.log(require("crypto").createHash("sha256").update("bowaco-code-v1|"+b).digest("hex"))')
+# 3.12 (review L): een afgebroken vorige ronde (Ctrl-C, kill) liet Config.mo met de testvlaggen staan en een losse .echt ernaast; de
+# volgende ronde nam dan de vuile versie als "echt". Daarom: een bestaande .echt eerst terugzetten, en de trap ook op INT/TERM/HUP
+# (zsh draait de EXIT-trap niet bij een signaal).
+[[ -f "$cfg.echt" ]] && mv "$cfg.echt" "$cfg"
+if grep -qE "public let (mailLiveAnyCanister|aiLiveAnyCanister|measureAnyCanister) : Bool = true" "$cfg"; then echo "Config.mo draagt een testvlag (true): zet ze eerst terug (git checkout $cfg)"; exit 1; fi
 cp "$cfg" "$cfg.echt"
 trap 'mv "$repo/$cfg.echt" "$repo/$cfg" 2>/dev/null || true' EXIT
+trap 'mv "$repo/$cfg.echt" "$repo/$cfg" 2>/dev/null || true; exit 130' INT TERM HUP
 sed -i '' -E "s/(public let bootstrapHashHex = \")[0-9a-f]{64}/\1$testhash/" "$cfg"
 # 1b.5: in de testbouw telt elke canister als live (pad "testmodus uit → echte adressen" in de rollentest); de upload
 # houdt false (tools/meetlat.mjs weigert anders): echte mail enkel vanaf Config.mailLiveBackends.
@@ -55,6 +61,7 @@ export NEPINF_KEY="nep-$(node -e 'console.log(require("crypto").randomBytes(12).
 node "$repo/tests/net/nepinferentie.mjs" "$NEPINF_PORT" "$NEPINF_KEY" > "$net/nepinferentie.log" 2>&1 &
 nepinf_pid=$!
 trap 'mv "$repo/$cfg.echt" "$repo/$cfg" 2>/dev/null || true; kill $nepinf_pid 2>/dev/null || true' EXIT
+trap 'mv "$repo/$cfg.echt" "$repo/$cfg" 2>/dev/null || true; kill $nepinf_pid 2>/dev/null || true; exit 130' INT TERM HUP
 icp canister settings update backend -e local --add-environment-variable "CAFFEINE_INFERENCE_URL=http://127.0.0.1:$NEPINF_PORT" >/dev/null
 icp canister settings update backend -e local --add-environment-variable "CAFFEINE_INFERENCE_API_KEY=$NEPINF_KEY" >/dev/null
 cd "$repo"
@@ -134,6 +141,10 @@ node tests/proef-3-10.mjs "$cid"
 node tests/proef-3-9.mjs "$cid"
 # 3.11: offerte nalezen vóór verzending (enkel opmerkingen, niet blokkerend, versturen sluit de opdracht, proefbank met ingebouwde fouten).
 node tests/proef-3-11.mjs "$cid"
+# 3.12: de securityreview van AI, bots, MCP-server en koppelingen (groottegrenzen op de HTTP-ingang zonder en met token, batch en
+# dagplafond, toegelaten toepassingen bij het koppelen, intrekken en hergebruik van codes en tokens, geen opzoektools tijdens een
+# proefronde, een versmalde fiche helpt niet, vrije tekst zonder stuurtekens, de afbakening op de Caffeine-weg).
+node tests/proef-3-12.mjs "$cid"
 # 2c.2: de prijsvraag-Excel heen en terug (zonder netwerk) en de prijsvraag door de backend (klaarzetten, toegang zonder werf,
 # Mijn prijsvragen, ontwerp, indienen, bijlagen, afsluiten, werfleider zonder bedragen, .did-controle). De klokproef (herinnering,
 # geen antwoord, 90 dagen na afsluiten) verzet de tijd van dit eigen net met ruim 90 dagen: daarom als LAATSTE canisterproef.

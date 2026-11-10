@@ -798,6 +798,7 @@ export interface BotConnectionView {
     expiresAt: bigint;
     clientName: string;
     createdAt: bigint;
+    target: string;
 }
 export interface BotInput {
     id?: bigint;
@@ -3054,7 +3055,9 @@ export interface McpInfo {
     tasks: Array<BotTaskInfo>;
     signInOrigin?: string;
     tools: Array<BotToolInfo>;
+    redirectDefault: Array<string>;
     never: Array<string>;
+    redirectHosts: Array<string>;
 }
 export interface MeView {
     blockedUntil?: bigint;
@@ -4520,6 +4523,7 @@ export interface OaQuoteBrief {
     fileId?: bigint;
     number: string;
     quoteDay: Day;
+    byBot: boolean;
     current: boolean;
     vatRegime: OaVatRegime;
     validUntil?: Day;
@@ -10530,6 +10534,7 @@ export interface backendInterface {
     setMailTest(on: boolean, address: string): Promise<Result_9>;
     setMarginClass(i: MarginClassInput): Promise<Result_7>;
     setMarginClassLink(key: string, classId: bigint | null): Promise<Result_1>;
+    setMcpRedirectHosts(hosts: Array<string>): Promise<Result_1>;
     setMemberGrants(membershipId: bigint, grants: Array<Grant>): Promise<Result_1>;
     setMinMeerOverride(workId: bigint, i: MmOverrideInput): Promise<Result_1>;
     setOrgConfidential(id: bigint, contact: Contact | null, notes: string): Promise<Result_7>;

@@ -50,11 +50,20 @@ const W2 = await mkWork(`P-VG-${sfx}-2`, "Proefwerf vergelijken buiten de fiche"
 const orgOf = async (name) => ok(await admin.createOrg({ kind: { subcontractor: null }, name, kbo: [], vat: [], aliases: [], trades: [], address: [], notes: "Verzonnen proeffirma (3.9)" })).id;
 const ORA = await orgOf(`Proef Bouw Ekster 3.9 ${sfx}`);
 const ORB = await orgOf(`Proef Bouw Lijster 3.9 ${sfx}`);
+// 3.12 (review M6): een firma die NIET op de prijsvraag staat, maar wel een prijs in het prijsgeheugen heeft voor dezelfde post
+// (van een andere werf). Haar naam en prijs horen niet in het dossier van de bot.
+const ORZ = await orgOf(`Proef Bouw Buitenstaander 3.12 ${sfx}`);
+const libChs = await calc.libraryChapters(false);
+const L1 = libChs.length ? ok(await calc.saveLibraryItem({ id: [], chapterId: libChs[0].id, code: "", title: `Proef metselwerk 3.12 ${sfx}`, text: "Verzonnen.", unit: "m2", form: { vh: null }, trade: [], orgId: [], durationDays: [], perDayMilli: [], planStepKey: [], keywords: [], importKey: [] }, 0n)).id : null;
+if (L1 !== null) {
+  ok(await calc.addLibraryCost(L1, { orgId: [ORZ], day: today - 30n, costCents: 7777n, source: "offerte", ref: "proef 3.12", note: "" }));
+  ok(await calc.addLibraryCost(L1, { orgId: [ORA], day: today - 40n, costCents: 2222n, source: "offerte", ref: "proef 3.12", note: "" }));
+}
 async function mkQuote(w, title) {
   const q = ok(await calc.createQuote({ workId: w, number: "", title }));
   const m = fromRead(ok(await calc.readQuoteVersion(q.versionId)));
   const c1 = M.addChapter(m, { code: "07", title: "Proef ruwbouw" });
-  M.addLine(m, c1.key, { title: "Proef metselwerk", qtyMilli: 20_000n, unit: "m2", form: "vh", price: M.emptyPrice() });
+  M.addLine(m, c1.key, { title: "Proef metselwerk", qtyMilli: 20_000n, unit: "m2", form: "vh", ...(L1 !== null ? { libItemId: L1, libItemVersion: 1n } : {}), price: M.emptyPrice() });
   M.addLine(m, c1.key, { title: "Proef lateien", qtyMilli: 4_000n, unit: "st", form: "vh", price: M.emptyPrice() });
   M.addLine(m, c1.key, { title: "Proef isolatie", qtyMilli: 20_000n, unit: "m2", form: "vh", price: M.emptyPrice() });
   const r = await saveAll(calc, m);
@@ -122,6 +131,10 @@ const o1 = (ops.data?.opdrachten ?? []).find((o) => o.opdracht === Number(j1));
 const dA = o1?.dossier?.offertes?.find((o) => o.offerte === Number(QA.oaQuoteId));
 const dB = o1?.dossier?.offertes?.find((o) => o.offerte === Number(QB.oaQuoteId));
 check("(3) het dossier: 3 posten, 2 offertes met prijs per post, de isolatie bij Ekster niet inbegrepen met het voorbehoud", !ops.isError && o1?.dossier?.posten?.length === 3 && dA?.posten?.find((c) => c.post === 1)?.eenheidsprijsCent === 2500 && dA.posten.find((c) => c.post === 3)?.toestand === "niet-inbegrepen" && /voorbehoud/.test(dA.posten.find((c) => c.post === 3)?.opmerking ?? "") && dB?.totaal?.volledig === true && dA.firma.includes("Ekster"), ops.text.slice(0, 400));
+{
+  const vp = o1?.dossier?.posten?.find((x) => x.post === 1)?.vorigePrijzen ?? [];
+  check("(3) 3.12: eerdere prijzen enkel van de firma's op deze prijsvraag (Ekster wel, de buitenstaander uit het prijsgeheugen niet, ook zijn prijs niet)", L1 === null || (vp.some((x) => /Ekster/.test(x.firma) && x.eenheidsprijsCent === 2222) && !S(o1.dossier).includes("Buitenstaander") && !vp.some((x) => x.eenheidsprijsCent === 7777)), S(vp));
+}
 check("(3) laagste per post: metselwerk bij Ekster, lateien bij Lijster", dA?.posten?.find((c) => c.post === 1)?.laagste === true && dB?.posten?.find((c) => c.post === 2)?.laagste === true);
 check("(3) geen URL, geen bestands-id, geen verkoopprijs of marge van BOWACO", !/https?:\/\/|!caf!|fileId|blob|verkoop|marge/i.test(ops.text));
 const opsB = await tool(anon, cid, conB.access, "vergelijkopdrachten");
@@ -166,6 +179,10 @@ const l3 = await calc.listAiChecks(TG);
 check("(5) de opdracht is afgesloten (overgenomen), het voorstel bij Voorstellen en acties aanvaard", l3[0].status === "afgesloten" && l3[0].reason === "overgenomen" && "accepted" in (await admin.botActions(false)).find((a) => a.id === BigInt(v1.data.actie)).state);
 // Verouderd: een nieuwe opdracht, een voorstel, dan dient Lijster een nieuwe versie in.
 const j2 = ok(await calc.startAiCheck(startIn()));
+// 3.12 (review L10): een voorstel draagt de stand van het dossier dat de bot KREEG. Zonder de opdracht eerst op te halen: geweigerd.
+const blind = await tool(anon, cid, conA.access, "voorstel_vergelijking", { opdracht: Number(j2), keuzes: [{ post: 1, offerte: A }], bevindingen: [], samenvatting: "kort", vertrouwen: 0.5 });
+check("(5) 3.12: een voorstel zonder de opdracht eerst op te halen: geweigerd", blind.isError && /Haal eerst/.test(blind.text), blind.text);
+await tool(anon, cid, conA.access, "vergelijkopdrachten");
 const v2 = await tool(anon, cid, conA.access, "voorstel_vergelijking", { opdracht: Number(j2), keuzes: [{ post: 1, offerte: A }], bevindingen: [], samenvatting: "kort", vertrouwen: 0.5 });
 check("(5) een tweede opdracht krijgt een voorstel", !v2.isError, v2.text);
 const QB2 = await reg(T1, ORB, `LY-${sfx}-v2`, [2400n, 1100n, 900n]);
@@ -173,7 +190,6 @@ const l4 = (await calc.listAiChecks(TG)).find((r) => r.id === j2);
 check("(5) na een nieuwe offerte van Lijster: het voorstel staat als verouderd en wordt niet overgenomen", !!QB2.oaQuoteId && l4.stale && /nieuwe offerte/.test(errOf(await calc.applyTenderCheck(j2, [{ itemId: items1[0].id, oaQuoteId: [QA.oaQuoteId], reason: "" }], vId))), S(l4));
 ok(await calc.finishAiCheck(j2, { cancelled: null }));
 check("(5) annuleren: afgesloten, het voorstel geweigerd", (await calc.listAiChecks(TG)).find((r) => r.id === j2).status === "geannuleerd" && "rejected" in (await admin.botActions(false)).find((a) => a.id === BigInt(v2.data.actie)).state);
-
 // ── (6) De Caffeine-weg (dossier) ───────────────────────────────────────
 const wk = (await admin.listAiWorkers()).find((w) => w.key === "oa-offertes-vergelijken");
 ok(await admin.saveAiWorker({ key: "oa-offertes-vergelijken", name: "Offertes vergelijken (proef)", route: { caffeine: null }, modelAlias: "auto", fallback: false, fallbackModel: [], budgetMonthCents: 2000n, maxCallCents: 50n, clientData: false, autonomy: { proposal: null }, instructionVersion: 1n, enabled: true, rev: wk.rev }));
@@ -245,6 +261,18 @@ const expectWrong = BigInt([...Array(Number(R1.counted)).keys()].map((i) => i + 
 check("(7) de ronde: juist = ≥ 80 % van de posten gelijk; één afwijking op drie posten = fout", "closed" in R1.state && R1.counted >= 50n && R1.counted - R1.right === expectWrong, S(R1));
 bA = (await admin.listBots()).find((b) => b.id === idA);
 check("(7) ook na een ronde: geen Zelf doen voor offertes-vergelijken", errOf(await admin.saveBot(F({ id: [idA], rev: bA.rev, tasks: [["offertes-vergelijken", { auto: null }]] }))) !== "");
+
+// 3.12 (review L10): de bot haalt het dossier op, DAARNA komt er een nieuwe offerte, en pas dan antwoordt hij. Zijn voorstel sloeg op
+// het oude dossier: het staat meteen als verouderd en wordt niet overgenomen (vroeger droeg het de stand van het antwoord).
+{
+  const j3 = ok(await calc.startAiCheck(startIn()));
+  await tool(anon, cid, conA.access, "vergelijkopdrachten");
+  const QA2 = await reg(T1, ORA, `EK-${sfx}-v2`, [2450n, 1234n, null]);
+  const late = await tool(anon, cid, conA.access, "voorstel_vergelijking", { opdracht: Number(j3), keuzes: [{ post: 2, offerte: Number(QB2.oaQuoteId) }], bevindingen: [], samenvatting: "kort", vertrouwen: 0.5 });
+  const l5 = (await calc.listAiChecks(TG)).find((r) => r.id === j3);
+  check("(5) 3.12: gelezen vóór een nieuwe offerte, geantwoord erna: het voorstel staat meteen als verouderd en wordt niet overgenomen", !!QA2.oaQuoteId && !late.isError && l5.stale && /nieuwe offerte/.test(errOf(await calc.applyTenderCheck(j3, [{ itemId: items1[1].id, oaQuoteId: [QB2.oaQuoteId], reason: "" }], vId))), S([late.text, l5]));
+  if ((await calc.listAiChecks(TG)).find((r) => r.id === j3)?.status !== "geannuleerd") await calc.finishAiCheck(j3, { cancelled: null });
+}
 
 // ── (8) Logboek en audit zonder inhoud ──────────────────────────────────
 const bl = await admin.botLog(0n, 300n);

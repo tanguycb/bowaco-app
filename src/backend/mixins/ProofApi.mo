@@ -342,7 +342,7 @@ mixin (
   // ── Caffeine AI-weg: één geval per oproep ───────────────────────────────
   // Testmodus (draft, lokaal zonder live): er vertrekt niets, het droge voorbeeld wordt het antwoord (en is dus fout).
   // Zoals aiReal in AiApi (namen van mixins botsen): enkel echt bellen als de canister live is en de testmodus niet aan staat.
-  func proofAiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") != ?"aan" };
+  func proofAiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") == ?"uit" };
 
   func parseAnswer(def : Proof.TaskDef, content : Text) : [(Text, Text)] {
     let j = Json.parse(content);

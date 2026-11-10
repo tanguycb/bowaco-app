@@ -202,7 +202,7 @@ mixin (
   };
 
   // ── Caffeine AI-weg (de tekst) ────────────────────────────────────────
-  func orAiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") != ?"aan" };
+  func orAiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") == ?"uit" };
 
   func orContext(j : Types.OaReadJob) : Text {
     var t = "Firma: " # orOrgName(j.orgId) # "\n";
@@ -215,7 +215,8 @@ mixin (
       };
       case null { t #= "Losse offerte (geen prijsvraag): enkel eigen regels, postId altijd null.\n" };
     };
-    t;
+    // 3.12 (review L): ook de firmanaam en de titels van de posten kunnen geen blok openen of sluiten.
+    AiPrompts.fence(t);
   };
 
   public shared ({ caller }) func runOaReadAi(id : Nat) : async Result.Result<OV.OaReadAiStep, Text> {
@@ -230,8 +231,8 @@ mixin (
     let w = ai.workers.get("oa-offerte-inlezen") ?? return #err("De AI-medewerker voor OA-offertes is nog niet ingericht (Beheer → AI-medewerkers)");
     let v = AiPrompts.version(w.key, w.instructionVersion) ?? return #err("Onbekende instructieversie");
     // Review 3.8 L4: de tekst van de OA kan het afgebakende blok niet sluiten.
-    let safe = text.replace(#text "<<<DOCUMENT", "<<< DOCUMENT").replace(#text "DOCUMENT>>>", "DOCUMENT >>>");
-    let userText = AiPrompts.proofUser(orContext(j), safe);
+    let userText = AiPrompts.proofUser(orContext(j), text);
+    if (userText.size() > Config.aiMaxInputBytes) { return #err("Te groot om via Caffeine te lezen; laat een bot het doen") };
     let live = orAiReal();
     // Eén oproep tegelijk per opdracht (het merk vervalt na 5 min).
     let now0 = Time.now();

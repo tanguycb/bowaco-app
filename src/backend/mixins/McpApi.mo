@@ -34,6 +34,7 @@ import Dossier "../lib/Dossier";
 import Ids "../lib/Ids";
 import Proof "../lib/Proof";
 import Rights "../lib/Rights";
+import OaRead "../lib/OaRead";
 
 mixin (
   settings : Types.SettingsState,
@@ -74,7 +75,41 @@ mixin (
 
   // ── HTTP: /mcp en de OAuth-adressen (alles via de update-weg, zie Mcp.handleQuery) ──
   public query func http_request(req : Http.Request) : async Http.Response {
+    // 3.12 (review H1): een te groot lichaam of token gaat nooit naar de update-weg (de weigering hier kost niets).
+    switch (tooBig(req)) { case (?r) return r; case null {} };
     switch (Mcp.handleQuery(req)) { case (?r) r; case null Http.notFound() };
+  };
+
+  // 3.12 (review H1): de grootte per adres, vóór er iets van het lichaam gelezen wordt. Zonder deze grens kostte één verzoek van
+  // 1,5 MB aan /token (zonder token) ± 900 MB geheugen en 30 miljard cycles, en een tool-oproep van 400 kB met token ± 1,2 GB.
+  func tooBig(req : Http.Request) : ?Http.Response {
+    let path = Http.path(req.url);
+    let max = if (path == "/mcp" or path == "/mcp/") Config.mcpMaxBody else if (path == "/register" or path == "/token") Config.mcpMaxAuthBody else 1_024;
+    if (req.body.size() > max) return ?Reply.oauthError(413, "invalid_request", "Request body too large");
+    if (req.url.size() > 2_048) return ?Reply.oauthError(414, "invalid_request", "Request URL too long");
+    switch (Http.header(req, "authorization")) {
+      case (?v) { if (v.size() > Config.mcpMaxToken) return ?Reply.oauthError(401, "invalid_token", "Invalid token") };
+      case null {};
+    };
+    null;
+  };
+
+  func rpcRefusal(status : Nat16, code : Int, message : Text) : Http.Response {
+    Reply.json(status, #Object([("jsonrpc", #String("2.0")), ("id", #Null), ("error", #Object([("code", #Number(#Int(code))), ("message", #String(message))]))]));
+  };
+
+  // Het eerste teken van het lichaam dat geen witruimte is (zonder het lichaam als tekst te lezen).
+  func firstByte(body : Blob) : Nat8 {
+    for (x in body.values()) { if (x != 32 and x != 9 and x != 10 and x != 13) return x };
+    0;
+  };
+
+  // 3.12 (review M3): een geldig token van een principal die geen actieve bot (meer) is, bv. een code die vlak vóór het intrekken
+  // werd goedgekeurd en erna ingewisseld. Zulke koppelingen gaan meteen weg (ze gaven al geen tools, maar bleven wel verversbaar).
+  func dropInactiveGrants() {
+    let gone = List.empty<(Principal, Text)>();
+    for ((id, g) in bots.oauth.grants.entries()) { if (Bots.activeBot(bots, g.user) == null) gone.add((g.user, id)) };
+    for ((u, id) in gone.values()) OAuth.revoke(bots.oauth, u, id);
   };
 
   func bearerOf(req : Http.Request) : ?Text {
@@ -87,10 +122,40 @@ mixin (
   };
 
   public func http_request_update(req : Http.Request) : async Http.Response {
+    // 3.12 (review H1): ook hier de grootte eerst (deze functie is ook rechtstreeks aan te roepen, zonder de query ervoor).
+    switch (tooBig(req)) { case (?r) return r; case null {} };
+    let path0 = Http.path(req.url);
+    let isMcp = path0 == "/mcp" or path0 == "/mcp/";
+    if (not isMcp and not OAuth.owns(path0)) return Http.notFound();
     // tools/list toont enkel de tools op de fiche van de bot achter het token; elke oproep controleert alles opnieuw (Bots.call).
     let who : ?Types.Bot = switch (bearerOf(req)) {
-      case (?t) switch (OAuth.authenticate(bots.oauth, t, Time.now())) { case (?p) Bots.activeBot(bots, p); case null null };
+      case (?t) switch (OAuth.authenticate(bots.oauth, t, Time.now())) {
+        case (?p) switch (Bots.activeBot(bots, p)) {
+          case (?b) ?b;
+          case null {
+            // 3.12 (review M3): een geldig token zonder actieve bot = de koppeling weg en "niet aangemeld".
+            dropInactiveGrants();
+            return Reply.raw(401, [("www-authenticate", "Bearer error=\"invalid_token\""), ("content-type", "application/json")], "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32001,\"message\":\"Sign in required\"}}");
+          };
+        };
+        case null null;
+      };
       case null null;
+    };
+    switch (who) {
+      case (?b) if (isMcp and req.method.toUpper() == "POST") {
+        // 3.12 (review L): elk verzoek van een bot telt (ook tools/list, ping en initialize, die de dagteller van de tools niet raken).
+        let key = b.id.toText() # ":" # Bots.today(Time.now()).toText() # ":http";
+        let n = bots.daily.get(key) ?? 0;
+        if (n >= Config.mcpMaxHttpPerDay(b.callsPerDay)) return rpcRefusal(429, -32000, "Te veel verzoeken vandaag. Probeer morgen opnieuw.");
+        bots.daily.add(key, n + 1);
+        // 3.12 (review L): een batch is zelden nodig (sinds MCP 2025-06-18 bestaat hij niet meer); hoogstens enkele berichten.
+        if (firstByte(req.body) == 91) {
+          let size = switch (Http.bodyText(req)) { case (?t) switch (Json.parse(t)) { case (?#Array(xs)) xs.size(); case _ 0 }; case null 0 };
+          if (size > Config.mcpMaxBatch) return rpcRefusal(200, -32600, "Invalid Request: hoogstens " # Config.mcpMaxBatch.toText() # " berichten per batch");
+        };
+      };
+      case null {};
     };
     // 3.8: een bestand als bijlage (inleesbestand, proef_bestand). Het pakket geeft enkel tekstinhoud terug; deze ene oproep
     // beantwoorden we zelf met MCP-inhoud (image of resource met base64). Enkel een gewone POST op /mcp met een geldig token en
@@ -99,13 +164,18 @@ mixin (
       case (?_) switch (mcpContent(req)) { case (?r) return r; case null {} };
       case null {};
     };
-    let server : Mcp.Server = { name = "BOWACO"; version = "3.11"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
-    switch (await* Mcp.handleUpdate(bots.oauth, server, req)) { case (?r) r; case null Http.notFound() };
+    let server : Mcp.Server = { name = "BOWACO"; version = "3.12"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
+    let out = switch (await* Mcp.handleUpdate(bots.oauth, server, req)) { case (?r) r; case null Http.notFound() };
+    // 3.12 (review M3): een code van een intussen ingetrokken bot leverde bij het inwisselen nog een koppeling op: die gaat hier weg.
+    if (path0 == "/token") dropInactiveGrants();
+    out;
   };
 
   func mcpContent(req : Http.Request) : ?Http.Response {
     let path = Http.path(req.url);
     if ((path != "/mcp" and path != "/mcp/") or req.method.toUpper() != "POST") return null;
+    // 3.12 (review H1): een oproep van een bijlagetool is klein. Een groot lichaam doorzoeken we hier nooit (dat kostte het meest).
+    if (req.body.size() > Config.mcpMaxContentCall) return null;
     let body = Http.bodyText(req) ?? return null;
     // Snel: enkel als de naam van een bijlagetool erin staat (anders niets ontleden).
     if (not body.contains(#text "inleesbestand") and not body.contains(#text "proef_bestand") and not body.contains(#text "controlebestand")) return null;
@@ -129,10 +199,12 @@ mixin (
       case (#ok(c)) {
         let b64 = Base64.encode(c.bytes);
         let note = (#String(c.note) : Json.Json).stringify();
+        // 3.12 (review L): het type gaat als JSON-tekst mee (nu een witte lijst bij het opladen; zo blijft het ook later veilig).
+        let mime = (#String(c.mime) : Json.Json).stringify();
         let part = if (c.mime.startsWith(#text "image/")) {
-          "{\"type\":\"image\",\"data\":\"" # b64 # "\",\"mimeType\":\"" # c.mime # "\"}";
+          "{\"type\":\"image\",\"data\":\"" # b64 # "\",\"mimeType\":" # mime # "}";
         } else {
-          "{\"type\":\"resource\",\"resource\":{\"uri\":\"bowaco://bestand/" # name # "\",\"mimeType\":\"" # c.mime # "\",\"blob\":\"" # b64 # "\"}}";
+          "{\"type\":\"resource\",\"resource\":{\"uri\":\"bowaco://bestand/" # name # "\",\"mimeType\":" # mime # ",\"blob\":\"" # b64 # "\"}}";
         };
         ?Reply.raw(200, [("content-type", "application/json")], "{\"jsonrpc\":\"2.0\",\"id\":" # idText # ",\"result\":{\"content\":[{\"type\":\"text\",\"text\":" # note # "}," # part # "],\"isError\":false}}");
       };
@@ -151,13 +223,38 @@ mixin (
 
   public query func _caffeineMcpSignInOrigin() : async ?Text { bots.oauth.signInOrigin };
 
+  // 3.12 (review M1): enkel de terugkeeradressen die de beheerder toelaat (Bots.redirectOk). De toestemmingspagina toont dan voor een
+  // onbekende toepassing geen knoppen; goedkeuren controleert het opnieuw.
   public query func _caffeineMcpClient(clientId : Text) : async ?{ name : Text; redirectUris : [Text] } {
-    OAuth.client(bots.oauth, clientId);
+    if (clientId.size() > 128) return null;
+    let c = OAuth.client(bots.oauth, clientId) ?? return null;
+    ?{ name = OaRead.txt(c.name, 100); redirectUris = c.redirectUris.filter(func(u : Text) : Bool = Bots.redirectOk(settings, u)) };
+  };
+
+  // De toegelaten toepassingen (hosts of schema's). Een lege lijst zet de standaard terug.
+  public shared ({ caller }) func setMcpRedirectHosts(hosts : [Text]) : async Result.Result<(), Text> {
+    let p = requireBotAdmin(caller);
+    if (hosts.size() > Config.botMaxRedirectHosts) { return #err("Hoogstens " # Config.botMaxRedirectHosts.toText() # " toepassingen") };
+    let out = List.empty<Text>();
+    for (h in hosts.values()) {
+      if (h.size() > 200) { return #err("Ongeldig adres") };
+      let c = Bots.cleanRedirectHost(h) ?? return #err("Ongeldig adres: geef enkel de host (bv. claude.ai), zonder https:// en zonder pad");
+      if (not out.values().any(func(x : Text) : Bool = x == c)) out.add(c);
+    };
+    if (out.size() == 0) settings.values.remove("mcp.terugkeer") else settings.values.add("mcp.terugkeer", out.values().join(","));
+    Access.audit(audit, caller, ?p.id, null, "mcp-toepassingen", if (out.size() == 0) "standaard" else out.values().join(", "));
+    #ok;
   };
 
   // Enkel een gekoppelde, actieve bot keurt een koppeling goed; elke tool-oproep loopt later als die bot.
   public shared ({ caller }) func _caffeineMcpApprove(request : OAuth.Approval) : async { #ok : Text; #err : Text } {
     let b = switch (Bots.activeBot(bots, caller)) { case (?x) x; case null return #err("Geen toegang: enkel een gekoppelde bot kan een koppeling goedkeuren. Log in met de Internet Identity van de bot en geef eerst de koppelcode in.") };
+    // 3.12 (review M1): enkel terug naar een toegelaten toepassing (anders gaat de code naar wie de koppelvraag opstelde).
+    if (request.clientId.size() > 128 or request.redirectUri.size() > 512 or request.codeChallenge.size() > 128 or request.codeChallengeMethod.size() > 16) { return #err("Ongeldige koppelvraag") };
+    if (not Bots.redirectOk(settings, request.redirectUri)) {
+      Access.audit(audit, caller, null, null, "bot-koppeling-geweigerd", "bot #" # b.id.toText() # " → " # OaRead.txt(Bots.redirectLabel(request.redirectUri), 120));
+      return #err("Deze toepassing keert terug naar " # OaRead.txt(Bots.redirectLabel(request.redirectUri), 120) # ". Dat adres staat niet bij de toegelaten toepassingen (Beheer → Bots → Koppeling).");
+    };
     let r = await* OAuth.approve(bots.oauth, caller, request, Time.now());
     // Review 3.13 L2 (R33): intussen ingetrokken → de koppeling meteen weer weg.
     if (Bots.activeBot(bots, caller) == null) {
@@ -181,6 +278,8 @@ mixin (
   // andere bot kan nooit een bot worden.
   public shared ({ caller }) func claimBotCode(code : Text) : async Result.Result<BotViews.MyBot, Text> {
     Access.requireAuthenticated(caller);
+    // 3.12 (review H1): een code is 23 tekens; een lange tekst wordt nooit doorlopen (elke identiteit kan deze functie aanroepen).
+    if (code.size() > 64) { return #err("Deze koppelcode klopt niet, is verlopen of is al gebruikt") };
     if (access.links.containsKey(caller)) { return #err("Deze Internet Identity hoort bij een persoon. Gebruik een aparte identiteit voor de bot.") };
     if (robot.robots.containsKey(caller)) { return #err("Geen toegang") };
     if (bots.byPrincipal.containsKey(caller)) { return #err("Deze Internet Identity hoort al bij een bot") };
@@ -217,6 +316,8 @@ mixin (
       tools = Config.botTools().map<(Text, Text), BotViews.BotToolInfo>(func((n, t)) = { name = n; task = t; readOnly = t == "" });
       tasks = Config.botTasks().map<(Text, { #auto; #proposal }), BotViews.BotTaskInfo>(func((k, c)) = { key = k; maxAuto = c == #auto });
       never = Config.botNeverTasks();
+      redirectHosts = Bots.redirectHosts(settings);
+      redirectDefault = Config.botRedirectHosts();
     };
   };
 
@@ -394,19 +495,36 @@ mixin (
     let b = bots.bots.get(botId) ?? return #err("Onbekende bot");
     if (b.revokedAt != null) { return #err("Al ingetrokken") };
     for (c in connectionsOf(b).values()) switch (b.principal) { case (?pr) OAuth.revoke(bots.oauth, pr, c.id); case null {} };
+    // 3.12 (review M3): ook een goedgekeurde maar nog niet ingewisselde code van deze identiteit vervalt.
+    switch (b.principal) {
+      case (?pr) {
+        let pending = List.empty<Text>();
+        for ((h, c) in bots.oauth.codes.entries()) { if (c.user == pr) pending.add(h) };
+        for (h in pending.values()) bots.oauth.codes.remove(h);
+      };
+      case null {};
+    };
     switch (b.codeHash) { case (?h) bots.byCode.remove(h); case null {} };
     let now = Time.now();
     bots.bots.add(botId, { b with revokedAt = ?now; revokedBy = ?p.id; codeHash = null; codeExpiresAt = 0; rev = b.rev + 1; updatedAt = now; updatedBy = p.id });
     // 3.5: een open proefronde van deze bot stopt (telt niet mee).
     switch (Proof.openRoundOf(proof, #bot(botId))) { case (?r) Proof.close(Bots.proofEnv(botEnv()), r, ?p.id, now, true); case null {} };
-    Access.audit(audit, caller, ?p.id, null, "bot-ingetrokken", "bot #" # botId.toText());
+    // 3.12 (review M3): zijn open opdrachten sluiten en zijn onbesliste voorstellen weigeren (een ingetrokken bot is mogelijk gekaapt).
+    let closed = Bots.onRevoke(botEnv(), botId, p.id, now);
+    Access.audit(audit, caller, ?p.id, null, "bot-ingetrokken", "bot #" # botId.toText() # (if (closed > 0) " (" # closed.toText() # " open opdrachten en voorstellen gesloten)" else ""));
     #ok;
   };
 
   public query ({ caller }) func botConnections(botId : Nat) : async [BotViews.BotConnectionView] {
     ignore requireBotAdmin(caller);
     let b = bots.bots.get(botId) ?? return [];
-    connectionsOf(b).map<OAuth.Connection, BotViews.BotConnectionView>(func c = { id = c.id; clientName = c.clientName; createdAt = c.createdAt; expiresAt = c.expiresAt });
+    connectionsOf(b).map<OAuth.Connection, BotViews.BotConnectionView>(func c {
+      let target = switch (bots.oauth.grants.get(c.id)) {
+        case (?g) switch (OAuth.client(bots.oauth, g.clientId)) { case (?cl) cl.redirectUris.values().map(Bots.redirectLabel).join(", "); case null "" };
+        case null "";
+      };
+      { id = c.id; clientName = OaRead.txt(c.clientName, 100); target = OaRead.txt(target, 200); createdAt = c.createdAt; expiresAt = c.expiresAt };
+    });
   };
 
   // Eén koppeling intrekken (bv. een oud toestel of een tweede leverancier), de bot blijft bestaan.
@@ -435,6 +553,8 @@ mixin (
       case (#other(x)) #other({ tool = x.tool });
     };
     let isDoc = switch (a.action) { case (#docLink(_)) true; case _ false };
+    // 3.12 (review M2): ook een offerte die de app zelf registreerde (Zelf doen), is hier met één klik ongedaan te maken (= intrekken).
+    let isAutoRead = switch (a.action) { case (#other(x)) x.tool == "voorstel_oa_offerte" and x.data.any(func((k, _) : (Text, Text)) : Bool = k == "oaOfferte"); case _ false };
     {
       id = a.id;
       botId = a.botId;
@@ -452,7 +572,7 @@ mixin (
       decidedBy = a.decidedBy;
       decidedAt = a.decidedAt;
       note = a.note;
-      canUndo = isDoc and a.docId != null and (a.state == #done or a.state == #accepted);
+      canUndo = (isDoc and a.docId != null and (a.state == #done or a.state == #accepted)) or (isAutoRead and a.state == #done);
     };
   };
 

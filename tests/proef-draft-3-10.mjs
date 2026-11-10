@@ -2,8 +2,8 @@
 // een proefwerf P-ICD-…, een verzonnen firma met twee verzonnen OA-facturen, een bot (wegwerp-identiteit) met de controletools,
 // koppelen, twee opdrachten (een PDF van 6 kB en een van ± 1,3 MB: past de bijlage door de gateway?), controleopdrachten met het dossier,
 // controlebestand als bijlage, voorstel_factuurcontrole, het resultaat lezen, gezien, de Caffeine-weg in de testmodus (droog), intrekken.
-// De proefwerf en één open opdracht met voorstel BLIJVEN staan voor de testlijst van de eigenaar (§7 van het verslag); de bot wordt
-// ingetrokken. Enkel VERZONNEN gegevens.
+// De proefwerf en één open opdracht met voorstel BLIJVEN staan voor de testlijst van de eigenaar (§7 van het verslag); de koppeling
+// van de bot wordt ingetrokken (3.12: de bot zelf intrekken zou het voorstel sluiten). Enkel VERZONNEN gegevens.
 //   node tests/proef-draft-3-10.mjs <backend-canister>
 import { createHash, randomBytes } from "node:crypto";
 import { backend, freshBackend, ok, weigerLive } from "../tools/lib.mjs";
@@ -84,8 +84,10 @@ const ja = ok(await admin.startInvCheck({ invoiceId: I1, way: { ai: null }, name
 const ra = await admin.runInvCheckAi(ja);
 check("(7) Caffeine-weg op de draft: testmodus (droog), er vertrekt niets", "ok" in ra && ra.ok.dry === true, S(ra));
 ok(await admin.finishInvCheck(ja, { cancelled: null }));
-ok(await admin.revokeBot(id));
+// 3.12 (review M3): de bot intrekken sluit nu ook zijn open opdrachten en voorstellen. Het voorstel moet hier blijven staan voor de
+// testlijst van de eigenaar: daarom enkel de KOPPELING intrekken (het token is dood, de bot en zijn voorstel blijven).
+for (const c of await admin.botConnections(id)) ok(await admin.revokeBotConnection(id, c.id));
 const after = await call("controleopdrachten");
-check("(8) na intrekken: de bot kan niets meer", after.status === 401 || after.json?.result?.isError === true || !!after.json?.error, String(after.status));
+check("(8) na het intrekken van de koppeling: de bot kan niets meer (401)", after.status === 401, String(after.status));
 console.log(`\nproef-draft-3-10: ${pass} geslaagd, ${fail} mislukt (proefwerf P-ICD-${sfx})`);
 process.exit(fail ? 1 : 0);

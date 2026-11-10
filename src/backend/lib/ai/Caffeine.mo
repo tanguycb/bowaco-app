@@ -44,14 +44,18 @@ module {
   public func scrub(t : Text) : Text {
     var out = "";
     var word = "";
+    // 3.12 (review L): ook het woord NA "Bearer" of "Authorization:" is een sleutel, hoe kort ook.
+    var afterBearer = false;
     let flush = func() {
       let lower = word.toLower();
+      let isMark = lower.startsWith(#text "bearer") or lower.startsWith(#text "authorization");
       out #= (
         if (word.contains(#char '@')) "[adres]"
         else if (lower.contains(#text "://") or lower.startsWith(#text "www.")) "[url]"
-        else if (lower.startsWith(#text "sk-") or lower.startsWith(#text "xai-") or lower.startsWith(#text "bearer") or word.size() >= 32) "[sleutel]"
+        else if (lower.startsWith(#text "sk-") or lower.startsWith(#text "xai-") or lower.startsWith(#text "bearer") or word.size() >= 24 or afterBearer) "[sleutel]"
         else word
       );
+      if (word != "") afterBearer := isMark;
       word := "";
     };
     for (c in t.chars()) {
@@ -76,7 +80,8 @@ module {
   };
 
   func classify(m : Text) : Outcome {
-    let msg = scrub(m);
+    // 3.12 (review L): het stuk "body[…]=…" (een begin van het antwoord van de dienst) gaat nooit mee in een melding.
+    let msg = scrub(m.split(#text "body[").next() ?? "");
     let d = detail(m);
     if (m.startsWith(#text "HTTP 400")) {
       if (d.contains(#text "model_not_found")) #modelUnknown(msg) else #invalid({ why = msg; charged = false });
@@ -89,8 +94,9 @@ module {
     } else if (m.startsWith(#text "HTTP 502") or m.startsWith(#text "HTTP 503")) {
       #retry(msg);
     } else if (m.startsWith(#text "HTTP 2")) {
-      // Antwoord ontvangen maar onleesbaar: de dienst heeft gerekend.
-      #invalid({ why = "antwoord onleesbaar: " # msg; charged = true });
+      // Antwoord ontvangen maar onleesbaar: de dienst heeft gerekend. 3.12 (review L): een VASTE tekst; de melding van de client draagt
+      // hier de eerste 100 tekens van het antwoord (inhoud), en die hoort niet in het logboek, de auditlog of bij de gebruiker.
+      #invalid({ why = "antwoord onleesbaar (" # Text.fromIter(m.chars().take(8)) # ")"; charged = true });
     } else {
       // 500, of geen antwoord binnen de tijd van het IC: misschien gerekend → onzeker, nooit vanzelf opnieuw.
       #unsure(msg);

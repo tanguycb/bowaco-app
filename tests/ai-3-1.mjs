@@ -43,10 +43,15 @@ const rProef = await backend("robot-proef-31", cid);
 const P = (n) => identity(n).getPrincipal();
 await env();
 await nep.wis();
+// 3.12 (review L): de testmodus staat standaard AAN (zoals bij de mail). Voor de echte oproepen naar de nep-dienst zet de beheerder
+// ze hier uitdrukkelijk uit; zonder die stap is elke oproep droog.
+const dry0 = (await admin.aiOverview()).live;
+if (!("ok" in (await admin.setAiSettings([], [], [false])))) throw new Error("testmodus uit lukte niet");
 const MARK = "GEHEIM-INVOER-" + Math.random().toString(36).slice(2, 10);
 const input = (text = `Offerte van Firma Voorbeeld bv voor W-901, ${MARK}`, extra = {}) => ({ text, refs: [], forceRoute: [], ...extra });
 const ask = (who, worker = "routering", inp = input(), workId = []) => who.askAi(worker, workId, inp);
 
+check("(0) de testmodus staat standaard aan: vóór ze uitdrukkelijk uit ging, belde deze canister niet echt (3.12)", dry0 === false || !!process.env.BOWACO_HERHAAL, String(dry0));
 // ── (1) Rechten per rol ─────────────────────────────────────────────────
 for (const [n, x] of [["OA", oa], ["klant", klant], ["architect", arch], ["VC", vc], ["robot", rAi]]) {
   check(`(1) ${n} start geen AI-taak, ziet geen fiches en geen eigen AI-oproepen`, (await denied(ask(x))) && (await denied(x.listAiWorkers())) && (await denied(x.myAiCalls())));
@@ -72,9 +77,9 @@ const W = (o = {}) => ({ key: "routering", name: "Routering (proef)", route: { c
 check("(2) onbekende sleutel geweigerd", errOf(await admin.saveAiWorker(W({ key: "alles-doen" }))).includes("Onbekende"));
 check("(2) autonomie 'auto' geweigerd (enkel voorstellen)", errOf(await admin.saveAiWorker(W({ autonomy: { auto: null } }))).includes("voorstel"));
 check("(2) model buiten de catalogus geweigerd", errOf(await admin.saveAiWorker(W({ modelAlias: "bestaat-niet" }))).includes("catalogus"));
-check("(2) terugval zonder model geweigerd, terugvalmodel 'auto' geweigerd", errOf(await admin.saveAiWorker(W({ fallback: true }))).includes("terugvalmodel") && errOf(await admin.saveAiWorker(W({ fallback: true, fallbackModel: ["auto"] }))).includes("expliciet"));
+check("(2) terugval is geweigerd (3.12: de andere weg, de gateway, staat uit)", errOf(await admin.saveAiWorker(W({ fallback: true }))).includes("staat uit") && errOf(await admin.saveAiWorker(W({ fallback: true, fallbackModel: ["auto"] }))).includes("staat uit"));
 check("(2) onbekende instructieversie en plafond boven het budget geweigerd", errOf(await admin.saveAiWorker(W({ instructionVersion: 9n }))).includes("instructieversie") && errOf(await admin.saveAiWorker(W({ maxCallCents: 50n }))).includes("plafond"));
-check("(2) gateway-model zonder <leverancier>/<model> geweigerd", errOf(await admin.saveAiWorker(W({ route: { gateway: null }, modelAlias: "sonnet" }))).includes("leverancier"));
+check("(2) een fiche op de weg gateway is geweigerd (3.12: die weg staat uit)", errOf(await admin.saveAiWorker(W({ route: { gateway: null }, modelAlias: "sonnet" }))).includes("staat uit"));
 check("(2) de calculator kan geen fiche bewaren", await denied(calc.saveAiWorker(W())));
 check("(2) fiche routering bewaard (caffeine, auto, € 0,15 per maand, 5 cent per oproep)", isOk(await admin.saveAiWorker(W())));
 check("(2) rev-controle: een tweede bewaring met rev 0 weigert", errOf(await admin.saveAiWorker(W())).includes("Iemand anders"));
@@ -158,39 +163,23 @@ const bNoKey = await ask(calc);
 check("(5) geen sleutel in de omgeving: geen outcall, duidelijke fout", errOf(bNoKey).includes("niet beschikbaar") && (await nep.log()).length === nNoKey, errOf(bNoKey));
 await env();
 
-// ── (6) Terugval naar de gateway en de robot "ai" ──────────────────────
-check("(6) gateway-adres enkel https://", errOf(await admin.setAiSettings(["http://127.0.0.1:1"], [], [])).includes("https://") && isOk(await admin.setAiSettings(["https://gateway.voorbeeld.invalid"], [920n], [])));
-check("(6) forceRoute zonder terugval geweigerd", errOf(await ask(calc, "routering", input(undefined, { forceRoute: [{ gateway: null }] }))).includes("Terugval staat uit"));
-check("(6) fiche met terugval naar nep/echo bewaard", isOk(await admin.saveAiWorker(W({ budgetMonthCents: 500n, maxCallCents: 20n, fallback: true, fallbackModel: ["nep/echo"], rev: await rev() }))));
+// ── (6) De gateway-weg staat UIT (3.12, review M4; eigenaar 08-11: de externe AI via een eigen gateway viel af) ──
+// Geen adres, geen fiche op die weg, geen terugval, geen ticket, geen robot "ai", geen kostmelding. Enkel Config.aiGatewayEnabled zet
+// dit weer aan, en tools/meetlat.mjs weigert een upload daarmee.
+const USE = { model: "nep/echo", promptTokens: 1n, completionTokens: 1n, cachedTokens: 0n, costCents: 1n, durationMs: 1n, outputSha256: [] };
+check("(6) een gateway-adres instellen is geweigerd; de koers bewaren kan; het overzicht draagt geen adres", errOf(await admin.setAiSettings(["https://gateway.voorbeeld.invalid"], [], [])).includes("staat uit") && isOk(await admin.setAiSettings([], [920n], [])) && (await admin.aiOverview()).gatewayUrl.length === 0);
+check("(6) een fiche op de weg gateway of met terugval is geweigerd", errOf(await admin.saveAiWorker(W({ route: { gateway: null }, modelAlias: "nep/echo", rev: await rev() }))).includes("staat uit") && errOf(await admin.saveAiWorker(W({ fallback: true, fallbackModel: ["nep/echo"], rev: await rev() }))).includes("staat uit") && errOf(await admin.saveAiWorker(W({ fallbackModel: ["nep/echo"], rev: await rev() }))).includes("staat uit"));
+check("(6) fiche met een ruimer budget bewaard (caffeine, zonder terugval)", isOk(await admin.saveAiWorker(W({ budgetMonthCents: 500n, maxCallCents: 20n, rev: await rev() }))));
+const nLog0 = (await admin.aiLog(0n, 500n)).length;
+const forced = await ask(calc, "routering", input(undefined, { forceRoute: [{ gateway: null }] }));
+check("(6) forceRoute naar de gateway: geweigerd, geen ticket en geen oproep in het logboek", "err" in forced && !S(forced).includes("TK-") && (await admin.aiLog(0n, 500n)).length === nLog0, S(forced));
 await nep.modus("503", 2);
-const g1 = ok(await ask(calc));
-const logs = await admin.aiLog(0n, 2n);
-check("(6) 503 twee keer → terugval: een ticket voor de gateway (adres uit de instellingen)", !!g1.ticket && g1.ticket.gatewayUrl === "https://gateway.voorbeeld.invalid" && /^TK-/.test(g1.ticket.ticket), S(g1));
-check("(6) logboek: eerste oproep mislukt (caffeine), tweede fellBack (gateway, nep/echo, 20 cent gereserveerd)", "failed" in logs[1].state && "caffeine" in logs[1].route && logs[0].fellBack && "gateway" in logs[0].route && logs[0].model === "nep/echo" && "running" in logs[0].state && logs[0].reservedCents === 20n && un(logs[0].ticketId) === g1.ticket.ticketId, S(logs.map((l) => [l.route, l.state, l.fellBack, l.model])));
-check("(6) auditregel ai-terugval", (await admin.auditLog(0n, 50n)).some((e) => e.action === "ai-terugval"));
-check("(6) robot met soort 'ai' en robot met soort 'proef' toegevoegd", isOk(await admin.addRobot(P("robot-ai-31"), "Gateway AI (proef)", ["ai"])) && isOk(await admin.addRobot(P("robot-proef-31"), "Gateway proef", ["proef"])));
-check("(6) een robot zonder de soort 'ai' controleert geen AI-ticket", errOf(await rProef.checkTicket(g1.ticket.ticket)).includes("AI-taken"));
-const info = ok(await rAi.checkTicket(g1.ticket.ticket));
-check("(6) checkTicket (robot ai): taak = fiche, budget = reservering, model en payloadRef uit de app", info.task === "routering" && info.budgetCents === 20n && info.ticketId === g1.ticket.ticketId && un(info.model) === "nep/echo" && un(info.fallbackModel) === "nep/echo" && un(info.payloadRef) === "ai:" + g1.ticket.callId, S(info));
-check("(6) submitProposal met de verkeerde soort geweigerd", errOf(await rAi.submitProposal(g1.ticket.ticketId, "ai:iets-anders", "{}")).includes("Verkeerde soort"));
-const gContent = JSON.stringify({ werf: "W-901", documentsoort: "factuur-oa", firma: "Firma Voorbeeld bv", bedragCent: null, vertrouwen: 0.7 });
-const gp = ok(await rAi.submitProposal(g1.ticket.ticketId, "ai:routering", gContent));
-check("(6) een gewone login kan geen kost melden", (await denied(calc.reportAiUsage(g1.ticket.ticketId, { model: "nep/echo", promptTokens: 1n, completionTokens: 1n, cachedTokens: 0n, costCents: 1n, durationMs: 1n, outputSha256: [] }))));
-check("(6) reportAiUsage: ongeldige hash geweigerd", errOf(await rAi.reportAiUsage(g1.ticket.ticketId, { model: "nep/echo", promptTokens: 100n, completionTokens: 50n, cachedTokens: 0n, costCents: 3n, durationMs: 1200n, outputSha256: ["xyz"] })).includes("hash"));
-check("(6) reportAiUsage (robot ai): 3 cent, één keer", isOk(await rAi.reportAiUsage(g1.ticket.ticketId, { model: "nep/echo", promptTokens: 100n, completionTokens: 50n, cachedTokens: 0n, costCents: 3n, durationMs: 1200n, outputSha256: [] })) && errOf(await rAi.reportAiUsage(g1.ticket.ticketId, { model: "nep/echo", promptTokens: 1n, completionTokens: 1n, cachedTokens: 0n, costCents: 999n, durationMs: 1n, outputSha256: [] })).includes("Al gemeld"));
-const gc = un(await calc.aiCall(g1.ticket.callId));
-check("(6) de oproep: klaar, voorstel gekoppeld, kost 3 cent, uitvoerhash", !!gc && "done" in gc.state && un(gc.proposalId) === gp && gc.costCents === 3n && un(gc.outputSha256)?.length === 64, S(gc));
-check("(6) failAiTicket op een afgesloten oproep geweigerd", errOf(await rAi.failAiTicket(g1.ticket.ticketId, "proef")).includes("afgesloten"));
-const g2 = ok(await ask(calc, "routering", input(undefined, { forceRoute: [{ gateway: null }] })));
-ok(await rAi.checkTicket(g2.ticket.ticket));
-const r0 = (await spent()).reservedCents;
-check("(6) failAiTicket('onzeker: …') → onzeker, geraamd op de reservering, reservering vrij", isOk(await rAi.failAiTicket(g2.ticket.ticketId, "onzeker: geen antwoord van nep binnen 120 s")) && (await spent()).reservedCents === r0 - 20n && "unsure" in un(await calc.aiCall(g2.ticket.callId)).state, S(un(await calc.aiCall(g2.ticket.callId))));
-const g3 = ok(await ask(calc, "routering", input(undefined, { forceRoute: [{ gateway: null }] })));
-ok(await rAi.checkTicket(g3.ticket.ticket));
-const s3 = (await spent()).spentCents;
-check("(6) failAiTicket(fout) → mislukt, kost 0, de opgeschoonde reden zonder adres of URL", isOk(await rAi.failAiTicket(g3.ticket.ticketId, "leverancier weigert voor proef@nep.invalid via https://x.invalid/a")) && (await spent()).spentCents === s3);
-const gcOf3 = await calc.aiCall(g3.ticket.callId);
-check("(6) de reden in het logboek is opgeschoond", "failed" in un(gcOf3).state && !un(gcOf3).state.failed.includes("@") && !un(gcOf3).state.failed.includes("https://"), S(un(gcOf3).state));
+const g1 = await ask(calc);
+const logs = await admin.aiLog(0n, 3n);
+check("(6) 503 twee keer: geen terugval, een duidelijke fout en geen ticket", errOf(g1).includes("niet beschikbaar") && !S(g1).includes("TK-") && logs.every((l) => "caffeine" in l.route && !l.fellBack), S([g1, logs.map((l) => [l.route, l.state, l.fellBack])]));
+check("(6) een robot met de soort 'ai' kan niet meer gemaakt worden; de soort 'proef' wel", errOf(await admin.addRobot(P("robot-ai-31"), "Gateway AI (proef)", ["ai"])) !== "" && !(await admin.listRobots()).some((r) => r.kinds.includes("ai")) && isOk(await admin.addRobot(P("robot-proef-31"), "Gateway proef", ["proef"])));
+check("(6) kost melden of een AI-ticket laten mislukken: geen toegang (robot zonder 'ai', gewone login, onbekende sleutel)", (await denied(rProef.reportAiUsage(1n, USE))) && (await denied(calc.reportAiUsage(1n, USE))) && (await denied(rAi.reportAiUsage(1n, USE))) && (await denied(rProef.failAiTicket(1n, "proef"))) && (await denied(rAi.failAiTicket(1n, "proef"))));
+check("(6) geen enkele oproep in het logboek liep via de gateway", (await admin.aiLog(0n, 500n)).every((l) => "caffeine" in l.route && l.ticketId.length === 0));
 
 // ── (7) Eén lopende oproep per persoon; geen inhoud in logboek, audit of voorstellen ──
 await nep.modus("traag", 1);

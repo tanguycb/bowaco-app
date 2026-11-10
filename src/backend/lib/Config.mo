@@ -519,7 +519,8 @@ module {
   // Soorten die een robot kan krijgen: "proef" (ticketproef), "inhoudingsplicht" (later, met aansluiting). Sinds
   // mail-caffeine (E-11) verstuurt de app zelf de mails: "mail" is geen robotsoort meer (een oude robot met die soort
   // leaset niets).
-  public func robotKinds() : [Text] { ["proef", "inhoudingsplicht", "ai"] }; // 3.1: "ai" = de gateway voor AI-taken (checkTicket, submitProposal, reportAiUsage, failAiTicket)
+  // 3.12 (review M4): de robotsoort "ai" (de gateway voor AI-taken) bestaat enkel nog als de gateway-weg aan staat (aiGatewayEnabled).
+  public func robotKinds() : [Text] { if aiGatewayEnabled ["proef", "inhoudingsplicht", "ai"] else ["proef", "inhoudingsplicht"] };
 
   // ── Mail via de maildienst van Caffeine (mail-caffeine, E-11) ───────────
   // De app verstuurt zelf (caffeineai-email, "service"-mail). Elke ronde is begrensd en er loopt er hoogstens één tegelijk.
@@ -604,6 +605,9 @@ module {
   public let aiModelsEvery : Int = 86_400_000_000_000; // de catalogus hoogstens eens per dag in de uurlijkse ronde
   public let aiMaxModels : Nat = 100;
   public func aiGatewayProviders() : [Text] { ["claude", "grok", "nep"] };
+  // 3.12 (review M4): de gateway-weg voor AI VIEL AF (eigenaar 08-11). De code blijft staan, maar staat hier vast UIT: geen fiche op de
+  // weg gateway, geen terugval, geen gateway-adres, geen robot "ai", geen AI-ticket. tools/meetlat.mjs weigert een upload met true.
+  public let aiGatewayEnabled : Bool = false;
   // Echte AI-oproepen (naar inference.caffeine.ai) kunnen ENKEL vanaf een canister in deze lijst: de livecanister, in te
   // vullen bij de livegang met een apart ja van de eigenaar (zoals mailLiveBackends). Een draft belt nooit echt: daar en op
   // elke andere canister geeft de caffeine-weg een droog antwoord (vast voorbeeld, kost 0). De testbouw van tests/lokaal.sh
@@ -648,6 +652,22 @@ module {
   // een klant of OA, contracten, verwijderen, vertrouwelijke prijzen. Rights.mayBot weigert deze taken altijd.
   public func botNeverTasks() : [Text] { ["betalen-goedkeuren", "versturen", "contracten", "verwijderen", "vertrouwelijke-prijzen"] };
   public let maxBots : Nat = 20;
+  // 3.12 (review H1): grenzen op de HTTP-ingang van de MCP-server, VÓÓR er iets ontleed wordt. Een groot lichaam kostte anders
+  // honderden MB geheugen en tientallen miljarden cycles per verzoek, ook zonder token (/token).
+  public let mcpMaxBody : Nat = 256_000; // /mcp (een voorstel met 300 regels blijft daar ruim onder)
+  public let mcpMaxAuthBody : Nat = 8_192; // /register en /token
+  public let mcpMaxContentCall : Nat = 2_048; // een oproep van een bijlagetool is klein; enkel die ontleden we zelf
+  public let mcpMaxBatch : Nat = 10; // berichten in één JSON-RPC-batch
+  public let mcpMaxToken : Nat = 256; // tekens in een bearer-token (het pakket geeft 64)
+  // 3.12 (review L): alle verzoeken van één bot per dag (ook tools/list, ping, initialize): een gelekt token belt niet onbegrensd.
+  public func mcpMaxHttpPerDay(callsPerDay : Nat) : Nat { callsPerDay * 4 + 200 };
+  // 3.12 (review M1): een bot koppelen kan enkel met een toepassing die terugkeert naar een host op deze lijst (https), naar het
+  // eigen toestel (loopback) of naar een eigen schema dat de beheerder toeliet. De beheerder past de lijst aan in Beheer → Bots
+  // (settings.values "mcp.terugkeer"); dit is de standaard.
+  public func botRedirectHosts() : [Text] { ["claude.ai", "claude.com"] };
+  public let botMaxRedirectHosts : Nat = 10;
+  // 3.12 (review H2): onder deze zekerheid (door de bot zelf opgegeven, 0–100) registreert de app een ingelezen offerte nooit zelf.
+  public let botAutoMinConfidence : Nat = 80;
   // 3.8: OA-offerte inlezen. De inhoud (PDF of foto voor een bot, tekst voor Caffeine AI) staat tijdelijk in de canister: een
   // MCP-antwoord mag hoogstens ± 2 MB zijn (base64 = 4/3), dus hoogstens 1,35 MB per bestand.
   public let oaReadMaxBytes : Nat = 1_350_000;
@@ -659,6 +679,7 @@ module {
   public let oaReadAnswerBytes : Nat = 60_000; // antwoord van Caffeine AI (JSON met de posten)
   public let oaReadExpire : Int = 1_209_600_000_000_000; // 14 dagen: een open opdracht vervalt, de inhoud gaat weg (review 3.8 M2)
   public let oaReadMaxLiveBytes : Nat = 100_000_000; // review 3.8 M2: alle inhoud van open opdrachten samen
+  public let oaReadKeep : Int = 7_776_000_000_000_000; // 3.12 (review L): afgesloten opdrachten na 90 dagen weg
   public let oaReadMaxProofBytes : Nat = 150_000_000; // idem voor de geladen proefbestanden
   public let oaReadMaxProofContent : Nat = 220; // inhoud van proefgevallen (hoogstens zoveel bestanden tegelijk)
   // 3.10: OA-factuurcontrole. Zelfde grens per bestand als 3.8 (MCP-antwoord); tekst voor Caffeine AI; bevindingen begrensd.

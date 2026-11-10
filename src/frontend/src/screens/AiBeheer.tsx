@@ -1,12 +1,11 @@
 // 3.1-B2: minimaal beheerscherm van de AI-connector (Beheer → AI-medewerkers, enkel #manageAi). Toont de fiches (weg, model,
 // terugval, budget, klantgegevens), het verbruik van de maand, de catalogus met "Modellen vernieuwen" en het logboek zonder
-// inhoud. Een fiche wijzigen gaat met rev-controle (saveAiWorker); de proeftaak loopt op de caffeine-weg via aiTestCall en op de
-// gateway-weg via de connector (ticket → /v2/taak → pollen). Het volledige scherm komt in 3.4.
+// inhoud. Een fiche wijzigen gaat met rev-controle (saveAiWorker); de proeftaak loopt via aiTestCall. 3.12: enkel nog de weg
+// Caffeine; de weg via een eigen server viel af en de browser stuurt nooit iets naar een externe host.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { AiCallView, AiModel, AiOverview, AiWorkerView } from "../backend";
 import { AiAutonomy, AiRoute } from "../backend";
-import { runAi } from "../aiConnector";
 import { Button, Choice, Sheet, Table, useToast, type Column } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtEuro, fmtTime, parseEuro, unwrap, useBackend } from "../util";
@@ -51,9 +50,8 @@ export function AiBeheer() {
   const models = useMutation({ mutationFn: async () => unwrap(await actor!.refreshAiModels()), onSuccess: (n) => { toast.show({ kind: "ok", text: A.refreshed(Number(n)) }); refreshAll(); }, onError: fail });
   const test = useMutation({
     mutationFn: async (w: AiWorkerView): Promise<bigint> => {
-      if (w.route === AiRoute.caffeine) return unwrap(await actor!.aiTestCall(w.key));
-      const r = await runAi(actor!, w.key, null, { tekst: PROEF, instructieVersie: Number(w.instructionVersion) });
-      return r.callId;
+      // 3.12 (review M4): de weg via de gateway viel af; de browser stuurt nooit iets naar een externe host.
+      return unwrap(await actor!.aiTestCall(w.key));
     },
     onSuccess: (id) => { toast.show({ kind: "ok", text: A.testDone(String(id)) }); refreshAll(); },
     onError: (e) => { fail(e); refreshAll(); },
@@ -64,9 +62,7 @@ export function AiBeheer() {
 
   const cols: Column<AiWorkerView>[] = [
     { key: "name", label: A.cols.name, render: (w) => <span className="a-list__main"><b>{w.name}</b><span className="bw-muted">{w.key} · v{String(w.instructionVersion)}</span></span> },
-    { key: "route", label: A.cols.route, render: (w) => A.route[w.route] ?? w.route },
     { key: "model", label: A.cols.model, render: (w) => <code>{w.modelAlias}</code> },
-    { key: "fallback", label: A.cols.fallback, render: (w) => (w.fallback && w.fallbackModel ? <code>{w.fallbackModel}</code> : A.no) },
     { key: "budget", label: A.cols.budget, right: true, render: (w) => (w.budget ? `${fmtEuro(w.budget.budgetMonthCents)} (≤ ${fmtEuro(w.budget.maxCallCents)} per oproep)` : "–") },
     { key: "used", label: A.cols.used, right: true, render: (w) => (w.budget ? `${fmtEuro(w.budget.spentCents)}${w.budget.reservedCents > 0n ? ` + ${fmtEuro(w.budget.reservedCents)} ${A.reserved.toLowerCase()}` : ""} · ${String(stats.get(w.key)?.calls ?? 0n)} / ${String(stats.get(w.key)?.errors ?? 0n)}` : "–") },
     { key: "clientData", label: A.cols.clientData, render: (w) => (w.clientData ? A.yes : A.no) },
@@ -99,7 +95,6 @@ export function AiBeheer() {
         <h2 className="bw-h2">{A.workers}</h2>
         <Loading q={ws} />
         {ws.data && <Table columns={cols} rows={ws.data} rowKey={(w) => w.key} />}
-        {test.isPending && test.variables?.route === AiRoute.gateway && <p className="bw-muted">{A.gatewayRunning}</p>}
       </section>
 
       <section className="a-section">
@@ -171,7 +166,7 @@ function Overview({ o }: { o: AiOverview }) {
         <div className="a-counter"><span className="a-counter__n a-counter__n--small">{o.modelsSeenAt !== undefined ? fmtTime(o.modelsSeenAt) : A.catalogNever}</span><span className="a-counter__l">{A.catalog}</span></div>
       </div>
       <p className={`a-note${o.live && !o.draft ? " a-note--bad" : ""}`}>{o.draft ? A.mode.draft : o.live ? A.mode.live : A.mode.test}</p>
-      <p className="bw-muted">{A.gateway}: {o.gatewayUrl ?? A.gatewayNone} · {A.rate}: {(Number(o.usdEurMilli) / 1000).toLocaleString("nl-BE", { minimumFractionDigits: 3 })}</p>
+      <p className="bw-muted">{A.rate}: {(Number(o.usdEurMilli) / 1000).toLocaleString("nl-BE", { minimumFractionDigits: 3 })}</p>
     </>
   );
 }
@@ -195,15 +190,13 @@ function WorkerSheet({ w, models, onClose, onSaved }: { w: AiWorkerView; models:
   const F = A.form;
   const [name, setName] = useState(w.name);
   const [enabled, setEnabled] = useState(w.enabled);
-  const [route, setRoute] = useState<AiRoute>(w.route);
+  // 3.12 (review M4): enkel de weg Caffeine, zonder terugval (de gateway viel af; de backend weigert al het andere).
+  const route = AiRoute.caffeine;
   const [model, setModel] = useState(w.modelAlias);
-  const [fallback, setFallback] = useState(w.fallback);
-  const [fbModel, setFbModel] = useState(w.fallbackModel ?? "");
   const [budget, setBudget] = useState(centsInput(w.budget?.budgetMonthCents ?? 0n));
   const [maxCall, setMaxCall] = useState(centsInput(w.budget?.maxCallCents ?? 0n));
   const [clientData, setClientData] = useState(w.clientData);
   const [version, setVersion] = useState(String(w.instructionVersion));
-  const other = route === AiRoute.caffeine ? AiRoute.gateway : AiRoute.caffeine;
   const save = useMutation({
     mutationFn: async () => {
       const b = parseEuro(budget);
@@ -211,7 +204,7 @@ function WorkerSheet({ w, models, onClose, onSaved }: { w: AiWorkerView; models:
       if (b === null || m === null) throw new Error(F.badAmount);
       unwrap(await actor!.saveAiWorker({
         key: w.key, rev: w.rev, name: name.trim(), enabled, route, modelAlias: model,
-        fallback, fallbackModel: fallback && fbModel ? fbModel : undefined,
+        fallback: false, fallbackModel: undefined,
         budgetMonthCents: b ?? 0n, maxCallCents: m ?? 0n, clientData, autonomy: AiAutonomy.proposal, instructionVersion: BigInt(version),
       }));
     },
@@ -223,11 +216,8 @@ function WorkerSheet({ w, models, onClose, onSaved }: { w: AiWorkerView; models:
       footer={<Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>{t.common.save}</Button>}>
       <Field label={F.name}><input className="bw-input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
       <Field label={F.enabled}><Choice label={F.enabled} value={enabled ? "aan" : "uit"} onChange={(v) => setEnabled(v === "aan")} options={[{ value: "aan", label: A.on }, { value: "uit", label: A.off }]} /></Field>
-      <Field label={F.route}><Choice label={F.route} value={route} onChange={(v) => { setRoute(v); setModel(""); setFbModel(""); }} options={[{ value: AiRoute.caffeine, label: A.route.caffeine }, { value: AiRoute.gateway, label: A.route.gateway }]} /></Field>
       <Field label={F.model}><ModelInput route={route} value={model} onChange={setModel} models={models} label={F.model} /></Field>
-      <p className="bw-muted">{route === AiRoute.caffeine ? F.modelHelpCaffeine : F.modelHelpGateway}</p>
-      <Field label={F.fallback}><Choice label={F.fallback} value={fallback ? "ja" : "nee"} onChange={(v) => setFallback(v === "ja")} options={yn} /></Field>
-      {fallback && <Field label={F.fallbackModel}><ModelInput route={other} value={fbModel} onChange={setFbModel} models={models} label={F.fallbackModel} noAuto /></Field>}
+      <p className="bw-muted">{F.modelHelpCaffeine}</p>
       <div className="a-row">
         <Field label={F.budget}><input className="bw-input bw-num" inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} /></Field>
         <Field label={F.maxCall}><input className="bw-input bw-num" inputMode="decimal" value={maxCall} onChange={(e) => setMaxCall(e.target.value)} /></Field>

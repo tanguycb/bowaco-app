@@ -129,7 +129,8 @@ function AppInner() {
 
   if (isInitializing) return <Gate><p className="bw-muted">{t.common.loading}</p></Gate>;
   // 3.13: de toestemmingspagina voor een bot (OAuth van de MCP-connector) staat los van de gewone app: een bot is geen persoon.
-  if (isMcpAuthorize()) return <Gate onLogout={isAuthenticated ? () => void logout() : undefined}><McpKoppelen onLogout={() => void logout()} /></Gate>;
+  // 3.12 (review L): geen losse uitlogknop in de kop op deze pagina: McpKoppelen waarschuwt eerst als er nog handelingen wachten.
+  if (isMcpAuthorize()) return <Gate><McpKoppelen onLogout={logout} /></Gate>;
   if (!isAuthenticated) {
     return (
       <Gate>

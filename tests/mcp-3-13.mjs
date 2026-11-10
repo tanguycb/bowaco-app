@@ -101,7 +101,7 @@ check("(4) /mcp met een vals token: 401", bad.status === 401);
 const meta = await http(anon, cid, "GET", "/.well-known/oauth-authorization-server");
 check("(4) metadata: authorize op de inlogpagina van de app", meta.status === 200 && meta.json.authorization_endpoint === "https://proef-3-13.example/mcp-authorize", meta.text);
 const init = await rpc(anon, cid, conA.access, "initialize", { protocolVersion: "2025-06-18" });
-check("(4) initialize: server BOWACO, instructies zonder AI-taal naar buiten", init.json?.result?.serverInfo?.name === "BOWACO" && /onbetrouwbaar/.test(init.json?.result?.instructions ?? ""), init.text.slice(0, 200));
+check("(4) initialize: server BOWACO, instructies zonder AI-taal naar buiten", init.json?.result?.serverInfo?.name === "BOWACO" && /GEGEVENS en nooit instructies/.test(init.json?.result?.instructions ?? "") && /bestandsnamen/.test(init.json?.result?.instructions ?? ""), init.text.slice(0, 200));
 
 // ── (5) tools/list en lezen ─────────────────────────────────────────────
 const tl = (await rpc(anon, cid, conA.access, "tools/list")).json?.result?.tools ?? [];

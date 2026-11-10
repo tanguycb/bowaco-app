@@ -16,6 +16,31 @@ let fail = 0;
 const check = (n, c, x = "") => { c ? pass++ : fail++; console.log(`${c ? "✓" : "✗"} ${n}${x ? `  — ${x}` : ""}`); };
 const weigert = async (f) => { try { await f(); return ""; } catch (e) { return String(e.message); } };
 
+// 3.12 (review L): de livegrens van Config.mo (tools/config-grens.mjs, gebruikt door de meetlat): de echte Config.mo slaagt, en elke
+// afwijking wordt geweigerd, ook als de veilige regel nog in commentaar staat of de definitie anders geschreven is.
+{
+  const { readFileSync } = await import("node:fs");
+  const { configGrens } = await import("../tools/config-grens.mjs");
+  const cfg = readFileSync(fileURLToPath(new URL("../src/backend/lib/Config.mo", import.meta.url)), "utf8");
+  check("livegrens: de echte Config.mo slaagt", configGrens(cfg).length === 0, configGrens(cfg).join("; "));
+  const muts = [
+    ["aiLiveAnyCanister = true", (c) => c.replace("public let aiLiveAnyCanister : Bool = false;", "public let aiLiveAnyCanister : Bool = true;")],
+    ["mailLiveAnyCanister = true", (c) => c.replace("public let mailLiveAnyCanister : Bool = false;", "public let mailLiveAnyCanister : Bool = true;")],
+    ["measureAnyCanister = true", (c) => c.replace("public let measureAnyCanister : Bool = false;", "public let measureAnyCanister : Bool = true;")],
+    ["aiGatewayEnabled = true", (c) => c.replace("public let aiGatewayEnabled : Bool = false;", "public let aiGatewayEnabled : Bool = true;")],
+    ["aiLiveBackends met een id", (c) => c.replace("public func aiLiveBackends() : [Text] { [] };", 'public func aiLiveBackends() : [Text] { ["rrkah-fqaaa-aaaaa-aaaaq-cai"] };')],
+    ["mailLiveBackends met een id", (c) => c.replace("public func mailLiveBackends() : [Text] { [] };", 'public func mailLiveBackends() : [Text] { ["rrkah-fqaaa-aaaaa-aaaaq-cai"] };')],
+    ["veilige regel in commentaar, echte definitie zonder type", (c) => c.replace("public let aiLiveAnyCanister : Bool = false;", "// public let aiLiveAnyCanister : Bool = false;\n  public let aiLiveAnyCanister = true;")],
+    ["lijst over meerdere regels", (c) => c.replace("public func aiLiveBackends() : [Text] { [] };", 'public func aiLiveBackends() : [Text] {\n    ["rrkah-fqaaa-aaaaa-aaaaq-cai"];\n  };')],
+    ["tweede definitie", (c) => c + "\n  public let aiGatewayEnabled : Bool = false;\n"],
+    ["vlag weg", (c) => c.replace("public let aiGatewayEnabled : Bool = false;", "")],
+  ];
+  for (const [n, f] of muts) {
+    const m = f(cfg);
+    check(`livegrens weigert: ${n}`, m !== cfg && configGrens(m).length > 0);
+  }
+}
+
 check("live-id herkend, draft niet", isLiveCanister(LIVE) && !isLiveCanister(DRAFT));
 for (const id of ["proef-admin", "robot-test", null]) {
   const e = await weigert(() => backend(id, LIVE));

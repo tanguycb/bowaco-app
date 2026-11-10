@@ -703,6 +703,7 @@ export interface BotConnectionView {
   'expiresAt' : bigint,
   'clientName' : string,
   'createdAt' : bigint,
+  'target' : string,
 }
 export interface BotInput {
   'id' : [] | [bigint],
@@ -2673,7 +2674,9 @@ export interface McpInfo {
   'tasks' : Array<BotTaskInfo>,
   'signInOrigin' : [] | [string],
   'tools' : Array<BotToolInfo>,
+  'redirectDefault' : Array<string>,
   'never' : Array<string>,
+  'redirectHosts' : Array<string>,
 }
 export interface MeView {
   'blockedUntil' : [] | [bigint],
@@ -4083,6 +4086,7 @@ export interface OaQuoteBrief {
   'fileId' : [] | [bigint],
   'number' : string,
   'quoteDay' : Day,
+  'byBot' : boolean,
   'current' : boolean,
   'vatRegime' : OaVatRegime,
   'validUntil' : [] | [Day],
@@ -8897,6 +8901,7 @@ export interface _SERVICE {
   'setMailTest' : ActorMethod<[boolean, string], Result_9>,
   'setMarginClass' : ActorMethod<[MarginClassInput], Result_7>,
   'setMarginClassLink' : ActorMethod<[string, [] | [bigint]], Result_1>,
+  'setMcpRedirectHosts' : ActorMethod<[Array<string>], Result_1>,
   'setMemberGrants' : ActorMethod<[bigint, Array<Grant>], Result_1>,
   'setMinMeerOverride' : ActorMethod<[bigint, MmOverrideInput], Result_1>,
   'setOrgConfidential' : ActorMethod<

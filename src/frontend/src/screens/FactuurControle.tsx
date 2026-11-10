@@ -118,7 +118,7 @@ export function InvCheckPanel({ invoiceId, workId, file, canStart }: { invoiceId
   const [shown, setShown] = useState<InvCheckFull | null>(null);
   const [cancel, setCancel] = useState<InvCheckBrief | null>(null);
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
-  const open = useMutation({ mutationFn: async (r: InvCheckBrief) => unwrap(await actor!.readInvCheck(r.id)), onSuccess: setShown, onError: fail });
+  const open = useMutation({ mutationFn: async (r: InvCheckBrief) => unwrap(await actor!.readInvCheck(r.id)), onSuccess: setShown, onError: fail, gcTime: 0 });
   const finish = useMutation({
     mutationFn: async (x: { r: InvCheckBrief; o: InvCheckOutcome }) => unwrap(await actor!.finishInvCheck(x.r.id, x.o)),
     onSuccess: (_d, x) => { toast.show({ kind: "ok", text: x.o === InvCheckOutcome.seen ? C.seenOk : C.cancelOk }); setShown(null); setCancel(null); refresh(); },

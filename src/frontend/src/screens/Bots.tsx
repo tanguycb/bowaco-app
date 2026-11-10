@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { BotActionView, BotCallView, BotView, DocKindView, McpInfo, WorkView } from "../backend";
 import { BotLevel } from "../backend";
-import { Button, Choice, Sheet, Table, useToast, type Column } from "../design";
+import { Button, Choice, Confirm, Sheet, Table, useToast, type Column } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -44,7 +44,15 @@ export function Bots() {
   const [revoke, setRevoke] = useState<BotView | null>(null);
   const refresh = () => { for (const k of ["bots", "mcpInfo", "botActions", "botLog"]) void qc.invalidateQueries({ queryKey: [k] }); };
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
-  const origin = useMutation({ mutationFn: async () => unwrap(await actor!._caffeineMcpSetSignInOrigin(window.location.origin)), onSuccess: () => { toast.show({ kind: "ok", text: B.originSet }); refresh(); }, onError: fail });
+  const [askOrigin, setAskOrigin] = useState(false);
+  const origin = useMutation({ mutationFn: async () => unwrap(await actor!._caffeineMcpSetSignInOrigin(window.location.origin)), onSuccess: () => { setAskOrigin(false); toast.show({ kind: "ok", text: B.originSet }); refresh(); }, onError: fail });
+  // 3.12 (review M1): de toepassingen waar een koppeling naar terug mag (hosts); leeg = de standaard.
+  const [hosts, setHosts] = useState<string | null>(null);
+  const saveHosts = useMutation({
+    mutationFn: async () => unwrap(await actor!.setMcpRedirectHosts((hosts ?? "").split(/[\n,]/).map((x) => x.trim()).filter(Boolean))),
+    onSuccess: () => { setHosts(null); toast.show({ kind: "ok", text: B.hostsSaved }); refresh(); },
+    onError: fail,
+  });
   const mkCode = useMutation({ mutationFn: async (b: BotView) => ({ bot: b, ...unwrap(await actor!.newBotCode(b.id)) }), onSuccess: (r) => { setCode(r); refresh(); }, onError: fail });
   const doRevoke = useMutation({ mutationFn: async (b: BotView) => unwrap(await actor!.revokeBot(b.id)), onSuccess: () => { setRevoke(null); toast.show({ kind: "ok", text: B.revokeDone }); refresh(); }, onError: fail });
   const workCode = new Map((works.data ?? []).map((w) => [String(w.id), w.code]));
@@ -80,8 +88,17 @@ export function Bots() {
         <p>
           <span className="bw-label">{B.origin}</span><br />
           {i?.signInOrigin ? <code>{i.signInOrigin}/mcp-authorize</code> : <span className="a-note a-note--bad">{B.originNone}</span>}
-          {i && i.signInOrigin !== window.location.origin && <> <Button variant="quiet" busy={origin.isPending} onClick={() => origin.mutate()}>{B.originHere}</Button></>}
+          {i && i.signInOrigin !== window.location.origin && <> <Button variant="quiet" onClick={() => setAskOrigin(true)}>{B.originHere}</Button></>}
         </p>
+        <Confirm open={askOrigin} title={B.originConfirmTitle} text={B.originConfirm(i?.signInOrigin ?? "", window.location.origin)} confirmLabel={B.originHere} busy={origin.isPending} onConfirm={() => origin.mutate()} onClose={() => setAskOrigin(false)} />
+        {i && (
+          <label className="bw-field">
+            <span className="bw-label">{B.hosts}</span>
+            <textarea className="bw-input" rows={3} value={hosts ?? i.redirectHosts.join("\n")} onChange={(e) => setHosts(e.target.value)} spellCheck={false} />
+            <span className="bw-muted">{B.hostsHelp} {B.hostsDefault(i.redirectDefault.join(", "))}</span>
+            {hosts !== null && <span><Button busy={saveHosts.isPending} onClick={() => saveHosts.mutate()}>{B.hostsSave}</Button></span>}
+          </label>
+        )}
         <div className="a-row a-row--between">
           <h3 className="bw-h3">{B.title}</h3>
           <Button icon="plus" onClick={() => setEdit("new")}>{B.newBot}</Button>
@@ -219,7 +236,7 @@ function ConnSheet({ bot, onClose }: { bot: BotView; onClose: () => void }) {
       <ul className="a-list">
         {(q.data ?? []).map((c) => (
           <li key={c.id}>
-            <span className="a-list__main"><b>{c.clientName}</b><span className="bw-muted">{fmtTime(c.createdAt)} · {B.connExpires(fmtTime(c.expiresAt))}</span></span>
+            <span className="a-list__main"><b>{B.connTarget(c.clientName, c.target)}</b><span className="bw-muted">{fmtTime(c.createdAt)} · {B.connExpires(fmtTime(c.expiresAt))}</span></span>
             <Button variant="quiet" busy={rv.isPending && rv.variables === c.id} onClick={() => rv.mutate(c.id)}>{B.revoke}</Button>
           </li>
         ))}

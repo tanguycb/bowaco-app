@@ -91,6 +91,7 @@ const ap = ok(await admin.applyTenderCheck(j1, full.picks.map((p) => ({ itemId: 
 check("(5) één klik: 3 posten in de ontwerpversie, de keuze staat, de opdracht is afgesloten", ap.lines === 3n && ok(await admin.compareTender(T)).choices.length === 3 && (await admin.listAiChecks({ tender: T }))[0]?.reason === "overgenomen", S(ap));
 // Een tweede opdracht met voorstel BLIJFT open voor de testlijst.
 const j2 = ok(await admin.startAiCheck({ target: { tender: T }, way: { bot: id } }));
+await call("vergelijkopdrachten"); // 3.12: een voorstel draagt de stand van het dossier dat de bot kreeg (eerst ophalen)
 const v2 = await call("voorstel_vergelijking", { ...prop, opdracht: Number(j2), keuzes: [{ post: 1, offerte: B, reden: "volledige offerte (proef)" }, { post: 2, offerte: B, reden: "laagste (proef)" }, { post: 3, offerte: B, reden: "enkel Lijster (proef)" }] });
 check("(5) tweede opdracht: voorstel klaar (blijft staan)", v2.json?.result?.structuredContent?.stand === "voorstel");
 
@@ -114,8 +115,10 @@ const rb = await admin.runAiCheckAi(jb);
 check("(7) Caffeine-weg op de draft (vergelijken en nalezen): testmodus (droog), er vertrekt niets", "ok" in ra && ra.ok.dry === true && "ok" in rb && rb.ok.dry === true, S([ra, rb]));
 ok(await admin.finishAiCheck(ja, { cancelled: null }));
 ok(await admin.finishAiCheck(jb, { cancelled: null }));
-ok(await admin.revokeBot(id));
+// 3.12 (review M3): de bot intrekken sluit nu ook zijn open opdrachten en voorstellen. Het voorstel moet hier blijven staan voor de
+// testlijst van de eigenaar: daarom enkel de KOPPELING intrekken (het token is dood, de bot en zijn voorstel blijven).
+for (const c of await admin.botConnections(id)) ok(await admin.revokeBotConnection(id, c.id));
 const after = await call("vergelijkopdrachten");
-check("(8) na intrekken: de bot kan niets meer", after.status === 401 || after.json?.result?.isError === true || !!after.json?.error, String(after.status));
+check("(8) na het intrekken van de koppeling: de bot kan niets meer (401)", after.status === 401, String(after.status));
 console.log(`\nproef-draft-3-9: ${pass} geslaagd, ${fail} mislukt (proefwerf P-VGD-${sfx})`);
 process.exit(fail ? 1 : 0);

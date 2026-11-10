@@ -393,7 +393,15 @@ mixin (
     if (v.quoteId != t.quoteId) { return #err("Deze versie hoort bij een andere offerte") };
     if (v.status != #draft) { return #err("Versie " # v.version.toText() # " is " # Quotes.statusText(v.status) # ": kies een ontwerpversie") };
     if (picks.size() == 0) { return #err("Kies minstens één post") };
-    switch (oqSave(caller, p, t, picks)) { case (#ok _) {}; case (#err e) return #err(e) };
+    // 3.12 (review L): de reden komt van het voorstel (de bot of Caffeine), niet van de persoon die overneemt. Ze wordt hier uit het
+    // bewaarde voorstel gehaald (niet uit wat de browser stuurt) en draagt een vast merk, zodat ze nooit als reden van een mens leest.
+    let proposed = Map.empty<Nat, Text>();
+    switch (j.result) { case (?res) { for (k in res.picks.values()) proposed.add(k.itemId, k.reason) }; case null {} };
+    let marked = picks.map(func(k : TV.TenderPickInput) : TV.TenderPickInput {
+      let why = switch (proposed.get(k.itemId)) { case (?x) x; case null "" };
+      { k with reason = if (why == "") "" else Text.fromIter(("[voorstel] " # why).chars().take(300)) };
+    });
+    switch (oqSave(caller, p, t, marked)) { case (#ok _) {}; case (#err e) return #err(e) };
     let r = switch (oqApply(caller, p, t, versionId)) { case (#ok x) x; case (#err e) Runtime.trap("Niets overgenomen: " # e) };
     AiCheck.follow(bots, j, true, ?p.id, now);
     AiCheck.close(j, #closed("overgenomen"), ?p.id, now);

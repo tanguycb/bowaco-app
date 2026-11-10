@@ -40,8 +40,9 @@ mixin (
 
   func aiEnv() : Connector.Env { { settings; access; robot; ai; audit; ctr } };
 
-  // Belt deze canister nu echt? Enkel een livecanister (of de testbouw), en niet als de beheerder de testmodus aanzette.
-  func aiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") != ?"aan" };
+  // Belt deze canister nu echt? Enkel een livecanister (of de testbouw), en enkel als de beheerder de testmodus uitdrukkelijk
+  // UIT zette (3.12, review L: zoals de mail staat de testmodus standaard aan; een live-id in aiLiveBackends belt dus niet vanzelf).
+  func aiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") == ?"uit" };
 
   // De taak zelf vraagt haar eigen rechten bovenop #useAi (AiPrompts.requires), en de werf moet zichtbaar zijn.
   func aiTaskOk(p : Types.Person, key : Text, workId : ?Nat) : ?Text {
@@ -65,6 +66,8 @@ mixin (
   };
 
   func aiGateway(caller : Principal, p : Types.Person, w : Types.AiWorker, workId : ?Nat, model : Text, inputSha : Text, inputBytes : Nat, fellBack : Bool) : async* Result.Result<AiViews.AiAnswer, Text> {
+    // 3.12 (review M4): de gateway-weg viel af (eigenaar 08-11) en staat vast uit in Config: geen ticket, geen adres naar de browser.
+    if (not Config.aiGatewayEnabled) return #err("De weg via de gateway staat uit");
     let url = Connector.gatewayUrl(settings) ?? return #err("De gateway is nog niet ingesteld (AI, instelling ai.gatewayUrl)");
     if (not Gateway.validModel(model)) return #err("Het model van de gateway is ongeldig: kies <leverancier>/<model>");
     let e = aiEnv();
@@ -136,7 +139,7 @@ mixin (
         // §2.6: terugval caffeine → gateway enkel bij #retry, #rateLimited (na de ene herhaling) en "model onbekend".
         switch (w.fallbackModel) {
           case (?fm) {
-            if (w.fallback and not forced and w.route == #caffeine and aiStillOk(caller, w.key, workId)) {
+            if (Config.aiGatewayEnabled and w.fallback and not forced and w.route == #caffeine and aiStillOk(caller, w.key, workId)) {
               return await* aiGateway(caller, p, w, workId, fm, inputSha, inputBytes, true);
             };
           };
@@ -158,6 +161,10 @@ mixin (
     var bytes = input.text.size();
     for (r in input.refs.values()) {
       if (r.size() == 0 or r.size() > 60 or r.contains(#text "://") or r.contains(#text "!caf!")) return #err("Ongeldige verwijzing");
+      // 3.12 (review L): een verwijzing staat buiten het afgebakende blok: enkel letters, cijfers en : . _ - (geen regeleinde of tekst).
+      for (ch in r.chars()) {
+        if (not ((ch >= 'a' and ch <= 'z') or (ch >= 'A' and ch <= 'Z') or (ch >= '0' and ch <= '9') or ch == ':' or ch == '.' or ch == '_' or ch == '-')) return #err("Ongeldige verwijzing");
+      };
       bytes += r.size();
     };
     if (bytes > Config.aiMaxInputBytes) return #err("De invoer is te groot voor deze AI-taak");
@@ -245,7 +252,7 @@ mixin (
       draft = isDraft();
       running = ai.runningByPerson.size();
       usdEurMilli = Connector.usdEurMilli(settings);
-      gatewayUrl = Connector.gatewayUrl(settings);
+      gatewayUrl = if (Config.aiGatewayEnabled) Connector.gatewayUrl(settings) else null;
     };
   };
 
@@ -265,6 +272,8 @@ mixin (
       if (m.size() == 0 or m.size() > 80) return false;
       switch route { case (#caffeine) m == "auto" or ai.models.containsKey(m); case (#gateway) Gateway.validModel(m) };
     };
+    // 3.12 (review M4): geen fiche op de weg gateway en geen terugval (die gaat naar de andere weg) zolang de gateway uit staat.
+    if (not Config.aiGatewayEnabled and (x.route == #gateway or x.fallback or x.fallbackModel != null)) return #err("De weg via de gateway staat uit: kies de weg Caffeine zonder terugval");
     if (not okModel(x.route, x.modelAlias)) return #err(if (x.route == #caffeine) "Kies een model uit de catalogus (of auto)" else "Kies een model van de gateway: <leverancier>/<model>");
     let other : Types.AiRoute = if (x.route == #caffeine) #gateway else #caffeine;
     switch (x.fallbackModel) {
@@ -296,6 +305,7 @@ mixin (
     switch gatewayUrl {
       case (?u) {
         if (u == "") settings.values.remove("ai.gatewayUrl") else {
+          if (not Config.aiGatewayEnabled) return #err("De weg via de gateway staat uit");
           if (not u.startsWith(#text "https://") or u.size() > Config.maxUrl) return #err("Het adres van de gateway moet met https:// beginnen");
           for (c in u.chars()) { if (c == ' ' or c == '\"' or c == '\'' or c == '<' or c == '>' or c == '\\') return #err("Ongeldig adres") };
           settings.values.add("ai.gatewayUrl", u);
@@ -307,7 +317,7 @@ mixin (
       case (?n) { if (n < 100 or n > 10_000) return #err("Koers tussen 0,100 en 10,000"); settings.values.add("ai.usdEurMilli", n.toText()) };
       case null {};
     };
-    switch testMode { case (?true) settings.values.add("ai.testmodus", "aan"); case (?false) settings.values.remove("ai.testmodus"); case null {} };
+    switch testMode { case (?true) settings.values.add("ai.testmodus", "aan"); case (?false) settings.values.add("ai.testmodus", "uit"); case null {} };
     Access.audit(audit, caller, ?p.id, null, "ai-instellingen", (switch gatewayUrl { case (?_) "gateway "; case null "" }) # (switch usdEurMilli { case (?n) "koers " # n.toText() # " "; case null "" }) # (switch testMode { case (?b) if b "testmodus aan" else "testmodus uit"; case null "" }));
     #ok;
   };
@@ -333,6 +343,7 @@ mixin (
   // Kost, tokens en model van een gateway-taak; één keer per ticket, vóór of na submitProposal. Kan enkel kost TOEVOEGEN.
   public shared ({ caller }) func reportAiUsage(ticketId : Nat, u : AiViews.AiUsage) : async Result.Result<(), Text> {
     if (not aiRobot(caller)) return #err("Geen toegang");
+    if (not Config.aiGatewayEnabled) return #err("De weg via de gateway staat uit");
     let id = ai.callByTicket.get(ticketId) ?? return #err("Geen AI-oproep voor dit ticket");
     let c = ai.log.get(id) ?? return #err("Geen AI-oproep voor dit ticket");
     let t = robot.tickets.get(ticketId) ?? return #err("Onbekend ticket");
@@ -359,6 +370,7 @@ mixin (
   // ermee) wanneer de leverancier misschien gerekend heeft: dan wordt geraamd op de reservering.
   public shared ({ caller }) func failAiTicket(ticketId : Nat, why : Text) : async Result.Result<(), Text> {
     if (not aiRobot(caller)) return #err("Geen toegang");
+    if (not Config.aiGatewayEnabled) return #err("De weg via de gateway staat uit");
     let id = ai.callByTicket.get(ticketId) ?? return #err("Geen AI-oproep voor dit ticket");
     let c = ai.log.get(id) ?? return #err("Geen AI-oproep voor dit ticket");
     if (c.state != #running) return #err("Deze AI-oproep is al afgesloten");

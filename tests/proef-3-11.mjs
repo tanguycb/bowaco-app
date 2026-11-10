@@ -142,6 +142,13 @@ await admin.refreshAiModels();
 check("(6) Caffeine klaar voor de calculator", (await calc.aiCheckAiReady("nalezen")) === true);
 ok(await admin.setAiSettings([], [], [true]));
 const jd = ok(await calc.startAiCheck({ target: T3, way: { ai: null } }));
+// 3.12 (review M7): de fiche staat op "Klantgegevens: nee" → de offerte van de klant vertrekt niet (de vlag deed tot nu niets).
+const noClient = await calc.runAiCheckAi(jd);
+check("(6) 3.12: fiche zonder 'Klantgegevens mogen mee': nalezen via Caffeine geweigerd, de opdracht blijft open", "err" in noClient && /Klantgegevens/.test(noClient.err) && (await calc.listAiChecks(T3)).find((x) => x.id === jd)?.status === "open", S(noClient));
+{
+  const w2 = (await admin.listAiWorkers()).find((w) => w.key === "offerte-review");
+  ok(await admin.saveAiWorker({ key: "offerte-review", name: "Offerte nalezen (proef)", route: { caffeine: null }, modelAlias: "auto", fallback: false, fallbackModel: [], budgetMonthCents: 2000n, maxCallCents: 50n, clientData: true, autonomy: { proposal: null }, instructionVersion: 1n, enabled: true, rev: w2.rev }));
+}
 const sd = ok(await calc.runAiCheckAi(jd));
 const rd = ok(await calc.readAiCheck(jd));
 check("(6) testmodus: er vertrekt niets, droog voorbeeld met één opmerking", sd.dry && sd.status === "voorstel" && rd.brief.verdict === "opmerkingen" && /droog/.test(rd.summary), S(sd));

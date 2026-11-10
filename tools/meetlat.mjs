@@ -84,19 +84,15 @@ if (testCode) {
   ok(!cfg.includes(testHash), "Config.mo draagt NIET de hash van de test-opstartcode");
 }
 ok(hits.length === 0, `geen sleutels of opstartcode in de bestanden${hits.length ? `: ${hits.join(", ")}` : ""}`);
-// 1b.5 (M2): de upload mag nooit de testvlag dragen die elke canister als live telt (tests/lokaal.sh zet ze enkel in de
-// testbouw): echte mail kan enkel vanaf Config.mailLiveBackends.
-ok(/public let mailLiveAnyCanister : Bool = false;/.test(readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8")), "Config.mo: mailLiveAnyCanister = false (echte mail enkel vanaf Config.mailLiveBackends)");
-// 3.1 (ontwerp §5.10): idem voor de AI-connector: een upload belt de inferentiedienst nooit echt zolang de livegang niet gebeurde
-// (aiLiveBackends leeg, zoals mailLiveBackends) en nooit met de testvlag van tests/lokaal.sh.
+// 1b.5 (M2), 3.1, 2d.1 en 3.12 (review L): de livegrens van Config.mo. Echte mail en echte AI-oproepen enkel vanaf de lijsten
+// mailLiveBackends en aiLiveBackends (beide LEEG tot een apart ja van de eigenaar), nooit met een testvlag van tests/lokaal.sh
+// (…AnyCanister), nooit met de meetfunctie, en de gateway-weg voor AI blijft uit. tools/config-grens.mjs kijkt naar de echte
+// definities (commentaar telt niet, precies één definitie per naam); tests/live-grens.mjs bewijst dat elke afwijking geweigerd wordt.
 {
-  const cfgAi = readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8");
-  ok(/public let aiLiveAnyCanister : Bool = false;/.test(cfgAi), "Config.mo: aiLiveAnyCanister = false (echte AI-oproepen enkel vanaf Config.aiLiveBackends)");
-  ok(/public func aiLiveBackends\(\) : \[Text\] \{ \[\] \};/.test(cfgAi), "Config.mo: aiLiveBackends leeg (drafts en uploads bellen de inferentiedienst nooit echt)");
+  const { configGrens } = await import("./config-grens.mjs");
+  const fouten = configGrens(readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8"));
+  ok(fouten.length === 0, `Config.mo: livegrens (mail en AI enkel vanaf lege lijsten, geen testvlag, gateway uit)${fouten.length ? `: ${fouten.join("; ")}` : ""}`);
 }
-
-// 2d.1: de meetfunctie meetKlok nooit in een upload.
-ok(/public let measureAnyCanister : Bool = false;/.test(readFileSync(join(root, "src/backend/lib/Config.mo"), "utf8")), "Config.mo: measureAnyCanister = false (meetKlok enkel in de testbouw)");
 
 console.log(bad ? `\n${bad} grens(en) overschreden` : "\nmeetlat groen");
 process.exit(bad ? 1 : 0);

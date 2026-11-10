@@ -497,6 +497,7 @@ export const BotConnectionView = IDL.Record({
   'expiresAt' : IDL.Int,
   'clientName' : IDL.Text,
   'createdAt' : IDL.Int,
+  'target' : IDL.Text,
 });
 export const BotCallOutcome = IDL.Variant({
   'ok' : IDL.Null,
@@ -723,6 +724,7 @@ export const OaQuoteBrief = IDL.Record({
   'fileId' : IDL.Opt(IDL.Nat),
   'number' : IDL.Text,
   'quoteDay' : Day,
+  'byBot' : IDL.Bool,
   'current' : IDL.Bool,
   'vatRegime' : OaVatRegime,
   'validUntil' : IDL.Opt(Day),
@@ -5502,7 +5504,9 @@ export const McpInfo = IDL.Record({
   'tasks' : IDL.Vec(BotTaskInfo),
   'signInOrigin' : IDL.Opt(IDL.Text),
   'tools' : IDL.Vec(BotToolInfo),
+  'redirectDefault' : IDL.Vec(IDL.Text),
   'never' : IDL.Vec(IDL.Text),
+  'redirectHosts' : IDL.Vec(IDL.Text),
 });
 export const Caps = IDL.Record({
   'ai' : IDL.Bool,
@@ -9562,6 +9566,7 @@ export const idlService = IDL.Service({
   'setMailTest' : IDL.Func([IDL.Bool, IDL.Text], [Result_9], []),
   'setMarginClass' : IDL.Func([MarginClassInput], [Result_7], []),
   'setMarginClassLink' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [Result_1], []),
+  'setMcpRedirectHosts' : IDL.Func([IDL.Vec(IDL.Text)], [Result_1], []),
   'setMemberGrants' : IDL.Func([IDL.Nat, IDL.Vec(Grant)], [Result_1], []),
   'setMinMeerOverride' : IDL.Func([IDL.Nat, MmOverrideInput], [Result_1], []),
   'setOrgConfidential' : IDL.Func(
@@ -10140,6 +10145,7 @@ export const idlFactory = ({ IDL }) => {
     'expiresAt' : IDL.Int,
     'clientName' : IDL.Text,
     'createdAt' : IDL.Int,
+    'target' : IDL.Text,
   });
   const BotCallOutcome = IDL.Variant({
     'ok' : IDL.Null,
@@ -10360,6 +10366,7 @@ export const idlFactory = ({ IDL }) => {
     'fileId' : IDL.Opt(IDL.Nat),
     'number' : IDL.Text,
     'quoteDay' : Day,
+    'byBot' : IDL.Bool,
     'current' : IDL.Bool,
     'vatRegime' : OaVatRegime,
     'validUntil' : IDL.Opt(Day),
@@ -15084,7 +15091,9 @@ export const idlFactory = ({ IDL }) => {
     'tasks' : IDL.Vec(BotTaskInfo),
     'signInOrigin' : IDL.Opt(IDL.Text),
     'tools' : IDL.Vec(BotToolInfo),
+    'redirectDefault' : IDL.Vec(IDL.Text),
     'never' : IDL.Vec(IDL.Text),
+    'redirectHosts' : IDL.Vec(IDL.Text),
   });
   const Caps = IDL.Record({
     'ai' : IDL.Bool,
@@ -19068,6 +19077,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_1],
         [],
       ),
+    'setMcpRedirectHosts' : IDL.Func([IDL.Vec(IDL.Text)], [Result_1], []),
     'setMemberGrants' : IDL.Func([IDL.Nat, IDL.Vec(Grant)], [Result_1], []),
     'setMinMeerOverride' : IDL.Func([IDL.Nat, MmOverrideInput], [Result_1], []),
     'setOrgConfidential' : IDL.Func(

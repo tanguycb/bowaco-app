@@ -123,7 +123,7 @@ function useActions(onShown: (f: AiCheckFull | null) => void) {
   const toast = useToast();
   const refresh = useRefresh();
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
-  const open = useMutation({ mutationFn: async (r: AiCheckBrief) => unwrap(await actor!.readAiCheck(r.id)), onSuccess: onShown, onError: fail });
+  const open = useMutation({ mutationFn: async (r: AiCheckBrief) => unwrap(await actor!.readAiCheck(r.id)), onSuccess: onShown, onError: fail, gcTime: 0 });
   const finish = useMutation({
     mutationFn: async (x: { id: bigint; o: AiCheckOutcome }) => unwrap(await actor!.finishAiCheck(x.id, x.o)),
     onSuccess: (_d, x) => { toast.show({ kind: "ok", text: x.o === AiCheckOutcome.seen ? C.seenOk : C.cancelOk }); onShown(null); refresh(); },

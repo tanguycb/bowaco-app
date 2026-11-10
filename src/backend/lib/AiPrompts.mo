@@ -128,12 +128,16 @@ module {
 
   // De gebruikersboodschap: de tekst van de gebruiker in het afgebakende documentblok. De refs gaan enkel als ids mee.
   public func user(text : Text, refs : [Text]) : Text {
-    (if (refs.size() > 0) "Verwijzingen (ids): " # refs.values().join(", ") # "\n" else "") # "<<<DOCUMENT\n" # text # "\nDOCUMENT>>>";
+    (if (refs.size() > 0) "Verwijzingen (ids): " # refs.values().join(", ") # "\n" else "") # "<<<DOCUMENT\n" # fence(text) # "\nDOCUMENT>>>";
   };
+
+  // 3.12 (review L): tekst van buitenaf kan een afgebakend blok niet openen of sluiten, welk merk er ook gebruikt wordt (DOCUMENT,
+  // DOSSIER of een later blok): elke reeks <<< of >>> wordt uit elkaar gezet. Eén plaats voor alle opstellers.
+  public func fence(t : Text) : Text { t.replace(#text "<<<", "< < <").replace(#text ">>>", "> > >") };
 
   // 3.5: de vraag van een proefgeval. De lijsten komen uit de app (vertrouwd); wat van buiten komt (de bestandsnaam) staat in het blok.
   public func proofUser(context : Text, item : Text) : Text {
-    context # "\n<<<DOCUMENT\n" # item # "\nDOCUMENT>>>";
+    context # "\n<<<DOCUMENT\n" # fence(item) # "\nDOCUMENT>>>";
   };
 
   // De vaste voorbeeldtekst van de proeftaak (aiTestCall): verzonnen, geen echte gegevens.

@@ -555,7 +555,8 @@ module {
   public func jsonValue(j : ?Json) : Text {
     switch j {
       case (?#String(t)) Text.fromIter(t.chars().take(80));
-      case (?#Number(#Int(i))) Int.toText(i);
+      // 3.12 (review L): geen getal van duizenden cijfers in een bewaard antwoord (jayson leest gehele getallen onbegrensd).
+      case (?#Number(#Int(i))) if (i > 999_999_999_999 or i < -999_999_999_999) "" else Int.toText(i);
       // 3.9: keuzes = een lijst van {post, offerte} → "post=offerte;…" (hoogstens 500 posten).
       case (?#Array(xs)) {
         let out = List.empty<Text>();
@@ -563,7 +564,7 @@ module {
           if (out.size() >= 500) break l;
           switch x {
             case (#Object(fs)) {
-              let get = func(k : Text) : ?Nat { switch (fs.find(func((a, _) : (Text, Json)) : Bool = a == k)) { case (?(_, #Number(#Int(i)))) { if (i >= 0) ?Int.abs(i) else null }; case _ null } };
+              let get = func(k : Text) : ?Nat { switch (fs.find(func((a, _) : (Text, Json)) : Bool = a == k)) { case (?(_, #Number(#Int(i)))) { if (i >= 0 and i <= 999_999_999_999) ?Int.abs(i) else null }; case _ null } };
               switch (get("post"), get("offerte")) { case (?p, ?q) out.add(p.toText() # "=" # q.toText()); case _ {} };
             };
             case _ {};

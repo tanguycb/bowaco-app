@@ -2546,7 +2546,13 @@ await sec("── 3.4 + 3.13: de bot-rol");
   check("de bot is geen persoon: me() zonder persoon en zonder rechten", (await botR.me()).person.length === 0 && (await botR.me()).caps.length === 0);
   check("de bot leest geen werven, planning, documenten, offertes of facturen via de gewone API", (await rejects(botR.listWorks())) && (await rejects(botR.getDossier(A))) && (await rejects(botR.listOaInvoices([], []))) && (await rejects(botR.listQuotes([A], false))));
   check("de bot wordt nooit een persoon (code, opstartcode) of een robot", ((await botR.redeemCode("BOW-0000-0000-0000")).err === "Geen toegang") && ((await botR.claimBootstrap("BOW-0000-0000-0000-0000", "x")).err === "Geen toegang") && ((await admin.addRobot(botP, "x", ["proef"])).err ?? "").includes("bot"));
+  // 3.12: de bot (en elke andere rol) beheert de toegelaten toepassingen niet, kiest geen AI-weg en schrijft geen AI-voorstel; de
+  // gateway-weg voor AI staat uit (geen robotsoort "ai", geen gateway-adres).
+  check("3.12: de bot en de niet-beheerders passen de toegelaten toepassingen niet aan", (await Promise.all([botR, wl, calc, arch, oa, klant, vc].map((x) => rejects(x.setMcpRedirectHosts(["voorbeeld.invalid"]))))).every(Boolean));
+  check("3.12: de beheerder ziet de standaard (claude.ai, claude.com)", JSON.stringify((await admin.mcpInfo()).redirectDefault) === JSON.stringify(["claude.ai", "claude.com"]));
+  check("3.12: de gateway-weg staat uit: geen robot met de soort 'ai', geen gateway-adres", ((await admin.addRobot(P("robot-ai-31"), "Proef AI-robot", ["ai"])).err ?? "").includes("Onbekende soort") && ((await admin.setAiSettings(["https://gateway.voorbeeld.invalid"], [], [])).err ?? "").includes("staat uit") && (await admin.aiOverview()).gatewayUrl.length === 0);
   check("de admin trekt de bot in", "ok" in (await admin.revokeBot(bid)));
+  check("3.12: de ingetrokken bot keurt geen koppeling meer goed", "err" in (await botR._caffeineMcpApprove({ clientId: "bestaat-niet", redirectUri: "https://claude.ai/api/mcp/auth_callback", codeChallenge: "c".repeat(43), codeChallengeMethod: "S256" })));
   check("ingetrokken: nog altijd geen persoon en geen tweede bot", ((await botR.redeemCode("BOW-0000-0000-0000")).err === "Geen toegang") && ((await botR.claimBotCode("BOT-0000-0000-0000-0000")).err ?? "").includes("bot") && "revoked" in (await botR.myBot()));
 }
 

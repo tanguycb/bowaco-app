@@ -171,7 +171,7 @@ mixin (
   };
 
   // ── Caffeine AI-weg (de tekst) ────────────────────────────────────────
-  func icAiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") != ?"aan" };
+  func icAiReal() : Bool { isAiLive() and settings.values.get("ai.testmodus") == ?"uit" };
 
   public shared ({ caller }) func runInvCheckAi(id : Nat) : async Result.Result<IV.InvCheckAiStep, Text> {
     let p = Access.requireActive(access, caller);
@@ -186,11 +186,12 @@ mixin (
     let w = ai.workers.get("oa-factuurcontrole") ?? return #err("De fiche voor de factuurcontrole is nog niet ingericht (Beheer → AI-medewerkers)");
     let v = AiPrompts.version(w.key, w.instructionVersion) ?? return #err("Onbekende instructieversie");
     // De tekst van de OA kan het afgebakende blok niet sluiten; het dossier komt uit de app (vertrouwd) en staat erbuiten.
-    let safe = text.replace(#text "<<<DOCUMENT", "<<< DOCUMENT").replace(#text "DOCUMENT>>>", "DOCUMENT >>>");
     // Review 3.10 M1: het dossier bevat tekst die van de OA kwam (nummers, omschrijvingen): ook dat in een eigen afgebakend blok.
-    let dossierJson = InvCheck.dossier(icCtx(), tenders, inv, icOrgName(inv.orgId), true).stringify().replace(#text "DOSSIER>>>", "DOSSIER >>>");
-    let context = "Dossier van BOWACO over deze factuur (JSON):\n<<<DOSSIER\n" # dossierJson # "\nDOSSIER>>>";
-    let userText = AiPrompts.proofUser(context, safe);
+    let dossierJson = InvCheck.dossier(icCtx(), tenders, inv, icOrgName(inv.orgId), true).stringify();
+    // 3.12 (review L): AiPrompts.fence zet elke reeks <<< of >>> uit elkaar, in het dossier en (in proofUser) in de tekst van de factuur.
+    let context = "Dossier van BOWACO over deze factuur (JSON):\n<<<DOSSIER\n" # AiPrompts.fence(dossierJson) # "\nDOSSIER>>>";
+    let userText = AiPrompts.proofUser(context, text);
+    if (userText.size() > Config.aiMaxInputBytes) { return #err("Te groot om via Caffeine te controleren; laat een bot het doen") };
     let live = icAiReal();
     let now0 = Time.now();
     switch (InvCheck.extraGet(j.extra, "bezig")) {

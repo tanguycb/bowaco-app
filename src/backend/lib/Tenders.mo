@@ -226,6 +226,7 @@ module {
       validUntil = q.validUntil;
       fileId = q.fileId;
       source = q.source;
+      byBot = byBot(q);
       version = q.version;
       supersedes = q.supersedes;
       current;
@@ -416,7 +417,32 @@ module {
   };
 
   // Een ingediende versie zoals de OA ze ziet (zonder id's).
+  // 3.12 (review H2): een offerte die de app zelf registreerde uit het voorstel van een bot (Zelf doen), zonder dat een mens ze nakeek.
+  public func byBot(q : Types.OaQuote) : Bool { extraOf(q.extra, "bot") != "" and extraOf(q.extra, "inlezen") != "" };
+
   public func myQuote(c : Ctx, ts : TS, tenderId : Nat, q : Types.OaQuote, current : Bool) : TV.MyOaQuoteView {
+    // 3.12 (review H2): wat een bot inlas en de app zelf registreerde, ziet de firma NIET terug: geen nummer, datum, regels, prijzen of
+    // opmerkingen (enkel dat BOWACO een versie registreerde, en haar eigen bestand). Anders kan tekst in het bestand van de ene firma
+    // de bot gegevens van een andere firma in "haar" offerte laten zetten, waar ze die met haar eigen login leest.
+    if (byBot(q)) {
+      return {
+        version = q.version;
+        current;
+        number = "";
+        quoteDay = Int.abs(q.createdAt / 86_400_000_000_000);
+        validUntil = null;
+        source = q.source;
+        status = switch (q.status) { case (#withdrawn r) #withdrawn(if (extraOf(q.extra, "intrekZichtbaar") == "ja") r else ""); case s s };
+        vatRegime = #reverse;
+        createdAt = q.createdAt;
+        netCents = 0;
+        discountBp = null;
+        lines = [];
+        chapterTotals = [];
+        remark = "";
+        file = myFile(c, q.fileId);
+      };
+    };
     let a = amountsOf(ts, q.id);
     {
       version = q.version;

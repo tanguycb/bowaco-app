@@ -28,3 +28,5 @@ BOWACO_posten_*
 rekentest-*.json
 rekentest-*.md
 __pycache__/
+# 3.12 (review L): de reservekopie van Config.mo tijdens een testbouw (tests/lokaal.sh) hoort nooit in git.
+*.echt

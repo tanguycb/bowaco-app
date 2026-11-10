@@ -74,6 +74,7 @@ module {
     validUntil : ?Day;
     fileId : ?Nat;
     source : Types.OaQuoteSource;
+    byBot : Bool; // 3.12: door de app zelf geregistreerd uit het voorstel van een bot (Zelf doen), niet nagekeken door een mens
     version : Nat;
     supersedes : ?Nat;
     current : Bool; // de laatste indiening van die firma op die prijsvraag
