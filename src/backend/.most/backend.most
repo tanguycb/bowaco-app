@@ -1022,6 +1022,7 @@ type Day__23369103 = Nat;
 type Day__253571679 = Nat;
 type Day__315760598 = Nat;
 type Day__432051804 = Nat;
+type Day__486811523 = Nat;
 type Day__543083322 = Nat;
 type Day__602383878 = Nat;
 type Day__667596731 = Nat;
@@ -3543,6 +3544,7 @@ type PersonId__820620982 = Nat;
 type PersonId__858692293 = Nat;
 type PersonId__880469992 = Nat;
 type PersonId__888376192 = Nat;
+type PersonId__891624108 = Nat;
 type PersonId__905878204 = Nat;
 type PersonId__940766018 = Nat;
 type PersonId__967516914 = Nat;
@@ -5859,6 +5861,13 @@ type Ticket__69601262 =
 type TimeSlot__259931382 = {fromMin : Nat; toMin : Nat};
 type TimeSlot__72966454 = {fromMin : Nat; toMin : Nat};
 type TimeSlot__836101528 = {fromMin : Nat; toMin : Nat};
+type TodoState__860156292 =
+  {
+    extra : Map__230067015<Text, Text>;
+    snoozes :
+      Map__230067015<PersonId__891624108,
+                      Map__230067015<Text, Day__486811523>>
+  };
 type Trip__208324933 =
   {
     archivedAt : ?Int;
@@ -6233,7 +6242,8 @@ type WorksState__605582232 =
   "20261109_120000" : {} -> {proof : ProofState__159778891};
   "20261110_090000" : {} -> {oaRead : OaReadState__749995344};
   "20261111_090000" : {} -> {invCheck : InvCheckState__126129632};
-  "20261112_090000" : {} -> {aiCheck : AiCheckState__993385848}
+  "20261112_090000" : {} -> {aiCheck : AiCheckState__993385848};
+  "20261113_090000" : {} -> {todo : TodoState__860156292}
 }
 actor  {
   stable access :
@@ -6583,6 +6593,13 @@ actor  {
       oaQuotesByWork : Map__230067015<Nat, [Nat]>;
       sheetKeys : Map__230067015<Text, Nat>;
       tenders : Map__230067015<Nat, Tender__134926416>
+    };
+  stable todo :
+    {
+      extra : Map__230067015<Text, Text>;
+      snoozes :
+        Map__230067015<PersonId__967516914,
+                        Map__230067015<Text, Day__162369424>>
     };
   stable wadm :
     {
