@@ -1716,8 +1716,8 @@ await sec("── 2b.4 startpunt en overzicht: Zo werkt het voor jou per persoon
 
   // De blokken per rol: een OA, architect, VC of klant ziet geen kantoorblokken
   const blocks = (k) => S.overzichtBlocks(caps[k], true);
-  check("Overzicht (beheerder): Aan de slag · Vraagt aandacht · Vandaag op de werven · Werven per fase · Deze week", eq(blocks("admin"), ["start", "aandacht", "vandaag", "fase", "week"]), blocks("admin").join());
-  check("Overzicht: zonder startkaart (alles klaar of verborgen) valt enkel het eerste blok weg", !S.overzichtBlocks(caps.admin, false).includes("start") && S.overzichtBlocks(caps.admin, false).length === 4);
+  check("Overzicht (beheerder): Aan de slag · Maandagbriefing (4.4) · Vraagt aandacht · Vandaag op de werven · Werven per fase · Deze week", eq(blocks("admin"), ["start", "briefing", "aandacht", "vandaag", "fase", "week"]), blocks("admin").join());
+  check("Overzicht: zonder startkaart (alles klaar of verborgen) valt enkel het eerste blok weg", !S.overzichtBlocks(caps.admin, false).includes("start") && S.overzichtBlocks(caps.admin, false).length === 5);
   check("OA, architect, VC en klant: géén enkel kantoorblok (geen aandacht, vandaag, werven per fase, deze week, aan de slag)", ["oa", "architect", "vc", "klant"].every((k) => blocks(k).length === 0), ["oa", "architect", "vc", "klant"].map((k) => `${k}:${blocks(k).join("-")}`).join(" "));
   check("OA, architect, VC en klant: geen 'Vraagt aandacht' op hun startscherm (de rechten van de bronnen volgen uit Rights.mo)", ["oa", "architect", "vc", "klant"].every((k) => !S.hasAttention(caps[k])));
   check("calculator: Vraagt aandacht en Werven per fase, geen Aan de slag, geen Vandaag op de werven", eq(blocks("calculator"), ["aandacht", "fase", "week"]) && !blocks("calculator").includes("start") && !blocks("calculator").includes("vandaag"), blocks("calculator").join());

@@ -58,6 +58,9 @@ mixin (
   surveys : Types.SurveyState,
   purchases : Types.PurchaseState,
   invCheck : Types.InvCheckState,
+  permits : Types.PermitState,
+  siteAdmin : Types.SiteAdminState,
+  minMeer : Types.MinMeerState,
   library : Types.LibraryState,
   quoteForms : Types.QuoteFormState,
   aiCheck : Types.AiCheckState,
@@ -65,7 +68,7 @@ mixin (
   ctr : Types.Counters,
 ) {
 
-  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; plan; reports; workStarts; surveys; purchases; invCheck; library; quoteForms; aiCheck; audit; ctr } };
+  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; plan; reports; workStarts; surveys; purchases; invCheck; permits; siteAdmin; minMeer; library; quoteForms; aiCheck; audit; ctr } };
 
   func requireBotAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);

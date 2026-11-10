@@ -565,6 +565,12 @@ const table = {
   saveMinMeerSettings: [ADMIN, () => [{ quoteFromCents: 0n, passOnBp: 0n, passOnByKind: [], client: "x" }]],
   minMeerQty: [["admin", "werfleider", "calculator"], () => [B]],
   readMinMeer: [["admin", "calculator"], () => [B]],
+  // 4.6 nacalculatie en 4.4 maandagbriefing
+  readNacalc: [["admin", "calculator"], () => [B]],
+  nacalcOverview: [["admin", "calculator"], () => []],
+  nacalcSettings: [["admin", "calculator"], () => []],
+  saveNacalcSettings: [ADMIN, () => [{ pctBp: 1000n, minCents: 25_000n }]],
+  readBriefing: [ADMIN, () => []],
   saveMinMeerEntry: [["admin", "werfleider", "calculator"], () => [B, [], 0n, { kind: { extra: null }, chapter: "", root: [], description: "", unit: "", qtyMilli: 0n, pctBp: [], day: [], approval: { pending: null }, photoFileId: [], note: "", price: [] }]],
   archiveMinMeerEntry: [["admin", "calculator"], () => [X, ""]],
   setMinMeerOverride: [["admin", "calculator"], () => [B, { key: "x", exclude: false, chapter: [], passOn: false, reason: "" }]],

@@ -79,12 +79,13 @@ export function introKind(roles: readonly string[]): IntroKind | null {
 
 // ── De blokken van het startscherm ───────────────────────────────────────
 
-export type OverzichtBlock = "start" | "aandacht" | "vandaag" | "fase" | "week";
+export type OverzichtBlock = "start" | "briefing" | "aandacht" | "vandaag" | "fase" | "week";
 
 /** Het Overzicht van de beheerder: Aan de slag · Vraagt aandacht · Vandaag op de werven · Werven per fase · Deze week. */
 export function overzichtBlocks(caps: Caps, startVisibleNow: boolean): OverzichtBlock[] {
   const out: OverzichtBlock[] = [];
   if (caps.manageSettings && startVisibleNow) out.push("start");
+  if (caps.manageSettings) out.push("briefing");
   if (caps.readOrgPlanning) out.push("aandacht");
   if (caps.writeReports) out.push("vandaag");
   if (caps.readTeam) out.push("fase");

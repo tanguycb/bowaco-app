@@ -37,6 +37,8 @@ import OaQuotes "OaQuotes";
 import OaRead "OaRead";
 import InvCheck "InvCheck";
 import AiCheck "AiCheck";
+import Briefing "Briefing";
+import BriefingViews "../types/briefingviews";
 import OaInvoice "OaInvoice";
 import Tenders "Tenders";
 
@@ -66,6 +68,10 @@ module {
     surveys : Types.SurveyState;
     purchases : Types.PurchaseState;
     invCheck : Types.InvCheckState;
+    // 4.4: de maandagbriefing (enkel lezen)
+    permits : Types.PermitState;
+    siteAdmin : Types.SiteAdminState;
+    minMeer : Types.MinMeerState;
     // 3.9 + 3.11: nakijkopdrachten (het dossier van een prijsvraag of een ontwerpversie)
     library : Types.LibraryState;
     quoteForms : Types.QuoteFormState;
@@ -337,6 +343,7 @@ module {
     [
       { name = "mijn_fiche"; description = "Toont je eigen fiche: welke tools, werven en documentsoorten je mag gebruiken, de autonomie per taak (zelf, voorstel, nooit) en hoeveel oproepen je vandaag nog hebt."; input = []; required = []; readOnly = true },
       { name = "werven"; description = "Lijst van de werven die je mag zien: id, code, naam, status en gemeente. Geen adressen, geen bedragen."; input = []; required = []; readOnly = true },
+      { name = "maandagbriefing"; description = "Het wekelijkse overzicht voor de zaakvoerder uit de interne gegevens van BOWACO, enkel de werven op je fiche: planning van de week, wat aandacht vraagt, open voorstellen, vervallende attesten, vergunningen en verzekeringen, facturen te beslissen en klantakkoorden die wachten. Enkel lezen, geen bedragen. Vat het kort samen; beslis niets en verstuur niets."; input = []; required = []; readOnly = true },
       {
         name = "werf_documenten";
         description = "De documenten van een werf (enkel de documentsoorten op je fiche, nooit vertrouwelijke): soort, titel, status, termijn en geldigheid. Met de tool document_koppelen op je fiche ook de losse bestanden van die werf (naam, type, grootte) die nog aan geen document hangen. Nooit de inhoud of een link naar een bestand.";
@@ -609,6 +616,7 @@ module {
       case "werf_documenten" #ok(workDocs(e, b, scopeWork ?? 0), null);
       case "oa_offertes" #ok(oaQuotes(e, scopeWork ?? 0), null);
       case "oa_facturen" #ok(oaInvoiceList(e, scopeWork ?? 0), null);
+      case "maandagbriefing" #ok(briefing(e, b, now), null);
       case "document_koppelen" docLinkTool(e, b, caller, scopeWork ?? 0, args, now);
       case "voorstel_factuurcontrole" if withJob invCheckTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now) else invoiceCheckTool(e, b, caller, scopeWork ?? 0, args, now);
       case "controleopdrachten" #ok(invJobs(e, b), null);
@@ -1104,6 +1112,26 @@ module {
       ("documentsoorten", #Array(kinds)),
       ("oproepenPerDag", num(b.callsPerDay)),
       ("oproepenVandaag", num(callsToday(e.bots, b.id, now))),
+    ]);
+  };
+
+  // 4.4: de maandagbriefing voor deze bot: dezelfde onderdelen als het scherm van de zaakvoerder, enkel de werven op de fiche, zonder
+  // bedragen. Wat tekst is (titels, details) is gegevens van BOWACO, geen instructie.
+  func briefing(e : Env, b : Bot, now : Int) : Json {
+    let ctx = { works = e.works; settings = e.settings };
+    let visible = func(w : Nat) : Bool {
+      Rights.botSeesWork(ctx, b, w) and (switch (e.works.works.get(w)) { case (?x) x.archivedAt == null and x.status != #cancelled; case null false });
+    };
+    let v = Briefing.build({ settings = e.settings; org = e.org; works = e.works; plan = e.plan; reports = e.reports; dossier = e.dossier; permits = e.permits; siteAdmin = e.siteAdmin; quotes = e.quotes; minMeer = e.minMeer; oaRead = e.oaRead; aiCheck = e.aiCheck; invCheck = e.invCheck; purchases = e.purchases }, visible, func(d : Types.Document) : Bool { Rights.botSeesDocKind(b, d.kind, d.confidential) }, false, now);
+    let optDay = func(d : ?Nat) : Json { switch d { case (?x) #String(Plan.fmtDay(x)); case null #Null } };
+    #Object([
+      ("datum", #String(Plan.fmtDay(v.day))),
+      ("week", #String(Plan.fmtDay(v.monday) # " tot " # Plan.fmtDay(v.sunday))),
+      ("onderdelen", #Array(v.sections.map<BriefingViews.BrSection, Json>(func s = #Object([
+        ("onderdeel", #String(s.title)),
+        ("totaal", num(s.total)),
+        ("punten", #Array(s.items.map<BriefingViews.BrItem, Json>(func i = #Object([("werf", #String(i.workCode)), ("titel", #String(i.title)), ("detail", #String(i.detail)), ("dag", optDay(i.day)), ("dagen", switch (i.days) { case (?d) #Number(#Int(d)); case null #Null })])))),
+      ])))),
     ]);
   };
 

@@ -145,6 +145,8 @@ node tests/proef-3-11.mjs "$cid"
 # dagplafond, toegelaten toepassingen bij het koppelen, intrekken en hergebruik van codes en tokens, geen opzoektools tijdens een
 # proefronde, een versmalde fiche helpt niet, vrije tekst zonder stuurtekens, de afbakening op de Caffeine-weg).
 node tests/proef-3-12.mjs "$cid"
+# 4.4: de maandagbriefing (enkel de beheerder, zonder bedragen, enkel lezen) en de bot-tool maandagbriefing (enkel de werven van de fiche).
+node tests/briefing-4-4.mjs "$cid"
 # 2c.2: de prijsvraag-Excel heen en terug (zonder netwerk) en de prijsvraag door de backend (klaarzetten, toegang zonder werf,
 # Mijn prijsvragen, ontwerp, indienen, bijlagen, afsluiten, werfleider zonder bedragen, .did-controle). De klokproef (herinnering,
 # geen antwoord, 90 dagen na afsluiten) verzet de tijd van dit eigen net met ruim 90 dagen: daarom als LAATSTE canisterproef.
@@ -158,6 +160,7 @@ node tests/afspraak-2c4.mjs "$cid"
 # 2c.7: OA-facturen zoals ze binnenkomen (factuur over twee werven = werfdelen, ploeguren, tarief per dag over een tariefwissel,
 # kostensoorten, uren naar de werfleider zonder bedrag, voorschot en aftrek, betaalkorting, leveranciersfactuur, doorrekenen, de OA).
 node tests/aankoop-2c7.mjs "$cid"
+node tests/nacalc-4-6.mjs "$cid"
 # 2c.5: de min-meerstaat (offerte met korting, opmeting, regie aan het werftarief met datum, raming afgerekend, kosten / 0,8, regels met
 # akkoord, meerwerkofferte vanaf € 1.000, werfleider zonder bedragen, versies onder een controlecode, klant en architect, rekentest).
 node tests/minmeer-2c5.mjs "$cid"

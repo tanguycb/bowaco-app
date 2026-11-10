@@ -26,6 +26,8 @@ export function pagesFor(caps: Caps): Set<string> {
   if (caps.progress) s.add("vorderingen");
   if (caps.myProgress) s.add("mijn-vordering");
   if (caps.oaInvoices) s.add("oa-facturen");
+  if (caps.manageSettings) s.add("briefing"); // 4.4: maandagbriefing (beheerder)
+  if (caps.minMeer) s.add("nacalculatie"); // 4.6: nacalculatie (admin, calculator)
   if (caps.sales) s.add("facturen"); // 2c.6: werklijst Facturatie → Facturen (kantoor)
   if (caps.myOaInvoices) s.add("mijn-facturen");
   if (caps.tenders || caps.myTenders) s.add("prijsvragen"); // 2c.2: werklijst (kantoor) of Mijn prijsvragen (OA)
@@ -105,7 +107,7 @@ export function hubTabs(page: string, caps: Caps): Tab[] {
   const tab = (key: string, label: string, ok: boolean): [string, string, boolean] => [key, label, ok];
   let list: [string, string, boolean][] = [];
   if (page === "offertes" || page === "posten" || (page === "prijsvragen" && caps.tenders)) list = [tab("offertes", M.offertesTab, caps.quotes), tab("prijsvragen", M.prijsvragenTab, caps.tenders), tab("posten", M.postenTab, caps.readLibrary)];
-  else if (page === "vorderingen" || page === "oa-facturen" || page === "facturen") list = [tab("facturen", M.facturenTab, caps.sales), tab("vorderingen", M.vorderingenTab, caps.progress), tab("oa-facturen", M.oaFacturenTab, caps.oaInvoices)];
+  else if (page === "vorderingen" || page === "oa-facturen" || page === "facturen" || page === "nacalculatie") list = [tab("facturen", M.facturenTab, caps.sales), tab("vorderingen", M.vorderingenTab, caps.progress), tab("oa-facturen", M.oaFacturenTab, caps.oaInvoices), tab("nacalculatie", M.nacalcTab, caps.minMeer)];
   else if (page === "vergunningen" || page === "werfadministratie" || page === "gemeenten") list = [tab("vergunningen", M.vergunningenTab, caps.permits), tab("werfadministratie", M.wadmTab, caps.wadm), tab("gemeenten", M.gemeentenTab, caps.readMunicipalities)];
   else if (isClient(caps) && (page === "werven" || page === "mijn-offerte" || page === "mijn-vordering")) list = [tab("werven", M.mijnWerfTab, true), tab("mijn-offerte", M.mijnOfferteTab, caps.myQuotes), tab("mijn-vordering", M.mijnVorderingTab, caps.myProgress)];
   return list.filter((x) => x[2]).map(([key, label]) => ({ key, label, to: key }));
@@ -142,7 +144,7 @@ export function navFor(caps: Caps): NavGroup[] {
 
   // Geld: wie prijzen ziet. De werfleider ziet offertes en facturatie (zonder bedragen) in de werf.
   if (caps.quotes && caps.quotePrices) geld.push(item("offertes", t.nav.offertes, "euro", ["offertes", "posten", "prijsvragen"]));
-  if ((caps.progress || caps.oaInvoices) && caps.quotePrices) geld.push(item("facturatie", M.facturatie, "receipt", ["facturen", "vorderingen", "oa-facturen"], caps.sales ? "facturen" : caps.progress ? "vorderingen" : "oa-facturen"));
+  if ((caps.progress || caps.oaInvoices) && caps.quotePrices) geld.push(item("facturatie", M.facturatie, "receipt", ["facturen", "vorderingen", "oa-facturen", "nacalculatie"], caps.sales ? "facturen" : caps.progress ? "vorderingen" : "oa-facturen"));
   if (caps.readLibrary && !caps.quotePrices) meer.push(item("posten", t.nav.posten, "doc"));
 
   // Opvolging

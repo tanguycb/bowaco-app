@@ -34,6 +34,7 @@ import { WorkTenders } from "./Prijsvragen";
 import { WorkOaQuotes } from "./OaOffertes";
 import { MyMinMeer, WorkMinMeer } from "./MinMeer";
 import { MeerwerkOffertes } from "./MinMeerForms";
+import { WorkNacalc } from "./Nacalc";
 import { WorkSales } from "./Facturen";
 import { MySales } from "./FacturenLijst";
 
@@ -229,7 +230,7 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
       // 2c.5: de klant ziet ook de gedeelde min-meerstaat; de architect (met de grant vorderingsstaten) enkel die.
       if (client) return <div className="a-tabbody"><MyStatements go={go} embedded workName={w.name} />{caps.myMinMeer && <MyMinMeer workId={id} />}{caps.mySales && <MySales workId={id} />}</div>;
       // Subtabbladen Min-meer · Facturen (2c.6) · Vorderingsstaten · Aankoop (ontwerp §3.1). De werfleider ziet in Facturen enkel "voorschot betaald".
-      const fsubs = [{ key: "min-meer", label: t.minmeer.sub }, ...(caps.sales || caps.progress ? [{ key: "facturen", label: t.sales.sub }] : []), ...(caps.progress ? [{ key: "vorderingen", label: t.minmeer.subProgress }] : []), ...(caps.oaInvoices || caps.purchases || caps.hourClaims ? [{ key: "aankoop", label: t.minmeer.subPurchase }] : [])];
+      const fsubs = [{ key: "min-meer", label: t.minmeer.sub }, ...(caps.sales || caps.progress ? [{ key: "facturen", label: t.sales.sub }] : []), ...(caps.progress ? [{ key: "vorderingen", label: t.minmeer.subProgress }] : []), ...(caps.minMeer ? [{ key: "nacalculatie", label: t.nacalc.sub }] : []), ...(caps.oaInvoices || caps.purchases || caps.hourClaims ? [{ key: "aankoop", label: t.minmeer.subPurchase }] : [])];
       const fcur = fsubs.find((x) => x.key === sub)?.key ?? "min-meer";
       return (
         <div className="a-tabbody">
@@ -239,6 +240,7 @@ function TabBody({ tab, w, caps, go, fase, facts, stap, act, client, sub }: { ta
             ))}
           </div>
           {fcur === "min-meer" && <WorkMinMeer workId={id} caps={caps} go={go} />}
+          {fcur === "nacalculatie" && caps.minMeer && <WorkNacalc workId={id} />}
           {fcur === "facturen" && <WorkSales workId={id} caps={caps} />}
           {fcur === "vorderingen" && caps.progress && <WorkStatements workId={id} caps={caps} go={go} embedded />}
           {fcur === "aankoop" && <>{caps.oaInvoices && <WorkOaInvoices workId={id} caps={caps} go={go} />}{caps.hourClaims && <WorkHourClaims workId={id} />}{caps.purchases && <WorkPurchases workId={id} go={go} />}</>}

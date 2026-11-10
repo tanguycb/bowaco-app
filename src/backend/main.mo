@@ -61,6 +61,8 @@ import ProofApi "mixins/ProofApi";
 import OaReadApi "mixins/OaReadApi";
 import OaRead "lib/OaRead";
 import InvCheckApi "mixins/InvCheckApi";
+import NacalcApi "mixins/NacalcApi";
+import BriefingApi "mixins/BriefingApi";
 import InvCheck "lib/InvCheck";
 import AiCheckApi "mixins/AiCheckApi";
 import AiCheck "lib/AiCheck";
@@ -205,7 +207,7 @@ persistent actor Self {
 
   // 3.4 + 3.13: de MCP-server (caffeineai-mcp-server: OAuth 2.1 + Internet Identity, /mcp) met de tools van lib/Bots.mo, en het
   // beheer van de bots (enkel #manageBots). Een bot is geen persoon; elke tool-oproep gaat door Rights.mayBot en de fiche.
-  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, proof, oa, quotes, oaDeals, oaRead, plan, reports, workStarts, surveys, purchases, invCheck, library, quoteForms, aiCheck, audit, ctr);
+  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, proof, oa, quotes, oaDeals, oaRead, plan, reports, workStarts, surveys, purchases, invCheck, permits, siteAdmin, minMeer, library, quoteForms, aiCheck, audit, ctr);
   // 3.5: de proefbank (enkel #manageBots): testsets, proefrondes voor een bot (proeftools op /mcp) of voor Caffeine AI, score per geval.
   include ProofApi(settings, access, works, files, dossier, org, tenders, oaRead, oaInvoices, quotes, robot, ai, bots, proof, audit, ctr, isAiLive);
   // 3.8: OA-offerte inlezen (PDF of foto via een bot, tekst via Caffeine AI) → een voorstel dat kantoor in het formulier overneemt.
@@ -216,6 +218,10 @@ persistent actor Self {
   // één klik = applyTenderCheck in OaQuotesApi) of opmerkingen bij het versturen van een offerte (3.11; nooit wijzigen of versturen).
   include AiCheckApi(settings, access, org, works, library, quotes, quoteForms, tenders, oaDeals, surveys, robot, ai, bots, aiCheck, audit, ctr, isAiLive);
   include InvCheckApi(settings, access, org, works, plan, reports, quotes, workStarts, surveys, oaInvoices, oaDeals, purchases, tenders, robot, ai, bots, invCheck, audit, ctr, isAiLive);
+  // 4.6: nacalculatie (gepland tegenover werkelijk, enkel admin en calculator; de browser rekent).
+  include NacalcApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, purchases, minMeer, sales, audit);
+  // 4.4: maandagbriefing (enkel lezen, zonder bedragen; voor de zaakvoerder).
+  include BriefingApi(settings, access, org, works, plan, reports, dossier, permits, siteAdmin, quotes, minMeer, oaRead, aiCheck, invCheck, purchases);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

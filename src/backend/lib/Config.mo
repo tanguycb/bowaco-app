@@ -571,6 +571,12 @@ module {
   // Meerwerk vanaf € 1.000 (excl. btw) vraagt een meerwerkofferte met akkoord vooraf (⚖3); doorgerekende kosten aan kostprijs / 0,8
   // (marge 20 % op de verkoopprijs); per kostensoort een andere marge (settings.values "minMeer.passOnBp.<soort>").
   public let mmQuoteFromCentsDefault : Nat = 100_000;
+  // 4.6 nacalculatie: een afwijking tussen gepland en werkelijk valt op vanaf dit percentage (basispunten) én dit bedrag (cent), beide
+  // samen (instelbaar in Beheer → Opmeting & facturatie; de browser rekent ermee, frontend/src/nacalc/calc.ts).
+  public let ncPctBpDefault : Nat = 1_000;
+  public let ncMinCentsDefault : Nat = 25_000;
+  public let brMaxItems : Nat = 15; // 4.4: punten per onderdeel van de maandagbriefing (het totaal telt alles)
+  public let ncMaxWorks : Nat = 400; // werven per overzicht (daarboven: melding "skipped")
   public let mmPassOnBpDefault : Nat = 2_000;
   public let maxMmEntries : Nat = 2_000; // regels per werf
   public let maxMmVersions : Nat = 200; // versies per werf
@@ -626,6 +632,8 @@ module {
       ("werf_documenten", ""),
       ("oa_offertes", ""),
       ("oa_facturen", ""),
+      // 4.4: de maandagbriefing (enkel lezen, zonder bedragen, enkel de werven op de fiche).
+      ("maandagbriefing", ""),
       ("document_koppelen", "document-koppelen"),
       ("voorstel_factuurcontrole", "factuurcontrole"),
       // 3.8: OA-offerte inlezen (de opdrachten, het bestand van een opdracht, het voorstel met de posten).
