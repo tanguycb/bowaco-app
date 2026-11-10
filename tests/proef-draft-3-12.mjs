@@ -82,9 +82,12 @@ check("(0) twee proefbots gekoppeld via de gateway", !!conA.access && !!conB.acc
 
 // ── (1) De grenzen van de ingang ────────────────────────────────────────
 const tBig = await fetch(`${base}/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "a=" + "b".repeat(300_000) });
-check("(1) /token met 300 kB zonder token: 413 (niets ontleed)", tBig.status === 413, String(tBig.status));
+// Via de echte gateway weigert de QUERY het verzoek (413, zonder upgrade naar een update-call). Dat antwoord is niet gecertificeerd,
+// dus de gateway van het IC maakt er een 503 van. Zo kost een te groot verzoek de canister niets (ook geen ontvangstkost).
+const refusedBig = (st) => st === 413 || st === 503;
+check("(1) /token met 300 kB zonder token: geweigerd vóór de canister iets ontleedt (413, of 503 van de gateway)", refusedBig(tBig.status), String(tBig.status));
 const mBig = await post(conA.access, JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "mijn_fiche", arguments: { pad: "x".repeat(400_000) } } }));
-check("(1) een tool-oproep van 400 kB met token: 413", mBig.status === 413, String(mBig.status));
+check("(1) een tool-oproep van 400 kB met token: geweigerd (413, of 503 van de gateway)", refusedBig(mBig.status), String(mBig.status));
 const batch = await post(conA.access, JSON.stringify(Array.from({ length: 11 }, (_, i) => ({ jsonrpc: "2.0", id: i + 1, method: "ping" }))));
 check("(1) een batch van 11 berichten: geweigerd", batch.json?.error?.code === -32600, batch.text.slice(0, 120));
 const noTok = await post(null, "{}");
