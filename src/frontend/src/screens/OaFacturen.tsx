@@ -321,7 +321,7 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
         {v.canDecide && <Button variant="primary" icon="check" onClick={() => { setReason(""); setSheet("approve"); }} data-testid="oi-approve">{T.approve}</Button>}
         {v.canEdit && <Button icon="alert" onClick={() => { setReason(""); setSheet("dispute"); }} data-testid="oi-dispute">{T.dispute}</Button>}
         <Meer items={[
-          { label: `${t.nav.werven}: ${b.workCode}`, icon: "building", onClick: () => go(`werven/${b.workId}/facturatie`) },
+          { label: `${T.work}: ${b.workCode}`, icon: "building", onClick: () => go(`werven/${b.workId}/facturatie`) },
           v.canEdit && { label: T.edit, icon: "edit", onClick: () => go(`oa-facturen/${id}/wijzigen`), testid: "oi-edit" },
           b.purchaseId !== undefined && { label: T.purchaseLink, icon: "receipt", onClick: () => go(`oa-facturen/aankoop/${b.purchaseId}`), testid: "oi-purchase" },
           v.canDecide && { label: T.withdraw, icon: "close", danger: true, onClick: () => { setReason(""); setSheet("withdraw"); } },
