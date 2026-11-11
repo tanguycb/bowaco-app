@@ -41,6 +41,8 @@ export function SalesWorklist({ caps, go, selected }: { caps: Caps; go: (to: str
           <span className="bw-muted">{T.list.due}: <b className="bw-num"><Cijfer go={go} naam={T.list.due} uitleg={t.schil.cijfer.teFactureren} regels={som(v.due.map((d) => [`${d.workCode} · ${d.title}`, d.stepCents]))}>{fmtEuro(v.due.reduce((n, d) => n + d.stepCents, 0n))}</Cijfer></b></span>
           <span className="bw-muted">{T.list.open}: <b className="bw-num"><Cijfer go={go} naam={T.list.open} uitleg={t.schil.cijfer.open} regels={som(v.open.map((o) => [`${o.brief.number} · ${o.brief.workCode}`, o.openCents]))}>{fmtEuro(v.open.reduce((n, o) => n + o.openCents, 0n))}</Cijfer></b></span>
         </div>
+        {/* 4b.4: met een gekozen factuur staat enkel de werklijst in beeld (de lange lijst Te factureren staat er weer als je de factuur sluit). */}
+        {!(breed && selected) && <>
         <h2 className="bw-h2">{T.list.due}</h2>
         <Table id="sales-due" rows={v.due} rowKey={(d) => `${d.workId}-${d.stepKey}`} onRow={(d) => go(`werven/${d.workId}/facturatie/facturen`)} defaultSort="wanneer" empty={T.list.dueNone}
           columns={[
@@ -51,6 +53,7 @@ export function SalesWorklist({ caps, go, selected }: { caps: Caps; go: (to: str
             { key: "bedrag", label: T.cols.total, right: true, sort: (d) => d.stepCents, render: (d) => fmtEuro(d.stepCents) },
             { key: "ontwerp", label: T.draft, optional: true, render: (d) => (d.draftId !== undefined ? <Tag>{T.draft}</Tag> : "") },
           ]} />
+        </>}
         <h2 className="bw-h2">{T.list.open}</h2>
         {/* 4b.4 Werklijst: op een breed scherm de openstaande facturen en ontwerpen links, de factuur als vast paneel rechts. */}
         {breed && (v.open.length > 0 || v.drafts.length > 0 || selected) ? (
