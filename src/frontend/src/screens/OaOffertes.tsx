@@ -5,9 +5,11 @@
 // hoofdstuk of per post, neemt over in een ontwerpversie van de offerte en sluit af (gekozen / bedankt, met het bericht volgens
 // Beheer). De werfleider ziet enkel per hoofdstuk de gekozen firma. Bedragen enkel uit update-calls met een auditregel.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalBlob, OaQuoteSource, OrgKind, type Caps, type OaRegLine, type OaQuoteInput, type TenderCompareView, type TenderInviteView, type TenderStatusView, type TenderView, type CmpCell } from "../backend";
-import { Button, Choice, Confirm, Sheet, useToast } from "../design";
+import { Button, Choice, Confirm, Meer, RasterKop, RasterRij, Sheet, Tag, Terug, Totaal, useToast, useWerkvormKan, Werkvorm, type WerkvormHandle } from "../design";
+import { Cijfer } from "../design/Pop";
+import * as G from "../design/vormkern";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -450,8 +452,14 @@ function Compare({ tenderId, v }: { tenderId: bigint; v: TenderView }) {
 function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: TenderView; onSaved: () => void; toast: ReturnType<typeof useToast> }) {
   const { actor } = useBackend();
   const init = () => new Map(d.choices.filter((c) => c.oaQuoteId !== undefined).map((c) => [String(c.itemId), c.oaQuoteId as bigint]));
-  const [picks, setPicks] = useState<Map<string, bigint>>(init);
-  const [reasons, setReasons] = useState<Record<string, string>>(() => Object.fromEntries(d.choices.map((c) => [String(c.itemId), c.reason])));
+  // 4b.3c: de keuzes en redenen staan in een geschiedenis, zodat het werkblad ze ongedaan kan maken (ze blijven lokaal tot Bewaren).
+  type Keuze = { picks: Map<string, bigint>; reasons: Record<string, string> };
+  const [gesch, setGesch] = useState<G.Geschiedenis<Keuze>>(() => G.begin({ picks: init(), reasons: Object.fromEntries(d.choices.map((c) => [String(c.itemId), c.reason])) }));
+  const picks = gesch.nu.picks;
+  const reasons = gesch.nu.reasons;
+  const setPicks = (f: Map<string, bigint> | ((m: Map<string, bigint>) => Map<string, bigint>)) => setGesch((g) => G.zet(g, { ...g.nu, picks: typeof f === "function" ? f(g.nu.picks) : f }));
+  const setReasons = (f: Record<string, string> | ((r: Record<string, string>) => Record<string, string>)) => setGesch((g) => G.zet(g, { ...g.nu, reasons: typeof f === "function" ? f(g.nu.reasons) : f }));
+  const wide = useWerkvormKan();
   const [target, setTarget] = useState(d.drafts.length ? String(d.drafts[d.drafts.length - 1].versionId) : "");
   const [confirm, setConfirm] = useState<"apply" | "close" | null>(null);
   const [closeSel, setCloseSel] = useState<bigint[]>([]);
@@ -526,6 +534,29 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
   if (quotes.length === 0) return <p className="a-empty">{O.cmpNoQuotes}</p>;
   const open = d.status.__kind__ === "open";
   const closed = d.status.__kind__ === "closed";
+  const dialogs = (
+    <>
+      <Confirm open={confirm === "apply"} title={O.cmpApplyTitle} text={O.cmpApplyText(Number(d.drafts.find((x) => String(x.versionId) === target)?.version ?? 0n))} confirmLabel={O.cmpApply} busy={apply.isPending} onConfirm={() => apply.mutate()} onClose={() => setConfirm(null)} />
+      {confirm === "close" && (
+        <Sheet title={O.cmpCloseTitle} open onClose={() => setConfirm(null)} side footer={<><Button onClick={() => setConfirm(null)}>{t.common.cancel}</Button><Button variant="primary" busy={close.isPending} onClick={() => close.mutate()} data-testid="oq-close-ok">{O.cmpClose}</Button></>}>
+          <p>{O.cmpCloseLead}</p>
+          {d.invites.map((i) => { const fixed = fixedInv.has(String(i.id)); return <label key={String(i.id)} className="a-check"><input type="checkbox" checked={fixed || closeSel.includes(i.id)} disabled={fixed} onChange={(e) => setCloseSel((x) => (e.target.checked ? [...x, i.id] : x.filter((y) => y !== i.id)))} /> {i.orgName} <span className="bw-muted">({P.invite[i.status]}{fixed ? ` · ${O.cmpCloseFixed}` : ""})</span></label>; })}
+          <p className="a-note">{O.cmpCloseMsg[d.thanksMode] ?? d.thanksMode}</p>
+        </Sheet>
+      )}
+    </>
+  );
+  if (wide) {
+    return (
+      <>
+        <CompareBlad d={d} v={v} quotes={quotes} chapters={chapters} picks={picks} reasons={reasons} setReasons={setReasons} pickItem={pickItem} pickChapter={pickChapter} pickable={pickable} cellOf={cellOf}
+          live={live} mismatch={mismatch} stale={stale} dirty={dirty} open={open} nonLowest={nonLowest} firmOf={firmOf} target={target} setTarget={setTarget} setConfirm={setConfirm} openClose={openClose}
+          save={() => save.mutate()} saving={save.isPending} pdf={() => void pdf()} gesch={gesch} setGesch={setGesch}
+          onUse={(m, rs) => { setPicks(m); setReasons((r) => ({ ...r, ...rs })); }} />
+        {dialogs}
+      </>
+    );
+  }
   return (
     <div className="pv-detail" data-testid="oq-cmp">
       <p className="bw-muted">{O.cmpLead}</p>
@@ -574,14 +605,7 @@ function CompareBody({ d, v, onSaved, toast }: { d: TenderCompareView; v: Tender
         <Button variant="quiet" onClick={() => void pdf()} data-testid="oq-pdf">{O.cmpPdf}</Button>
         {open && <Button variant="quiet" disabled={dirty || stale > 0} onClick={openClose} data-testid="oq-close">{O.cmpClose}</Button>}
       </div>
-      <Confirm open={confirm === "apply"} title={O.cmpApplyTitle} text={O.cmpApplyText(Number(d.drafts.find((x) => String(x.versionId) === target)?.version ?? 0n))} confirmLabel={O.cmpApply} busy={apply.isPending} onConfirm={() => apply.mutate()} onClose={() => setConfirm(null)} />
-      {confirm === "close" && (
-        <Sheet title={O.cmpCloseTitle} open onClose={() => setConfirm(null)} side footer={<><Button onClick={() => setConfirm(null)}>{t.common.cancel}</Button><Button variant="primary" busy={close.isPending} onClick={() => close.mutate()} data-testid="oq-close-ok">{O.cmpClose}</Button></>}>
-          <p>{O.cmpCloseLead}</p>
-          {d.invites.map((i) => { const fixed = fixedInv.has(String(i.id)); return <label key={String(i.id)} className="a-check"><input type="checkbox" checked={fixed || closeSel.includes(i.id)} disabled={fixed} onChange={(e) => setCloseSel((x) => (e.target.checked ? [...x, i.id] : x.filter((y) => y !== i.id)))} /> {i.orgName} <span className="bw-muted">({P.invite[i.status]}{fixed ? ` · ${O.cmpCloseFixed}` : ""})</span></label>; })}
-          <p className="a-note">{O.cmpCloseMsg[d.thanksMode] ?? d.thanksMode}</p>
-        </Sheet>
-      )}
+      {dialogs}
     </div>
   );
 }
@@ -667,4 +691,185 @@ export function TenderSettingsAdmin() {
       )}
     </section>
   );
+}
+
+// ── 4b.3c: vergelijken als werkblad (inhoud · raster · paneel van de post · totalen onderaan) ──────────────────────────
+type BladProps = {
+  d: TenderCompareView; v: TenderView; quotes: TenderCompareView["quotes"]; chapters: string[];
+  picks: Map<string, bigint>; reasons: Record<string, string>; setReasons: (f: (r: Record<string, string>) => Record<string, string>) => void;
+  pickItem: (itemId: bigint, qid: bigint) => void; pickChapter: (ch: string, qid: bigint) => void; pickable: (c: CmpCell | undefined) => boolean;
+  cellOf: (itemId: bigint, qid: bigint) => CmpCell | undefined; live: CResult; mismatch: boolean; stale: number; dirty: boolean; open: boolean;
+  nonLowest: TenderCompareView["items"]; firmOf: (qid: bigint) => string; target: string; setTarget: (s: string) => void;
+  setConfirm: (c: "apply" | "close" | null) => void; openClose: () => void; save: () => void; saving: boolean; pdf: () => void;
+  gesch: G.Geschiedenis<{ picks: Map<string, bigint>; reasons: Record<string, string> }>;
+  setGesch: (f: (g: G.Geschiedenis<{ picks: Map<string, bigint>; reasons: Record<string, string> }>) => G.Geschiedenis<{ picks: Map<string, bigint>; reasons: Record<string, string> }>) => void;
+  onUse: (m: Map<string, bigint>, rs: Record<string, string>) => void;
+};
+
+function CompareBlad(p: BladProps) {
+  const { d, v, quotes, chapters, picks, cellOf } = p;
+  const W = t.werkvorm;
+  const [cur, setCur] = useState<string | null>(null);
+  const [tab, setTab] = useState("lijn");
+  const raster = useRef<HTMLDivElement>(null);
+  const vorm = useRef<WerkvormHandle>(null);
+  // Ctrl+Z / Ctrl+Shift+Z (enkel de keuzes; typen in een veld blijft van de browser).
+  const terug = useRef(p);
+  terug.current = p;
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const tg = e.target as HTMLElement | null;
+      if (!(e.metaKey || e.ctrlKey) || (tg && /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName))) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); terug.current.setGesch(G.ongedaan); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); terug.current.setGesch(G.opnieuw); }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
+  const item = cur ? d.items.find((x) => String(x.id) === cur) ?? null : null;
+  const kolommen = `76px minmax(220px, 1fr) 96px ${quotes.map(() => "140px").join(" ")}`;
+  const springNaar = (ch: string) => {
+    const el = raster.current?.querySelector<HTMLElement>(`[data-ch="${CSS.escape(ch)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start", behavior: "smooth" });
+    el.classList.add("rb-flits");
+    window.setTimeout(() => el.classList.remove("rb-flits"), 1600);
+  };
+  const keuzeTekst = O.cmpChoice(Number(p.live.choice.chosen), d.items.length, fmtEuro(p.live.choice.total));
+  const lijnPaneel = !item ? <p className="bw-muted">{W.cmp.kiesLijn}</p> : (
+    <div className="rb-lijn" data-testid="oq-lijn">
+      <div className="rb-lijn__kop"><b>{item.code ? `${item.code} ` : ""}{item.title}</b><span className="bw-muted">{fmtQty(item.qtyMilli)} {unitOf(item.unit)}{item.subgroup ? ` · ${item.subgroup}` : ""}</span></div>
+      <div className="rb-blok">
+        <h4>{W.cmp.perFirma}</h4>
+        {quotes.map((qq, qi) => {
+          const c = cellOf(item.id, qq.quote.id);
+          const line = d.input.quotes[qi].lines.find((l) => l.itemId === item.id);
+          const tx = cellText(c, line?.unit ?? item.unit);
+          const gekozen = picks.get(String(item.id)) === qq.quote.id;
+          const can = p.pickable(c);
+          return (
+            <div key={String(qq.quote.id)} className={`rb-bron${gekozen ? " rb-bron--gekozen" : ""}`}>
+              <span><b>{qq.quote.orgName}</b>{c?.lowest && <Tag tone="ok">{W.cmp.laagste}</Tag>}{gekozen && <Tag tone="accent">{W.cmp.gekozen}</Tag>}</span>
+              <span className="bw-mono">{tx.main || "—"}</span>
+              <small>{[tx.sub, tx.flag, line?.remark].filter(Boolean).join(" · ")}</small>
+              {p.open && can && <Button size="sm" variant={gekozen ? "quiet" : "secondary"} onClick={() => p.pickItem(item.id, qq.quote.id)}>{gekozen ? W.cmp.weg : W.cmp.kies}</Button>}
+            </div>
+          );
+        })}
+      </div>
+      {p.nonLowest.some((x) => x.id === item.id) && picks.get(String(item.id)) !== undefined && (
+        <label className="bw-field rb-veld"><span className="bw-label">{W.cmp.reden}</span>
+          <ReasonField key={String(item.id)} value={p.reasons[String(item.id)] ?? ""} readOnly={!p.open} onCommit={(s) => p.setReasons((r) => ({ ...r, [String(item.id)]: s }))} />
+        </label>
+      )}
+    </div>
+  );
+  return (
+    <Werkvorm ref={vorm} testid="oq-blad" rasterRef={raster} tab={tab} onTab={setTab} rasterLabel={O.cmpPost} kolommen={kolommen} hint={W.sneltoets}
+      kop={<>
+        <div className="rb-kop__titel"><span className="bw-label">{v.workCode} {v.workName}</span><h1 className="rb-h1">{d.code} · {d.title}</h1></div>
+        <Tag tone={p.open ? "accent" : "neutral"}>{P.status[d.status.__kind__] ?? d.status.__kind__}</Tag>
+        <span className="rb-status" role="status">{p.dirty ? <Tag tone="warn">{O.cmpUnsaved}</Tag> : !p.open ? O.cmpFixed : ""}</span>
+        {p.open && <Terug kan={p.gesch.terug.length > 0} kanVooruit={p.gesch.vooruit.length > 0} ongedaan={() => p.setGesch(G.ongedaan)} opnieuw={() => p.setGesch(G.opnieuw)} />}
+        <span className="rb-kop__vul" />
+        {p.open && d.drafts.length > 0 && (
+          <>
+            <select className="bw-input pv-sm" aria-label={O.cmpApplyTo} value={p.target} onChange={(e) => p.setTarget(e.target.value)}>{d.drafts.map((x) => <option key={String(x.versionId)} value={String(x.versionId)}>{t.offertes.version(Number(x.version))}</option>)}</select>
+            <Button size="sm" disabled={p.dirty || picks.size === 0 || p.stale > 0} onClick={() => p.setConfirm("apply")} data-testid="oq-apply">{O.cmpApply}</Button>
+          </>
+        )}
+        {p.open && d.drafts.length === 0 && <span className="bw-muted">{O.cmpApplyNone}</span>}
+        <Meer size="sm" items={[
+          { label: O.cmpPdf, icon: "doc", onClick: p.pdf, testid: "oq-pdf" },
+          p.open && { label: O.cmpClose, disabled: p.dirty || p.stale > 0, onClick: p.openClose, testid: "oq-close" },
+        ]} />
+        {p.open && <Button variant="primary" size="sm" busy={p.saving} disabled={!p.dirty} onClick={p.save} data-testid="oq-save">{O.cmpSave}</Button>}
+      </>}
+      melding={<>
+        {p.mismatch && <p className="rb-melding a-err" role="alert" data-testid="oq-mismatch">{O.cmpMismatch}</p>}
+        {p.stale > 0 && <p className="rb-melding">{O.cmpStale(p.stale)}</p>}
+      </>}
+      inhoud={{
+        titel: W.inhoud, onKies: springNaar,
+        items: chapters.map((ch) => {
+          const its = d.items.filter((x) => x.chapter === ch);
+          return { key: ch, titel: ch || "—", sub: `${its.filter((x) => picks.has(String(x.id))).length}/${its.length}` };
+        }),
+      }}
+      tabs={[
+        { key: "lijn", label: W.cmp.tabLijn, inhoud: lijnPaneel },
+        { key: "nalezen", label: W.cmp.tabNalezen, inhoud: <TenderCheckPanel tenderId={d.tenderId} items={d.items} drafts={d.drafts} target0={p.target} isOpen={p.open} onUse={p.onUse} /> },
+      ]}
+      totalen={<>
+        {d.calc.quotes.map((tq, i) => {
+          const qq = quotes[i];
+          const laagste = d.calc.lowestTotal.includes(tq.oaQuoteId);
+          const regels = [
+            { label: O.cmpOwn, waarde: fmtEuro(tq.ownCents) }, { label: O.cmpGross, waarde: fmtEuro(tq.gross) }, { label: O.cmpDiscount, waarde: fmtEuro(tq.discount) },
+            { label: O.cmpNet, waarde: fmtEuro(tq.net), totaal: true },
+            { label: O.cmpComplete, waarde: d.input.quotes[i].form === "posten" ? O.cmpCompleteN(Number(tq.priced), Number(tq.items)) : tq.chapters.length ? O.cmpCompleteChapters : O.cmpCompleteTotal },
+          ];
+          return (
+            <span key={String(tq.oaQuoteId)} className={laagste ? "wv-laagste" : undefined}>
+              <small>{qq.quote.orgName}</small>
+              <Cijfer naam={`${qq.quote.orgName} · ${O.cmpNet}`} uitleg={O.cmpLead} regels={regels}><b className="bw-mono" data-testid="oq-net">{fmtEuro(tq.net)}</b></Cijfer>
+            </span>
+          );
+        })}
+        <Totaal label={W.cmp.keuze} groot><span data-testid="oq-choice">{p.live.choice.chosen > 0 ? keuzeTekst : W.cmp.geenKeuze}</span></Totaal>
+      </>}>
+      <RasterKop kolommen={[{ label: W.cmp.kolomNr }, { label: O.cmpPost }, { label: O.cmpQty, num: true }, ...quotes.map((x) => ({ label: x.quote.orgName, num: true }))]} />
+      {chapters.map((ch) => {
+        const its = d.items.filter((x) => x.chapter === ch);
+        const low = d.calc.chapters.find((c) => c.chapter === ch)?.lowest ?? [];
+        return (
+          <section key={ch} className="rb-ch" data-ch={ch}>
+            <RasterRij kop>
+              <span style={{ gridColumn: "1 / span 3", padding: "0 8px" }}><b>{ch || "—"}</b></span>
+              {quotes.map((x, k) => {
+                const tv = d.calc.quotes[k].chapters.find(([n]) => n === ch);
+                const can = p.open && its.some((y) => p.pickable(cellOf(y.id, x.quote.id)));
+                return (
+                  <span key={String(x.quote.id)} className={`rb-rt${low.includes(x.quote.id) ? " wv-laagste" : ""}`}>
+                    <span className="bw-mono">{tv ? fmtEuro(tv[1]) : "—"}</span>
+                    {can && <button type="button" className="bw-btn bw-btn--quiet bw-btn--sm" title={O.cmpChapterPick(x.quote.orgName)} aria-label={O.cmpChapterPick(x.quote.orgName)} onClick={() => p.pickChapter(ch, x.quote.id)} data-testid="oq-pick-ch">{W.cmp.kiesKort}</button>}
+                  </span>
+                );
+              })}
+            </RasterRij>
+            {its.map((x) => (
+              <RasterRij key={String(x.id)} gekozen={cur === String(x.id)} onKies={() => setCur(String(x.id))} testid="oq-rij">
+                <span className="bw-mono">{x.code}</span>
+                <span className="rb-titel__t" title={x.title}>{x.title}{x.subgroup ? ` · ${x.subgroup}` : ""}</span>
+                <span className="rb-rt bw-mono">{fmtQty(x.qtyMilli)} {unitOf(x.unit)}</span>
+                {quotes.map((qq, qi) => {
+                  const c = cellOf(x.id, qq.quote.id);
+                  const line = d.input.quotes[qi].lines.find((l) => l.itemId === x.id);
+                  const tx = cellText(c, line?.unit ?? "");
+                  const gekozen = picks.get(String(x.id)) === qq.quote.id;
+                  const can = p.open && p.pickable(c);
+                  return (
+                    <button key={String(qq.quote.id)} type="button" disabled={!can} tabIndex={-1}
+                      className={`wv-cel${can ? " wv-cel--pick" : ""}${c?.lowest ? " wv-laagste" : ""}${gekozen ? " wv-gekozen" : ""}`}
+                      title={tx.flag || undefined} data-testid="oq-cell"
+                      onClick={(e) => { e.stopPropagation(); setCur(String(x.id)); p.pickItem(x.id, qq.quote.id); }}>
+                      <span className="bw-mono">{tx.main}</span>{tx.flag && <i aria-hidden className="wv-vlag" />}
+                    </button>
+                  );
+                })}
+              </RasterRij>
+            ))}
+          </section>
+        );
+      })}
+    </Werkvorm>
+  );
+}
+
+/** Een tekstveld dat zijn waarde pas bewaart als je het verlaat (één stap ongedaan maken per reden). */
+function ReasonField({ value, onCommit, readOnly }: { value: string; onCommit: (s: string) => void; readOnly: boolean }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return <input className="bw-input" maxLength={300} readOnly={readOnly} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => { if (draft !== value) onCommit(draft); }} />;
 }

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Principal } from "@icp-sdk/core/principal";
 import { Variant_active_pending_anonymous_unlinked as Status, type Caps, type MeView } from "../backend";
-import { Button, ConnectionStatus, Icon, Sheet, useToast, Wordmark } from "../design";
+import { Button, ConnectionStatus, Icon, Sheet, useToast, Wordmark, WerkbladVlag } from "../design";
 import { cacheGet, cachePut, openDb } from "../offline/db";
 import { OutboxProvider, useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
@@ -197,7 +197,9 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const breedte = useBreedte();
   const [keuze, setKeuze] = useState(() => { try { return leesKeuze(localStorage.getItem("bw-menu")); } catch { return null; } });
   // 4b.3b: op het rekenblad vanzelf een rail; de knop klapt het daar even open (de keuze van het toestel blijft).
-  const werkblad = isWerkblad(route);
+  // 4b.3c: ook een werkvorm in een tabblad (vergelijken, vorderingsstaat, …) meldt zich aan en het menu wordt dan een rail.
+  const [vormVlag, setVormVlag] = useState(false);
+  const werkblad = isWerkblad(route) || vormVlag;
   const [werkbladOpen, setWerkbladOpen] = useState(false);
   const rail = (werkblad && werkbladOpen ? menuStand(breedte, "open") : menuStand(breedte, keuze, werkblad)) === "rail";
   const wisselMenu = () => {
@@ -345,7 +347,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         <TabBar tabs={tabs} current={page} go={go} label={t.menu.tabs} />
         {startN !== null && <StartBanner key={startN} n={startN} caps={caps} go={go} />}
         {showIntro && kind && <IntroCard kind={kind} />}
-        <UitlegContext.Provider value={uitleg}>{screen}</UitlegContext.Provider>
+        <WerkbladVlag.Provider value={setVormVlag}><UitlegContext.Provider value={uitleg}>{screen}</UitlegContext.Provider></WerkbladVlag.Provider>
       </div>
       <Sheet title={`${person.name} · ${roleText}`} open={menu} onClose={() => setMenu(false)}>
         <a href="#/login" className="a-me__link a-me__link--sheet" onClick={() => setMenu(false)}>

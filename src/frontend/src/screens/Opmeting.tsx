@@ -5,7 +5,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MeasureEntryView, MeasureOp, MeasurePostView, MeasureSummaryView, SurveyBrief, SurveyDetail, MeasureWorkBrief } from "../backend";
-import { Button, Icon, Info, Sheet, useToast } from "../design";
+import { Button, Icon, Info, Meer, RasterKop, RasterRij, Sheet, Totaal, useToast, useWerkvormKan, Werkvorm, type WerkvormHandle } from "../design";
 import { blobUrlOf, useCached } from "../offline/cached";
 import { useOutbox, type QueuedOp } from "../offline/outbox";
 import { shrink } from "../offline/photos";
@@ -104,6 +104,11 @@ export function OpmetingWerf({ workId, go, embedded }: { workId: bigint; go: (to
   const [filter, setFilter] = useState("");
   const [closing, setClosing] = useState(false);
   const [viewSurvey, setViewSurvey] = useState<bigint | null>(null);
+  const wide = useWerkvormKan();
+  const [tabO, setTabO] = useState("lijn");
+  const [curPost, setCurPost] = useState<bigint | null>(null);
+  const raster = useRef<HTMLDivElement>(null);
+  const vorm = useRef<WerkvormHandle>(null);
   const waiting = measureOps(ob.ops, workId);
 
   const open = s?.openSurveyId;
@@ -152,6 +157,112 @@ export function OpmetingWerf({ workId, go, embedded }: { workId: bigint; go: (to
   }
   const closedSurveys = s.surveys.filter((x) => !x.open);
   const openSurvey = s.surveys.find((x) => x.open);
+  const sheets = (
+    <>
+      {picked && <PostSheet key={keyOf(picked.root)} workId={workId} post={picked} summary={s} send={send} onClose={() => setPick(null)} />}
+      {closing && openSurvey && (
+        <CloseSheet survey={openSurvey} blocked={s.totals.openProposals > 0n} onClose={() => setClosing(false)} onDo={async (note) => {
+          if (await send({ __kind__: "close", close: { note } }, `${T.close}: ${s.workCode}`)) {
+            setClosing(false);
+            void qc.invalidateQueries({ queryKey: ["measureSummary"] });
+          }
+        }} />
+      )}
+      {viewSurvey !== null && <SurveySheet surveyId={viewSurvey} onClose={() => setViewSurvey(null)} />}
+    </>
+  );
+  const springNaar = (ch: string) => {
+    const el = raster.current?.querySelector<HTMLElement>(`[data-ch="${CSS.escape(ch)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start", behavior: "smooth" });
+    el.classList.add("rb-flits");
+    window.setTimeout(() => el.classList.remove("rb-flits"), 1600);
+  };
+  if (wide) {
+    const W = t.werkvorm;
+    const sel = posts.find((x) => x.root === curPost);
+    const fl = sel ? flagKey(sel.flag) : "none";
+    const lijn = !sel ? <p className="bw-muted">{W.geenLijn}</p> : (
+      <div className="rb-lijn" data-testid="om-lijn">
+        <div className="rb-lijn__kop"><b>{sel.title}</b><span className="bw-muted">{[sel.code, `${sel.chapterCode} ${sel.chapterTitle}`.trim()].filter(Boolean).join(" · ")}</span></div>
+        <div className="vs-flags">
+          {fl !== "none" && <span className={`a-tag ${flagClass(fl)}`}>{T.flag[fl]}</span>}
+          {sel.complete && <span className="a-tag a-tag--ok">{T.complete}</span>}
+          {sel.option && <span className="a-tag">{T.option}</span>}
+          {!sel.inOffer && <span className="a-tag">{T.notInOffer}</span>}
+          {sel.pendingCount > 0n && <span className="a-tag a-tag--warn">{T.pendingTag} ({String(sel.pendingCount)}){sel.pendingMilli !== 0n ? ` · ${T.proposedQty(`${fmtSigned(sel.pendingMilli)} ${unitOf(sel)}`)}` : ""}</span>}
+          {waitFor(sel).length > 0 && <span className="m-tag m-tag--warn"><Icon name="clock" size={12} />{T.waitTag}</span>}
+        </div>
+        <dl className="wv-dl">
+          <dt>{T.vh}</dt><dd>{fmtQty(sel.vhMilli)} {unitOf(sel)}</dd>
+          <dt>{T.gemeten}</dt><dd>{sel.entryCount > 0n || sel.pendingCount > 0n ? `${fmtQty(sel.measuredMilli)} ${unitOf(sel)}` : "–"}</dd>
+          {sel.entryCount > 0n && <><dt>{T.verschil}</dt><dd>{fmtSigned(sel.diffMilli)} · {fmtPct(sel.diffBp)}</dd></>}
+        </dl>
+        <Button onClick={() => setPick(sel.root)} data-testid="om-open-post">{W.postOpen}</Button>
+      </div>
+    );
+    return (
+      <>
+        {sum.data?.fromCache && <p className="m-banner"><Icon name="offline" size={18} />{T.offlineStand(new Date(sum.data.at).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }))}</p>}
+        <Werkvorm ref={vorm} testid="om-blad" rasterRef={raster} tab={tabO} onTab={setTabO} rasterLabel={T.title} naarBoven={!embedded ? true : undefined} kolommen="minmax(260px, 1fr) 120px 130px 150px 180px" hint={W.sneltoets}
+          kop={<>
+            {!embedded && <Button size="sm" variant="quiet" icon="back" iconOnly onClick={() => go("opmeting")}>{T.title}</Button>}
+            <div className="rb-kop__titel"><span className="bw-label">{T.label} · {s.scope === "firm" ? T.scope.firm(s.orgName) : s.scope === "closed" ? T.scope.closed : T.scope.full}</span><h1 className="rb-h1">{s.workCode} · {s.workName}</h1></div>
+            <span className="a-tag">{openSurvey ? `${T.surveyNr(openSurvey.number)} · ${T.openFrom(fmtDay(openSurvey.openedAt))}` : T.noOpen}</span>
+            <span className="a-tag">{T.threshold(thresholdText(s.thresholdBp))}</span>
+            {posts.length > 0 && <input className="bw-input" value={filter} placeholder={T.filterPh} aria-label={T.filter} onChange={(e) => setFilter(e.target.value)} />}
+            <span className="rb-kop__vul" />
+            {s.canReview && openSurvey && <Button variant="primary" size="sm" icon="check" onClick={() => setClosing(true)}>{T.close}</Button>}
+          </>}
+          melding={<>
+            {s.note && <p className="rb-melding">{s.note === "geen getekende offerte" ? T.noQuote : T.noFirmPosts}</p>}
+            {s.canPropose && <p className="rb-melding bw-muted">{T.proposeLead}</p>}
+          </>}
+          inhoud={chapters.length > 1 ? { titel: W.inhoud, onKies: springNaar, items: chapters.map(([ch, ps]) => ({ key: ch, titel: ch, sub: `${ps.filter((x) => x.entryCount > 0n).length}/${ps.length}`, aandacht: ps.some((x) => flagKey(x.flag) !== "none" || x.pendingCount > 0n) })) } : undefined}
+          tabs={[
+            { key: "lijn", label: W.paneel, inhoud: lijn },
+            ...(s.canReview ? [{ key: "voorstellen", label: T.review, badge: proposals.length, inhoud: proposals.length === 0 ? <p className="bw-muted">{W.geenVoorstellen}</p> : <div className="wv-kaart">{proposals.map((e) => (
+              <ProposalCard key={keyOf(e.id)} e={e} post={posts.find((p) => p.root === e.root)} onApprove={() => void send({ __kind__: "review", review: { entryId: e.id, ok: true, note: "" } }, `${T.approve}: ${e.byName}`)} onDecline={(why) => send({ __kind__: "review", review: { entryId: e.id, ok: false, note: why } }, `${T.decline}: ${e.byName}`)} />
+            ))}</div> }] : []),
+            ...(closedSurveys.length > 0 ? [{ key: "vorige", label: T.previous, inhoud: <ul className="a-list">{closedSurveys.map((x) => (
+              <li key={keyOf(x.id)}><button type="button" className="a-list__btn" onClick={() => setViewSurvey(x.id)}><span className="a-tag">{T.surveyNr(x.number)}</span><span className="a-list__main"><b>{T.closedAt(fmtDay(x.closedAt), x.closedByName)}</b>{x.closeNote && <span className="bw-muted">{x.closeNote}</span>}</span><Icon name="next" size={18} /></button></li>
+            ))}</ul> }] : []),
+          ]}
+          totalen={<>
+            <span className="bw-mono">{T.measuredLong(Number(s.totals.measuredPosts), Number(s.totals.posts))}</span>
+            {s.totals.moreCount > 0n && <span className="a-tag a-tag--warn">{T.more(Number(s.totals.moreCount))}</span>}
+            {s.totals.lessCount > 0n && <span className="a-tag a-tag--accent">{T.less(Number(s.totals.lessCount))}</span>}
+            {s.totals.openProposals > 0n && <span className="a-tag a-tag--warn">{T.proposals(Number(s.totals.openProposals))}</span>}
+            {waiting.length > 0 && <span className="m-tag m-tag--warn"><Icon name="clock" size={12} />{waiting.length} {T.waitTag}</span>}
+          </>}>
+          <RasterKop kolommen={[{ label: T.colPost }, { label: T.vh, num: true }, { label: T.gemeten, num: true }, { label: T.verschil, num: true }, { label: W.markering }]} />
+          {posts.length === 0 && <p className="rb-leeg">{s.note ? "" : T.noneRead}</p>}
+          {chapters.map(([ch, ps]) => (
+            <section key={ch} className="rb-ch" data-ch={ch}>
+              <RasterRij kop><span style={{ gridColumn: "1 / -1", padding: "0 8px" }}><b>{ch}</b></span></RasterRij>
+              {ps.map((p) => {
+                const f2 = flagKey(p.flag);
+                return (
+                  <RasterRij key={keyOf(p.root)} gekozen={curPost === p.root} onKies={() => { setCurPost(p.root); vorm.current?.openPaneel("lijn"); }} testid="om-rij" stand={f2 !== "none" ? "gewijzigd" : p.pendingCount > 0n ? "wacht" : undefined}>
+                    <span className="rb-titel__t" title={p.title}>{p.code ? <span className="bw-mono bw-muted">{p.code} </span> : null}{p.title}</span>
+                    <span className="rb-rt bw-mono">{fmtQty(p.vhMilli)} {unitOf(p)}</span>
+                    <span className="rb-rt bw-mono">{p.entryCount > 0n || p.pendingCount > 0n ? `${fmtQty(p.measuredMilli)} ${unitOf(p)}` : "–"}</span>
+                    <span className="rb-rt bw-mono">{p.entryCount > 0n ? `${fmtSigned(p.diffMilli)} · ${fmtPct(p.diffBp)}` : ""}</span>
+                    <span className="om-post__tags">
+                      {f2 !== "none" && <span className={`a-tag ${flagClass(f2)}`}>{T.flag[f2]}</span>}
+                      {p.complete && <span className="a-tag a-tag--ok">{T.complete}</span>}
+                      {p.pendingCount > 0n && <span className="a-tag a-tag--warn" data-testid="om-pending">{T.pendingTag} ({String(p.pendingCount)})</span>}
+                    </span>
+                  </RasterRij>
+                );
+              })}
+            </section>
+          ))}
+        </Werkvorm>
+        {sheets}
+      </>
+    );
+  }
   return (
     <Frame embedded={embedded} title={`${s.workCode} · ${s.workName}`} label={T.label} actions={embedded ? undefined : <Button variant="quiet" icon="back" onClick={() => go("opmeting")}>{T.title}</Button>}>
       {sum.data?.fromCache && <p className="m-banner"><Icon name="offline" size={18} />{T.offlineStand(new Date(sum.data.at).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }))}</p>}
@@ -250,16 +361,7 @@ export function OpmetingWerf({ workId, go, embedded }: { workId: bigint; go: (to
         </section>
       )}
 
-      {picked && <PostSheet key={keyOf(picked.root)} workId={workId} post={picked} summary={s} send={send} onClose={() => setPick(null)} />}
-      {closing && openSurvey && (
-        <CloseSheet survey={openSurvey} blocked={s.totals.openProposals > 0n} onClose={() => setClosing(false)} onDo={async (note) => {
-          if (await send({ __kind__: "close", close: { note } }, `${T.close}: ${s.workCode}`)) {
-            setClosing(false);
-            void qc.invalidateQueries({ queryKey: ["measureSummary"] });
-          }
-        }} />
-      )}
-      {viewSurvey !== null && <SurveySheet surveyId={viewSurvey} onClose={() => setViewSurvey(null)} />}
+      {sheets}
     </Frame>
   );
 }

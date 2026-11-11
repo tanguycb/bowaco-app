@@ -5,9 +5,9 @@
 // stelt meer- of minwerk voor. De klant (en de architect met de grant vorderingsstaten) ziet de gedeelde versies (MijnMinMeer).
 // De browser rekent de totalen na met minmeer/calc.ts (dezelfde regels als de server); een verschil geeft een melding.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Caps, MinMeerFullView, MmRowView, MmEntryView, MmVersionBrief, MmFrozen, MmChange } from "../backend";
-import { Button, Cijfer, Info, Meer, Sheet, useToast } from "../design";
+import { Button, Cijfer, Info, Meer, RasterKop, RasterRij, Sheet, Tag, Totaal, useToast, useWerkvormKan, Werkvorm, type WerkvormHandle } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -48,6 +48,7 @@ function OfficeMinMeer({ workId, go }: { workId: bigint; go?: (to: string) => vo
   const [confirmVersion, setConfirmVersion] = useState(false);
   const [note, setNote] = useState("");
   const [openVersion, setOpenVersion] = useState<bigint | null>(null);
+  const wide = useWerkvormKan();
   const v = q.data;
   const check = useMemo(() => (v ? recheck(v) : null), [v]);
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["minmeer", String(workId)] }); void qc.invalidateQueries({ queryKey: ["minmeerQty", String(workId)] }); };
@@ -58,6 +59,37 @@ function OfficeMinMeer({ workId, go }: { workId: bigint; go?: (to: string) => vo
   });
   if (!v) return <section className="a-section"><h2 className="bw-h2">{T.title}</h2><Loading q={q} /></section>;
   const entryOf = (id: bigint | undefined) => (id === undefined ? undefined : v.entries.find((e) => e.id === id));
+  const sheets = (
+    <>
+      {entry !== null && <EntrySheet workId={workId} view={v} entry={entry === "new" ? null : entry} office onClose={() => setEntry(null)} onSaved={refresh} />}
+      {override && <OverrideSheet workId={workId} row={override} onClose={() => setOverride(null)} onSaved={refresh} />}
+      {rates && <RatesSheet workId={workId} view={v} onClose={() => setRates(false)} onSaved={refresh} />}
+      {quote && <QuoteSheet workId={workId} view={v} onClose={() => setQuote(false)} onSaved={refresh} go={go} />}
+      {openVersion !== null && <VersionSheet id={openVersion} onClose={() => setOpenVersion(null)} />}
+    </>
+  );
+  const confirmJsx = (
+    <>
+      {confirmVersion && (
+        <div className="a-confirm" role="group" aria-label={T.makeVersion}>
+          <p>{T.versionConfirm}</p>
+          <label className="bw-field"><span className="bw-label">{T.versionNote}</span><textarea className="bw-input" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} /></label>
+          <div className="a-row"><Button variant="primary" busy={make.isPending} onClick={() => make.mutate()}>{T.makeVersion}</Button><Button variant="quiet" onClick={() => setConfirmVersion(false)}>{t.common.cancel}</Button></div>
+        </div>
+      )}
+    </>
+  );
+  if (wide) {
+    return (
+      <>
+        <MinMeerBlad v={v} check={check} entryOf={entryOf} confirm={confirmJsx}
+          onAdd={() => setEntry("new")} onMake={() => setConfirmVersion(true)} onRates={() => setRates(true)} onQuote={() => setQuote(true)}
+          onRow={(r) => { const e = entryOf(r.entryId); if (e) setEntry(e); else if (r.overridable) setOverride(r); }}
+          versions={<Versions workId={workId} versions={v.versions} office onOpen={setOpenVersion} onChanged={refresh} />} />
+        {sheets}
+      </>
+    );
+  }
   return (
     <section className="a-section" data-testid="minmeer">
       <div className="a-row a-row--between">
@@ -76,21 +108,11 @@ function OfficeMinMeer({ workId, go }: { workId: bigint; go?: (to: string) => vo
           <ul>{v.findings.map((f) => <li key={f.key}>{f.text}{f.count > 0n ? ` (${f.count})` : ""}</li>)}</ul>
         </div>
       )}
-      {confirmVersion && (
-        <div className="a-confirm" role="group" aria-label={T.makeVersion}>
-          <p>{T.versionConfirm}</p>
-          <label className="bw-field"><span className="bw-label">{T.versionNote}</span><textarea className="bw-input" rows={2} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} /></label>
-          <div className="a-row"><Button variant="primary" busy={make.isPending} onClick={() => make.mutate()}>{T.makeVersion}</Button><Button variant="quiet" onClick={() => setConfirmVersion(false)}>{t.common.cancel}</Button></div>
-        </div>
-      )}
+      {confirmJsx}
       <Totals totals={v.totals} invoiced={v.invoiced} />
       <RowsTable rows={v.rows} discs={v.discs} office onRow={(r) => { const e = entryOf(r.entryId); if (e) setEntry(e); else if (r.overridable) setOverride(r); }} />
       <Versions workId={workId} versions={v.versions} office onOpen={setOpenVersion} onChanged={refresh} />
-      {entry !== null && <EntrySheet workId={workId} view={v} entry={entry === "new" ? null : entry} office onClose={() => setEntry(null)} onSaved={refresh} />}
-      {override && <OverrideSheet workId={workId} row={override} onClose={() => setOverride(null)} onSaved={refresh} />}
-      {rates && <RatesSheet workId={workId} view={v} onClose={() => setRates(false)} onSaved={refresh} />}
-      {quote && <QuoteSheet workId={workId} view={v} onClose={() => setQuote(false)} onSaved={refresh} go={go} />}
-      {openVersion !== null && <VersionSheet id={openVersion} onClose={() => setOpenVersion(null)} />}
+      {sheets}
     </section>
   );
 }
@@ -399,5 +421,116 @@ function MyVersionSheet({ id, onClose }: { id: bigint; onClose: () => void }) {
         </div>
       )}
     </Sheet>
+  );
+}
+
+// ── 4b.3c: de min-meerstaat als werkblad (hoofdstukken links · regels · paneel van de regel · totalen onderaan) ───────────
+// De regels worden niet in het raster getikt maar via het paneel (hetzelfde blad als vroeger: toevoegen, aanpassen met reden): de
+// staat bewaart ze niet als lijst, dus geen vanzelf bewaren en geen ongedaan maken; een versie maken blijft een bewuste handeling.
+function MinMeerBlad({ v, check, entryOf, confirm, onAdd, onMake, onRates, onQuote, onRow, versions }: {
+  v: MinMeerFullView; check: ReturnType<typeof recheck> | null; entryOf: (id: bigint | undefined) => MmEntryView | undefined; confirm: React.ReactNode;
+  onAdd: () => void; onMake: () => void; onRates: () => void; onQuote: () => void; onRow: (r: MmRowView) => void; versions: React.ReactNode;
+}) {
+  const W = t.werkvorm;
+  const [cur, setCur] = useState<string | null>(null);
+  const [tab, setTab] = useState("lijn");
+  const raster = useRef<HTMLDivElement>(null);
+  const vorm = useRef<WerkvormHandle>(null);
+  const chapters: string[] = [];
+  for (const r of v.rows) if (!chapters.includes(r.chapter)) chapters.push(r.chapter);
+  for (const d of v.discs) if (!chapters.includes(d.chapter)) chapters.push(d.chapter);
+  const row = cur ? v.rows.find((r) => r.key === cur) ?? null : null;
+  const x = v.totals;
+  const sum = (ch: string) => v.rows.filter((r) => r.chapter === ch && r.counted && r.inVersion).reduce((a, r) => a + r.extraCents - r.lessCents, 0n) - v.discs.filter((d) => d.chapter === ch && d.counted).reduce((a, d) => a + d.lessCents, 0n);
+  const springNaar = (ch: string) => {
+    const el = raster.current?.querySelector<HTMLElement>(`[data-ch="${CSS.escape(ch)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start", behavior: "smooth" });
+    el.classList.add("rb-flits");
+    window.setTimeout(() => el.classList.remove("rb-flits"), 1600);
+  };
+  const kanOpen = (r: MmRowView) => r.entryId !== undefined || r.overridable;
+  const lijn = !row ? <p className="bw-muted">{W.geenLijn}</p> : (
+    <div className="rb-lijn" data-testid="mm-lijn">
+      <div className="rb-lijn__kop"><b>{row.description}</b><span className="bw-muted">{[row.chapter || T.general, row.sourceText, row.day !== undefined ? fmtDayNum(row.day) : ""].filter(Boolean).join(" · ")}</span></div>
+      {row.flags.length > 0 && <div className="a-row" style={{ flexWrap: "wrap", gap: 4 }}>{row.flags.map((f) => <span key={f} className="a-tag a-tag--warn">{flagText(f)}</span>)}</div>}
+      <dl className="wv-dl">
+        <dt>{T.cols.unit}</dt><dd>{row.unit}</dd>
+        <dt>{T.cols.qty}</dt><dd>{row.qtyMilli !== 0n ? qtyText(row.qtyMilli) : ""}{row.pctBp !== undefined ? ` × ${fmtBp(row.pctBp)}` : ""}</dd>
+        <dt>{T.cols.unitPrice}</dt><dd>{row.unitCents !== 0n ? fmtEuro(row.unitCents) : ""}</dd>
+        <dt>{T.cols.offer}</dt><dd>{row.offerCents !== 0n ? fmtEuro(row.offerCents) : ""}</dd>
+        <dt>{T.cols.less}</dt><dd>{row.lessCents !== 0n ? fmtEuro(row.lessCents) : ""}</dd>
+        <dt>{T.cols.extra}</dt><dd>{row.extraCents !== 0n ? fmtEuro(row.extraCents) : ""}</dd>
+        {row.costCents !== undefined && <><dt>{W.kost}</dt><dd>{T.costLine(fmtEuro(row.costCents), row.marginBp !== undefined ? fmtBp(row.marginBp) : "–")}</dd></>}
+      </dl>
+      {row.chapterFrom && <p className="bw-muted rb-klein">{T.moved(row.chapterFrom)}</p>}
+      {[row.approval !== "niet nodig" ? row.approval : "", row.note].filter(Boolean).length > 0 && <p>{[row.approval !== "niet nodig" ? row.approval : "", row.note].filter(Boolean).join(" — ")}</p>}
+      {(!row.counted || !row.inVersion) && <p className="bw-muted">{row.excluded ? T.excluded : T.notCounted}</p>}
+      {kanOpen(row) && <Button onClick={() => onRow(row)} data-testid="mm-open">{entryOf(row.entryId) ? W.regelOpen : W.regelAanpassen}</Button>}
+    </div>
+  );
+  return (
+    <Werkvorm ref={vorm} testid="mm-blad" rasterRef={raster} tab={tab} onTab={setTab} rasterLabel={T.title} kolommen="minmax(260px, 1fr) 70px 90px 100px 110px 110px 110px" hint={W.sneltoets}
+      kop={<>
+        <div className="rb-kop__titel"><span className="bw-label">{v.baseQuote ? T.base(v.baseQuote) : T.noBase}</span><h1 className="rb-h1">{T.title}</h1></div>
+        {check && !check.ok && <span className="a-err" role="alert">{T.recheck}</span>}
+        <span className="rb-kop__vul" />
+        <Meer size="sm" items={[{ label: T.regieRates, onClick: onRates }, { label: T.makeQuote, onClick: onQuote }]} />
+        <Button size="sm" icon="plus" onClick={onAdd}>{T.add}</Button>
+        <Button variant="primary" size="sm" onClick={onMake} disabled={!check?.ok}>{T.makeVersion}</Button>
+      </>}
+      melding={<>
+        {v.findings.length > 0 && <div className="rb-melding" role="note"><b>{T.attention}</b> {v.findings.map((f) => `${f.text}${f.count > 0n ? ` (${f.count})` : ""}`).join(" · ")}</div>}
+        {confirm}
+      </>}
+      inhoud={chapters.length > 1 ? { titel: W.inhoud, onKies: springNaar, items: chapters.map((ch) => ({ key: ch, titel: ch || T.general, sub: fmtEuro(sum(ch)) })) } : undefined}
+      tabs={[
+        { key: "lijn", label: W.paneel, inhoud: lijn },
+        { key: "versies", label: T.versions, badge: v.versions.length, inhoud: versions },
+        ...(v.invoiced.length > 0 ? [{ key: "gefactureerd", label: T.invoicedTitle, inhoud: <div className="wv-kaart">{v.invoiced.map((i, k) => <div key={k} className="a-row a-row--between"><span>{i.title} · {fmtDayNum(i.day)}{i.revisionCents !== 0n ? ` (+ ${fmtEuro(i.revisionCents)} prijsherziening)` : ""}</span><span className="bw-num">{fmtEuro(i.cents)}</span></div>)}</div> }] : []),
+      ]}
+      totalen={<>
+        <Totaal label={T.totals.offer}>{fmtEuro(x.offerCents)}</Totaal>
+        <Totaal label={T.totals.less}>{fmtEuro(x.lessCents)}</Totaal>
+        <Totaal label={T.totals.extra}>{fmtEuro(x.extraCents)}</Totaal>
+        <Totaal label={T.totals.balance}>{fmtEuro(x.balanceCents)}</Totaal>
+        <Totaal label={T.totals.contract}>{fmtEuro(x.contractCents)}</Totaal>
+        <Totaal label={T.totals.invoiced}>{fmtEuro(x.invoicedCents)}</Totaal>
+        <span className="rb-tot__groot"><small>{T.totals.toInvoice}</small>
+          <Cijfer naam={T.totals.toInvoice} uitleg={t.schil.cijfer.nogTeFactureren}
+            regels={x.contractCents - x.invoicedCents === x.toInvoiceCents ? [{ label: T.totals.contract, waarde: fmtEuro(x.contractCents) }, { label: T.totals.invoiced, waarde: `− ${fmtEuro(x.invoicedCents)}` }, { label: T.totals.toInvoice, waarde: fmtEuro(x.toInvoiceCents), totaal: true }] : undefined}>
+            <b className="bw-mono" data-testid="mm-toinvoice">{fmtEuro(x.toInvoiceCents)}</b>
+          </Cijfer>
+        </span>
+        {x.pendingCents !== 0n && <Totaal label={T.totals.pending}>{fmtEuro(x.pendingCents)}</Totaal>}
+        {x.revisionCents !== 0n && <Totaal label={T.totals.revision}>{fmtEuro(x.revisionCents)}</Totaal>}
+      </>}>
+      <RasterKop kolommen={[{ label: T.cols.desc }, { label: T.cols.unit }, { label: T.cols.qty, num: true }, { label: T.cols.unitPrice, num: true }, { label: T.cols.offer, num: true }, { label: T.cols.less, num: true }, { label: T.cols.extra, num: true }]} />
+      {chapters.map((ch) => (
+        <section key={ch} className="rb-ch" data-ch={ch}>
+          <RasterRij kop><span style={{ gridColumn: "1 / span 7", padding: "0 8px" }}><b>{ch || T.general}</b></span></RasterRij>
+          {v.rows.filter((r) => r.chapter === ch).map((r) => {
+            const dim = !r.counted || !r.inVersion;
+            return (
+              <RasterRij key={r.key} gekozen={cur === r.key} onKies={() => { setCur(r.key); vorm.current?.openPaneel("lijn"); }} testid={`mm-${r.key}`} extra={dim ? "bw-muted" : undefined} stand={r.flags.length > 0 ? "gewijzigd" : undefined}>
+                <span className="rb-titel__t" title={r.description}>{r.description}</span>
+                <span>{r.unit}</span>
+                <span className="rb-rt bw-mono">{r.qtyMilli !== 0n ? qtyText(r.qtyMilli) : ""}{r.pctBp !== undefined ? ` × ${fmtBp(r.pctBp)}` : ""}</span>
+                <span className="rb-rt bw-mono">{r.unitCents !== 0n ? fmtEuro(r.unitCents) : ""}</span>
+                <span className="rb-rt bw-mono">{r.offerCents !== 0n ? fmtEuro(r.offerCents) : ""}</span>
+                <span className="rb-rt bw-mono">{r.lessCents !== 0n ? fmtEuro(r.lessCents) : ""}</span>
+                <span className="rb-rt bw-mono">{r.extraCents !== 0n ? fmtEuro(r.extraCents) : ""}</span>
+              </RasterRij>
+            );
+          })}
+          {v.discs.filter((d) => d.chapter === ch).map((d) => (
+            <RasterRij key={`d${d.entryId}`} extra={d.counted ? undefined : "bw-muted"}>
+              <span className="rb-titel__t">{d.description}{d.pctBp !== undefined ? ` (${fmtBp(d.pctBp)})` : ""}{d.counted ? "" : ` · ${T.notCounted}`}</span><span /><span /><span /><span />
+              <span className="rb-rt bw-mono">{fmtEuro(d.lessCents)}</span><span />
+            </RasterRij>
+          ))}
+        </section>
+      ))}
+    </Werkvorm>
   );
 }

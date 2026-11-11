@@ -41,8 +41,8 @@ export type Indeling = { inhoud: "vast" | "zwevend" | "dicht"; paneel: "vast" | 
 /** Groot scherm: inhoud en lijnpaneel vast open. Laptop: allebei ingeklapt; wie ze opent, krijgt ze zwevend over het raster
  *  (het raster en de totalen onderaan blijven). Een offerte met hoogstens één hoofdstuk heeft geen inhoud nodig: ingeklapt,
  *  tenzij je ze zelf opent. `open` = de keuze van de gebruiker in deze sessie (undefined = geen keuze). */
-export function indeling(breedte: number, hoofdstukken: number, open: { inhoud?: boolean; paneel?: boolean } = {}): Indeling {
-  const groot = breedte >= GROOT_VANAF;
+export function indeling(breedte: number, hoofdstukken: number, open: { inhoud?: boolean; paneel?: boolean } = {}, grootVanaf: number = GROOT_VANAF): Indeling {
+  const groot = breedte >= grootVanaf;
   const inhoudOpen = open.inhoud ?? (groot && hoofdstukken > 1);
   const paneelOpen = open.paneel ?? groot;
   return {

@@ -1,0 +1,26 @@
+/* 4b.3c: aanvullingen op het rekenblad voor de Werkvorm (design/Werkvorm.tsx). De basis (.rb, .rb-r, .rb-paneel, .rb-tot …) is die van
+   app/rekenblad.css; hier enkel wat de andere schermen erbij nodig hebben. */
+.wv { scroll-margin-top: 56px; border: 1px solid var(--bw-line); border-radius: var(--bw-radius); overflow: hidden; margin-block: 8px; }
+.wv .rb-kop { min-height: 44px; }
+.wv .rb-kop .bw-input { min-height: 28px; width: auto; font-size: var(--bw-fs-xs); }
+.wv-cel { display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 100%; height: calc(var(--rb-row) - 2px); padding: 0 8px; border: 0; background: transparent; color: var(--bw-ink); font: inherit; font-size: var(--bw-fs-sm); cursor: default; text-align: right; }
+.wv-cel--pick { cursor: pointer; }
+.wv-cel--pick:hover { background: var(--bw-surface-2); }
+.wv-cel:disabled { color: inherit; opacity: 1; }
+.wv-laagste { background: var(--bw-st-done-bg); }
+.wv-gekozen { box-shadow: inset 0 0 0 2px var(--bw-accent); }
+.wv-vlag { width: 6px; height: 6px; border-radius: 50%; background: var(--bw-st-delayed); flex: none; }
+.rb-tot .wv-laagste { padding: 0 6px; border-radius: var(--bw-radius-sm); }
+.wv-warn { color: var(--bw-st-delayed); }
+.wv-bad { color: var(--bw-st-blocked); }
+.wv .rb-r--ch { align-items: center; }
+.wv .rb-r--ch > span { min-width: 0; }
+.wv .rb-r--ch > .rb-rt { display: flex; flex-direction: column; align-items: flex-end; padding: 2px 8px; }
+.wv .rb-r[tabindex]:focus-visible { outline: 2px solid var(--bw-focus); outline-offset: -2px; }
+.wv-kaart { display: flex; flex-direction: column; gap: 6px; }
+.wv-dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; }
+.wv-dl dt { color: var(--bw-ink-2); }
+.wv-dl dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.wv .rb-raster { min-width: 0; }
+.oi-sub { margin: 0 0 var(--bw-s-2, 8px); }
+.wv .rb-tot { max-height: 92px; overflow-y: auto; align-content: flex-start; }

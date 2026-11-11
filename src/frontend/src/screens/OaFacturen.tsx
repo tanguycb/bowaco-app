@@ -6,9 +6,9 @@
 // enkel de status van zijn eigen facturen (MijnFacturenPage), als de beheerder dat aanzette. Bevestigen in een paneel.
 import { InvCheckPanel } from "./FactuurControle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalBlob, OaInvoiceLineKind, OaInvoiceStatus, OrgKind, WithholdingResult, type Caps, type OaInvoiceFullView, type OaInvoiceInput, type OaInvoiceLine, type OaInvoiceQtyView, type OaLineQty, type OaPostOption, type OaVatRegime } from "../backend";
-import { Button, Icon, Meer, Sheet, useToast, Werklijst } from "../design";
+import { Button, Icon, Meer, RasterKop, RasterRij, Sheet, Totaal, useToast, useWerkvormKan, Werklijst, Werkvorm, type WerkvormHandle } from "../design";
 import { useBreed, useInPaneel, WERKLIJST_VANAF } from "../design/Werklijst";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, fmtTime, inputToDay, parseEuro, todayDay, unwrap, useBackend } from "../util";
@@ -282,6 +282,7 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
   const toast = useToast();
   const qc = useQueryClient();
   const paneel = useInPaneel();
+  const wide = useWerkvormKan();
   const q = useQuery({ queryKey: ["oaInvoiceFull", String(id)], queryFn: async () => unwrap(await actor!.readOaInvoice(id)), enabled: !!actor && !isFetching, staleTime: 0, gcTime: 0 });
   const [sheet, setSheet] = useState<null | "approve" | "dispute" | "withdraw" | "check">(null);
   const [reason, setReason] = useState("");
@@ -310,6 +311,104 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
   const flagN = v.flagCount;
   const w = v.withholding;
   const canApprove = useExc ? exc.trim().length >= 10 : !!v.todayCheck && v.todayCheck.reference.trim() !== "" && v.todayCheck.result !== WithholdingResult.unknown;
+  const amountsCard = (
+        <section className="vs-card" data-testid="oi-amounts">
+          <h2 className="bw-h3">{T.amounts}</h2>
+          <dl className="vs-dl">
+            <div><dt>{T.net}</dt><dd className="bw-mono">{fmtEuro(v.netCents)}</dd></div>
+            <div><dt>{T.sumLines}</dt><dd className={`bw-mono${v.sumLinesCents !== v.netCents ? " a-err" : ""}`}>{fmtEuro(v.sumLinesCents)}</dd></div>
+            <div><dt>{v.vatRegime.__kind__ === "reverse" ? T.regimes.reverse : T.vatAt(String(Number(v.vatRegime.normal) / 100))}</dt><dd className="bw-mono">{fmtEuro(v.vatCents)}{v.expectedVatCents !== undefined && v.expectedVatCents !== v.vatCents ? ` (${T.expected} ${fmtEuro(v.expectedVatCents)})` : ""}</dd></div>
+            <div className="vs-dl__big"><dt>{T.total}</dt><dd className="bw-mono">{fmtEuro(v.totalCents)}</dd></div>
+          </dl>
+          {v.dealRate && <p className="bw-muted" data-testid="oi-deal-rate">{v.dealRate}</p>}
+          {v.attestWarnings.length > 0 && <div className="a-alert" data-testid="oi-attests"><strong>{t.afspraken.warnings}: </strong>{v.attestWarnings.join(" · ")}</div>}
+          {v.headerFlags.length > 0 && <ul className="vs-findings" data-testid="oi-header-flags">{v.headerFlags.map((f) => <li key={f.key}><span className="a-tag a-tag--warn">{T.flagTag}</span> {T.flags[f.key] ?? f.text}</li>)}</ul>}
+          <p className="bw-muted">{T.hoursAll(fmtQty(v.hoursAll.validMilli), fmtQty(v.hoursAll.disputedMilli))}</p>
+          {v.previous.length > 0 && (
+            <>
+              <h3 className="bw-h3">{T.previous}</h3>
+              <ul className="vs-facts">{v.previous.map((p) => <li key={String(p.id)}><button type="button" className="wb-link" onClick={() => go(`oa-facturen/${p.id}`)}>{p.number}</button> · {fmtDayNum(p.invoiceDay)} · {T.status[p.status]} · <span className="bw-mono">{fmtEuro(p.netCents)}</span></li>)}</ul>
+            </>
+          )}
+        </section>
+  );
+  const withholdCard = (
+        <section className="vs-card" data-testid="oi-withholding">
+          <h2 className="bw-h3">{T.withholding}</h2>
+          <p>{t.wadm.states[w.state] ?? w.state}{w.last ? ` · ${t.wadm.lastCheck} ${fmtDayNum(w.last.consultedOn)}${w.last.reference ? ` (${w.last.reference})` : ""}` : ""}</p>
+          {v.todayCheck ? <p className="a-note" data-testid="oi-today">{T.today(t.wadm.results[v.todayCheck.result], v.todayCheck.reference || "–")}</p> : <p className="a-note">{T.noToday}</p>}
+          {(v.withholdSocialCents > 0n || v.withholdFiscalCents > 0n) && <p className="a-err">{T.withhold(fmtEuro(v.withholdSocialCents), fmtEuro(v.withholdFiscalCents))}</p>}
+          <div className="a-row">
+            {w.link && <a className="bw-btn bw-btn--secondary" href={w.link} target="_blank" rel="noreferrer">{t.wadm.consult} ↗</a>}
+            {v.canDecide && <Button onClick={() => setSheet("check")} data-testid="oi-record">{t.wadm.record}</Button>}
+          </div>
+        </section>
+  );
+  const sheets = (
+    <>
+      <Sheet title={T.approveTitle} open={sheet === "approve"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={!canApprove || (flagN > 0 && reason.trim().length < 5)} onClick={() => void approve()} data-testid="oi-approve-go">{T.approve}</Button></>}>
+        <p>{T.approveLead}</p>
+        {v.todayCheck && !useExc ? <p className="a-note">{T.today(t.wadm.results[v.todayCheck.result], v.todayCheck.reference || "–")}</p> : null}
+        {!v.todayCheck && !useExc && <p className="a-err">{T.needCheck}</p>}
+        <label className="a-check"><input type="checkbox" checked={useExc} onChange={(e) => setUseExc(e.target.checked)} data-testid="oi-use-exc" /> {T.useException}</label>
+        {useExc && <label className="bw-field"><span className="bw-label">{T.exception}</span><textarea className="bw-input" rows={2} value={exc} onChange={(e) => setExc(e.target.value)} data-testid="oi-exc" /></label>}
+        {flagN > 0 && <label className="bw-field"><span className="bw-label">{T.flagReason(flagN)}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} data-testid="oi-reason" /></label>}
+      </Sheet>
+      <Sheet title={T.disputeTitle} open={sheet === "dispute"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="danger" busy={busy} disabled={reason.trim().length < 5} onClick={() => void dispute()} data-testid="oi-dispute-go">{T.dispute}</Button></>}>
+        <p>{T.disputeLead(T.notice[v.disputeNotice] ?? v.disputeNotice)}</p>
+        <label className="bw-field"><span className="bw-label">{T.reason}</span><textarea className="bw-input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} data-testid="oi-dispute-reason" /></label>
+      </Sheet>
+      <Sheet title={T.withdrawTitle} open={sheet === "withdraw"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="danger" busy={busy} disabled={reason.trim().length < 5} onClick={() => void withdraw()}>{T.withdraw}</Button></>}>
+        <p>{T.withdrawLead}</p>
+        <label className="bw-field"><span className="bw-label">{T.reason}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+      </Sheet>
+      <Sheet title={t.wadm.record} open={sheet === "check"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={chk.reference.trim() === ""} onClick={() => void record()} data-testid="oi-check-go">{t.wadm.record}</Button></>}>
+        <p className="bw-muted">{t.wadm.recordLead}</p>
+        <label className="bw-field"><span className="bw-label">{t.wadm.result}</span><select className="bw-input" value={chk.result} onChange={(e) => setChk({ ...chk, result: e.target.value as WithholdingResult })} data-testid="oi-check-result">{[WithholdingResult.clear, WithholdingResult.social, WithholdingResult.fiscal, WithholdingResult.both, WithholdingResult.unknown].map((r) => <option key={r} value={r}>{t.wadm.results[r]}</option>)}</select></label>
+        <label className="bw-field"><span className="bw-label">{t.wadm.reference}</span><input className="bw-input" value={chk.reference} onChange={(e) => setChk({ ...chk, reference: e.target.value })} data-testid="oi-check-ref" /></label>
+        <label className="bw-field"><span className="bw-label">{t.wadm.note}</span><input className="bw-input" value={chk.note} onChange={(e) => setChk({ ...chk, note: e.target.value })} /></label>
+        <p className="bw-muted">{T.checkToday}</p>
+      </Sheet>
+    </>
+  );
+  const meerItems = [
+    { label: `${T.work}: ${b.workCode}`, icon: "building" as const, onClick: () => go(`werven/${b.workId}/facturatie`) },
+    v.canEdit && { label: T.edit, icon: "edit" as const, onClick: () => go(`oa-facturen/${id}/wijzigen`), testid: "oi-edit" },
+    b.purchaseId !== undefined && { label: T.purchaseLink, icon: "receipt" as const, onClick: () => go(`oa-facturen/aankoop/${b.purchaseId}`), testid: "oi-purchase" },
+    v.canDecide && { label: T.withdraw, icon: "close" as const, danger: true, onClick: () => { setReason(""); setSheet("withdraw"); } },
+  ];
+  if (wide) {
+    return (
+      <>
+        <InvoiceBlad lines={v.lines.map((l) => ({ q: l.q, m: l.m }))} money inPaneel={paneel}
+          kop={<>
+            {!paneel && <Button size="sm" variant="quiet" icon="back" iconOnly onClick={() => go("oa-facturen")}>{t.common.back}</Button>}
+            <div className="rb-kop__titel"><span className="bw-label">{T.label} · {b.workCode} {b.workName}</span><h1 className="rb-h1">{b.orgName} · {b.number}</h1></div>
+            <span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span>
+            <span className="bw-muted rb-klein">{T.dayLine(fmtDayNum(b.invoiceDay), b.dueDay !== undefined ? fmtDayNum(b.dueDay) : "–")}{v.periodFrom !== undefined ? ` · ${T.periodLine(fmtDayNum(v.periodFrom), fmtDayNum(v.periodTo))}` : ""}</span>
+            {v.file && <OpenConfidential fileId={v.file.id} />}
+            <span className="rb-kop__vul" />
+            <Meer size="sm" items={meerItems} />
+            {v.canEdit && <Button size="sm" icon="alert" onClick={() => { setReason(""); setSheet("dispute"); }} data-testid="oi-dispute">{T.dispute}</Button>}
+            {v.canDecide && <Button variant="primary" size="sm" icon="check" onClick={() => { setReason(""); setSheet("approve"); }} data-testid="oi-approve">{T.approve}</Button>}
+          </>}
+          melding={v.decision ? <p className={`rb-melding${v.decision.approved ? "" : " a-err"}`} data-testid="oi-decision">{v.decision.approved ? T.decisionOk(v.decision.byName, fmtTime(v.decision.at)) : T.decisionNo(v.decision.byName, fmtTime(v.decision.at))}{v.decision.reason ? `: ${v.decision.reason}` : ""}</p> : undefined}
+          extraTabs={[
+            { key: "factuur", label: T.amounts, inhoud: <div className="wv-kaart">{amountsCard}</div> },
+            { key: "inhouding", label: T.withholding, inhoud: <div className="wv-kaart">{withholdCard}</div> },
+            { key: "nakijken", label: t.werkvorm.cmp.tabNalezen, inhoud: <InvCheckPanel invoiceId={id} workId={b.workId} file={v.file} canStart={v.canDecide && (b.status === OaInvoiceStatus.registered || b.status === OaInvoiceStatus.disputed)} /> },
+          ]}
+          totalen={<>
+            <Totaal label={T.net}>{fmtEuro(v.netCents)}</Totaal>
+            <Totaal label={T.sumLines} tag={v.sumLinesCents !== v.netCents ? "bad" : undefined}>{fmtEuro(v.sumLinesCents)}</Totaal>
+            <Totaal label={v.vatRegime.__kind__ === "reverse" ? T.regimes.reverse : T.vatAt(String(Number(v.vatRegime.normal) / 100))}>{fmtEuro(v.vatCents)}</Totaal>
+            <Totaal label={T.total} groot>{fmtEuro(v.totalCents)}</Totaal>
+            {flagN > 0 ? <span className="a-tag a-tag--warn">{T.flagCount(flagN)}</span> : <span className="a-tag a-tag--ok">{T.noFlags}</span>}
+          </>} />
+        {sheets}
+      </>
+    );
+  }
   return (
     <Page
       wide
@@ -336,35 +435,8 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
       {v.decision && <p className={v.decision.approved ? "a-note" : "a-err"} data-testid="oi-decision">{v.decision.approved ? T.decisionOk(v.decision.byName, fmtTime(v.decision.at)) : T.decisionNo(v.decision.byName, fmtTime(v.decision.at))}{v.decision.reason ? `: ${v.decision.reason}` : ""}{v.decision.withholding ? ` · ${v.decision.withholding.__kind__ === "check" ? T.proofCheck(t.wadm.results[v.decision.withholding.check.result], v.decision.withholding.check.reference) : T.proofException(v.decision.withholding.exception)}` : ""}</p>}
 
       <div className="vs-top">
-        <section className="vs-card" data-testid="oi-amounts">
-          <h2 className="bw-h3">{T.amounts}</h2>
-          <dl className="vs-dl">
-            <div><dt>{T.net}</dt><dd className="bw-mono">{fmtEuro(v.netCents)}</dd></div>
-            <div><dt>{T.sumLines}</dt><dd className={`bw-mono${v.sumLinesCents !== v.netCents ? " a-err" : ""}`}>{fmtEuro(v.sumLinesCents)}</dd></div>
-            <div><dt>{v.vatRegime.__kind__ === "reverse" ? T.regimes.reverse : T.vatAt(String(Number(v.vatRegime.normal) / 100))}</dt><dd className="bw-mono">{fmtEuro(v.vatCents)}{v.expectedVatCents !== undefined && v.expectedVatCents !== v.vatCents ? ` (${T.expected} ${fmtEuro(v.expectedVatCents)})` : ""}</dd></div>
-            <div className="vs-dl__big"><dt>{T.total}</dt><dd className="bw-mono">{fmtEuro(v.totalCents)}</dd></div>
-          </dl>
-          {v.dealRate && <p className="bw-muted" data-testid="oi-deal-rate">{v.dealRate}</p>}
-          {v.attestWarnings.length > 0 && <div className="a-alert" data-testid="oi-attests"><strong>{t.afspraken.warnings}: </strong>{v.attestWarnings.join(" · ")}</div>}
-          {v.headerFlags.length > 0 && <ul className="vs-findings" data-testid="oi-header-flags">{v.headerFlags.map((f) => <li key={f.key}><span className="a-tag a-tag--warn">{T.flagTag}</span> {T.flags[f.key] ?? f.text}</li>)}</ul>}
-          <p className="bw-muted">{T.hoursAll(fmtQty(v.hoursAll.validMilli), fmtQty(v.hoursAll.disputedMilli))}</p>
-          {v.previous.length > 0 && (
-            <>
-              <h3 className="bw-h3">{T.previous}</h3>
-              <ul className="vs-facts">{v.previous.map((p) => <li key={String(p.id)}><button type="button" className="wb-link" onClick={() => go(`oa-facturen/${p.id}`)}>{p.number}</button> · {fmtDayNum(p.invoiceDay)} · {T.status[p.status]} · <span className="bw-mono">{fmtEuro(p.netCents)}</span></li>)}</ul>
-            </>
-          )}
-        </section>
-        <section className="vs-card" data-testid="oi-withholding">
-          <h2 className="bw-h3">{T.withholding}</h2>
-          <p>{t.wadm.states[w.state] ?? w.state}{w.last ? ` · ${t.wadm.lastCheck} ${fmtDayNum(w.last.consultedOn)}${w.last.reference ? ` (${w.last.reference})` : ""}` : ""}</p>
-          {v.todayCheck ? <p className="a-note" data-testid="oi-today">{T.today(t.wadm.results[v.todayCheck.result], v.todayCheck.reference || "–")}</p> : <p className="a-note">{T.noToday}</p>}
-          {(v.withholdSocialCents > 0n || v.withholdFiscalCents > 0n) && <p className="a-err">{T.withhold(fmtEuro(v.withholdSocialCents), fmtEuro(v.withholdFiscalCents))}</p>}
-          <div className="a-row">
-            {w.link && <a className="bw-btn bw-btn--secondary" href={w.link} target="_blank" rel="noreferrer">{t.wadm.consult} ↗</a>}
-            {v.canDecide && <Button onClick={() => setSheet("check")} data-testid="oi-record">{t.wadm.record}</Button>}
-          </div>
-        </section>
+        {amountsCard}
+        {withholdCard}
       </div>
 
       <section className="vs-section">
@@ -373,29 +445,7 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
       </section>
       <InvCheckPanel invoiceId={id} workId={b.workId} file={v.file} canStart={v.canDecide && (b.status === OaInvoiceStatus.registered || b.status === OaInvoiceStatus.disputed)} />
 
-      <Sheet title={T.approveTitle} open={sheet === "approve"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={!canApprove || (flagN > 0 && reason.trim().length < 5)} onClick={() => void approve()} data-testid="oi-approve-go">{T.approve}</Button></>}>
-        <p>{T.approveLead}</p>
-        {v.todayCheck && !useExc ? <p className="a-note">{T.today(t.wadm.results[v.todayCheck.result], v.todayCheck.reference || "–")}</p> : null}
-        {!v.todayCheck && !useExc && <p className="a-err">{T.needCheck}</p>}
-        <label className="a-check"><input type="checkbox" checked={useExc} onChange={(e) => setUseExc(e.target.checked)} data-testid="oi-use-exc" /> {T.useException}</label>
-        {useExc && <label className="bw-field"><span className="bw-label">{T.exception}</span><textarea className="bw-input" rows={2} value={exc} onChange={(e) => setExc(e.target.value)} data-testid="oi-exc" /></label>}
-        {flagN > 0 && <label className="bw-field"><span className="bw-label">{T.flagReason(flagN)}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} data-testid="oi-reason" /></label>}
-      </Sheet>
-      <Sheet title={T.disputeTitle} open={sheet === "dispute"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="danger" busy={busy} disabled={reason.trim().length < 5} onClick={() => void dispute()} data-testid="oi-dispute-go">{T.dispute}</Button></>}>
-        <p>{T.disputeLead(T.notice[v.disputeNotice] ?? v.disputeNotice)}</p>
-        <label className="bw-field"><span className="bw-label">{T.reason}</span><textarea className="bw-input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} data-testid="oi-dispute-reason" /></label>
-      </Sheet>
-      <Sheet title={T.withdrawTitle} open={sheet === "withdraw"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="danger" busy={busy} disabled={reason.trim().length < 5} onClick={() => void withdraw()}>{T.withdraw}</Button></>}>
-        <p>{T.withdrawLead}</p>
-        <label className="bw-field"><span className="bw-label">{T.reason}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-      </Sheet>
-      <Sheet title={t.wadm.record} open={sheet === "check"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={chk.reference.trim() === ""} onClick={() => void record()} data-testid="oi-check-go">{t.wadm.record}</Button></>}>
-        <p className="bw-muted">{t.wadm.recordLead}</p>
-        <label className="bw-field"><span className="bw-label">{t.wadm.result}</span><select className="bw-input" value={chk.result} onChange={(e) => setChk({ ...chk, result: e.target.value as WithholdingResult })} data-testid="oi-check-result">{[WithholdingResult.clear, WithholdingResult.social, WithholdingResult.fiscal, WithholdingResult.both, WithholdingResult.unknown].map((r) => <option key={r} value={r}>{t.wadm.results[r]}</option>)}</select></label>
-        <label className="bw-field"><span className="bw-label">{t.wadm.reference}</span><input className="bw-input" value={chk.reference} onChange={(e) => setChk({ ...chk, reference: e.target.value })} data-testid="oi-check-ref" /></label>
-        <label className="bw-field"><span className="bw-label">{t.wadm.note}</span><input className="bw-input" value={chk.note} onChange={(e) => setChk({ ...chk, note: e.target.value })} /></label>
-        <p className="bw-muted">{T.checkToday}</p>
-      </Sheet>
+      {sheets}
     </Page>
   );
 }
@@ -452,11 +502,28 @@ function LinesControl({ lines }: { lines: CRow[] }) {
 // ── De werfleider: hoeveelheden en uren, geen bedragen ─────────────────────
 function QtyInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
   const paneel = useInPaneel();
+  const wide = useWerkvormKan();
   const { actor, isFetching } = useBackend();
   const q = useQuery({ queryKey: ["oaInvoiceQty", String(id)], queryFn: () => actor!.oaInvoiceQty(id), enabled: !!actor && !isFetching });
   const v: OaInvoiceQtyView | undefined = q.data;
   if (!v) return <Page label={T.label} title={T.title}><Loading q={q} /></Page>;
   const b = v.brief;
+  if (wide) {
+    return (
+      <InvoiceBlad lines={v.lines.map((l) => ({ q: l }))} money={false} inPaneel={paneel}
+        kop={<>
+          {!paneel && <Button size="sm" variant="quiet" icon="back" iconOnly onClick={() => go("oa-facturen")}>{t.common.back}</Button>}
+          <div className="rb-kop__titel"><span className="bw-label">{T.label} · {b.workCode} {b.workName}</span><h1 className="rb-h1">{b.orgName} · {b.number}</h1></div>
+          <span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span>
+          <span className="bw-muted rb-klein">{T.dayLine(fmtDayNum(b.invoiceDay), b.dueDay !== undefined ? fmtDayNum(b.dueDay) : "–")}</span>
+          <span className="rb-kop__vul" />
+          <Button size="sm" icon="building" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
+        </>}
+        melding={<><p className="rb-melding">{T.qtyOnly}</p>{!v.oaOnWork && <p className="rb-melding">{T.flags["oa-niet-op-werf"]}</p>}</>}
+        extraTabs={[]}
+        totalen={<span className="bw-muted">{T.hoursAll(fmtQty(v.hoursAll.validMilli), fmtQty(v.hoursAll.disputedMilli))}</span>} />
+    );
+  }
   return (
     <Page wide label={`${T.label} · ${b.workCode} ${b.workName}`} title={`${b.orgName} · ${b.number}`} actions={<>{!paneel && <Button variant="quiet" icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button>}<Button icon="building" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button></>}>
       <div className="vs-head"><span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span><span className="bw-muted">{T.dayLine(fmtDayNum(b.invoiceDay), b.dueDay !== undefined ? fmtDayNum(b.dueDay) : "–")}</span></div>
@@ -508,4 +575,79 @@ export function parseEuroSigned(s: string): bigint | null {
   const r = parseEuro(neg ? v.slice(1) : v);
   if (r === null || r === undefined) return r === undefined ? null : null;
   return neg ? -r : r;
+}
+
+// ── 4b.3c: de factuurcontrole als werkblad (soorten links · lijnen · paneel van de lijn · bedragen onderaan) ───────────
+// De controle is alleen-lezen: wat je met de factuur doet (goedkeuren, betwisten, intrekken) blijft een bewuste handeling met een
+// bevestiging; er is geen vanzelf bewaren en geen ongedaan maken.
+function InvoiceBlad({ lines, money, kop, melding, extraTabs, totalen, inPaneel }: {
+  lines: CRow[]; money: boolean; kop: React.ReactNode; melding?: React.ReactNode; extraTabs: import("../design").PaneelTab[]; totalen: React.ReactNode; inPaneel: boolean;
+}) {
+  const W = t.werkvorm;
+  const [cur, setCur] = useState<string | null>(null);
+  const [tab, setTab] = useState("lijn");
+  const raster = useRef<HTMLDivElement>(null);
+  const vorm = useRef<WerkvormHandle>(null);
+  const flagsOf = (l: CRow) => [...l.q.flags, ...(l.m?.flags ?? [])];
+  const kinds = [...new Set(lines.map((l) => l.q.kind))];
+  const sel = lines.find((l) => String(l.q.index) === cur) ?? null;
+  const springNaar = (k: string) => {
+    const el = raster.current?.querySelector<HTMLElement>(`[data-ch="${CSS.escape(k)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start", behavior: "smooth" });
+    el.classList.add("rb-flits");
+    window.setTimeout(() => el.classList.remove("rb-flits"), 1600);
+  };
+  const lijn = !sel ? <p className="bw-muted">{W.geenLijn}</p> : (() => {
+    const q = sel.q;
+    const u = unitOf(q.unit);
+    const fl = flagsOf(sel);
+    return (
+      <div className="rb-lijn" data-testid="oi-lijn">
+        <div className="rb-lijn__kop"><b>{q.postTitle || q.description || T.kinds[q.kind]}</b><span className="bw-muted">{T.kinds[q.kind]}{q.postTitle && q.description ? ` · ${q.description}` : ""}</span></div>
+        <div className="vs-flags">{fl.length > 0 ? flagsText(fl).map((f, i) => <span key={i} className="a-tag a-tag--warn">{f}</span>) : <span className="a-tag a-tag--ok">{T.lineOk}</span>}</div>
+        {q.hours && <p className="bw-muted">{T.hoursLine(fmtQty(q.hours.validMilli), fmtQty(q.hours.openMilli), fmtQty(q.hours.disputedMilli))}</p>}
+        <dl className="wv-dl">
+          <dt>{T.qty}</dt><dd>{fmtQty(q.qtyMilli)} {u}</dd>
+          <dt>{T.expectedCol}</dt><dd>{q.expectedQtyMilli !== undefined ? `${fmtQty(q.expectedQtyMilli)} ${u}` : "–"}{T.expectedFrom[q.expectedFrom] ? ` · ${T.expectedFrom[q.expectedFrom]}` : ""}</dd>
+          <dt>{T.prevQty}</dt><dd>{fmtQty(q.prevQtyMilli)} {u}{sel.m && <> · {fmtEuro(sel.m.prevCents)}</>}</dd>
+          {money && <><dt>{T.unitPrice}</dt><dd>{fmtEuro(sel.m?.unitCents)}</dd><dt>{T.agreed}</dt><dd>{sel.m?.agreedCents !== undefined ? fmtEuro(sel.m.agreedCents) : "–"}</dd><dt>{T.amount}</dt><dd><b>{fmtEuro(sel.m?.amountCents)}</b></dd></>}
+        </dl>
+      </div>
+    );
+  })();
+  const aantalVlag = lines.filter((l) => flagsOf(l).length > 0).length;
+  return (
+    <Werkvorm ref={vorm} testid="oi-blad" rasterRef={raster} tab={tab} onTab={setTab} rasterLabel={T.control} naarBoven={!inPaneel} hint={W.sneltoets}
+      kolommen={money ? "minmax(240px, 1fr) 100px 110px 100px 100px 100px 110px" : "minmax(240px, 1fr) 110px 130px 110px"}
+      kop={kop} melding={melding}
+      inhoud={kinds.length > 1 ? { titel: W.inhoud, onKies: springNaar, items: kinds.map((k) => ({ key: k, titel: T.kinds[k], sub: String(lines.filter((l) => l.q.kind === k).length), aandacht: lines.some((l) => l.q.kind === k && flagsOf(l).length > 0) })) } : undefined}
+      tabs={[{ key: "lijn", label: W.paneel, badge: aantalVlag, inhoud: lijn }, ...extraTabs]}
+      totalen={totalen}>
+      <RasterKop kolommen={[{ label: T.line }, { label: T.qty, num: true }, { label: T.expectedCol, num: true }, { label: T.prevQty, num: true }, ...(money ? [{ label: T.unitPrice, num: true }, { label: T.agreed, num: true }, { label: T.amount, num: true }] : [])]} />
+      {lines.length === 0 && <p className="rb-leeg">{T.noLines}</p>}
+      {kinds.map((k) => (
+        <section key={k} className="rb-ch" data-ch={k}>
+          {kinds.length > 1 && <RasterRij kop><span style={{ gridColumn: "1 / -1", padding: "0 8px" }}><b>{T.kinds[k]}</b></span></RasterRij>}
+          {lines.filter((l) => l.q.kind === k).map((l) => {
+            const q = l.q;
+            const u = unitOf(q.unit);
+            const fl = flagsOf(l);
+            const key = String(q.index);
+            return (
+              <RasterRij key={key} gekozen={cur === key} onKies={() => { setCur(key); setTab("lijn"); vorm.current?.openPaneel("lijn"); }} testid="oi-control-line" stand={fl.length > 0 ? "gewijzigd" : undefined}>
+                <span className="rb-titel__t" title={q.postTitle || q.description}>{q.postTitle || q.description || T.kinds[q.kind]}{fl.length > 0 && <span className="wv-vlag" style={{ display: "inline-block", marginLeft: 6 }} title={flagsText(fl).join(" · ")} />}</span>
+                <span className="rb-rt bw-mono">{fmtQty(q.qtyMilli)} {u}</span>
+                <span className="rb-rt bw-mono">{q.expectedQtyMilli !== undefined ? `${fmtQty(q.expectedQtyMilli)} ${u}` : "–"}</span>
+                <span className="rb-rt bw-mono">{fmtQty(q.prevQtyMilli)} {u}</span>
+                {money && <span className="rb-rt bw-mono">{fmtEuro(l.m?.unitCents)}</span>}
+                {money && <span className="rb-rt bw-mono">{l.m?.agreedCents !== undefined ? fmtEuro(l.m.agreedCents) : "–"}</span>}
+                {money && <span className="rb-rt bw-mono">{fmtEuro(l.m?.amountCents)}</span>}
+              </RasterRij>
+            );
+          })}
+        </section>
+      ))}
+    </Werkvorm>
+  );
 }

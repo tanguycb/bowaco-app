@@ -7,9 +7,10 @@
 // Versturen legt de staat vast (hash); verbeteren = creditnota of volgende staat. Bevestigen gebeurt in een paneel (geen
 // window.confirm). Het scherm van de klant staat onderaan (MijnVorderingPage).
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ProgressBasis, ProgressKind, ProgressSection, ProgressStatus, type Caps, type MyProgressBrief, type MyProgressRead, type ProgressBrief, type ProgressFullView, type ProgressQtyLine, type ProgressQtyView, type RevisionModel } from "../backend";
-import { Button, Icon, Info, Sheet, useToast } from "../design";
+import { Button, Icon, Info, Meer, RasterKop, RasterRij, Sheet, Tag, Terug, Totaal, useToast, useVanzelf, useWerkvormKan, Werkvorm } from "../design";
+import * as G from "../design/vormkern";
 import { makeProgressPdf, pdfFromMyProgress, pdfFromProgress, progressPdfName } from "../pdf/adapt.ts";
 import type { ProgressPdfData } from "../pdf/vorderingsstaat.ts";
 import { progressLine } from "../progress/calc.ts";
@@ -280,16 +281,51 @@ function LinesTable({ rows, edits, setEdit, editable, money }: { rows: Row[]; ed
   );
 }
 
+/** De wijzigingen van de lijnen, lokaal tot ze bewaard zijn. 4b.3c: met ongedaan maken/opnieuw (ook na een bewaring: bij elke
+ *  bewaring bewaart het scherm de omgekeerde wijziging, die Ctrl+Z dan terugzet en weer vanzelf bewaart), en een gedeeltelijke reset:
+ *  wat tijdens een (vanzelf) bewaring werd gewijzigd blijft staan (de wijziging is een ander object dan de bewaarde). */
 function useEdits() {
-  const [edits, setEdits] = useState<Map<string, PM.Edit>>(new Map());
+  const [g, setG] = useState<G.Geschiedenis<Map<string, PM.Edit>>>(() => G.begin(new Map()));
+  const [afgerond, setAfgerond] = useState<Map<string, PM.Edit>[]>([]);
+  const edits = g.nu;
   const setEdit = (root: bigint, e: PM.Edit | undefined) =>
-    setEdits((m) => {
-      const n = new Map(m);
+    setG((h) => {
+      const n = new Map(h.nu);
       if (e === undefined) n.delete(String(root));
       else n.set(String(root), e);
-      return n;
+      return G.zet(h, n);
     });
-  return { edits, setEdit, reset: () => setEdits(new Map()) };
+  const reset = (bewaard?: Map<string, PM.Edit>, omgekeerd?: Map<string, PM.Edit>) => {
+    setG((h) => {
+      if (!bewaard) return G.begin(new Map());
+      const n = new Map(h.nu);
+      for (const [k, e] of bewaard) if (n.get(k) === e) n.delete(k);
+      return G.begin(n);
+    });
+    if (omgekeerd && omgekeerd.size > 0) setAfgerond((a) => [...a, omgekeerd].slice(-G.LIMIET));
+  };
+  const terug = () => {
+    if (g.terug.length > 0) { setG(G.ongedaan); return; }
+    const inv = afgerond[afgerond.length - 1];
+    if (!inv) return;
+    setAfgerond((a) => a.slice(0, -1));
+    setG((h) => G.zet(h, new Map([...h.nu, ...inv])));
+  };
+  return { edits, setEdit, reset, terug, vooruit: () => setG(G.opnieuw), kanTerug: g.terug.length > 0 || afgerond.length > 0, kanVooruit: g.vooruit.length > 0 };
+}
+
+/** De omgekeerde wijziging van wat bewaard wordt: de stand van de server vóór de bewaring. */
+function omgekeerd(rows: Row[], edits: Map<string, PM.Edit>): Map<string, PM.Edit> {
+  const m = new Map<string, PM.Edit>();
+  for (const r of rows) {
+    const k = String(r.q.root);
+    if (!edits.has(k)) continue;
+    const ml = toModel(r);
+    if (!ml.hasInput) { m.set(k, { clear: true }); continue; }
+    const x = PM.effective(ml, undefined);
+    m.set(k, { clear: false, cumPctBp: x.cumPctBp, cumQtyMilli: x.cumQtyMilli, note: x.note });
+  }
+  return m;
 }
 
 const opsTs = (ops: ReturnType<typeof PM.opsOf>) => ops.map((o) => ({ root: o.root, cumPctBp: o.cumPctBp ?? undefined, cumQtyMilli: o.cumQtyMilli ?? undefined, note: o.note, clear: o.clear }));
@@ -312,7 +348,8 @@ function QtyStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
   const toast = useToast();
   const q = useQuery({ queryKey: ["progressQty", String(id)], queryFn: () => actor!.progressQty(id), enabled: !!actor && !isFetching });
-  const { edits, setEdit, reset } = useEdits();
+  const { edits, setEdit, reset, terug: terugEdits, vooruit: vooruitEdits, kanTerug, kanVooruit } = useEdits();
+  const wide = useWerkvormKan();
   const [periodTo, setPeriodTo] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const v: ProgressQtyView | undefined = q.data;
@@ -321,15 +358,17 @@ function QtyStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
   const rows: Row[] = v.lines.map((x) => ({ q: x }));
   const lines = rows.map(toModel);
   const dirty = edits.size + (periodTo && inputToDay(periodTo) !== v.brief.periodTo ? 1 : 0);
-  const save = async () => {
+  const save = async (stil = false): Promise<boolean> => {
     setBusy(true);
     try {
       unwrap(await actor!.saveProgressDraft(id, v.brief.rev, { periodTo: inputToDay(periodTo) !== v.brief.periodTo ? inputToDay(periodTo) : undefined, note: undefined, setIndexes: false, sIndex: undefined, iIndex: undefined, lines: opsTs(PM.opsOf(lines, edits)), expect: undefined }));
-      toast.show({ kind: "ok", text: T.saved });
-      reset();
+      if (!stil) toast.show({ kind: "ok", text: T.saved });
+      reset(edits, omgekeerd(rows, edits));
       await q.refetch();
+      return true;
     } catch (e) {
       toast.show({ kind: "error", text: errText(e) });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -346,6 +385,33 @@ function QtyStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
       setBusy(false);
     }
   };
+  if (wide) {
+    return (
+      <StatementBlad b={v.brief} rows={rows} edits={edits} setEdit={setEdit} editable={v.canEdit} money={false} sections={null} go={go}
+        kopRechts={<>
+          {v.canEdit && v.canPrepare && <Button variant="primary" size="sm" busy={busy} disabled={dirty > 0} onClick={() => void prepared()} data-testid="vs-prepared">{T.prepare}</Button>}
+          {v.canEdit && <Button size="sm" busy={busy} disabled={dirty === 0} onClick={() => void save()} data-testid="vs-save">{T.save}</Button>}
+        </>}
+        melding={<>
+          <p className="rb-melding">{T.qtyOnly}</p>
+          {v.note === "geen getekende offerte" && <p className="rb-melding">{T.noPosts}</p>}
+          {v.openSurvey !== undefined && <p className="rb-melding">{T.openSurvey(String(v.openSurvey))}</p>}
+          {v.unassignedRegieMilli > 0n && <p className="rb-melding">{T.unassigned(`${fmtQty(v.unassignedRegieMilli)} u`)}</p>}
+        </>}
+        staat={v.canEdit ? (
+          <label className="bw-field vs-period">
+            <span className="bw-label">{T.periodTo}</span>
+            <input type="date" className="bw-input" value={periodTo} min={dayToInput(v.brief.periodFrom)} max={dayToInput(todayDay())} onChange={(e) => setPeriodTo(e.target.value)} />
+          </label>
+        ) : <p className="bw-muted">{T.period(fmtDayNum(v.brief.periodFrom), fmtDayNum(v.brief.periodTo))}</p>}
+        terug={{ kan: kanTerug, kanVooruit, ongedaan: terugEdits, opnieuw: vooruitEdits }}
+        wijzigingen={dirty} geldig bezig={busy} bewaar={() => save(true)}
+        totalen={<>
+          <Totaal label={t.werkvorm.posten}>{rows.length}</Totaal>
+          <Totaal label={t.werkvorm.ingevuld}>{rows.filter((r) => PM.effective(toModel(r), edits.get(String(r.q.root))).hasInput).length}</Totaal>
+        </>} />
+    );
+  }
   return (
     <Page
       wide
@@ -380,7 +446,8 @@ function FullStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
   const toast = useToast();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["progressFull", String(id)], queryFn: async () => unwrap(await actor!.readProgressStatement(id)), enabled: !!actor && !isFetching, staleTime: 0, gcTime: 0 });
-  const { edits, setEdit, reset } = useEdits();
+  const { edits, setEdit, reset, terug: terugEdits, vooruit: vooruitEdits, kanTerug, kanVooruit } = useEdits();
+  const wide = useWerkvormKan();
   const [periodTo, setPeriodTo] = useState("");
   const [note, setNote] = useState("");
   const [sIdx, setSIdx] = useState("");
@@ -417,11 +484,11 @@ function FullStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
   const tot = editable && live ? live : { ...v.totals, sections: v.totals.sections.map((s) => ({ ...s, section: s.section as string })) };
   const blocks = v.findings.filter((f) => f.block);
   const warns = v.findings.filter((f) => !f.block);
-  const run = async (f: () => Promise<void>) => {
+  const run = async (f: () => Promise<void>): Promise<boolean> => {
     setBusy(true);
-    try { await f(); } catch (e) { toast.show({ kind: "error", text: errText(e) }); } finally { setBusy(false); }
+    try { await f(); return true; } catch (e) { toast.show({ kind: "error", text: errText(e) }); return false; } finally { setBusy(false); }
   };
-  const save = () => run(async () => {
+  const save = (stil = false) => run(async () => {
     if (!live) throw new Error(T.bad);
     unwrap(await actor!.saveProgressDraft(id, v.brief.rev, {
       periodTo: ptChanged ? inputToDay(periodTo) : undefined,
@@ -432,8 +499,8 @@ function FullStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
       lines: opsTs(PM.opsOf(lines, edits)),
       expect: PM.expectOf(live),
     }));
-    toast.show({ kind: "ok", text: T.saved });
-    reset();
+    if (!stil) toast.show({ kind: "ok", text: T.saved });
+    reset(edits, omgekeerd(rows, edits));
     await q.refetch();
   });
   const send = () => run(async () => {
@@ -486,30 +553,8 @@ function FullStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
     a.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   });
-  const secTotals = SECTIONS.map((s) => tot.sections.find((x) => x.section === s)).filter((x) => x && (x.offerCents !== 0n || x.cumCents !== 0n || x.periodCents !== 0n));
   const h = v.header;
-  return (
-    <Page
-      wide
-      label={`${T.label} · ${v.brief.workCode} ${v.brief.workName}`}
-      title={briefTitle(v.brief)}
-      actions={<>
-        <Button icon="back" onClick={() => go(`werven/${v.brief.workId}/facturatie`)}>{t.common.back}</Button>
-        <Button icon="doc" busy={busy} onClick={() => void pdf()} data-testid="vs-pdf">{v.frozen ? T.pdf : T.pdfPreview}</Button>
-        {editable && <Button variant="primary" icon="check" busy={busy} disabled={dirty === 0 || idxBad} onClick={() => void save()} data-testid="vs-save">{T.save}</Button>}
-        {v.canSend && <Button variant="primary" icon="share" disabled={dirty > 0} onClick={() => { setReason(""); setSheet("send"); }} data-testid="vs-send">{dirty > 0 ? T.saveFirst : T.send}</Button>}
-        {v.canReady && <Button icon="check" onClick={() => setSheet("ready")} data-testid="vs-ready">{T.ready}</Button>}
-        {v.frozen && <Button icon="receipt" busy={busy} onClick={() => void invoice()} data-testid="vs-invoice">{T.invoiceData}</Button>}
-        {v.canCredit && <Button icon="undo" onClick={() => { setReason(""); setSheet("credit"); }} data-testid="vs-credit">{T.creditBtn}</Button>}
-        {v.canCancel && <Button variant="quiet" icon="close" onClick={() => { setReason(""); setSheet("cancel"); }}>{T.cancel}</Button>}
-      </>}
-    >
-      <StatementHead b={v.brief} go={go} />
-      {v.frozen && <p className={v.intact ? "bw-muted" : "a-err"} data-testid="vs-frozen">{T.frozen} · {v.intact ? T.intact : T.notIntact} · <span className="bw-mono">{v.hash.slice(0, 16)}…</span>{v.doc ? ` · ${T.tot.due(fmtDayNum(v.doc.dueDay))}` : ""}</p>}
-      {v.frozen && v.brief.kind === ProgressKind.statement && <p className="bw-muted" data-testid="vs-answer">{v.answer ? (v.answer.ok ? T.answerOk(v.answer.byName, fmtTime(v.answer.at)) : T.answerNo(v.answer.byName, fmtTime(v.answer.at), v.answer.note)) : v.clientMode === "uit" ? T.clientModeOff : `${T.noAnswer}${v.clientMode === "vereist" ? ` · ${T.clientRequired}` : ""}`}</p>}
-      {v.note === "geen getekende offerte" && <p className="a-note">{T.noPosts}</p>}
-
-      <div className="vs-top">
+  const contractCard = (
         <section className="vs-card" data-testid="vs-contract">
           <h2 className="bw-h3">{T.contract}</h2>
           {!h.contractFound && <p className="a-note">{T.noContract}</p>}
@@ -548,6 +593,105 @@ function FullStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
             </>
           )}
         </section>
+  );
+  const findingsBlock = (
+      v.findings.length > 0 && (
+        <section className="vs-card" data-testid="vs-findings">
+          <h2 className="bw-h3">{T.findings}</h2>
+          <ul className="vs-findings">
+            {v.findings.map((f) => <li key={f.key}><span className={`a-tag ${f.block ? "a-tag--bad" : "a-tag--warn"}`}>{f.block ? T.block : T.warn}</span> {f.text}{f.count > 0n ? ` (${f.count})` : ""}</li>)}
+          </ul>
+        </section>
+      )
+  );
+  const secTotals = SECTIONS.map((s) => tot.sections.find((x) => x.section === s)).filter((x) => x && (x.offerCents !== 0n || x.cumCents !== 0n || x.periodCents !== 0n));
+  const sheets = (
+    <>
+      <Sheet title={T.sendTitle} open={sheet === "send"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={blocks.length > 0 || (warns.length > 0 && reason.trim().length < 5)} onClick={() => void send()} data-testid="vs-send-go">{T.send}</Button></>}>
+        <p>{T.sendLead}</p>
+        <p className="bw-mono"><b>{T.tot.total}: {fmtEuro(v.totals.totalCents)}</b>{v.totals.retentionCents !== 0n ? ` · ${T.tot.payable}: ${fmtEuro(v.totals.payableCents)}` : ""}</p>
+        {blocks.length > 0 && <p className="a-err">{T.sendBlocked}</p>}
+        {v.findings.length > 0 && <ul className="vs-findings">{v.findings.map((f) => <li key={f.key}><span className={`a-tag ${f.block ? "a-tag--bad" : "a-tag--warn"}`}>{f.block ? T.block : T.warn}</span> {f.text}{f.count > 0n ? ` (${f.count})` : ""}</li>)}</ul>}
+        {warns.length > 0 && <label className="bw-field"><span className="bw-label">{T.sendReason}</span><textarea className="bw-input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} data-testid="vs-reason" /></label>}
+      </Sheet>
+      <Sheet title={T.cancelTitle} open={sheet === "cancel"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="danger" busy={busy} disabled={reason.trim().length < 5} onClick={() => void cancel()}>{T.cancel}</Button></>}>
+        <p>{T.cancelLead}</p>
+        <label className="bw-field"><span className="bw-label">{T.reason}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+      </Sheet>
+      <Sheet title={T.creditTitle} open={sheet === "credit"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="danger" busy={busy} disabled={reason.trim().length < 5} onClick={() => void credit()} data-testid="vs-credit-go">{T.creditBtn}</Button></>}>
+        <p>{T.creditLead}</p>
+        <label className="bw-field"><span className="bw-label">{T.reason}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+      </Sheet>
+      <Sheet title={T.readyTitle} open={sheet === "ready"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} onClick={() => void ready()} data-testid="vs-ready-go">{T.ready}</Button></>}>
+        <p>{T.readyLead}</p>
+      </Sheet>
+      {sheet === "model" && <ModelSheet workId={v.brief.workId} onClose={() => setSheet(null)} onSaved={() => { setSheet(null); void q.refetch(); }} />}
+    </>
+  );
+  if (wide) {
+    const dirtyN = dirty;
+    return (
+      <>
+        <StatementBlad b={v.brief} rows={rows} edits={edits} setEdit={setEdit} editable={editable} money sections={tot.sections} go={go}
+          kopRechts={<>
+            <Meer size="sm" items={[
+              { label: v.frozen ? T.pdf : T.pdfPreview, icon: "doc", onClick: () => void pdf(), testid: "vs-pdf" },
+              v.canReady && { label: T.ready, icon: "check", onClick: () => setSheet("ready"), testid: "vs-ready" },
+              v.frozen && { label: T.invoiceData, icon: "receipt", onClick: () => void invoice(), testid: "vs-invoice" },
+              v.canCredit && { label: T.creditBtn, icon: "undo", onClick: () => { setReason(""); setSheet("credit"); }, testid: "vs-credit" },
+              v.canCancel && { label: T.cancel, icon: "close", danger: true, onClick: () => { setReason(""); setSheet("cancel"); } },
+            ]} />
+            {v.canSend ? <Button variant="primary" size="sm" icon="share" disabled={dirtyN > 0 || busy} onClick={() => { setReason(""); setSheet("send"); }} data-testid="vs-send">{dirtyN > 0 ? T.saveFirst : T.send}</Button>
+              : editable ? <Button variant="primary" size="sm" icon="check" busy={busy} disabled={dirtyN === 0 || idxBad} onClick={() => void save()} data-testid="vs-save">{T.save}</Button> : null}
+            {v.canSend && editable && <Button size="sm" icon="check" busy={busy} disabled={dirtyN === 0 || idxBad} onClick={() => void save()} data-testid="vs-save">{T.save}</Button>}
+          </>}
+          melding={<>
+            {v.frozen && <p className={`rb-melding${v.intact ? "" : " a-err"}`} data-testid="vs-frozen">{T.frozen} · {v.intact ? T.intact : T.notIntact} · <span className="bw-mono">{v.hash.slice(0, 16)}…</span>{v.doc ? ` · ${T.tot.due(fmtDayNum(v.doc.dueDay))}` : ""}</p>}
+            {v.note === "geen getekende offerte" && <p className="rb-melding">{T.noPosts}</p>}
+            {v.openSurvey !== undefined && <p className="rb-melding">{T.openSurvey(String(v.openSurvey))}</p>}
+            {v.unassignedRegieMilli > 0n && <p className="rb-melding">{T.unassigned(`${fmtQty(v.unassignedRegieMilli)} u`)}</p>}
+          </>}
+          staat={contractCard}
+          controle={v.findings.length > 0 ? { node: findingsBlock, n: v.findings.length } : undefined}
+          terug={{ kan: kanTerug, kanVooruit, ongedaan: terugEdits, opnieuw: vooruitEdits }}
+          wijzigingen={dirtyN} geldig={!idxBad && !!live} bezig={busy} bewaar={() => save(true)}
+          totalen={<>
+            {secTotals.map((x) => <Totaal key={x!.section} label={T.sectionsShort[x!.section]}>{fmtEuro(x!.periodCents)}</Totaal>)}
+            <Totaal label={T.tot.period}>{fmtEuro(tot.periodCents)}</Totaal>
+            {(h.formula || tot.revisionCents !== 0n) && <Totaal label={T.tot.revision}>{fmtEuro(tot.revisionCents)}</Totaal>}
+            <Totaal label={T.tot.subtotal}>{fmtEuro(tot.subtotalCents)}</Totaal>
+            <Totaal label={T.tot.vat(fmtBp(tot.vatBp))}>{fmtEuro(tot.vatCents)}</Totaal>
+            <Totaal label={T.tot.total} groot><span data-testid="vs-total">{fmtEuro(tot.totalCents)}</span></Totaal>
+            {tot.retentionCents !== 0n && <Totaal label={`${T.tot.retention} ${fmtBp(tot.retentionBp)}`}>{fmtEuro(-tot.retentionCents)}</Totaal>}
+            {tot.retentionCents !== 0n && <Totaal label={T.tot.payable} groot><span data-testid="vs-payable">{fmtEuro(tot.payableCents)}</span></Totaal>}
+          </>} />
+        {sheets}
+      </>
+    );
+  }
+  return (
+    <Page
+      wide
+      label={`${T.label} · ${v.brief.workCode} ${v.brief.workName}`}
+      title={briefTitle(v.brief)}
+      actions={<>
+        <Button icon="back" onClick={() => go(`werven/${v.brief.workId}/facturatie`)}>{t.common.back}</Button>
+        <Button icon="doc" busy={busy} onClick={() => void pdf()} data-testid="vs-pdf">{v.frozen ? T.pdf : T.pdfPreview}</Button>
+        {editable && <Button variant="primary" icon="check" busy={busy} disabled={dirty === 0 || idxBad} onClick={() => void save()} data-testid="vs-save">{T.save}</Button>}
+        {v.canSend && <Button variant="primary" icon="share" disabled={dirty > 0} onClick={() => { setReason(""); setSheet("send"); }} data-testid="vs-send">{dirty > 0 ? T.saveFirst : T.send}</Button>}
+        {v.canReady && <Button icon="check" onClick={() => setSheet("ready")} data-testid="vs-ready">{T.ready}</Button>}
+        {v.frozen && <Button icon="receipt" busy={busy} onClick={() => void invoice()} data-testid="vs-invoice">{T.invoiceData}</Button>}
+        {v.canCredit && <Button icon="undo" onClick={() => { setReason(""); setSheet("credit"); }} data-testid="vs-credit">{T.creditBtn}</Button>}
+        {v.canCancel && <Button variant="quiet" icon="close" onClick={() => { setReason(""); setSheet("cancel"); }}>{T.cancel}</Button>}
+      </>}
+    >
+      <StatementHead b={v.brief} go={go} />
+      {v.frozen && <p className={v.intact ? "bw-muted" : "a-err"} data-testid="vs-frozen">{T.frozen} · {v.intact ? T.intact : T.notIntact} · <span className="bw-mono">{v.hash.slice(0, 16)}…</span>{v.doc ? ` · ${T.tot.due(fmtDayNum(v.doc.dueDay))}` : ""}</p>}
+      {v.frozen && v.brief.kind === ProgressKind.statement && <p className="bw-muted" data-testid="vs-answer">{v.answer ? (v.answer.ok ? T.answerOk(v.answer.byName, fmtTime(v.answer.at)) : T.answerNo(v.answer.byName, fmtTime(v.answer.at), v.answer.note)) : v.clientMode === "uit" ? T.clientModeOff : `${T.noAnswer}${v.clientMode === "vereist" ? ` · ${T.clientRequired}` : ""}`}</p>}
+      {v.note === "geen getekende offerte" && <p className="a-note">{T.noPosts}</p>}
+
+      <div className="vs-top">
+        {contractCard}
 
         <section className="vs-card vs-totals" data-testid="vs-totals">
           <h2 className="bw-h3">{T.totals}</h2>
@@ -572,37 +716,12 @@ function FullStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
         </section>
       </div>
 
-      {v.findings.length > 0 && (
-        <section className="vs-card" data-testid="vs-findings">
-          <h2 className="bw-h3">{T.findings}</h2>
-          <ul className="vs-findings">
-            {v.findings.map((f) => <li key={f.key}><span className={`a-tag ${f.block ? "a-tag--bad" : "a-tag--warn"}`}>{f.block ? T.block : T.warn}</span> {f.text}{f.count > 0n ? ` (${f.count})` : ""}</li>)}
-          </ul>
-        </section>
-      )}
+      {findingsBlock}
       {v.openSurvey !== undefined && <p className="a-note">{T.openSurvey(String(v.openSurvey))}</p>}
       {v.unassignedRegieMilli > 0n && <p className="a-note">{T.unassigned(`${fmtQty(v.unassignedRegieMilli)} u`)}</p>}
       <LinesTable rows={rows} edits={edits} setEdit={setEdit} editable={editable} money />
 
-      <Sheet title={T.sendTitle} open={sheet === "send"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} disabled={blocks.length > 0 || (warns.length > 0 && reason.trim().length < 5)} onClick={() => void send()} data-testid="vs-send-go">{T.send}</Button></>}>
-        <p>{T.sendLead}</p>
-        <p className="bw-mono"><b>{T.tot.total}: {fmtEuro(v.totals.totalCents)}</b>{v.totals.retentionCents !== 0n ? ` · ${T.tot.payable}: ${fmtEuro(v.totals.payableCents)}` : ""}</p>
-        {blocks.length > 0 && <p className="a-err">{T.sendBlocked}</p>}
-        {v.findings.length > 0 && <ul className="vs-findings">{v.findings.map((f) => <li key={f.key}><span className={`a-tag ${f.block ? "a-tag--bad" : "a-tag--warn"}`}>{f.block ? T.block : T.warn}</span> {f.text}{f.count > 0n ? ` (${f.count})` : ""}</li>)}</ul>}
-        {warns.length > 0 && <label className="bw-field"><span className="bw-label">{T.sendReason}</span><textarea className="bw-input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} data-testid="vs-reason" /></label>}
-      </Sheet>
-      <Sheet title={T.cancelTitle} open={sheet === "cancel"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="danger" busy={busy} disabled={reason.trim().length < 5} onClick={() => void cancel()}>{T.cancel}</Button></>}>
-        <p>{T.cancelLead}</p>
-        <label className="bw-field"><span className="bw-label">{T.reason}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-      </Sheet>
-      <Sheet title={T.creditTitle} open={sheet === "credit"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="danger" busy={busy} disabled={reason.trim().length < 5} onClick={() => void credit()} data-testid="vs-credit-go">{T.creditBtn}</Button></>}>
-        <p>{T.creditLead}</p>
-        <label className="bw-field"><span className="bw-label">{T.reason}</span><textarea className="bw-input" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-      </Sheet>
-      <Sheet title={T.readyTitle} open={sheet === "ready"} onClose={() => setSheet(null)} footer={<><Button onClick={() => setSheet(null)}>{t.common.cancel}</Button><Button variant="primary" busy={busy} onClick={() => void ready()} data-testid="vs-ready-go">{T.ready}</Button></>}>
-        <p>{T.readyLead}</p>
-      </Sheet>
-      {sheet === "model" && <ModelSheet workId={v.brief.workId} onClose={() => setSheet(null)} onSaved={() => { setSheet(null); void q.refetch(); }} />}
+      {sheets}
     </Page>
   );
 }
@@ -758,5 +877,143 @@ function MyStatement({ id, go }: { id: bigint; go: (to: string) => void }) {
         <textarea className="bw-input" rows={3} placeholder={MV.remarkPh} value={note} onChange={(e) => setNote(e.target.value)} />
       </Sheet>
     </Page>
+  );
+}
+
+// ── 4b.3c: de vorderingsstaat als werkblad (secties links · lijnen · paneel van de lijn · totalen onderaan) ───────────────
+type StatementBladProps = {
+  b: ProgressBrief; rows: Row[]; edits: Map<string, PM.Edit>; setEdit: (root: bigint, e: PM.Edit | undefined) => void; editable: boolean; money: boolean;
+  sections: { section: string; offerCents: bigint; cumCents: bigint; periodCents: bigint }[] | null;
+  go: (to: string) => void; kopRechts: React.ReactNode; melding: React.ReactNode; staat: React.ReactNode; controle?: { node: React.ReactNode; n: number };
+  terug: { kan: boolean; kanVooruit: boolean; ongedaan: () => void; opnieuw: () => void };
+  wijzigingen: number; geldig: boolean; bezig: boolean; bewaar: () => Promise<boolean>; totalen: React.ReactNode;
+};
+
+function StatementBlad(p: StatementBladProps) {
+  const W = t.werkvorm;
+  const { b, rows, edits, editable, money } = p;
+  const [cur, setCur] = useState<string | null>(null);
+  const [tab, setTab] = useState("lijn");
+  const raster = useRef<HTMLDivElement>(null);
+  const auto = useVanzelf({ bewerkbaar: editable, wijzigingen: p.wijzigingen, geldig: p.geldig, bezig: p.bezig, sleutel: edits, bewaar: p.bewaar, uit: () => !!(document.activeElement as HTMLElement | null)?.closest?.("[data-geen-vanzelf]") });
+  const terug = useRef(p.terug);
+  terug.current = p.terug;
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const tg = e.target as HTMLElement | null;
+      if (!(e.metaKey || e.ctrlKey) || (tg && /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName))) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey) { e.preventDefault(); terug.current.ongedaan(); }
+      else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); terug.current.opnieuw(); }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
+  const kolommen = money ? "minmax(170px, 1fr) 84px 78px 96px 84px 126px 96px 92px" : "minmax(200px, 1fr) 110px 120px 160px";
+  const kop = money
+    ? [{ label: T.cols.post }, { label: T.cols.offerQty, num: true }, { label: T.cols.unitPrice, num: true }, { label: T.cols.offerAmount, num: true }, { label: T.cols.prev, num: true }, { label: T.cols.cum, num: true }, { label: T.cols.period, num: true }, { label: T.cols.rest, num: true }]
+    : [{ label: T.cols.post }, { label: T.cols.offerQty, num: true }, { label: T.cols.prev, num: true }, { label: T.cols.cum, num: true }];
+  const secs = SECTIONS.filter((sec) => rows.some((r) => r.q.section === sec));
+  const rowOf = (key: string | null) => rows.find((r) => String(r.q.root) === key) ?? null;
+  const sel = rowOf(cur);
+  const flagsOf = (r: Row) => { const e = edits.get(String(r.q.root)); return r.q.flags.filter((f) => f !== "boven-vh" || !e); };
+  const springNaar = (sec: string) => {
+    const el = raster.current?.querySelector<HTMLElement>(`[data-ch="${CSS.escape(sec)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start", behavior: "smooth" });
+    el.classList.add("rb-flits");
+    window.setTimeout(() => el.classList.remove("rb-flits"), 1600);
+  };
+  const lijn = (() => {
+    if (!sel) return <p className="bw-muted">{W.geenLijn}</p>;
+    const q = sel.q;
+    const e = edits.get(String(q.root));
+    const ml = toModel(sel);
+    const out = money ? PM.lineOut(ml, e) : null;
+    const x = PM.effective(ml, e);
+    const flags = flagsOf(sel);
+    return (
+      <div className="rb-lijn" data-testid="vs-lijn">
+        <div className="rb-lijn__kop"><b>{q.code ? `${q.code} ` : ""}{q.title}</b><span className="bw-muted">{[q.chapter, q.quoteNumber, T.basis[q.basis]].filter(Boolean).join(" · ")}</span></div>
+        {flags.length > 0 && <div className="vs-flags">{flags.map((f) => <span key={f} className={`a-tag ${/uitgelegd/.test(f) ? "" : "a-tag--warn"}`}>{T.flags[f] ?? f}</span>)}</div>}
+        {editable && <p className="bw-muted rb-klein" data-testid="vs-hint">{T.cols.hint}: {hintText(q)}{!x.hasInput ? ` · ${T.followProposal}` : ""}</p>}
+        <dl className="wv-dl">
+          <dt>{T.cols.offerQty}</dt><dd>{fmtQty(q.offerQtyMilli)} {unitOf(q.unit)}</dd>
+          {money && <><dt>{T.cols.unitPrice}</dt><dd>{sel.m?.noPrice ? "–" : fmtEuro(sel.m?.unitPriceCents)}</dd><dt>{T.cols.offerAmount}</dt><dd>{fmtEuro(out?.offerCents)}</dd></>}
+          <dt>{T.cols.prev}</dt><dd>{valueOf(q.basis, q.prevPctBp, q.prevQtyMilli, q.unit)}{money && <> · {fmtEuro(sel.m?.prevCents)}</>}</dd>
+          <dt>{T.cols.cum}</dt><dd>{valueOf(q.basis, x.cumPctBp, x.cumQtyMilli, q.unit)}{money && <> · {fmtEuro(out?.cumCents)}</>}</dd>
+          {money && <><dt>{T.cols.period}</dt><dd><b>{signedEuro(out!.periodCents)}</b></dd>{out!.overVhCents > 0n && <><dt>{T.tot.overVh}</dt><dd>{fmtEuro(out!.overVhCents)}</dd></>}<dt>{T.cols.rest}</dt><dd>{fmtEuro(out?.restCents)}</dd></>}
+        </dl>
+        {editable && x.hasInput && (
+          <label className="bw-field rb-veld"><span className="bw-label">{T.note}</span>
+            <input className="bw-input" key={String(q.root)} placeholder={T.notePh} aria-label={`${T.note} · ${q.title}`} defaultValue={x.note} onBlur={(ev) => { if (ev.target.value !== x.note) p.setEdit(q.root, { ...(e ?? {}), clear: false, note: ev.target.value }); }} />
+          </label>
+        )}
+        {!editable && x.note && <p className="bw-muted">{T.note}: {x.note}</p>}
+      </div>
+    );
+  })();
+  const status = auto.bewaren || p.bezig ? W.bewaren : auto.fout ? t.blad.bewaarFout : p.wijzigingen > 0 ? W.nietBewaard(p.wijzigingen) : auto.om ? W.bewaard(new Date(auto.om).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" })) : !editable ? W.alleenLezen : "";
+  return (
+    <Werkvorm testid="vs-blad" rasterRef={raster} tab={tab} onTab={setTab} rasterLabel={T.cols.post} kolommen={kolommen} hint={W.sneltoets}
+      kop={<>
+        <Button size="sm" variant="quiet" icon="back" iconOnly onClick={() => p.go(`werven/${b.workId}/facturatie`)}>{t.common.back}</Button>
+        <div className="rb-kop__titel"><span className="bw-label">{T.label} · {b.workCode} {b.workName}</span><h1 className="rb-h1">{briefTitle(b)}</h1></div>
+        <span className={`a-tag ${statusTag(b)}`}>{b.status === ProgressStatus.sent ? (b.billing !== "open" ? T.billing[b.billing] : T.status.sent) : T.status[b.status]}</span>
+        <span className="bw-muted rb-klein">{T.period(fmtDayNum(b.periodFrom), fmtDayNum(b.periodTo))}</span>
+        <span className={`rb-status${auto.fout ? " rb-status--fout" : ""}`} role="status" data-testid="vs-status" title={editable ? W.vanzelf : undefined}>{auto.bewaren && <span className="rb-spin" aria-hidden />}{status}{auto.fout && <Button size="sm" variant="quiet" onClick={auto.opnieuw}>{t.blad.opnieuwProberen}</Button>}</span>
+        {editable && <Terug {...p.terug} />}
+        <span className="rb-kop__vul" />
+        {p.kopRechts}
+      </>}
+      melding={p.melding}
+      inhoud={secs.length > 1 ? {
+        titel: W.inhoud, onKies: springNaar,
+        items: secs.map((sec) => {
+          const st = p.sections?.find((x) => x.section === sec);
+          return { key: sec, titel: T.sections[sec], sub: money && st ? fmtEuro(st.periodCents) : String(rows.filter((r) => r.q.section === sec).length) };
+        }),
+      } : undefined}
+      tabs={[
+        { key: "lijn", label: W.paneel, inhoud: lijn },
+        { key: "staat", label: T.label, inhoud: <div className="wv-kaart" data-geen-vanzelf>{p.staat}</div> },
+        ...(p.controle ? [{ key: "controle", label: T.findings, badge: p.controle.n, inhoud: p.controle.node }] : []),
+      ]}
+      totalen={p.totalen}>
+      <RasterKop kolommen={kop} />
+      {rows.length === 0 && <p className="rb-leeg">{W.legeLijst}</p>}
+      {secs.map((sec) => {
+        const rs = rows.filter((r) => r.q.section === sec);
+        const st = p.sections?.find((x) => x.section === sec);
+        return (
+          <section key={sec} className="rb-ch" data-ch={sec} data-testid={`vs-sec-${sec}`}>
+            <RasterRij kop>
+              <span style={{ padding: "0 8px" }}><b>{T.sections[sec]}</b> <span className="bw-muted">({rs.length})</span></span>
+              <span style={{ gridColumn: "2 / -1", textAlign: "right", padding: "0 8px" }} className="bw-mono">{money && st ? `${T.cols.period}: ${fmtEuro(st.periodCents)}` : ""}</span>
+            </RasterRij>
+            {rs.map((r) => {
+              const q = r.q;
+              const key = String(q.root);
+              const e = edits.get(key);
+              const ml = toModel(r);
+              const out = money ? PM.lineOut(ml, e) : null;
+              const flags = flagsOf(r);
+              return (
+                <RasterRij key={key} gekozen={cur === key} onKies={() => setCur(key)} testid="vs-line" stand={flags.some((f) => !/uitgelegd/.test(f)) ? "gewijzigd" : undefined}>
+                  <span className="rb-titel__t" title={q.title}>{q.code ? <span className="bw-mono bw-muted">{q.code} </span> : null}{q.title}{flags.length > 0 && <span className="wv-vlag" style={{ display: "inline-block", marginLeft: 6 }} title={flags.map((f) => T.flags[f] ?? f).join(" · ")} />}</span>
+                  <span className="rb-rt bw-mono">{fmtQty(q.offerQtyMilli)} {unitOf(q.unit)}</span>
+                  {money && <span className="rb-rt bw-mono">{r.m?.noPrice ? "–" : fmtEuro(r.m?.unitPriceCents)}</span>}
+                  {money && <span className="rb-rt bw-mono">{fmtEuro(out?.offerCents)}</span>}
+                  <span className="rb-rt bw-mono">{valueOf(q.basis, q.prevPctBp, q.prevQtyMilli, q.unit)}</span>
+                  <span className="rb-rt" onClick={(ev) => ev.stopPropagation()} onFocus={() => setCur(key)}><ValueCell row={r} edit={e} editable={editable} onEdit={(ne) => p.setEdit(q.root, ne)} /></span>
+                  {money && <span className="rb-rt bw-mono"><b>{signedEuro(out!.periodCents)}</b></span>}
+                  {money && <span className="rb-rt bw-mono">{fmtEuro(out?.restCents)}</span>}
+                </RasterRij>
+              );
+            })}
+          </section>
+        );
+      })}
+    </Werkvorm>
   );
 }

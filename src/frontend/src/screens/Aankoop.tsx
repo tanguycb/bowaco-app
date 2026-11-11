@@ -6,12 +6,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PurchaseStatus, type Caps, type HourClaimView } from "../backend";
-import { Button, Icon, useToast } from "../design";
+import { Button, Choice, Icon, useToast } from "../design";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, fmtTime, inputToDay, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page } from "./common";
 import { fmtQty } from "./Offertes";
-import { TabBar } from "./Tabs";
 
 export const TA = t.aankoop;
 export const purchaseTag = (s: PurchaseStatus) => (s === PurchaseStatus.approved ? "a-tag--ok" : s === PurchaseStatus.disputed ? "a-tag--bad" : s === PurchaseStatus.withdrawn ? "" : "a-tag--accent");
@@ -21,7 +20,13 @@ export const slotsText = (slots: { fromMin: bigint; toMin: bigint }[]) => slots.
 /** De tabbladen van de werklijst OA-facturen (kantoor): per werf (2.11) · aankoopfacturen · te betalen. */
 export function PurchaseTabs({ caps, go, active }: { caps: Caps; go: (to: string) => void; active: "parts" | "purchases" | "pay" }) {
   if (!caps.purchases) return null;
-  return <TabBar label={TA.tabPurchases} current={active} go={go} tabs={[{ key: "parts", to: "oa-facturen", label: TA.tabParts }, { key: "purchases", to: "oa-facturen/aankoop", label: TA.tabPurchases }, { key: "pay", to: "oa-facturen/te-betalen", label: TA.tabPay }]} />;
+  // 4b.3c: geen tweede rij tabbladen onder die van Facturatie, maar een kleine keuze (Per werf · Aankoopfacturen · Te betalen).
+  const to = { parts: "oa-facturen", purchases: "oa-facturen/aankoop", pay: "oa-facturen/te-betalen" } as const;
+  return (
+    <div className="oi-sub" data-testid="aankoop-keuze">
+      <Choice label={TA.tabPurchases} value={active} onChange={(k) => go(to[k])} options={[{ value: "parts", label: TA.tabParts }, { value: "purchases", label: TA.tabPurchases }, { value: "pay", label: TA.tabPay }]} />
+    </div>
+  );
 }
 
 // ── Lijst ──────────────────────────────────────────────────────────────────

@@ -15,3 +15,4 @@ export { Info, Provisional } from "./Info";
 export { Tag, type TagTone } from "./Tag";
 export { Meer, Cijfer, useBuiten, type MeerItem, type CijferRegel } from "./Pop";
 export { Werklijst } from "./Werklijst";
+export { Werkvorm, RasterKop, RasterRij, Totaal, Terug, WerkbladVlag, useWerkvormKan, useVanzelf, type InhoudItem, type PaneelTab, type WerkvormHandle } from "./Werkvorm";
