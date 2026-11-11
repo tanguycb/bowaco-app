@@ -20,6 +20,9 @@ import { Beheer } from "../screens/Beheer";
 import { TabBar } from "../screens/Tabs";
 import { VerslagKies } from "../screens/VerslagKies";
 import { activeKey, bottomBar, hubTabs, navFor, resolveRoute } from "./nav";
+import { kruimels, leesKeuze, menuStand, paginaUitleg, toontUitleg } from "./schil";
+import { UitlegContext, useWorks } from "../screens/common";
+import { t as tt } from "../texts/nl";
 import { MijnLogin } from "../screens/MijnLogin";
 import { Vandaag } from "../screens/Vandaag";
 import { Werfverslag } from "../screens/Werfverslag";
@@ -190,6 +193,15 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const [kies, setKies] = useState(false);
   const [balk, setBalk] = useState(false); // 4b.2: zoeken en doen
   useBalkSneltoets(setBalk);
+  // 4b.3: het menu als rail. De keuze (open of rail) onthoudt dit toestel; zonder keuze beslist de breedte.
+  const breedte = useBreedte();
+  const [keuze, setKeuze] = useState(() => { try { return leesKeuze(localStorage.getItem("bw-menu")); } catch { return null; } });
+  const rail = menuStand(breedte, keuze) === "rail";
+  const wisselMenu = () => {
+    const n = rail ? "open" : "rail";
+    setKeuze(n);
+    try { localStorage.setItem("bw-menu", n); } catch { /* enkel gemak */ }
+  };
   const askLogout = () => (ob.ops.length > 0 ? setLeaving(true) : onLogout());
   // 2b.2: de oude adressen (Instellingen, Codes, Auditlog, Postbode, Boete opzoeken, Organisaties, Onderaannemers)
   // openen hun nieuwe plaats en de adresbalk volgt.
@@ -287,9 +299,9 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         <div key={g.id} className={`a-nav__group a-nav__group--${g.id}`} role="group" aria-label={g.label ?? undefined}>
           {g.label && <span className="a-nav__label">{g.label}</span>}
           {g.items.map((n) => (
-            <a key={n.key} href={`#/${n.to}`} className="a-nav__item" aria-current={active === n.key ? "page" : undefined} onClick={onPick}>
+            <a key={n.key} href={`#/${n.to}`} className="a-nav__item" aria-current={active === n.key ? "page" : undefined} onClick={onPick} title={rail && !onPick ? n.label : undefined}>
               <Icon name={n.icon} size={20} />
-              {n.label}
+              <span className="a-nav__t">{n.label}</span>
             </a>
           ))}
         </div>
@@ -297,16 +309,16 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
     </nav>
   );
 
+  // 4b.3: de ⓘ van het scherm (enkel op het scherm zelf of een tabblad ervan, niet op een stuk dat erin openstaat).
+  const r = redirect ? redirect.split("/") : route;
+  const uitleg = toontUitleg(r) ? paginaUitleg(page, caps, r[1]) : null;
   const initials = person.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const roleText = person.roles.map((r) => t.roles[r] ?? r).join(", ");
 
   return (
-    <div className={bar.length > 0 ? "a-app a-app--bottom" : "a-app"}>
+    <div className={`a-app${bar.length > 0 ? " a-app--bottom" : ""}${rail ? " a-app--rail" : ""}`} data-testid="schil" data-menu={rail ? "rail" : "open"}>
       <aside className="a-side">
-        <div className="a-side__brand"><Wordmark size={17} sub={t.app.sub} /></div>
-        <BalkKnop onOpen={() => setBalk(true)} testid="balk-open-zij" />
-        <div className="a-row--tight"><TodoTeller go={go} />
-        {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}</div>
+        <div className="a-side__brand"><Wordmark size={17} sub={t.app.sub} /><span className="a-side__mono" aria-hidden>B</span></div>
         {navList()}
         <div className="a-me">
           <a href="#/login" className="a-me__link" aria-current={page === "login" ? "page" : undefined} title={t.nav.login}>
@@ -317,17 +329,19 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         </div>
       </aside>
       <div className="a-main">
-        <header className="a-bar">
-          <span className="a-bar__brand"><Wordmark size={16} sub={t.app.sub} /></span>
-          <BalkKnop onOpen={() => setBalk(true)} testid="balk-open-gsm" />
+        <header className="a-top" data-testid="bovenbalk">
+          <span className="a-top__brand"><Wordmark size={16} sub={t.app.sub} /></span>
+          <span className="a-top__rail"><Button variant="quiet" size="sm" icon="rail" iconOnly onClick={wisselMenu} aria-expanded={!rail} data-testid="menu-wissel">{rail ? tt.schil.menuUit : tt.schil.menuIn}</Button></span>
+          <Kruimelpad route={redirect ? redirect.split("/") : route} caps={caps} />
+          <BalkKnop onOpen={() => setBalk(true)} testid="balk-open" />
           <TodoTeller go={go} />
           {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
-          {bar.length === 0 && <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>}
+          {bar.length === 0 && <span className="a-top__menu"><Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button></span>}
         </header>
         <TabBar tabs={tabs} current={page} go={go} label={t.menu.tabs} />
         {startN !== null && <StartBanner key={startN} n={startN} caps={caps} go={go} />}
         {showIntro && kind && <IntroCard kind={kind} />}
-        {screen}
+        <UitlegContext.Provider value={uitleg}>{screen}</UitlegContext.Provider>
       </div>
       <Sheet title={`${person.name} · ${roleText}`} open={menu} onClose={() => setMenu(false)}>
         <a href="#/login" className="a-me__link a-me__link--sheet" onClick={() => setMenu(false)}>
@@ -361,5 +375,35 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         </Sheet>
       )}
     </div>
+  );
+}
+
+/** 4b.3: de breedte van het venster (voor de rail). */
+function useBreedte(): number {
+  const [w, setW] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const on = () => setW(window.innerWidth);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  return w;
+}
+
+/** 4b.3: waar je bent, in de bovenbalk (desktop). Een werf krijgt haar code uit de werflijst van de rol zelf. */
+function Kruimelpad({ route, caps }: { route: string[]; caps: Caps }) {
+  const works = useWorks();
+  const k = kruimels(route, caps);
+  const wid = route[0] === "werven" && route[1] && /^\d+$/.test(route[1]) ? route[1] : null;
+  const w = wid ? works.data?.find((x) => String(x.id) === wid) : undefined;
+  if (w) k.push({ label: `${w.code} · ${w.name}`, to: `werven/${w.id}` });
+  return (
+    <nav className="a-top__crumbs" aria-label={tt.schil.waar} data-testid="kruimels">
+      {k.map((x, i) => (
+        <span key={x.to} className="a-row--tight" style={{ display: "inline-flex", gap: 6, minWidth: 0 }}>
+          {i > 0 && <span className="a-top__sep" aria-hidden>/</span>}
+          <a href={`#/${x.to}`} aria-current={i === k.length - 1 ? "page" : undefined}>{x.label}</a>
+        </span>
+      ))}
+    </nav>
   );
 }

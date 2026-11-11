@@ -45,7 +45,6 @@ function ProgressWorks({ go }: { go: (to: string) => void }) {
   const rows = q.data ?? [];
   return (
     <Page label={T.label} title={T.title}>
-      <p className="bw-muted" style={{ maxWidth: 720 }}>{T.lead}<Info text={t.uitleg.vordering} label={t.uitleg.label} /></p>
       <Loading q={q} />
       {q.data && rows.length === 0 && <EmptyState title={t.leeg.vorderingen.t} text={t.leeg.vorderingen.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />}
       {rows.length > 0 && (
@@ -661,7 +660,7 @@ export function MyStatements({ go, embedded, workName }: { go: (to: string) => v
   const rows: MyProgressBrief[] = (list.data ?? []).filter((x) => workName === undefined || x.workName === workName);
   return (
     <Frame embedded={embedded} label={MV.label} title={MV.title}>
-      <p className="bw-muted" style={{ maxWidth: 680 }}>{MV.lead}</p>
+      {embedded && <p className="bw-muted" style={{ maxWidth: 680 }}>{MV.lead}</p>}
       <Loading q={list} />
       {list.data && rows.length === 0 && <p className="a-empty">{MV.none}</p>}
       {rows.length > 0 && (

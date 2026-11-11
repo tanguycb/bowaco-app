@@ -11,6 +11,7 @@ import { t } from "../texts/nl";
 import { dayToInput, errText, fmtBp, fmtDayNum, fmtEuro, fmtTime, inputToDay, optText, parseEuro, parsePct, todayDay, unwrap, useBackend } from "../util";
 import { factsOf, Loading, Page, PhaseLabel, StepBar, useReviewNotes, useStages, useWorks } from "./common";
 import { isClient } from "../app/nav";
+import { onderdeelTellers } from "../app/schil";
 import { faseNaam, toontFase, volgendeStap, werfFase, werfTabs, type Fase, type Stap, type StageFacts, type TabKey, type WerfTab } from "../app/fase";
 import { WorkConflicts } from "./Weekbord";
 import { WorkQuotes } from "./Offertes";
@@ -88,22 +89,32 @@ export function WerfDetail({ id, caps, go, tab, sub }: { id: bigint; caps: Caps;
   const tabOpen = phone && cur !== null; // gsm: één onderdeel volledig in beeld
 
   const body = cur && <TabBody key={cur.key} tab={cur} w={w} caps={caps} go={go} fase={fase} facts={facts} stap={stap} act={act} client={client} sub={sub} />;
+  // 4b.3 Dossier (desktop): voorbij het Overzicht is de kop één regel (fase als lint, Volgende stap als knop); de onderdelen
+  // staan links onder elkaar met een teller. Op de gsm blijft het zoals het was (knoppenlijst, één onderdeel in beeld).
+  const dossier = !phone;
+  const kort = dossier && cur !== null && cur.key !== "overzicht";
+  const tellers = onderdeelTellers(facts, w.checklistOpen);
+  const feiten = (
+    <div className="a-row a-dkop__feiten">
+      <PhaseLabel fase={fase} client={client} /><Info text={t.uitleg.fase} label={t.uitleg.label} />
+      {fase.manual && <span className="a-tag" title={F.provisional}>{F.byHand}</span>}
+      <span className="bw-muted">{addr}</span>
+      {orgName(w.clientOrgId) && <span className="a-tag">{orgName(w.clientOrgId)}</span>}
+      {parent && <button type="button" className="a-tag a-tag--link" onClick={() => go(`werven/${parent.id}`)}>{t.werven.subOf} {parent.code}</button>}
+      {review.data?.get(String(w.id)) && <Provisional label={t.werven.review} reason={review.data.get(String(w.id))} infoLabel={t.werven.reviewInfo} />}
+      {review.data?.get(String(w.id)) && caps.manageSettings && <Button size="sm" onClick={() => setReviewing(true)}>{t.werven.reviewDone}</Button>}
+    </div>
+  );
   return (
-    <Page label={w.code} title={tabOpen && cur ? cur.label : w.name} wide={cur?.key === "planning" && !phone} actions={<>
-      {w.caps.edit && !tabOpen && <Button icon="edit" onClick={() => setEditing(true)}>{t.werven.edit}</Button>}
-      {tabOpen ? <Button icon="back" onClick={() => go(`werven/${id}`)}>{w.name}</Button> : <Button icon="back" onClick={() => go(caps.home === "week" ? "week" : "werven")}>{t.common.back}</Button>}
+    <Page label={w.code} title={tabOpen && cur ? cur.label : w.name} info={null} wide={cur?.key === "planning" && !phone} inline={kort}
+      kop={kort ? <>{feiten}{stap?.action && <Button size="sm" icon="next" onClick={act} data-testid="dossier-volgende" title={t.stap[stap.key].t}>{t.stap[stap.key].b}</Button>}</> : undefined}
+      actions={<>
+      {w.caps.edit && !tabOpen && <Button icon="edit" size={kort ? "sm" : "md"} onClick={() => setEditing(true)}>{t.werven.edit}</Button>}
+      {tabOpen ? <Button icon="back" onClick={() => go(`werven/${id}`)}>{w.name}</Button> : <Button icon="back" variant="quiet" size={kort ? "sm" : "md"} onClick={() => go(caps.home === "week" ? "week" : "werven")}>{t.common.back}</Button>}
     </>}>
-      {!tabOpen && (
+      {!tabOpen && !kort && (
         <>
-          <div className="a-row">
-            <PhaseLabel fase={fase} client={client} /><Info text={t.uitleg.fase} label={t.uitleg.label} />
-            {fase.manual && <span className="a-tag" title={F.provisional}>{F.byHand}</span>}
-            <span className="bw-muted">{addr}</span>
-            {orgName(w.clientOrgId) && <span className="a-tag">{orgName(w.clientOrgId)}</span>}
-            {parent && <button type="button" className="a-tag a-tag--link" onClick={() => go(`werven/${parent.id}`)}>{t.werven.subOf} {parent.code}</button>}
-            {review.data?.get(String(w.id)) && <Provisional label={t.werven.review} reason={review.data.get(String(w.id))} infoLabel={t.werven.reviewInfo} />}
-            {review.data?.get(String(w.id)) && caps.manageSettings && <Button onClick={() => setReviewing(true)}>{t.werven.reviewDone}</Button>}
-          </div>
+          {feiten}
           {toontFase(caps) && <StepBar fase={fase} client={client} />}
           {stap && <NextCard stap={stap} onAct={act} />}
         </>
@@ -129,16 +140,20 @@ export function WerfDetail({ id, caps, go, tab, sub }: { id: bigint; caps: Caps;
           </>
         )
       ) : (
-        <>
-          <div className="a-wtabs" role="tablist" aria-label={t.menu.tabs}>
-            {tabs.map((x) => (
-              <a key={x.key} role="tab" href={`#/werven/${id}${x.key === "overzicht" ? "" : `/${x.key}`}`} aria-selected={cur?.key === x.key} className={`a-wtab${x.off ? " a-wtab--off" : ""}`} title={x.off} onClick={(e) => { e.preventDefault(); open(x.key); }}>
-                {x.off && <Icon name="lock" size={14} />}{x.label}
-              </a>
-            ))}
-          </div>
-          {body}
-        </>
+        <div className="a-dossier" data-testid="dossier">
+          <nav className="a-dossier__nav" role="tablist" aria-orientation="vertical" aria-label={t.schil.dossier.onderdelen}>
+            {tabs.map((x) => {
+              const tl = tellers[x.key];
+              return (
+                <a key={x.key} role="tab" href={`#/werven/${id}${x.key === "overzicht" ? "" : `/${x.key}`}`} aria-selected={cur?.key === x.key} className={`a-dtab${x.off ? " a-dtab--off" : ""}`} title={x.off} data-testid={`onderdeel-${x.key}`} onClick={(e) => { e.preventDefault(); open(x.key); }}>
+                  <span className="a-dtab__t">{x.label}</span>
+                  {x.off ? <Icon name="lock" size={14} /> : tl && <span className={`a-dtab__n${tl.aandacht ? " a-dtab__n--on" : ""}`} data-testid={`teller-${x.key}`}>{tl.n > 0 ? tl.n : "•"}</span>}
+                </a>
+              );
+            })}
+          </nav>
+          <div className="a-dossier__body">{body}</div>
+        </div>
       )}
       {cur?.key === "overzicht" && w.caps.edit && <div className="a-row"><Button variant="quiet" onClick={() => setOverride(true)}>{F.override}</Button></div>}
 

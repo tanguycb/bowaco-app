@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { BotActionView, BotCallView, BotView, DocKindView, McpInfo, WorkView } from "../backend";
 import { BotLevel } from "../backend";
-import { Button, Choice, Confirm, Sheet, Table, useToast, type Column } from "../design";
+import { Button, Choice, Confirm, Sheet, Table, useToast, type Column, Info } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -81,8 +81,7 @@ export function Bots() {
   return (
     <>
       <section className="a-section">
-        <h2 className="bw-h2">{B.title}</h2>
-        <p className="bw-muted">{B.lead}</p>
+        <h2 className="bw-h2">{B.title}<Info text={B.lead} label={t.uitleg.label} /></h2>
         <h3 className="bw-h3">{B.connection}</h3>
         <p><span className="bw-label">{B.url}</span><br /><code>{url ?? "…"}</code></p>
         <p>

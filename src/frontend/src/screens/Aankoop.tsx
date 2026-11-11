@@ -31,9 +31,8 @@ export function PurchaseList({ caps, go }: { caps: Caps; go: (to: string) => voi
   const q = useQuery({ queryKey: ["purchases", status], queryFn: () => actor!.listPurchases(null, status ? (status as PurchaseStatus) : null), enabled: !!actor && !isFetching });
   const rows = q.data ?? [];
   return (
-    <Page label={t.oaFacturen.label} title={TA.title} actions={<Button variant="primary" icon="plus" onClick={() => go("oa-facturen/aankoop/nieuw")} data-testid="pu-new">{TA.register}</Button>}>
+    <Page label={t.oaFacturen.label} title={TA.title} info={TA.lead} actions={<Button variant="primary" icon="plus" onClick={() => go("oa-facturen/aankoop/nieuw")} data-testid="pu-new">{TA.register}</Button>}>
       <PurchaseTabs caps={caps} go={go} active="purchases" />
-      <p className="bw-muted" style={{ maxWidth: 720 }}>{TA.lead}</p>
       <label className="bw-field" style={{ maxWidth: 240 }}>
         <span className="bw-label">{t.oaFacturen.statusFilter}</span>
         <select className="bw-input" value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -73,9 +72,8 @@ export function PayList({ caps, go }: { caps: Caps; go: (to: string) => void }) 
   const rows = q.data ?? [];
   const [open, setOpen] = useState<bigint | null>(null);
   return (
-    <Page label={t.oaFacturen.label} title={TA.payTitle}>
+    <Page label={t.oaFacturen.label} title={TA.payTitle} info={TA.payLead}>
       <PurchaseTabs caps={caps} go={go} active="pay" />
-      <p className="bw-muted" style={{ maxWidth: 720 }}>{TA.payLead}</p>
       <Loading q={q} />
       {q.data && rows.length === 0 && <EmptyState title={TA.payNone} text="" />}
       {rows.length > 0 && (

@@ -1,0 +1,82 @@
+/* 4b.3: de schil. Menu links (volledig of als rail), bovenbalk erboven met waar je bent, de balk (4b.2), Te doen en
+   de verbinding. Op de gsm blijft het zoals het was: één bovenbalk, menu achter de knop of de onderbalk. */
+
+.a-app { grid-template-columns: var(--bw-menu-w) minmax(0, 1fr); }
+.a-app--rail { --bw-menu-w: var(--bw-rail-w); }
+.a-side { gap: 14px; padding: 10px 8px 12px; }
+.a-side__brand { display: flex; align-items: center; min-height: 32px; padding: 0 8px; }
+.a-side__mono { display: none; font-weight: 800; font-stretch: 125%; letter-spacing: 0.02em; color: var(--bw-brand); font-size: 0.95rem; }
+.a-nav__item { min-height: 36px; padding: 0 10px; gap: 10px; }
+.a-nav__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.a-nav__label { padding: 0 10px 2px; font: 500 var(--bw-fs-xs) var(--bw-font-text); letter-spacing: 0; text-transform: none; color: var(--bw-ink-2); }
+.a-nav__group { display: flex; flex-direction: column; gap: 1px; }
+.a-nav { gap: 12px; }
+
+/* rail: enkel iconen; de naam blijft voor schermlezers en verschijnt als tip */
+.a-app--rail .a-side { padding: 10px 6px 12px; align-items: stretch; }
+.a-app--rail .a-side__brand { justify-content: center; padding: 0; }
+.a-app--rail .a-side__brand .bw-wordmark { display: none; }
+.a-app--rail .a-side__mono { display: block; }
+.a-app--rail .a-nav__item { justify-content: center; padding: 0; }
+.a-app--rail .a-nav__t, .a-app--rail .a-me__name {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+.a-app--rail .a-nav__label { height: 1px; overflow: hidden; padding: 0; margin: 2px 8px; background: var(--bw-line); color: transparent; }
+.a-app--rail .a-me { flex-direction: column; padding: 8px 0 0; gap: 6px; }
+.a-app--rail .a-me__link { justify-content: center; }
+
+/* bovenbalk: één regel, vast bovenaan */
+.a-top {
+  position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 8px;
+  min-height: var(--bw-top-h); padding: 0 var(--bw-page-x) 0 10px;
+  background: var(--bw-surface); border-bottom: 1px solid var(--bw-line);
+}
+.a-top__brand { display: none; flex: 1; }
+.a-top__rail { flex: none; }
+.a-top__crumbs { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: var(--bw-fs-sm); color: var(--bw-ink-2); overflow: hidden; white-space: nowrap; }
+.a-top__crumbs a { color: var(--bw-ink-2); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.a-top__crumbs a:hover { color: var(--bw-ink); text-decoration: underline; }
+.a-top__crumbs [aria-current="page"] { color: var(--bw-ink); font-weight: 600; }
+.a-top__sep { color: var(--bw-line-strong); }
+.a-top .k-trigger { width: clamp(220px, 28vw, 380px); min-height: var(--bw-h-md); }
+.a-top__menu { display: none; }
+.a-bar { display: none !important; }
+
+/* gsm en smalle vensters: zoals vroeger */
+@media (max-width: 420px) {
+  .a-top__brand .bw-wordmark__sub { display: none; }
+}
+@media (max-width: 899px) {
+  .a-app, .a-app--rail { grid-template-columns: minmax(0, 1fr); }
+  .a-top { min-height: 56px; padding: 6px 8px 6px 16px; }
+  .a-top__brand { display: block; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .a-top { gap: 6px; }
+  .a-top__rail, .a-top__crumbs { display: none; }
+  .a-top .k-trigger { width: auto; }
+  .a-top__menu { display: inline-flex; }
+}
+
+/* ---------- Dossier (de werf, desktop): onderdelen links met teller, het onderdeel rechts ---------- */
+.a-dossier { display: grid; grid-template-columns: 196px minmax(0, 1fr); gap: var(--bw-gap); align-items: start; }
+.a-dossier__nav { position: sticky; top: calc(var(--bw-top-h) + 12px); display: flex; flex-direction: column; gap: 1px; padding-right: 10px; border-right: 1px solid var(--bw-line); }
+.a-dtab { display: flex; align-items: center; gap: 8px; min-height: var(--bw-h-md); padding: 0 10px; border-radius: var(--bw-radius); color: var(--bw-ink-2); font: 500 var(--bw-fs-sm) var(--bw-font-text); text-decoration: none; }
+.a-dtab:hover { background: var(--bw-surface-2); color: var(--bw-ink); }
+.a-dtab[aria-selected="true"] { background: var(--bw-sunken); color: var(--bw-ink); font-weight: 600; box-shadow: inset 3px 0 0 var(--bw-accent); }
+.a-dtab__t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.a-dtab__n { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--bw-sunken); color: var(--bw-ink-2); font: 600 var(--bw-fs-xs)/18px var(--bw-font-mono); text-align: center; }
+.a-dtab__n--on { background: var(--bw-st-delayed-bg); color: var(--bw-st-delayed); }
+.a-dtab--off { color: color-mix(in srgb, var(--bw-ink-2) 70%, transparent); }
+.a-dossier__body { min-width: 0; display: flex; flex-direction: column; gap: var(--bw-gap); }
+/* de kop op één regel: code · naam · fase · adres · Volgende stap */
+.a-head--inline { align-items: center; }
+.a-head--inline > div:first-child { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.a-head--inline .bw-h1 { font-size: var(--bw-fs-lg); }
+.a-head--inline .a-dkop__feiten { gap: 6px 10px; }
+/* subtabbladen in een onderdeel worden een keuzebalk */
+.a-dossier .a-wtabs--sub { display: inline-flex; align-self: flex-start; gap: 0; border: 1px solid var(--bw-line-strong); border-radius: var(--bw-radius); overflow: hidden; background: var(--bw-surface); }
+.a-dossier .a-wtabs--sub .a-wtab { min-height: var(--bw-h-md); padding: 0 12px; margin: 0; border: 0; border-left: 1px solid var(--bw-line); }
+.a-dossier .a-wtabs--sub .a-wtab:first-child { border-left: 0; }
+.a-dossier .a-wtabs--sub .a-wtab[aria-selected="true"] { background: var(--bw-accent-soft); color: var(--bw-accent); }
+@media (max-width: 1099px) {
+  .a-dossier { grid-template-columns: 170px minmax(0, 1fr); }
+}

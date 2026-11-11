@@ -29,7 +29,7 @@ export function MyQuotes({ go, embedded, workName }: { go: (to: string) => void;
   const rows: MyQuoteBrief[] = (list.data ?? []).filter((x) => workName === undefined || x.workName === workName);
   return (
     <Frame embedded={embedded} label={T.label} title={T.title}>
-      <p className="bw-muted" style={{ maxWidth: 680 }}>{T.lead}</p>
+      {embedded && <p className="bw-muted" style={{ maxWidth: 680 }}>{T.lead}</p>}
       <Loading q={list} />
       {list.data && rows.length === 0 && <EmptyState title={t.leeg.mijnWerf.t} text={t.leeg.mijnWerf.d} />}
       {rows.length > 0 && (

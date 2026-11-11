@@ -415,7 +415,6 @@ export function VergunningenPage({ caps, go }: { caps: Caps; go: (to: string) =>
   const pick = (v: string) => { setFilter(v); try { localStorage.setItem(FILTER_KEY, v); } catch { /* enkel gemak */ } };
   return (
     <Page title={P.title}>
-      <p className="bw-muted">{P.lead}</p>
       <PermitsOnSite />
       <section className="a-section">
         <Choice label={P.title} value={filter} onChange={pick} options={["aandacht", "lopend", "alles"].map((f) => ({ value: f, label: P.filter[f] }))} />
@@ -523,7 +522,6 @@ export function GemeentenPage({ caps }: { caps: Caps }) {
   const list = (q.data ?? []).filter((m) => !text || m.name.toLowerCase().includes(text.toLowerCase()) || m.zips.some((z) => z.startsWith(text)));
   return (
     <Page title={G.title} actions={caps.manageMunicipalities ? <Button icon="plus" onClick={() => setEdit("new")}>{G.add}</Button> : undefined}>
-      <p className="bw-muted">{G.lead}</p>
       <input className="bw-input" placeholder={"Zoeken"} value={text} onChange={(e) => setText(e.target.value)} />
       <Loading q={q} />
       {q.data && list.length === 0 && <p className="a-empty">{G.none}</p>}

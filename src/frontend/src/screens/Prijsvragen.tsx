@@ -561,7 +561,6 @@ export function TendersOverview({ go }: { go: (to: string) => void }) {
   const rows = (q.data ?? []).filter((s) => all || s.status.__kind__ === "open");
   return (
     <Page label={P.label} title={P.title}>
-      <p className="bw-muted pv-lead">{P.overviewLead}</p>
       <Choice label={P.title} value={all ? "all" : "open"} onChange={(x) => setAll(x === "all")} options={[{ value: "open", label: P.filterOpen }, { value: "all", label: P.filterAll }]} />
       <Loading q={q} />
       {q.data && rows.length === 0 && <EmptyState title={P.noneAll} text={P.lead} />}

@@ -8,6 +8,7 @@ import { t } from "../texts/nl";
 import { beheerTabs } from "../app/nav";
 import { TabBar } from "./Tabs";
 import { Page } from "./common";
+import { GewoneKnoppen } from "../design";
 import { Audit } from "./Audit";
 import { BoetesPage } from "./Boetes";
 import { Codes } from "./Codes";
@@ -46,7 +47,8 @@ export function Beheer({ caps, me, route, go }: { caps: Caps; me: PersonView; ro
   return (
     <>
       <TabBar tabs={tabs} current={cur.key} go={go} label={t.menu.tabs} />
-      {body}
+      {/* 4b.3: elk blok van Beheer bewaart apart: geen hoofdknop per blok (één hoofdknop per scherm), wel in een paneel. */}
+      <GewoneKnoppen.Provider value={true}>{body}</GewoneKnoppen.Provider>
     </>
   );
 }

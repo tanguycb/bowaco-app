@@ -10,10 +10,14 @@ import "./app/start.css";
 import "./app/offerte.css";
 import "./app/werfstart.css";
 import "./app/opmeting.css";
+// 4b.3: design system versie 3 en de schil komen als laatste, zodat één stelsel geldt.
+import "./design/v3.css";
+import "./app/schil.css";
 import { InternetIdentityProvider } from "@caffeineai/core-infrastructure";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";
 import App from "./app/App";
+import { dichtheid } from "./app/schil";
 import { applyTheme, ToastProvider, type Theme } from "./design";
 
 declare global {
@@ -31,6 +35,14 @@ try {
   applyTheme("system");
 }
 document.documentElement.classList.add("bw-root");
+
+// 4b.3: twee dichtheden. Ruim (gsm, vinger) zoals vroeger; dicht op een scherm met muis vanaf 900 px.
+const zetDichtheid = () => {
+  const vinger = window.matchMedia("(pointer: coarse)").matches;
+  document.documentElement.dataset.dichtheid = dichtheid(window.innerWidth, vinger);
+};
+zetDichtheid();
+window.addEventListener("resize", zetDichtheid);
 
 // Service worker (architectuur §8.2): de app opent ook zonder bereik. Enkel in de gebouwde app.
 if (import.meta.env.PROD && "serviceWorker" in navigator) {

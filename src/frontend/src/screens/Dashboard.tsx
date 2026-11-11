@@ -5,7 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { WorkStatus, type DashTask, type DashWork, type DashboardView } from "../backend";
-import { Choice, Icon, StatusBadge, type Status } from "../design";
+import { Choice, Cijfer, Icon, StatusBadge, type Status } from "../design";
 import { t } from "../texts/nl";
 import { fmtDayNum, todayDay, useBackend } from "../util";
 import { Loading, Page, WorkPhase } from "./common";
@@ -47,20 +47,22 @@ export function DashboardPage({ go }: { go: (to: string) => void }) {
 
 export function DashCounters({ v }: { v: DashboardView }) {
   const c = v.counters;
-  const cell = (n: bigint | number | undefined, label: string, tone?: "warn" | "accent", hint?: string) => (
+  // 4b.3: uitleg bij een cijfer: een tik op het getal zegt wat meetelt (zelfde regels als de backend, DashboardApi.mo).
+  const C = t.schil.cijfer;
+  const cell = (n: bigint | number | undefined, label: string, uitleg: string, tone?: "warn" | "accent", hint?: string) => (
     <div className={`a-counter${tone && Number(n ?? 0) > 0 ? ` a-counter--${tone}` : ""}`} title={hint}>
-      <span className="a-counter__n">{n === undefined ? "–" : String(n)}</span>
+      <span className="a-counter__n">{n === undefined ? "–" : <Cijfer naam={label} uitleg={uitleg}>{String(n)}</Cijfer>}</span>
       <span className="a-counter__l">{label}</span>
     </div>
   );
   return (
     <div className="a-counters d-counters">
-      {cell(c.running, D.running)}
-      {cell(c.delayed, D.delayed, "warn")}
-      {cell(c.confirmOpen, D.confirmOpen + (c.confirmDeclined > 0n ? ` · ${D.declined(N(c.confirmDeclined))}` : ""), c.confirmDeclined > 0n ? "warn" : "accent")}
-      {cell(c.openIssues, D.issues, "warn")}
-      {cell(c.missingReports, D.missing, "warn")}
-      {cell(c.permitsThisMonth, D.permits, "warn", c.permitsThisMonth === undefined ? D.permitsLater : undefined)}
+      {cell(c.running, D.running, C.lopend)}
+      {cell(c.delayed, D.delayed, C.vertraagd, "warn")}
+      {cell(c.confirmOpen, D.confirmOpen + (c.confirmDeclined > 0n ? ` · ${D.declined(N(c.confirmDeclined))}` : ""), C.bevestigingen, c.confirmDeclined > 0n ? "warn" : "accent")}
+      {cell(c.openIssues, D.issues, C.problemen, "warn")}
+      {cell(c.missingReports, D.missing, C.verslagen, "warn")}
+      {cell(c.permitsThisMonth, D.permits, C.vergunningen, "warn", c.permitsThisMonth === undefined ? D.permitsLater : undefined)}
     </div>
   );
 }

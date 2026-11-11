@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Caps, SalesSettingsView } from "../backend";
-import { Button, useToast } from "../design";
+import { Button, Cijfer, Table, Tag, useToast, type CijferRegel, Info } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, parsePct, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
@@ -16,6 +16,14 @@ import { QuarterExport } from "./FactuurExtra";
 const T = t.sales;
 
 /** Werklijst Facturatie → Facturen (kantoor). */
+/** 4b.3: de opbouw van een som voor de uitleg bij een cijfer: hoogstens zes regels, de rest samen, en het totaal. */
+function som(xs: [string, bigint][]): CijferRegel[] {
+  const tot = xs.reduce((n, x) => n + x[1], 0n);
+  const top = xs.slice(0, 6).map(([label, c]) => ({ label, waarde: fmtEuro(c) }));
+  const rest = xs.slice(6).reduce((n, x) => n + x[1], 0n);
+  return [...top, ...(xs.length > 6 ? [{ label: t.schil.cijferRest(xs.length - 6), waarde: fmtEuro(rest) }] : []), { label: t.schil.cijferTotaal, waarde: fmtEuro(tot), totaal: true }];
+}
+
 export function SalesWorklist({ caps, go }: { caps: Caps; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
@@ -26,30 +34,31 @@ export function SalesWorklist({ caps, go }: { caps: Caps; go: (to: string) => vo
     <Page label={t.menu.facturatie} title={T.list.tab}>
     <section className="a-section" data-testid="sales-worklist">
       {!v ? <Loading q={q} /> : <>
+        {/* 4b.3: de som bovenaan met de uitleg erachter; beide lijsten in het ene tabelonderdeel (sorteren, vaste kop). */}
+        <div className="a-row" style={{ gap: 24 }} data-testid="sales-sommen">
+          <span className="bw-muted">{T.list.due}: <b className="bw-num"><Cijfer go={go} naam={T.list.due} uitleg={t.schil.cijfer.teFactureren} regels={som(v.due.map((d) => [`${d.workCode} · ${d.title}`, d.stepCents]))}>{fmtEuro(v.due.reduce((n, d) => n + d.stepCents, 0n))}</Cijfer></b></span>
+          <span className="bw-muted">{T.list.open}: <b className="bw-num"><Cijfer go={go} naam={T.list.open} uitleg={t.schil.cijfer.open} regels={som(v.open.map((o) => [`${o.brief.number} · ${o.brief.workCode}`, o.openCents]))}>{fmtEuro(v.open.reduce((n, o) => n + o.openCents, 0n))}</Cijfer></b></span>
+        </div>
         <h2 className="bw-h2">{T.list.due}</h2>
-        {v.due.length === 0 ? <p className="bw-muted">{T.list.dueNone}</p> : (
-          <div className="a-tablewrap"><table className="a-table">
-            <thead><tr><th>Werf</th><th>{T.cols.title}</th><th>%</th><th>{T.cols.due}</th><th className="a-num">{T.cols.total}</th><th /></tr></thead>
-            <tbody>{v.due.map((d) => (
-              <tr key={`${d.workId}-${d.stepKey}`} className="a-click" onClick={() => go(`werven/${d.workId}/facturatie/facturen`)}>
-                <td>{d.workCode} · {d.workName}</td><td>{d.title}</td><td>{fmtBp(d.pctBp)}</td>
-                <td>{whenText(d.when)}{d.dueDay !== undefined ? ` · ${fmtDayNum(d.dueDay)}` : ""}{d.now ? ` · ${T.list.dueNow}` : ""}</td>
-                <td className="a-num">{fmtEuro(d.stepCents)}</td><td>{d.draftId !== undefined ? T.draft : ""}</td>
-              </tr>))}</tbody>
-          </table></div>
-        )}
+        <Table id="sales-due" rows={v.due} rowKey={(d) => `${d.workId}-${d.stepKey}`} onRow={(d) => go(`werven/${d.workId}/facturatie/facturen`)} defaultSort="werf" empty={T.list.dueNone}
+          columns={[
+            { key: "werf", label: "Werf", sort: (d) => d.workCode, render: (d) => `${d.workCode} · ${d.workName}` },
+            { key: "titel", label: T.cols.title, render: (d) => d.title },
+            { key: "pct", label: "%", right: true, optional: true, sort: (d) => d.pctBp, render: (d) => fmtBp(d.pctBp) },
+            { key: "wanneer", label: T.cols.due, sort: (d) => d.dueDay ?? null, render: (d) => <>{whenText(d.when)}{d.dueDay !== undefined ? ` · ${fmtDayNum(d.dueDay)}` : ""}{d.now && <> <Tag tone="warn">{T.list.dueNow}</Tag></>}</> },
+            { key: "bedrag", label: T.cols.total, right: true, sort: (d) => d.stepCents, render: (d) => fmtEuro(d.stepCents) },
+            { key: "ontwerp", label: T.draft, optional: true, render: (d) => (d.draftId !== undefined ? <Tag>{T.draft}</Tag> : "") },
+          ]} />
         <h2 className="bw-h2">{T.list.open}</h2>
-        {v.open.length === 0 ? <p className="bw-muted">{T.list.openNone}</p> : (
-          <div className="a-tablewrap"><table className="a-table">
-            <thead><tr><th>{T.cols.number}</th><th>Werf</th><th>Klant</th><th>{T.cols.due}</th><th className="a-num">{T.cols.total}</th><th className="a-num">{T.cols.open}</th></tr></thead>
-            <tbody>{v.open.map((o) => (
-              <tr key={String(o.brief.id)} className="a-click" onClick={() => setOpen(o.brief.id)}>
-                <td>{o.brief.number}</td><td>{o.brief.workCode} · {o.workName}</td><td>{o.clientName}</td>
-                <td>{fmtDayNum(o.brief.dueDay)}{o.daysLate > 0n ? ` · ${T.list.late(Number(o.daysLate))}` : ""}</td>
-                <td className="a-num">{fmtEuro(o.totalCents)}</td><td className="a-num">{fmtEuro(o.openCents)}</td>
-              </tr>))}</tbody>
-          </table></div>
-        )}
+        <Table id="sales-open" rows={v.open} rowKey={(o) => String(o.brief.id)} onRow={(o) => setOpen(o.brief.id)} defaultSort="-laat" empty={T.list.openNone}
+          columns={[
+            { key: "nummer", label: T.cols.number, sort: (o) => o.brief.number, render: (o) => <span className="bw-code">{o.brief.number}</span> },
+            { key: "werf", label: "Werf", sort: (o) => o.brief.workCode, render: (o) => `${o.brief.workCode} · ${o.workName}` },
+            { key: "klant", label: "Klant", optional: true, sort: (o) => o.clientName, render: (o) => o.clientName },
+            { key: "laat", label: T.cols.due, sort: (o) => o.daysLate, render: (o) => <>{fmtDayNum(o.brief.dueDay)}{o.daysLate > 0n && <> <Tag tone="bad">{T.list.late(Number(o.daysLate))}</Tag></>}</> },
+            { key: "totaal", label: T.cols.total, right: true, optional: true, sort: (o) => o.totalCents, render: (o) => fmtEuro(o.totalCents) },
+            { key: "open", label: T.cols.open, right: true, sort: (o) => o.openCents, render: (o) => fmtEuro(o.openCents) },
+          ]} />
         {v.drafts.length > 0 && <>
           <h2 className="bw-h2">{T.list.drafts}</h2>
           <ul>{v.drafts.map((d) => <li key={String(d.id)}><a href="#" onClick={(e) => { e.preventDefault(); setOpen(d.id); }}>{d.workCode} · {d.kindTitle} · {d.title}</a></li>)}</ul>
@@ -77,8 +86,7 @@ export function MySales({ workId }: { workId: bigint }) {
   if (rows.length === 0 && sched.length === 0) return null;
   return (
     <section className="a-section" data-testid="my-sales">
-      <h2 className="bw-h2">{T.mine.title}</h2>
-      <p className="bw-muted">{T.mine.lead}</p>
+      <h2 className="bw-h2">{T.mine.title}<Info text={T.mine.lead} label={t.uitleg.label} /></h2>
       {rows.length === 0 ? <p className="bw-muted">{T.mine.none}</p> : (
         <div className="a-tablewrap"><table className="a-table">
           <thead><tr><th>{T.cols.number}</th><th>{T.cols.kind}</th><th>{T.cols.issued}</th><th>{T.cols.due}</th><th className="a-num">{T.cols.total}</th><th className="a-num">{T.cols.open}</th><th /></tr></thead>
@@ -138,8 +146,7 @@ function SettingsForm({ s }: { s: SalesSettingsView }) {
   });
   return (
     <section className="a-section" data-testid="sales-settings">
-      <h2 className="bw-h2">{S.title}</h2>
-      <p className="bw-muted">{S.lead}</p>
+      <h2 className="bw-h2">{S.title}<Info text={S.lead} label={t.uitleg.label} /></h2>
       <div className="a-grid2">{Object.keys(S.issuer).map((k) => <label key={k}>{S.issuer[k]}<input className="bw-input" value={iss[k] ?? ""} onChange={(e) => setIss({ ...iss, [k]: e.target.value })} /></label>)}</div>
       <div className="a-grid2">
         {(["paymentDays", "reminderDays", "firstSeqF", "firstSeqCN"] as const).map((k) => <label key={k}>{S[k]}<input className="bw-input" inputMode="numeric" value={num[k]} onChange={(e) => setNum({ ...num, [k]: e.target.value.replace(/\D/g, "") })} /></label>)}

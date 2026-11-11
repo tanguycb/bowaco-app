@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Principal } from "@icp-sdk/core/principal";
 import { QuoteSeverity, type DocKindView, type ImportBatch, type QuoteRuleView, type QuoteStdPostView, type RollbackReport, type TradeView } from "../backend";
-import { Button, Choice, Confirm, Sheet, useToast } from "../design";
+import { Button, Choice, Confirm, Sheet, useToast, Info } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtEuro, fmtTime, parseEuro, parsePct, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -91,8 +91,7 @@ export function OpmetingAdmin() {
   });
   return (
     <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="measure-settings">
-      <h2 className="bw-h2">{T.title}</h2>
-      <p className="bw-muted">{T.lead}</p>
+      <h2 className="bw-h2">{T.title}<Info text={T.lead} label={t.uitleg.label} /></h2>
       <Loading q={cur} />
       {cur.data && (
         <>
@@ -131,8 +130,7 @@ export function VorderingAdmin() {
   });
   return (
     <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="progress-settings">
-      <h2 className="bw-h2">{T.title}</h2>
-      <p className="bw-muted">{T.lead}</p>
+      <h2 className="bw-h2">{T.title}<Info text={T.lead} label={t.uitleg.label} /></h2>
       <Loading q={cur} />
       {cur.data && (
         <>
@@ -175,8 +173,7 @@ export function OaFactuurAdmin() {
   return (
     <>
     <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="oa-invoice-settings">
-      <h2 className="bw-h2">{T.title}</h2>
-      <p className="bw-muted">{T.lead}</p>
+      <h2 className="bw-h2">{T.title}<Info text={T.lead} label={t.uitleg.label} /></h2>
       <Loading q={cur} />
       {cur.data && (
         <>
@@ -284,8 +281,7 @@ export function QuoteRulesAdmin() {
     setRule.mutate({ key: r.key, enabled: r.enabled, severity: r.severity, thresholdBp: r.thresholdBp, ...p });
   return (
     <section className="a-section" style={{ maxWidth: 860 }} data-testid="quote-rules-admin">
-      <h2 className="bw-h2">{R.title}</h2>
-      <p className="bw-muted">{R.lead}</p>
+      <h2 className="bw-h2">{R.title}<Info text={R.lead} label={t.uitleg.label} /></h2>
       <Loading q={q} />
       {q.data && (
         <table className="a-table" aria-label={R.title}>
@@ -407,8 +403,7 @@ export function QuoteDocsAdmin() {
   });
   return (
     <section className="a-section a-form" style={{ maxWidth: 760 }} data-testid="quote-docs-admin">
-      <h2 className="bw-h2">{D.title}</h2>
-      <p className="bw-muted">{D.lead}</p>
+      <h2 className="bw-h2">{D.title}<Info text={D.lead} label={t.uitleg.label} /></h2>
       <Loading q={q} />
       {q.data && (
         <>
@@ -579,8 +574,7 @@ export function ImportBatches() {
   if (list.isError || !list.data) return null;
   return (
     <section className="a-section" style={{ maxWidth: 860 }}>
-      <h2 className="bw-h2">{t.imp.title}</h2>
-      <p className="bw-muted">{t.imp.lead}</p>
+      <h2 className="bw-h2">{t.imp.title}<Info text={t.imp.lead} label={t.uitleg.label} /></h2>
       {list.data.length === 0 && <p className="a-empty">{t.imp.none}</p>}
       {list.data.length > 0 && (
         <ul className="a-list">
@@ -628,8 +622,7 @@ export function Vehicles() {
   });
   return (
     <section className="a-section" style={{ maxWidth: 720 }}>
-      <h2 className="bw-h2">{t.vehicles.title}</h2>
-      <p className="bw-muted">{t.vehicles.lead}</p>
+      <h2 className="bw-h2">{t.vehicles.title}<Info text={t.vehicles.lead} label={t.uitleg.label} /></h2>
       <Loading q={q} />
       {q.data && q.data.length === 0 && <p className="a-empty">{t.vehicles.none}</p>}
       {q.data && q.data.length > 0 && (

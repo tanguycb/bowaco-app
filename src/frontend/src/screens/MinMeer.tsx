@@ -7,7 +7,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import type { Caps, MinMeerFullView, MmRowView, MmEntryView, MmVersionBrief, MmFrozen, MmChange } from "../backend";
-import { Button, Sheet, useToast } from "../design";
+import { Button, Cijfer, Info, Meer, Sheet, useToast } from "../design";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, unwrap, useBackend } from "../util";
 import { Loading } from "./common";
@@ -61,15 +61,13 @@ function OfficeMinMeer({ workId, go }: { workId: bigint; go?: (to: string) => vo
   return (
     <section className="a-section" data-testid="minmeer">
       <div className="a-row a-row--between">
-        <h2 className="bw-h2">{T.title}</h2>
+        <h2 className="bw-h2">{T.title}<Info text={T.lead} label={t.uitleg.label} /></h2>
         <div className="a-row" style={{ flexWrap: "wrap", gap: 6 }}>
           <Button icon="plus" onClick={() => setEntry("new")}>{T.add}</Button>
-          <Button onClick={() => setRates(true)}>{T.regieRates}</Button>
-          <Button onClick={() => setQuote(true)}>{T.makeQuote}</Button>
           <Button variant="primary" onClick={() => setConfirmVersion(true)} disabled={!check?.ok}>{T.makeVersion}</Button>
+          <Meer items={[{ label: T.regieRates, onClick: () => setRates(true) }, { label: T.makeQuote, onClick: () => setQuote(true) }]} />
         </div>
       </div>
-      <p className="bw-muted">{T.lead}</p>
       <p className="bw-muted">{v.baseQuote ? T.base(v.baseQuote) : T.noBase}</p>
       {check && !check.ok && <p className="a-err" role="alert">{T.recheck}</p>}
       {v.findings.length > 0 && (
@@ -109,7 +107,9 @@ function Totals({ totals: x, invoiced }: { totals: MinMeerFullView["totals"]; in
         {row(T.totals.balance, x.balanceCents, true)}
         {row(T.totals.contract, x.contractCents, true)}
         {row(T.totals.invoiced, x.invoicedCents)}
-        {row(T.totals.toInvoice, x.toInvoiceCents, true)}
+        {/* 4b.3: uitleg bij het cijfer: de opbouw enkel als de som klopt met wat de backend rekende (anders enkel de zin). */}
+        <div className="a-row a-row--between"><b>{T.totals.toInvoice}</b><b className="bw-num"><Cijfer naam={T.totals.toInvoice} uitleg={t.schil.cijfer.nogTeFactureren}
+          regels={x.contractCents - x.invoicedCents === x.toInvoiceCents ? [{ label: T.totals.contract, waarde: fmtEuro(x.contractCents) }, { label: T.totals.invoiced, waarde: `− ${fmtEuro(x.invoicedCents)}` }, { label: T.totals.toInvoice, waarde: fmtEuro(x.toInvoiceCents), totaal: true }] : undefined}>{fmtEuro(x.toInvoiceCents)}</Cijfer></b></div>
         {x.pendingCents !== 0n && <p className="bw-muted">{T.totals.pending}: {fmtEuro(x.pendingCents)}</p>}
         {x.revisionCents !== 0n && <p className="bw-muted">{T.totals.revision}: {fmtEuro(x.revisionCents)}</p>}
       </div>
@@ -346,8 +346,7 @@ export function MyMinMeer({ workId, hideEmpty }: { workId?: bigint; hideEmpty?: 
   if (q.isError || (hideEmpty && list.length === 0)) return null;
   return (
     <section className="a-section" data-testid="my-minmeer">
-      <h2 className="bw-h2">{T.mine.title}</h2>
-      <p className="bw-muted">{T.mine.lead}</p>
+      <h2 className="bw-h2">{T.mine.title}<Info text={T.mine.lead} label={t.uitleg.label} /></h2>
       {list.length === 0 ? <p className="a-empty">{T.mine.none}</p> : (
         <ul className="a-list">
           {list.map((x) => (

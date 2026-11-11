@@ -1,19 +1,30 @@
 // Kleine bouwstenen die meerdere schermen delen.
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { WorkStatus, type WorkStageView, type WorkView } from "../backend";
-import { Icon, STATUS_WORD, StatusBadge, type Status } from "../design";
+import { Icon, Info, STATUS_WORD, StatusBadge, type Status } from "../design";
+import { useInPaneel } from "../design/Werklijst";
 import { t } from "../texts/nl";
 import { errText, fmtDay, todayLabel, useBackend } from "../util";
 import { faseNaam, PHASE_KEYS, werfFase, type Fase, type StageFacts } from "../app/fase";
 
-export function Page({ label, title, actions, children, wide }: { label?: string; title: string; actions?: ReactNode; children: ReactNode; wide?: boolean }) {
+/** 4b.3: de uitleg achter de ⓘ van het scherm dat openstaat (App zet ze uit app/schil.ts, per rol). */
+export const UitlegContext = createContext<string | null>(null);
+
+/** Een scherm: kop met titel en ⓘ (de uitleg staat niet meer als alinea boven het scherm, L6) en rechts de knoppen
+ *  (één hoofdknop, de rest gewoon of onder ⋯). info = eigen uitleg; null = geen; weggelaten = die van het scherm.
+ *  In het paneel van een werklijst wordt de kop compact en hoort de uitleg van de lijst er niet bij. */
+export function Page({ label, title, actions, children, wide, info, inline, kop }: { label?: string; title: string; actions?: ReactNode; children: ReactNode; wide?: boolean; info?: string | null; inline?: boolean; kop?: ReactNode }) {
+  const paneel = useInPaneel();
+  const ctx = useContext(UitlegContext);
+  const uitleg = info !== undefined ? info : paneel ? null : ctx;
   return (
-    <div className={wide ? "a-page a-page--wide" : "a-page"}>
-      <header className="a-head">
+    <div className={`a-page${wide ? " a-page--wide" : ""}${paneel ? " a-page--paneel" : ""}`}>
+      <header className={inline ? "a-head a-head--inline" : "a-head"}>
         <div>
           <span className="bw-label">{label ?? todayLabel()}</span>
-          <h1 className="bw-h1">{title}</h1>
+          <h1 className="bw-h1">{title}{uitleg && <Info text={uitleg} label={t.uitleg.label} />}</h1>
+          {kop}
         </div>
         {actions && <div className="a-row">{actions}</div>}
       </header>
@@ -23,8 +34,8 @@ export function Page({ label, title, actions, children, wide }: { label?: string
 }
 
 /** 2b.3: een scherm staat op zichzelf (eigen pagina) of als tabblad in de werf (embedded: geen eigen kop, de knoppen rechts). */
-export function Frame({ embedded, label, title, actions, children, wide }: { embedded?: boolean; label?: string; title: string; actions?: ReactNode; children: ReactNode; wide?: boolean }) {
-  if (!embedded) return <Page label={label} title={title} actions={actions} wide={wide}>{children}</Page>;
+export function Frame({ embedded, label, title, actions, children, wide, info }: { embedded?: boolean; label?: string; title: string; actions?: ReactNode; children: ReactNode; wide?: boolean; info?: string | null }) {
+  if (!embedded) return <Page label={label} title={title} actions={actions} wide={wide} info={info}>{children}</Page>;
   return (
     <div className="a-tabbody">
       {actions && <div className="a-row a-tabbody__actions">{actions}</div>}

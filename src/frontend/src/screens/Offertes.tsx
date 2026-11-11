@@ -140,7 +140,6 @@ function QuotesOverview({ caps, go }: { caps: Caps; go: (to: string) => void }) 
   const rows = (list.data ?? []).filter((x) => words.every((w) => `${x.number} ${x.title} ${x.workCode} ${x.workName} ${x.clientName}`.toLowerCase().includes(w)));
   return (
     <Page label={O.label} title={O.title} actions={caps.editQuotes && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{O.newQuote}</Button>}>
-      <p className="bw-muted" style={{ maxWidth: 760 }}>{caps.quotePrices ? O.lead : O.leadTotals}</p>
       {/* 4b.1: de start van de calculator (aanvragen, wacht op de klant, voorstellen) staat in Te doen. */}
       {caps.home === "offertes" && <TodoBlock go={go} home={caps.home} hideEmpty />}
       <div className="a-row" style={{ gap: 16 }}>

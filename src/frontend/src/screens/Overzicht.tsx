@@ -4,7 +4,7 @@
 // de toegangscijfers en de foute codepogingen in Beheer → Toegang & codes; gewone meldingen gebundeld in de bel.
 import { useState } from "react";
 import type { Caps, MyDayView } from "../backend";
-import { Button, Icon } from "../design";
+import { Button, Icon, Info } from "../design";
 import { PHASE_KEYS, werfFase, werfGroep } from "../app/fase";
 import { overzichtBlocks } from "../app/start";
 import { useCached } from "../offline/cached";
@@ -97,7 +97,7 @@ function PerFase({ go }: { go: (to: string) => void }) {
   const counts = PHASE_KEYS.map((_, i) => fases.filter((f) => !f.cancelled && f.index === i).length);
   return (
     <section className="a-section" data-testid="werven-per-fase">
-      <h2 className="bw-h2">{A.byPhase}</h2>
+      <h2 className="bw-h2">{A.byPhase}<Info text={t.uitleg.fase} label={t.uitleg.label} /></h2>
       {works.data && live.length === 0 && <p className="a-empty">{A.byPhaseNone}</p>}
       {live.length > 0 && (
         <ul className="a-list">
@@ -107,7 +107,7 @@ function PerFase({ go }: { go: (to: string) => void }) {
               <li key={k}>
                 <button type="button" className="a-list__btn" data-fase={k} onClick={() => go(`werven/${tab}`)}>
                   <span className="a-list__main"><b>{t.fase.names[i]}</b></span>
-                  <span className="bw-mono">{counts[i]}</span>
+                  <span className="bw-mono" title={t.schil.cijfer.fase(t.fase.names[i])}>{counts[i]}</span>
                   <Icon name="next" size={18} />
                 </button>
               </li>

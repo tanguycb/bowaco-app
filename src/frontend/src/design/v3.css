@@ -1,0 +1,190 @@
+/* BOWACO design system versie 3 (stap 4b.3). Komt NA design.css en de schermbestanden (main.tsx), zodat één stelsel
+   geldt voor de hele app: twee dichtheden, knoppen in drie soorten en drie maten, één veldstijl, één tabel, labels en
+   tags. Enkel tokens; geen nieuwe kleuren. De offerte-editor (q-*, offerte.css) blijft ongemoeid: dat is 4b.3b. */
+
+/* ---------- Dichtheid: ruim (gsm, vinger) = zoals vroeger; dicht = scherm met muis vanaf 900 px ---------- */
+:root {
+  --bw-h-sm: 40px;  /* knop klein */
+  --bw-h-md: 48px;  /* knop en veld gewoon */
+  --bw-h-lg: 56px;  /* hoofdknop op de werf (handschoenen) */
+  --bw-row: 56px;   /* rij in een lijst */
+  --bw-cell-y: 11px;
+  --bw-cell-x: 14px;
+  --bw-page-x: 28px;
+  --bw-page-y: 28px;
+  --bw-gap: 22px;
+  --bw-menu-w: 228px;
+  --bw-rail-w: 60px;
+  --bw-top-h: 52px;
+}
+:root[data-dichtheid="dicht"] {
+  --bw-fs-xs: 0.75rem;     /* 12 */
+  --bw-fs-sm: 0.8125rem;   /* 13 */
+  --bw-fs-md: 0.90625rem;  /* 14,5 — basistekst op kantoor */
+  --bw-fs-lg: 1.0625rem;   /* 17 */
+  --bw-fs-xl: 1.375rem;    /* 22 — schermtitel */
+  --bw-fs-2xl: 1.75rem;    /* 28 — tellers */
+  --bw-tap: 34px;
+  --bw-tap-lg: 42px;
+  --bw-h-sm: 28px;
+  --bw-h-md: 34px;
+  --bw-h-lg: 42px;
+  --bw-row: 40px;
+  --bw-cell-y: 7px;
+  --bw-cell-x: 12px;
+  --bw-page-x: 24px;
+  --bw-page-y: 18px;
+  --bw-gap: 16px;
+}
+
+/* ---------- Labels: gewone kleine letter; monoletter enkel voor codes en getallen ---------- */
+.bw-label {
+  font-family: var(--bw-font-text); font-size: var(--bw-fs-sm); font-weight: 500;
+  letter-spacing: 0; text-transform: none; color: var(--bw-ink-2);
+}
+.bw-h1 { font-size: var(--bw-fs-xl); }
+.bw-code { font-family: var(--bw-font-mono); font-size: 0.92em; letter-spacing: 0; }
+
+/* ---------- Knoppen: hoofd · gewoon · stil (+ gevaarlijk), maten klein · gewoon · groot ---------- */
+.bw-btn { min-height: var(--bw-h-md); padding: 0 calc(var(--bw-h-md) / 3); font-size: var(--bw-fs-md); white-space: nowrap; }
+.bw-btn--sm { min-height: var(--bw-h-sm); padding: 0 10px; font-size: var(--bw-fs-sm); gap: 6px; }
+.bw-btn--lg { min-height: var(--bw-h-lg); }
+.bw-btn--icon { width: var(--bw-h-md); padding: 0; }
+.bw-btn--sm.bw-btn--icon { width: var(--bw-h-sm); }
+.bw-btn--lg.bw-btn--icon { width: var(--bw-h-lg); }
+/* Een stille knop lijkt altijd op een knop: een dunne rand, of een icoon. */
+.bw-btn--quiet { border-color: var(--bw-line); font-weight: 500; }
+.bw-btn--quiet:has(> .bw-icon), .bw-btn--quiet.bw-btn--icon { border-color: transparent; }
+.bw-btn--quiet:hover:not([disabled]) { border-color: var(--bw-line-strong); }
+/* Gevaarlijk (intrekken, verwijderen): apart en rood omlijnd. */
+.bw-btn--danger { color: var(--bw-st-blocked); border-color: currentColor; }
+.bw-btn--danger:hover:not([disabled]) { background: var(--bw-st-blocked-bg); }
+/* Tekstlinks die een handeling zijn: onderlijnd, zodat ze niet op gewone tekst lijken. */
+.a-link { border: 0; background: none; padding: 0; font: inherit; color: var(--bw-ink); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.a-link:hover { color: var(--bw-accent); }
+
+/* ---------- Eén veldstijl: zichtbare rand, sterker bij aanwijzen, kobalt bij focus ---------- */
+.bw-input,
+:where(.a-main, .bw-sheet) :is(input:not([type]), input[type="text"], input[type="number"], input[type="date"], input[type="email"], input[type="tel"], input[type="search"], input[type="time"], input[type="url"], select, textarea):not([class]) {
+  min-height: var(--bw-h-md); padding: 0 10px; border-radius: var(--bw-radius);
+  border: 1px solid var(--bw-line-strong); background: var(--bw-surface); color: var(--bw-ink);
+  font: 400 var(--bw-fs-md) var(--bw-font-text); max-width: 100%;
+}
+textarea.bw-input, :where(.a-main, .bw-sheet) textarea:not([class]) { padding: 8px 10px; min-height: 88px; line-height: 1.45; }
+.bw-input:hover:not(:disabled):not(:focus) { border-color: var(--bw-ink-2); }
+.bw-input:focus, :where(.a-main, .bw-sheet) :is(input, select, textarea):not([class]):focus { border-color: var(--bw-focus); outline: 1px solid var(--bw-focus); outline-offset: 0; }
+.bw-input:disabled { background: var(--bw-sunken); color: var(--bw-ink-2); }
+select.bw-input {
+  appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23808897' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.bw-field { gap: 4px; }
+.bw-field > .bw-label, .bw-field > span:first-child { font-size: var(--bw-fs-sm); }
+
+/* ---------- Tags en de stand: één vorm overal ---------- */
+.a-tag, .bw-tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; min-height: 20px;
+  border-radius: var(--bw-radius-sm); background: var(--bw-sunken); color: var(--bw-ink-2);
+  font: 500 var(--bw-fs-xs)/1.35 var(--bw-font-text); letter-spacing: 0; white-space: nowrap;
+}
+.bw-tag--code { font-family: var(--bw-font-mono); }
+.bw-tag--accent { background: var(--bw-accent-soft); color: var(--bw-accent); }
+.bw-tag--warn { background: var(--bw-st-delayed-bg); color: var(--bw-st-delayed); }
+.bw-tag--bad { background: var(--bw-st-blocked-bg); color: var(--bw-st-blocked); }
+.bw-tag--ok { background: var(--bw-st-done-bg); color: var(--bw-st-done); }
+.bw-status { font-size: var(--bw-fs-xs); padding: 1px 7px 1px 5px; min-height: 20px; }
+.bw-status--sm { padding: 0 6px 0 4px; }
+.m-tag, .m-pill { font-family: var(--bw-font-text); letter-spacing: 0; }
+
+/* ---------- Eén tabel (Table.tsx en de oude a-table): vaste kop, sorteren, kolommen kiezen ---------- */
+.bw-table th, .a-table th {
+  font-family: var(--bw-font-text); font-size: var(--bw-fs-xs); font-weight: 600; letter-spacing: 0; text-transform: none;
+  color: var(--bw-ink-2); padding: var(--bw-cell-y) var(--bw-cell-x); background: var(--bw-surface-2);
+  border-bottom: 1px solid var(--bw-line); text-align: left; white-space: nowrap; position: sticky; top: 0; z-index: 1;
+}
+.bw-table td, .a-table td { padding: var(--bw-cell-y) var(--bw-cell-x); border-bottom: 1px solid var(--bw-line); vertical-align: middle; }
+.a-table { width: 100%; border-collapse: collapse; font-size: var(--bw-fs-sm); font-variant-numeric: tabular-nums; }
+.a-table tr:last-child td { border-bottom: 0; }
+.a-table .a-num, .a-table .bw-num, .bw-table .bw-num { text-align: right; font-variant-numeric: tabular-nums; }
+.bw-table-wrap, .a-tablewrap { max-height: var(--bw-table-max, none); overflow: auto; }
+.bw-th-sort { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.bw-th-sort:hover { color: var(--bw-ink); }
+.bw-th-sort[aria-pressed="true"] { color: var(--bw-ink); }
+.bw-table-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bw-table-tools__n { margin-left: auto; color: var(--bw-ink-2); font-size: var(--bw-fs-sm); }
+.bw-filter { display: inline-flex; align-items: center; gap: 6px; min-height: var(--bw-h-sm); padding: 0 10px; border-radius: 999px; border: 1px solid var(--bw-line-strong); background: var(--bw-surface); color: var(--bw-ink); font: 500 var(--bw-fs-sm) var(--bw-font-text); cursor: pointer; }
+.bw-filter[aria-pressed="true"] { background: var(--bw-accent-soft); color: var(--bw-accent); border-color: var(--bw-accent); }
+.bw-filter__n { font-family: var(--bw-font-mono); font-size: var(--bw-fs-xs); opacity: 0.8; }
+.bw-cols { position: relative; }
+.bw-cols__pop, .bw-pop {
+  position: absolute; z-index: 40; right: 0; top: calc(100% + 4px); min-width: 220px; max-width: min(340px, 86vw);
+  display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--bw-surface); border: 1px solid var(--bw-line-strong);
+  border-radius: var(--bw-radius); box-shadow: var(--bw-shadow-lift); font-size: var(--bw-fs-sm);
+}
+.bw-cols__pop label { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 6px; border-radius: var(--bw-radius-sm); cursor: pointer; }
+.bw-cols__pop label:hover { background: var(--bw-surface-2); }
+
+/* ---------- Meer (⋯): de handelingen die geen hoofdknop zijn ---------- */
+.bw-meer { position: relative; display: inline-flex; }
+.bw-pop__item { display: flex; align-items: center; gap: 8px; min-height: var(--bw-h-md); padding: 0 10px; border: 0; border-radius: var(--bw-radius-sm); background: none; color: var(--bw-ink); font: 500 var(--bw-fs-sm) var(--bw-font-text); text-align: left; cursor: pointer; white-space: nowrap; }
+.bw-pop__item:hover:not([disabled]), .bw-pop__item:focus-visible { background: var(--bw-surface-2); }
+.bw-pop__item[disabled] { opacity: 0.45; cursor: not-allowed; }
+.bw-pop__item--danger { color: var(--bw-st-blocked); }
+
+/* ---------- Uitleg bij een cijfer ---------- */
+.bw-cijfer { position: relative; display: inline-flex; }
+.bw-cijfer__btn { display: inline-flex; align-items: baseline; gap: 4px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: help; border-bottom: 1px dotted var(--bw-line-strong); }
+.bw-cijfer__btn:hover { border-bottom-color: var(--bw-accent); }
+.bw-cijfer__pop { left: 0; right: auto; padding: 12px; gap: 8px; width: max-content; max-width: min(320px, 86vw); font-weight: 400; letter-spacing: 0; text-transform: none; line-height: 1.45; color: var(--bw-ink); font-size: var(--bw-fs-sm); font-stretch: 100%; }
+.bw-cijfer__pop dl { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; margin: 0; }
+.bw-cijfer__pop dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.bw-cijfer__pop dt.bw-cijfer__tot, .bw-cijfer__pop dd.bw-cijfer__tot { border-top: 1px solid var(--bw-line); padding-top: 4px; font-weight: 600; }
+
+/* ---------- Kop van een scherm: titel met ⓘ, één hoofdknop rechts ---------- */
+.a-head { align-items: center; }
+.a-head h1 { display: inline-flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.a-head .bw-info__btn { min-width: 28px; min-height: 28px; }
+.a-section > h2.bw-h2, .a-section > .a-row > h2.bw-h2 { display: inline-flex; align-items: center; }
+
+/* ---------- Lijsten en blokken volgen de dichtheid ---------- */
+.a-page { padding: var(--bw-page-y) var(--bw-page-x) 48px; gap: var(--bw-gap); }
+.a-list > li { min-height: var(--bw-row); padding: var(--bw-cell-y) var(--bw-cell-x); }
+.a-cols { gap: var(--bw-gap); }
+.a-counter { padding: calc(var(--bw-cell-y) + 6px) calc(var(--bw-cell-x) + 4px); }
+:root[data-dichtheid="dicht"] .a-page { max-width: 1480px; }
+:root[data-dichtheid="dicht"] .a-list__main b { font-size: var(--bw-fs-md); }
+:root[data-dichtheid="dicht"] .bw-card { padding: 12px 14px; }
+:root[data-dichtheid="dicht"] .bw-sheet--side { width: min(400px, 100%); }
+:root[data-dichtheid="dicht"] .bw-sheet--side.bw-sheet--wide { width: min(760px, 100%); }
+:root[data-dichtheid="dicht"] .a-check { min-height: 32px; }
+:root[data-dichtheid="dicht"] .a-check input { width: 18px; height: 18px; }
+:root[data-dichtheid="dicht"] .bw-choice__opt { min-height: var(--bw-h-md); min-width: var(--bw-h-md); }
+:root[data-dichtheid="dicht"] .bw-info__btn { min-width: 22px; min-height: 22px; }
+:root[data-dichtheid="dicht"] .bw-stepper button { width: var(--bw-h-md); height: var(--bw-h-md); }
+
+/* ---------- Tabel: rij gekozen, werkbalk ---------- */
+.bw-tabel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bw-table tr.bw-row--sel td { background: var(--bw-accent-soft); }
+
+/* ---------- Werklijst: lijst links, het gekozen stuk rechts ---------- */
+.bw-wl { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: var(--bw-gap); align-items: start; }
+.bw-wl__l { position: sticky; top: calc(var(--bw-top-h) + 12px); display: flex; flex-direction: column; gap: 6px; max-height: calc(100dvh - var(--bw-top-h) - 40px); min-height: 0; }
+.bw-wl__list { overflow-y: auto; min-height: 0; }
+.bw-wl__list > li.bw-wl__on { background: var(--bw-accent-soft); box-shadow: inset 3px 0 0 var(--bw-accent); }
+.bw-wl__hint { font-size: var(--bw-fs-xs); margin: 0; }
+.bw-wl__r { min-width: 0; border: 1px solid var(--bw-line); border-radius: var(--bw-radius-lg); background: var(--bw-surface); }
+.bw-wl__r > .a-empty { margin: 16px; }
+/* een scherm in het paneel: compacte kop, geen eigen paginarand */
+.a-page--paneel { padding: 14px 16px 20px; gap: 14px; max-width: none; }
+.a-page--paneel .bw-h1 { font-size: var(--bw-fs-lg); }
+
+/* ---------- De fase van een werf: zelfde vorm als een tag (geen hoofdletters, geen monoletter) ---------- */
+.a-ph { padding: 1px 7px; min-height: 20px; gap: 6px; font: 500 var(--bw-fs-xs)/1.35 var(--bw-font-text); text-transform: none; letter-spacing: 0; }
+@media (max-width: 640px) {
+  .bw-table--stack td::before { font-family: var(--bw-font-text); font-size: var(--bw-fs-sm); text-transform: none; letter-spacing: 0; }
+}
+
+/* ---------- Selectie = kobalt (zwart blijft voor de ene hoofdknop) ---------- */
+.bw-choice__opt[aria-pressed="true"] { background: var(--bw-accent-soft); color: var(--bw-accent); border-color: var(--bw-accent); }
+.bw-choice--fill .bw-choice__opt[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--bw-accent); }

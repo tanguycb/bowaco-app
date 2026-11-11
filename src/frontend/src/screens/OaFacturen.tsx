@@ -8,7 +8,8 @@ import { InvCheckPanel } from "./FactuurControle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ExternalBlob, OaInvoiceLineKind, OaInvoiceStatus, OrgKind, WithholdingResult, type Caps, type OaInvoiceFullView, type OaInvoiceInput, type OaInvoiceLine, type OaInvoiceQtyView, type OaLineQty, type OaPostOption, type OaVatRegime } from "../backend";
-import { Button, Icon, Sheet, useToast } from "../design";
+import { Button, Icon, Meer, Sheet, useToast, Werklijst } from "../design";
+import { useInPaneel } from "../design/Werklijst";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, fmtTime, inputToDay, parseEuro, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page } from "./common";
@@ -38,13 +39,15 @@ export function OaFacturenPage({ caps, go, route }: { caps: Caps; go: (to: strin
   if (route[1] === "nieuw") return caps.quotePrices ? <InvoiceForm go={go} /> : <ListPage caps={caps} go={go} />;
   if (route[1] && /^\d+$/.test(route[1])) {
     if (route[2] === "wijzigen" && caps.quotePrices) return <InvoiceForm key={`e${route[1]}`} id={BigInt(route[1])} go={go} />;
-    return caps.quotePrices ? <FullInvoice key={route[1]} id={BigInt(route[1])} go={go} /> : <QtyInvoice key={route[1]} id={BigInt(route[1])} go={go} />;
+    // 4b.3 Werklijst: op een breed scherm de lijst links en de factuur rechts; smal zoals vroeger (enkel de factuur).
+    const detail = caps.quotePrices ? <FullInvoice key={route[1]} id={BigInt(route[1])} go={go} /> : <QtyInvoice key={route[1]} id={BigInt(route[1])} go={go} />;
+    return <ListPage caps={caps} go={go} selected={route[1]} detail={detail} />;
   }
   return <ListPage caps={caps} go={go} />;
 }
 
 // ── Lijst ──────────────────────────────────────────────────────────────────
-function ListPage({ caps, go }: { caps: Caps; go: (to: string) => void }) {
+function ListPage({ caps, go, selected, detail }: { caps: Caps; go: (to: string) => void; selected?: string; detail?: React.ReactNode }) {
   const { actor, isFetching } = useBackend();
   const [status, setStatus] = useState<string>("");
   const q = useQuery({ queryKey: ["oaInvoices", status], queryFn: () => actor!.listOaInvoices(null, status ? (status as OaInvoiceStatus) : null), enabled: !!actor && !isFetching });
@@ -52,7 +55,6 @@ function ListPage({ caps, go }: { caps: Caps; go: (to: string) => void }) {
   return (
     <Page label={T.label} title={T.title} actions={caps.quotePrices ? <Button variant="primary" icon="plus" onClick={() => go("oa-facturen/nieuw")} data-testid="oi-new">{T.register}</Button> : undefined}>
       <PurchaseTabs caps={caps} go={go} active="parts" />
-      <p className="bw-muted" style={{ maxWidth: 720 }}>{caps.quotePrices ? T.lead : T.leadQty}</p>
       <label className="bw-field" style={{ maxWidth: 240 }}>
         <span className="bw-label">{T.statusFilter}</span>
         <select className="bw-input" value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -62,24 +64,20 @@ function ListPage({ caps, go }: { caps: Caps; go: (to: string) => void }) {
       </label>
       <Loading q={q} />
       {q.data && rows.length === 0 && <EmptyState title={t.leeg.oafacturen.t} text={t.leeg.oafacturen.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />}
-      {rows.length > 0 && (
-        <ul className="a-list" data-testid="oi-list">
-          {rows.map((b) => (
-            <li key={String(b.id)}>
-              <button type="button" className="a-list__btn" onClick={() => go(`oa-facturen/${b.id}`)}>
-                <span className="a-tag bw-mono">{b.number}</span>
-                <span className="a-list__main">
-                  <b>{b.orgName}</b>
-                  <span className="bw-muted">{b.workCode} {b.workName} · {fmtDayNum(b.invoiceDay)}{b.reverse ? ` · ${T.reverseShort}` : ""}{b.hasFile ? "" : ` · ${T.noFile}`}</span>
-                </span>
-                <span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span>
-                <Icon name="next" size={18} />
-              </button>
-              {/* 2b.3: werklijst → de werf, op het tabblad Facturatie */}
-              <Button variant="quiet" className="a-nowrap" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
-            </li>
-          ))}
-        </ul>
+      {/* 4b.3 Werklijst: de lijst links, de gekozen factuur rechts met haar knoppen; pijltjes lopen door de lijst. De werf
+          (vroeger een knop per regel) staat in de factuur zelf. */}
+      {(rows.length > 0 || detail) && (
+        <Werklijst items={rows} rowKey={(b) => String(b.id)} selected={selected} detail={detail} label={T.title} testid="oi-list"
+          onSelect={(k) => go(`oa-facturen/${k}`)}
+          row={(b) => (
+            <>
+              <span className="a-list__main">
+                <b>{b.orgName}</b>
+                <span className="bw-muted"><span className="bw-code">{b.number}</span> · {b.workCode} {b.workName} · {fmtDayNum(b.invoiceDay)}{b.reverse ? ` · ${T.reverseShort}` : ""}{b.hasFile ? "" : ` · ${T.noFile}`}</span>
+              </span>
+              <span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span>
+            </>
+          )} />
       )}
     </Page>
   );
@@ -282,6 +280,7 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
   const { actor, isFetching } = useBackend();
   const toast = useToast();
   const qc = useQueryClient();
+  const paneel = useInPaneel();
   const q = useQuery({ queryKey: ["oaInvoiceFull", String(id)], queryFn: async () => unwrap(await actor!.readOaInvoice(id)), enabled: !!actor && !isFetching, staleTime: 0, gcTime: 0 });
   const [sheet, setSheet] = useState<null | "approve" | "dispute" | "withdraw" | "check">(null);
   const [reason, setReason] = useState("");
@@ -316,13 +315,16 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
       label={`${T.label} · ${b.workCode} ${b.workName}`}
       title={`${b.orgName} · ${b.number}`}
       actions={<>
-        <Button icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button>
-        <Button icon="building" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button>
-        {v.canEdit && <Button icon="edit" onClick={() => go(`oa-facturen/${id}/wijzigen`)} data-testid="oi-edit">{T.edit}</Button>}
-        {b.purchaseId !== undefined && <Button icon="receipt" onClick={() => go(`oa-facturen/aankoop/${b.purchaseId}`)} data-testid="oi-purchase">{T.purchaseLink}</Button>}
+        {/* 4b.3: één hoofdknop (Goedkeuren), Betwisten gewoon, de rest onder ⋯; Intrekken apart en rood. */}
+        {!paneel && <Button variant="quiet" icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button>}
         {v.canDecide && <Button variant="primary" icon="check" onClick={() => { setReason(""); setSheet("approve"); }} data-testid="oi-approve">{T.approve}</Button>}
         {v.canEdit && <Button icon="alert" onClick={() => { setReason(""); setSheet("dispute"); }} data-testid="oi-dispute">{T.dispute}</Button>}
-        {v.canDecide && <Button variant="quiet" icon="close" onClick={() => { setReason(""); setSheet("withdraw"); }}>{T.withdraw}</Button>}
+        <Meer items={[
+          { label: `${t.nav.werven}: ${b.workCode}`, icon: "building", onClick: () => go(`werven/${b.workId}/facturatie`) },
+          v.canEdit && { label: T.edit, icon: "edit", onClick: () => go(`oa-facturen/${id}/wijzigen`), testid: "oi-edit" },
+          b.purchaseId !== undefined && { label: T.purchaseLink, icon: "receipt", onClick: () => go(`oa-facturen/aankoop/${b.purchaseId}`), testid: "oi-purchase" },
+          v.canDecide && { label: T.withdraw, icon: "close", danger: true, onClick: () => { setReason(""); setSheet("withdraw"); } },
+        ]} />
       </>}
     >
       <div className="vs-head">
@@ -448,13 +450,14 @@ function LinesControl({ lines }: { lines: CRow[] }) {
 
 // ── De werfleider: hoeveelheden en uren, geen bedragen ─────────────────────
 function QtyInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
+  const paneel = useInPaneel();
   const { actor, isFetching } = useBackend();
   const q = useQuery({ queryKey: ["oaInvoiceQty", String(id)], queryFn: () => actor!.oaInvoiceQty(id), enabled: !!actor && !isFetching });
   const v: OaInvoiceQtyView | undefined = q.data;
   if (!v) return <Page label={T.label} title={T.title}><Loading q={q} /></Page>;
   const b = v.brief;
   return (
-    <Page wide label={`${T.label} · ${b.workCode} ${b.workName}`} title={`${b.orgName} · ${b.number}`} actions={<><Button icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button><Button icon="building" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button></>}>
+    <Page wide label={`${T.label} · ${b.workCode} ${b.workName}`} title={`${b.orgName} · ${b.number}`} actions={<>{!paneel && <Button variant="quiet" icon="back" onClick={() => go("oa-facturen")}>{t.common.back}</Button>}<Button icon="building" onClick={() => go(`werven/${b.workId}/facturatie`)}>{b.workCode}</Button></>}>
       <div className="vs-head"><span className={`a-tag ${statusTag(b.status)}`}>{T.status[b.status]}</span><span className="bw-muted">{T.dayLine(fmtDayNum(b.invoiceDay), b.dueDay !== undefined ? fmtDayNum(b.dueDay) : "–")}</span></div>
       <p className="a-note">{T.qtyOnly}</p>
       {!v.oaOnWork && <p className="a-note">{T.flags["oa-niet-op-werf"]}</p>}

@@ -36,6 +36,10 @@ const P: Record<string, string> = {
   edit: "M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4",
   undo: "M9 14 4 9l5-5 M4 9h11a5 5 0 0 1 0 10h-3",
   menu: "M4 7h16 M4 12h16 M4 17h16",
+  more: "M5 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z M19 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z", // 4b.3: ⋯ (meer handelingen)
+  rail: "M4 4h16v16H4z M9 4v16", // 4b.3: menu in- of uitklappen
+  columns: "M4 4h16v16H4z M10 4v16 M15 4v16", // 4b.3: kolommen kiezen
+  sort: "M8 5v14 M5 8l3-3 3 3 M16 19V5 M13 16l3 3 3-3",
   key: "M14 10a4 4 0 1 0-3.5 4L9 15.5V18H6.5v2.5H4V18l6.2-6.2A4 4 0 0 0 14 10z M15 7h.01",
   lock: "M6 11h12v9H6z M8.5 11V8a3.5 3.5 0 0 1 7 0v3", // 2b.3: tabblad dat nog niet geldt
   settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19 12l2-1-1-3-2.2.2-1.3-1.3L16.7 4.7 14 4l-1 2h-2L10 4l-2.7.7.2 2.2-1.3 1.3L4 8 3 11l2 1v0l-2 1 1 3 2.2-.2 1.3 1.3L7.3 19.3 10 20l1-2h2l1 2 2.7-.7-.2-2.2 1.3-1.3L20 16l1-3z",

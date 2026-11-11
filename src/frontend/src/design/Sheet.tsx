@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Button } from "./Button";
+import { Button, GewoneKnoppen } from "./Button";
 
 /** Paneel over het scherm: onderaan op de gsm, rechts op de desktop (side). Esc en tik naast sluiten. */
 /** wide = breder zijpaneel op de desktop (editors met tabellen); op de gsm blijft het een blad onderaan. */
@@ -18,7 +18,7 @@ export function Sheet({ title, open, onClose, children, footer, side, wide }: { 
   }, [open]);
   if (!open) return null;
   return (
-    <>
+    <GewoneKnoppen.Provider value={false}>
       <div className="bw-sheet-back" onClick={onClose} />
       <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`bw-sheet${side ? " bw-sheet--side" : ""}${wide ? " bw-sheet--wide" : ""}`}>
         <div className="bw-sheet__head">
@@ -28,6 +28,6 @@ export function Sheet({ title, open, onClose, children, footer, side, wide }: { 
         <div className="bw-sheet__body">{children}</div>
         {footer && <div className="bw-sheet__foot">{footer}</div>}
       </div>
-    </>
+    </GewoneKnoppen.Provider>
   );
 }

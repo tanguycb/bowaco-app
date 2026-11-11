@@ -87,7 +87,6 @@ export function Posten({ caps }: { caps: Caps }) {
         </>
       }
     >
-      <p className="bw-muted" style={{ maxWidth: 760 }}>{P.lead} {!caps.libraryPrices && P.leadNoPrices}</p>
       <div className="a-grid3">
         <input className="bw-input" type="search" aria-label={P.search} placeholder={P.search} value={text} onChange={(e) => setText(e.target.value)} />
         <select className="bw-input" aria-label={P.chapter} value={chapter} onChange={(e) => setChapter(e.target.value)}>

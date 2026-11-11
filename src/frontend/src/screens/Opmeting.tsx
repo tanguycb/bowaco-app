@@ -60,7 +60,6 @@ function OpmetingLijst({ go }: { go: (to: string) => void }) {
   const list = q.data?.value ?? [];
   return (
     <Page title={T.title} label={T.label}>
-      <p className="bw-muted">{T.lead}<Info text={t.uitleg.opmeting} label={t.uitleg.label} /></p>
       <Loading q={q} />
       {q.data?.fromCache && <p className="m-banner"><Icon name="offline" size={18} />{T.offlineStand(new Date(q.data.at).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }))}</p>}
       {q.data && list.length === 0 && <EmptyState title={t.leeg.opmeting.t} text={t.leeg.opmeting.d} action={<Button onClick={() => go("werven/lopend")}>{t.nav.werven}</Button>} />}

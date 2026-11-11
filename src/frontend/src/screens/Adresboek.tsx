@@ -36,7 +36,6 @@ export function Adresboek({ caps, route, go }: { caps: Caps; route: string[]; go
   const { orgs, oas, persons, trades } = useAdresboek();
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
-  const [kind, setKind] = useState<OrgKind | "">("");
   const [creating, setCreating] = useState(false);
   // 4b.2: de balk opent #/adresboek/nieuw (ook als dit scherm al open staat).
   useEffect(() => { if (route[1] === "nieuw") { if (caps.manageOrgs) setCreating(true); window.location.replace("#/adresboek"); } }, [route[1]]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -57,39 +56,32 @@ export function Adresboek({ caps, route, go }: { caps: Caps; route: string[]; go
     .sort((a, b) => a.o.name.localeCompare(b.o.name, "nl"));
   const f = fold(q.trim());
   const shown = rows.filter(({ o, v, people }) => {
-    if (kind !== "" && o.kind !== kind) return false;
     if (f === "") return true;
     const hay = [o.name, ...o.aliases, o.kbo ?? "", o.vat ?? "", ...o.trades.map(tradeName), v?.contact?.email ?? "", v?.contact?.phone ?? "",
       ...people.flatMap((p) => [p.name, p.shortCode ?? ""]), ...(v?.persons ?? []).flatMap((p) => [p.email ?? "", p.jobTitle])].join(" ");
     return fold(hay).includes(f) || fold(hay.replace(/[\s.]/g, "")).includes(f.replace(/[\s.]/g, ""));
   });
-  const count = (k: OrgKind) => rows.filter((r) => r.o.kind === k).length;
   return (
     <Page title={A.title} actions={caps.manageOrgs && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{A.new}</Button>}>
-      <p className="bw-muted" style={{ maxWidth: 760 }}>{A.lead}</p>
       <input className="bw-input" type="search" aria-label={A.search} placeholder={A.search} value={text} onChange={(e) => setText(e.target.value)} data-testid="adresboek-zoek" />
-      <div className="a-row" role="group" aria-label={t.orgs.kind}>
-        <button type="button" className={`a-tag a-tag--link${kind === "" ? " a-tag--accent" : ""}`} aria-pressed={kind === ""} onClick={() => setKind("")} style={{ minHeight: 32 }}>{A.all} {rows.length}</button>
-        {KINDS.map((k) => (
-          <button key={k} type="button" className={`a-tag a-tag--link${kind === k ? " a-tag--accent" : ""}`} aria-pressed={kind === k} onClick={() => setKind(kind === k ? "" : k)} style={{ minHeight: 32 }}>
-            {t.orgKinds[k]} {count(k)}
-          </button>
-        ))}
-      </div>
       <Loading q={orgs} />
-      {orgs.data && <span className="bw-label" role="status">{A.count(shown.length)}</span>}
       {orgs.data && shown.length === 0 && (rows.length === 0 ? <EmptyState title={t.leeg.firmas.t} text={t.leeg.firmas.d} action={caps.manageOrgs && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{t.leeg.firmas.add}</Button>} extra={caps.importOa && <Button onClick={() => go("beheer/planning")}>{t.leeg.werven.import}</Button>} /> : <p className="a-empty">{A.noMatch}</p>)}
       {shown.length > 0 && (
+        // 4b.3: het tabelonderdeel: de soort als filterknoppen, sorteren op naam, codes en contact als kolom naar keuze.
         <Table
+          id="adresboek"
           rows={shown}
           rowKey={(r) => String(r.o.id)}
           onRow={(r) => go(`adresboek/${r.o.id}`)}
+          selected={openId !== null ? String(openId) : undefined}
+          filters={KINDS.filter((k) => shown.some((r) => r.o.kind === k)).map((k) => ({ key: k, label: t.orgKinds[k], test: (r: (typeof shown)[number]) => r.o.kind === k }))}
+          count
           columns={[
-            { key: "n", label: A.colFirm, render: (r) => <span><b>{r.o.name}</b><br /><span className="bw-muted">{t.orgKinds[r.o.kind]}</span></span> },
+            { key: "n", label: A.colFirm, sort: (r) => r.o.name, render: (r) => <span><b>{r.o.name}</b><br /><span className="bw-muted">{t.orgKinds[r.o.kind]}</span></span> },
             { key: "t", label: A.colTrades, render: (r) => (r.o.trades.length ? <span className="a-row">{r.o.trades.map((k) => <span key={k} className="a-tag">{tradeName(k)}</span>)}</span> : <span className="bw-muted">—</span>) },
-            { key: "a", label: A.colCodes, render: (r) => <span className="bw-mono">{r.o.aliases.join(", ") || "—"}</span> },
+            { key: "a", label: A.colCodes, optional: true, render: (r) => <span className="bw-mono">{r.o.aliases.join(", ") || "—"}</span> },
             { key: "p", label: A.colPeople, render: (r) => { const ps = r.people.filter((p) => p.archivedAt === undefined); return ps.length ? <span>{ps.slice(0, 3).map((p) => p.name + (p.shortCode ? ` (${p.shortCode})` : "")).join(", ")}{ps.length > 3 ? ` +${ps.length - 3}` : ""}</span> : <span className="bw-muted">—</span>; } },
-            { key: "c", label: A.colContact, render: (r) => { const bits = [r.v?.contact?.phone, r.v?.contact?.email].filter(Boolean); return bits.length ? <span>{bits.join(" · ")}</span> : <span className="bw-muted">—</span>; } },
+            { key: "c", label: A.colContact, optional: true, render: (r) => { const bits = [r.v?.contact?.phone, r.v?.contact?.email].filter(Boolean); return bits.length ? <span>{bits.join(" · ")}</span> : <span className="bw-muted">—</span>; } },
           ]}
         />
       )}

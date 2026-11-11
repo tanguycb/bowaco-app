@@ -46,7 +46,6 @@ function Afwezigheden({ caps }: { caps: Caps }) {
   const canEdit = caps.manageAbsences;
   return (
     <Page label={t.board.title} title={P.afwezigheden}>
-      <p className="bw-muted">{P.absLead}</p>
       <label className="bw-field"><span className="bw-label">{t.common.firm}</span>
         <select className="bw-input" value={org} onChange={(e) => setOrg(e.target.value)} style={{ maxWidth: 340 }} aria-label={t.common.firm}>
           <option value="">{t.common.allFirms}</option>

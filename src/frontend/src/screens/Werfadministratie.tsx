@@ -259,7 +259,7 @@ export function WadmPage({ go, canRules }: { go: (to: string) => void; canRules:
   const v = q.data;
   return (
     <Page title={A.title}>
-      <p className="bw-muted">{A.pageLead}<Info text={t.uitleg.bis30} label="30bis" /><Info text={t.uitleg.checkin} label="Checkinatwork" /><Info text={t.uitleg.inhouding} label="Inhoudingsplicht" /></p>
+      <p className="bw-muted a-row" style={{ gap: 4 }}>{A.art30bis}<Info text={t.uitleg.bis30} label="30bis" /> · {A.checkinatwork}<Info text={t.uitleg.checkin} label="Checkinatwork" /> · Inhoudingsplicht<Info text={t.uitleg.inhouding} label="Inhoudingsplicht" /></p>
       <Loading q={q} />
       {v && (
         <>

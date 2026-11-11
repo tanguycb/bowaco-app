@@ -55,7 +55,6 @@ export function BriefingPage({ go, caps }: { go: (to: string) => void; caps: Cap
   const v = q.data;
   return (
     <Page title={T.title}>
-      <p className="bw-muted">{T.lead}</p>
       <Loading q={q} />
       {v && <p className="bw-muted">{T.week(fmtDayNum(v.monday), fmtDayNum(v.sunday))}</p>}
       {v?.sections.map((s) => (

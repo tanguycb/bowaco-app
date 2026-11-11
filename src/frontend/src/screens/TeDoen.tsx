@@ -138,11 +138,11 @@ function Row({ x, acts, onSnooze }: { x: TodoItem; acts: ReturnType<typeof useAc
       </button>
       <span className="a-todo__acts">
         {x.acts.map((a, i) => (
-          <Button key={`${a.kind}${i}`} variant={i === 0 ? "primary" : "secondary"} busy={acts.busy(x, a)} onClick={() => acts.fire(x, a)} data-act={a.kind}>{a.text}</Button>
+          <Button key={`${a.kind}${i}`} variant={i === 0 ? "secondary" : "quiet"} size="sm" busy={acts.busy(x, a)} onClick={() => acts.fire(x, a)} data-act={a.kind}>{a.text}</Button>
         ))}
         {x.snoozedUntil !== undefined
-          ? <Button variant="quiet" busy={back.isPending} onClick={() => back.mutate()} data-act="terugzetten">{T.unsnooze}</Button>
-          : <Button variant="quiet" icon="clock" onClick={() => onSnooze(x)} data-act="uitstellen">{T.snooze}</Button>}
+          ? <Button variant="quiet" size="sm" busy={back.isPending} onClick={() => back.mutate()} data-act="terugzetten">{T.unsnooze}</Button>
+          : <Button variant="quiet" size="sm" icon="clock" onClick={() => onSnooze(x)} data-act="uitstellen">{T.snooze}</Button>}
       </span>
     </li>
   );
@@ -182,13 +182,13 @@ export function TodoPage({ go, home }: { go: (to: string) => void; home: string 
   const total = N(d?.total ?? 0n);
   return (
     <Page title={T.title} actions={<Button variant="quiet" icon="bell" onClick={() => setNotes(true)}>{T.notesAll}</Button>}>
-      <p className="bw-muted a-note-small">{T.lead}</p>
       <div className="a-row a-todo-filter" role="group" aria-label={T.title}>
-        <Button variant={!snoozed && kind === "" ? "primary" : "secondary"} onClick={() => pick("")}>{T.filterAll} · {N(all.data?.total ?? 0n)}</Button>
+        {/* 4b.3: filters zijn filterknoppen (zoals in het tabelonderdeel), geen hoofdknoppen. */}
+        <button type="button" className="bw-filter" aria-pressed={!snoozed && kind === ""} onClick={() => pick("")}>{T.filterAll}<span className="bw-filter__n">{N(all.data?.total ?? 0n)}</span></button>
         {kinds.map(([k, n]) => (
-          <Button key={k} variant={!snoozed && kind === k ? "primary" : "secondary"} onClick={() => pick(k)} data-kind={k}>{T.kinds[k] ?? k} · {N(n)}</Button>
+          <button key={k} type="button" className="bw-filter" aria-pressed={!snoozed && kind === k} onClick={() => pick(k)} data-kind={k}>{T.kinds[k] ?? k}<span className="bw-filter__n">{N(n)}</span></button>
         ))}
-        {(all.data?.snoozed ?? 0n) > 0n && <Button variant={snoozed ? "primary" : "quiet"} icon="clock" onClick={() => { setSnoozed(true); setKind(""); setOffset(0); }} data-testid="todo-snoozed">{T.snoozedTab(N(all.data!.snoozed))}</Button>}
+        {(all.data?.snoozed ?? 0n) > 0n && <button type="button" className="bw-filter" aria-pressed={snoozed} onClick={() => { setSnoozed(true); setKind(""); setOffset(0); }} data-testid="todo-snoozed">{T.snoozedTab(N(all.data!.snoozed))}</button>}
       </div>
       <Loading q={q} />
       {d && d.items.length === 0 && <p className="a-empty" data-testid="todo-leeg">{snoozed ? T.nothingSnoozed : T.nothing}</p>}
@@ -219,7 +219,7 @@ export function TodoBlock({ go, home, hideEmpty, max = 6 }: { go: (to: string) =
   return (
     <section className="a-section" data-testid="te-doen">
       <div className="a-row a-row--between">
-        <h2 className="bw-h2">{T.title} {total > 0 && <span className="bw-muted bw-num">({total})</span>}</h2>
+        <h2 className="bw-h2">{T.title}{total > 0 && <span className="bw-muted bw-num">&nbsp;({total})</span>}</h2>
         {total > 0 && <Button variant="quiet" onClick={() => go("te-doen")}>{T.all(total)}</Button>}
       </div>
       {!d && <Loading q={q} />}

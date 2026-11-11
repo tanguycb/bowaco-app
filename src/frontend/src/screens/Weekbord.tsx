@@ -83,7 +83,7 @@ export function Weekbord({ caps, go }: { caps: Caps; go: (to: string) => void })
       <Button iconOnly icon="next" onClick={() => setFrom(from + step)}>{t.board.next}</Button>
       <Button icon="settings" onClick={() => setRules(true)}>{t.board.rules}</Button>
     </>}>
-      <p className="bw-muted">{wide ? t.board.lead : t.board.mobileLead}</p>
+      {!wide && <p className="bw-muted">{t.board.mobileLead}</p>}
       {!wide && (
         <Choice label={t.board.zoom} value={from === thisMonday() + 7 ? "next" : "now"} onChange={(v) => setFrom(thisMonday() + (v === "next" ? 7 : 0))} fill options={[{ value: "now", label: t.board.mobileWeek.now }, { value: "next", label: t.board.mobileWeek.next }]} />
       )}

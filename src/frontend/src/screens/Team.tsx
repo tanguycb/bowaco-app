@@ -45,7 +45,6 @@ export function Team({ caps, me }: { caps: Caps; me: PersonView }) {
   };
   return (
     <Page title={t.team.title} actions={caps.manageAccess && <Button variant="primary" icon="plus" onClick={() => setInviting(true)}>{t.team.invite}</Button>}>
-      <p className="bw-muted" style={{ maxWidth: 760 }}>{t.team.lead}</p>
       {caps.manageAccess && (
         <label className="a-check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{t.team.showArchived}</label>
       )}

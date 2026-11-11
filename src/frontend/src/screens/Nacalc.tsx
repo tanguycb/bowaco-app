@@ -4,11 +4,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { NcBrief, NcFacts } from "../backend";
-import { Button, useToast } from "../design";
+import { Button, Cijfer, Info, useToast } from "../design";
 import { compute, computeBrief, type BriefOut, type Facts, type Flag, type Group } from "../nacalc/calc";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtEuro, parseEuro, parsePct, unwrap, useBackend } from "../util";
-import { Loading } from "./common";
+import { Loading, Page } from "./common";
 import { Field } from "./Werven";
 
 const T = t.nacalc;
@@ -67,8 +67,7 @@ export function WorkNacalc({ workId }: { workId: bigint }) {
   const f = q.data;
   return (
     <section className="a-section" data-testid="nacalc">
-      <h2 className="bw-h2">{T.title}</h2>
-      <p className="bw-muted">{T.lead}</p>
+      <h2 className="bw-h2">{T.title}<Info text={T.lead} label={t.uitleg.label} /></h2>
       <Loading q={q} />
       {q.isSuccess && !f && <p className="bw-muted">{T.noBase}</p>}
       {f && <Body f={f} />}
@@ -89,7 +88,9 @@ function Body({ f }: { f: NcFacts }) {
           <tbody>
             <tr><td>{T.sell}</td><td className="bw-num">{fmtEuro(r.plannedSellCents)}</td><td className="bw-num">{fmtEuro(r.actualSellCents)}</td></tr>
             <tr><td>{T.cost}</td><td className="bw-num">{fmtEuro(r.plannedCostCents)}</td><td className="bw-num">{fmtEuro(r.actualCostCents)}</td></tr>
-            <tr><td><strong>{T.margin}</strong></td><td className="bw-num"><strong>{fmtEuro(r.plannedMarginCents)}</strong></td><td className="bw-num"><strong>{fmtEuro(r.actualMarginCents)}</strong></td></tr>
+            <tr><td><strong>{T.margin}</strong></td>
+              <td className="bw-num"><strong><Cijfer naam={`${T.margin} · ${T.planned}`} uitleg={t.schil.cijfer.marge} regels={[{ label: T.sell, waarde: fmtEuro(r.plannedSellCents) }, { label: T.cost, waarde: `− ${fmtEuro(r.plannedCostCents)}` }, { label: T.margin, waarde: fmtEuro(r.plannedMarginCents), totaal: true }]}>{fmtEuro(r.plannedMarginCents)}</Cijfer></strong></td>
+              <td className="bw-num"><strong><Cijfer naam={`${T.margin} · ${T.actual}`} uitleg={t.schil.cijfer.marge} regels={[{ label: T.sell, waarde: fmtEuro(r.actualSellCents) }, { label: T.cost, waarde: `− ${fmtEuro(r.actualCostCents)}` }, { label: T.margin, waarde: fmtEuro(r.actualMarginCents), totaal: true }]}>{fmtEuro(r.actualMarginCents)}</Cijfer></strong></td></tr>
             <tr><td>{T.marginPct}</td><td className="bw-num">{pct(r.plannedMarginBp)}</td><td className="bw-num">{pct(r.actualMarginBp)}</td></tr>
             <tr><td>{T.delta}</td><td /><td className="bw-num">{signed(r.marginDeltaCents)}</td></tr>
             <tr><td>{T.invoiced}</td><td /><td className="bw-num">{fmtEuro(r.invoicedCents)}</td></tr>
@@ -118,9 +119,8 @@ export function NacalcPage({ go }: { go: (to: string) => void }) {
   rows.sort((a, b) => (rank(b) > rank(a) ? 1 : rank(b) < rank(a) ? -1 : a.b.workCode.localeCompare(b.b.workCode)));
   const shown = only ? rows.filter((x) => x.o.flag !== "ok") : rows;
   return (
+    <Page label={t.menu.facturatie} title={T.title}>
     <section className="a-section" data-testid="nacalc-all">
-      <h2 className="bw-h2">{T.title}</h2>
-      <p className="bw-muted">{T.leadAll}</p>
       <label className="a-row" style={{ gap: 6 }}><input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} />{T.flag.meer + " / " + T.flag.minder + " / " + T.flag.ongepland}</label>
       <Loading q={q} />
       {q.isSuccess && rows.length === 0 && <p className="bw-muted">{T.noWorks}</p>}
@@ -145,6 +145,7 @@ export function NacalcPage({ go }: { go: (to: string) => void }) {
         </div>
       )}
     </section>
+    </Page>
   );
 }
 
@@ -168,8 +169,7 @@ export function NacalcSettingsAdmin() {
   if (cur.isError) return null;
   return (
     <section className="a-section a-form" style={{ maxWidth: 560 }} data-testid="nacalc-settings">
-      <h2 className="bw-h2">{S.title}</h2>
-      <p className="bw-muted">{S.lead}</p>
+      <h2 className="bw-h2">{S.title}<Info text={S.lead} label={t.uitleg.label} /></h2>
       <Loading q={cur} />
       {f && (
         <>
