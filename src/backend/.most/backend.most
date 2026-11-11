@@ -548,6 +548,40 @@ type Assignment__967084158 =
     updatedAt : Int;
     workId : WorkId__929594816
   };
+type AssistTask__674952405 =
+  {
+    createdAt : Int;
+    doer : TaskWho__115032906;
+    var events : [TaskEvent__986848443];
+    var extra : Extra__119104681;
+    givenBy : TaskWho__115032906;
+    id : Nat;
+    key : Text;
+    kind : Text;
+    var proposalId : ?Nat;
+    src : TaskSrc__67528955;
+    var state : TaskState__104228986;
+    subject : TaskRef__909968727;
+    var updatedAt : Int;
+    workId : ?WorkId__539927435
+  };
+type AssistTask__872031832 =
+  {
+    createdAt : Int;
+    doer : TaskWho__257072343;
+    var events : [TaskEvent__598870570];
+    var extra : Extra__945213800;
+    givenBy : TaskWho__257072343;
+    id : Nat;
+    key : Text;
+    kind : Text;
+    var proposalId : ?Nat;
+    src : TaskSrc__208238841;
+    var state : TaskState__708718050;
+    subject : TaskRef__762511639;
+    var updatedAt : Int;
+    workId : ?WorkId__929594816
+  };
 type Attempts__294006982 =
   {var blockedUntil : Int; var count : Nat; var windowStart : Int};
 type Attempts__991165997 =
@@ -1155,6 +1189,7 @@ type DossierState__7485337 =
     info : Map__230067015<WorkId__838834227, WorkInfo__968164740>
   };
 type Extra__1018104949 = [(Text, Text)];
+type Extra__119104681 = [(Text, Text)];
 type Extra__219484659 = [(Text, Text)];
 type Extra__25764100 = [(Text, Text)];
 type Extra__262828561 = [(Text, Text)];
@@ -3530,6 +3565,7 @@ type PersonId__350725727 = Nat;
 type PersonId__363464289 = Nat;
 type PersonId__377743261 = Nat;
 type PersonId__401825873 = Nat;
+type PersonId__426048236 = Nat;
 type PersonId__471029118 = Nat;
 type PersonId__507537824 = Nat;
 type PersonId__508880171 = Nat;
@@ -4069,6 +4105,30 @@ type ProofState__159778891 =
   };
 type ProofSubject__1022374460 = {#ai : Text; #bot : Nat; #other : Text};
 type ProofSubject__565820231 = {#ai : Text; #bot : Nat; #other : Text};
+type ProposalState__192552771 =
+  {
+    #accepted;
+    #adjusted;
+    #auto;
+    #expired;
+    #open;
+    #other : Text;
+    #rejected;
+    #undone;
+    #withdrawn
+  };
+type ProposalState__630943390 =
+  {
+    #accepted;
+    #adjusted;
+    #auto;
+    #expired;
+    #open;
+    #other : Text;
+    #rejected;
+    #undone;
+    #withdrawn
+  };
 type Proposal__579039857 =
   {
     at : Int;
@@ -5466,10 +5526,137 @@ type TaskChange__940407759 =
     to : Text;
     workId : WorkId__171501769
   };
+type TaskEvent__598870570 =
+  {at : Int; extra : Extra__945213800; what : Text; who : TaskWho__257072343};
+type TaskEvent__986848443 =
+  {at : Int; extra : Extra__119104681; what : Text; who : TaskWho__115032906};
 type TaskKind__276415088 = {#delivery; #milestone; #work};
 type TaskKind__947531901 = {#delivery; #milestone; #work};
+type TaskPoint__1039296164 =
+  {
+    after : Text;
+    extra : Extra__119104681;
+    key : Text;
+    now : Text;
+    secret : Bool;
+    source : TaskRef__909968727
+  };
+type TaskPoint__616505548 =
+  {
+    after : Text;
+    extra : Extra__945213800;
+    key : Text;
+    now : Text;
+    secret : Bool;
+    source : TaskRef__762511639
+  };
+type TaskProposal__376499091 =
+  {
+    var actionId : ?Nat;
+    at : Int;
+    auto : Bool;
+    by : TaskWho__257072343;
+    var confidence : ?Nat;
+    var decidedAt : ?Int;
+    var decidedBy : ?TaskWho__257072343;
+    var extra : Extra__945213800;
+    id : Nat;
+    var points : [TaskPoint__616505548];
+    var state : ProposalState__630943390;
+    taskId : Nat;
+    var undo : TaskUndo__395766152
+  };
+type TaskProposal__907157276 =
+  {
+    var actionId : ?Nat;
+    at : Int;
+    auto : Bool;
+    by : TaskWho__115032906;
+    var confidence : ?Nat;
+    var decidedAt : ?Int;
+    var decidedBy : ?TaskWho__115032906;
+    var extra : Extra__119104681;
+    id : Nat;
+    var points : [TaskPoint__1039296164];
+    var state : ProposalState__192552771;
+    taskId : Nat;
+    var undo : TaskUndo__67091952
+  };
+type TaskRef__762511639 =
+  {
+    #doc : Nat;
+    #file : Nat;
+    #none;
+    #oaInvoice : Nat;
+    #oaQuote : Nat;
+    #org : Nat;
+    #other : Text;
+    #quote : Nat;
+    #tender : Nat
+  };
+type TaskRef__909968727 =
+  {
+    #doc : Nat;
+    #file : Nat;
+    #none;
+    #oaInvoice : Nat;
+    #oaQuote : Nat;
+    #org : Nat;
+    #other : Text;
+    #quote : Nat;
+    #tender : Nat
+  };
+type TaskSrc__208238841 =
+  {
+    #aiCheck : Nat;
+    #botAction : Nat;
+    #invCheck : Nat;
+    #oaRead : Nat;
+    #other : Text
+  };
+type TaskSrc__67528955 =
+  {
+    #aiCheck : Nat;
+    #botAction : Nat;
+    #invCheck : Nat;
+    #oaRead : Nat;
+    #other : Text
+  };
+type TaskState__104228986 =
+  {#busy; #cancelled; #done; #failed : Text; #other : Text; #ready; #waiting};
+type TaskState__708718050 =
+  {#busy; #cancelled; #done; #failed : Text; #other : Text; #ready; #waiting};
 type TaskStatus__370556167 = {#blocked; #busy; #delayed; #done; #planned};
 type TaskStatus__753945750 = {#blocked; #busy; #delayed; #done; #planned};
+type TaskStore__728420920 =
+  {
+    byKey : Map__230067015<Text, Nat>;
+    byWork : Map__230067015<Nat, [Nat]>;
+    extra : Map__230067015<Text, Text>;
+    var next : Nat;
+    proposals : Map__230067015<Nat, TaskProposal__907157276>;
+    tasks : Map__230067015<Nat, AssistTask__674952405>
+  };
+type TaskUndo__395766152 =
+  {#done : Int; #none; #other : Text; #possible : Text};
+type TaskUndo__67091952 =
+  {#done : Int; #none; #other : Text; #possible : Text};
+type TaskWho__115032906 =
+  {
+    #app : Text;
+    #bot : Nat;
+    #clock;
+    #other : Text;
+    #person : PersonId__426048236
+  };
+type TaskWho__257072343 =
+  {
+    #app : Text;
+    #bot : Nat;
+    #clock;
+    #other : Text;
+    #person : PersonId__967516914
+  };
 type Task__226853969 =
   {
     actualEnd : ?Day__162369424;
@@ -6060,6 +6247,7 @@ type WorkId__448300686 = Nat;
 type WorkId__45236768 = Nat;
 type WorkId__516858541 = Nat;
 type WorkId__518175520 = Nat;
+type WorkId__539927435 = Nat;
 type WorkId__547794872 = Nat;
 type WorkId__564296267 = Nat;
 type WorkId__635673139 = Nat;
@@ -6243,7 +6431,8 @@ type WorksState__605582232 =
   "20261110_090000" : {} -> {oaRead : OaReadState__749995344};
   "20261111_090000" : {} -> {invCheck : InvCheckState__126129632};
   "20261112_090000" : {} -> {aiCheck : AiCheckState__993385848};
-  "20261113_090000" : {} -> {todo : TodoState__860156292}
+  "20261113_090000" : {} -> {todo : TodoState__860156292};
+  "20261114_090000" : {} -> {tasks : TaskStore__728420920}
 }
 actor  {
   stable access :
@@ -6572,6 +6761,15 @@ actor  {
       ops : Map__230067015<Text, SurveyOpRecord__392605083>;
       snapshots : Map__230067015<Nat, [SurveyPostSnap__802580020]>;
       surveys : Map__230067015<Nat, Survey__900328588>
+    };
+  stable tasks :
+    {
+      byKey : Map__230067015<Text, Nat>;
+      byWork : Map__230067015<Nat, [Nat]>;
+      extra : Map__230067015<Text, Text>;
+      var next : Nat;
+      proposals : Map__230067015<Nat, TaskProposal__376499091>;
+      tasks : Map__230067015<Nat, AssistTask__872031832>
     };
   stable tenders :
     {
