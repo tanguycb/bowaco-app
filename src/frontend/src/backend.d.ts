@@ -514,6 +514,7 @@ export interface AssistPointView {
     after: string;
     source: string;
     secret: boolean;
+    adjusted: boolean;
 }
 export interface AssistProposalView {
     at: bigint;
@@ -530,6 +531,15 @@ export interface AssistProposalView {
     actionId?: bigint;
     points: Array<AssistPointView>;
 }
+export interface AssistTaskForQuery {
+    key: string;
+    subject: string;
+    kind: string;
+    offset: bigint;
+    limit: bigint;
+    workId?: bigint;
+    openOnly: boolean;
+}
 export interface AssistTaskPage {
     total: bigint;
     items: Array<AssistTaskView>;
@@ -540,6 +550,15 @@ export interface AssistTaskQuery {
     limit: bigint;
     workId?: bigint;
     openOnly: boolean;
+}
+export interface AssistTaskSeen {
+    full: boolean;
+    task: AssistTaskView;
+    subjectLabel: string;
+}
+export interface AssistTaskSeenPage {
+    total: bigint;
+    items: Array<AssistTaskSeen>;
 }
 export interface AssistTaskView {
     id: bigint;
@@ -10556,6 +10575,7 @@ export interface backendInterface {
     listRobots(): Promise<Array<RobotView>>;
     listSales(workId: bigint): Promise<Array<SalesBrief>>;
     listTasks(q: AssistTaskQuery): Promise<AssistTaskPage>;
+    listTasksFor(q: AssistTaskForQuery): Promise<AssistTaskSeenPage>;
     listTechSheets(withArchived: boolean): Promise<Array<TechSheetView>>;
     listTemplates(): Promise<Array<TemplateView>>;
     listTenders(workId: bigint | null): Promise<Array<TenderStatusView>>;

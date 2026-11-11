@@ -16,6 +16,7 @@ import type { Finding } from "../quote/rules.ts";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, parseEuro, parsePct, unwrap, useBackend } from "../util";
 import { ChapterMargin, FormPanel } from "./OfferteVorm";
+import { NalezenLijn, NalezenVoorstelTab, useNalezenVoorstel } from "./Voorstel";
 import { fmtQty, parseQty } from "./Offertes";
 
 const T = t.blad;
@@ -123,7 +124,11 @@ export function Rekenblad(p: BladProps) {
   const breedte = useVenster();
   const [weergave, setWeergave] = useState<B.Weergave>("calc");
   const [open, setOpen] = useState<{ inhoud?: boolean; paneel?: boolean }>({});
-  const [tab, setTab] = useState<"lijn" | "controle" | "offerte">("lijn");
+  const [tab, setTab] = useState<"lijn" | "controle" | "offerte" | "voorstel">("lijn");
+  // 4b.6: het voorstel van de assistent (3.11 nalezen) landt in het paneel: tabblad Voorstel, en per lijn in het lijnpaneel.
+  const [vpAan, setVpAan] = useState(false);
+  useEffect(() => { if (tab === "voorstel") setVpAan(true); }, [tab]);
+  const nv = useNalezenVoorstel(read.version.id, vpAan);
   const [cur, setCur] = useState<string | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const anker = useRef<string | null>(null);
@@ -341,6 +346,10 @@ export function Rekenblad(p: BladProps) {
   };
 
   const v = read.version;
+  // 4b.6: "post n" van het nalezen = de n-de lijn van de bewaarde versie (de volgorde waarin de server ze gaf).
+  // Review 4b.6 L1: in de volgorde van de server (Quotes.linesOf: hoofdstuk, plaats, nummer), niet in de volgorde van het laden.
+  const serverLijnen = chapters.flatMap((c) => m.lines.filter((l) => l.id !== null && l.chapter === c.key).sort((a, b) => (a.order === b.order ? (a.id! < b.id! ? -1 : a.id! > b.id! ? 1 : 0) : a.order < b.order ? -1 : 1)));
+  const posVan = (l: M.Line) => { const i = serverLijnen.indexOf(l); return i < 0 ? undefined : i + 1; };
   const cols = kol.map((c) => COLW[c]).join(" ");
   const showLine = (l: M.Line) => weergave !== "klant" || M.shown(m, l);
 
@@ -458,15 +467,17 @@ export function Rekenblad(p: BladProps) {
       {ind.paneel !== "dicht" && (
         <aside className="rb-paneel" aria-label={T.paneel} data-testid="rb-paneel">
           <div className="rb-tabs" role="tablist">
-            {(["lijn", "controle", "offerte"] as const).map((k) => (
-              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>
-                {T.tabs[k]}{k === "controle" && p.findings.length > 0 && <span className="rb-tel">{p.findings.length}</span>}
+            {(["lijn", "controle", "offerte", "voorstel"] as const).map((k) => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} data-testid={k === "voorstel" ? "rb-tab-voorstel" : undefined}>
+                {k === "voorstel" ? t.voorstel.tab : T.tabs[k]}{k === "controle" && p.findings.length > 0 && <span className="rb-tel">{p.findings.length}</span>}
+                {k === "voorstel" && nv.g?.task.state === "voorstel" && <span className="rb-tel">1</span>}
               </button>
             ))}
             {ind.paneel === "zwevend" && <Button size="sm" variant="quiet" icon="close" iconOnly onClick={() => setOpen((o) => ({ ...o, paneel: false }))}>{T.paneelDicht}</Button>}
           </div>
           <div className="rb-paneel__in">
-            {tab === "lijn" && (curLine ? <LijnPaneel key={curLine.key} p={p} l={curLine} /> : <p className="bw-muted">{T.geenLijn}</p>)}
+            {tab === "lijn" && (curLine ? <><NalezenLijn nv={nv} pos={posVan(curLine)} /><LijnPaneel key={curLine.key} p={p} l={curLine} /></> : <p className="bw-muted">{T.geenLijn}</p>)}
+            {tab === "voorstel" && <NalezenVoorstelTab nv={nv} lijnNaam={(pos) => { const l = serverLijnen[pos - 1]; return l && !l.removed ? `${l.code ? `${l.code} ` : ""}${l.title}` : undefined; }} spring={(pos) => { const l = serverLijnen[pos - 1]; if (l && !l.removed) { setCur(l.key); springNaar(l.key); } }} />}
             {tab === "controle" && <ControlePaneel p={p} spring={springNaar} />}
             {tab === "offerte" && <OffertePaneel p={p} />}
           </div>
@@ -656,7 +667,7 @@ function Selectie({ m, sel, edit, weg, dupliceer, wis, chapters }: { m: M.Model;
 }
 
 // ── Kop: waar, versie, bewaard, weergave, één hoofdknop ──────────────────
-function BladKop({ p, weergave, setWeergave, ind, setOpen, setTab }: { p: BladProps; weergave: B.Weergave; setWeergave: (w: B.Weergave) => void; ind: B.Indeling; setOpen: (f: (o: { inhoud?: boolean; paneel?: boolean }) => { inhoud?: boolean; paneel?: boolean }) => void; setTab: (t: "lijn" | "controle" | "offerte") => void }) {
+function BladKop({ p, weergave, setWeergave, ind, setOpen, setTab }: { p: BladProps; weergave: B.Weergave; setWeergave: (w: B.Weergave) => void; ind: B.Indeling; setOpen: (f: (o: { inhoud?: boolean; paneel?: boolean }) => { inhoud?: boolean; paneel?: boolean }) => void; setTab: (t: "lijn" | "controle" | "offerte" | "voorstel") => void }) {
   const { read, m, acties: a, bewaar: s } = p;
   const v = read.version;
   const status = s.saving ? T.bewaren : s.fout ? T.bewaarFout : p.pending > 0 && s.wacht.length > 0 ? T.nietKlaar(new Set(s.wacht.map((x) => x.key)).size) : p.pending > 0 ? T.wacht(p.pending) : s.savedAt ? T.bewaard(tijd(s.savedAt)) : "";

@@ -11,6 +11,7 @@ import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, inputToDay, todayDay, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
 import { NotesSheet, noteTarget } from "./Meldingen";
+import { TodoVoorstel } from "./Voorstel";
 
 const T = t.todo;
 const N = Number;
@@ -168,7 +169,7 @@ function Groups({ items, acts, onSnooze }: { items: TodoItem[]; acts: ReturnType
 }
 
 /** 4b.4: de gekozen regel in de Werklijst: titel, detail en alle knoppen groot genoeg om er op te mikken. */
-function TodoKaart({ x, acts, onSnooze, onGone }: { x?: TodoItem; acts: ReturnType<typeof useActs>; onSnooze: (x: TodoItem) => void; onGone: () => void }) {
+function TodoKaart({ x, acts, onSnooze, onGone, go }: { x?: TodoItem; acts: ReturnType<typeof useActs>; onSnooze: (x: TodoItem) => void; onGone: () => void; go: (to: string) => void }) {
   if (!x) return <div className="a-page--paneel"><p className="a-empty" data-testid="todo-kaart-weg">{T.nothing}</p><Button onClick={onGone}>{T.back}</Button></div>;
   const to = acts.where(x);
   const meta = [x.detail, x.age > 0 && x.kind !== "melding" ? T.age(N(x.age)) : "", x.snoozedUntil !== undefined ? T.snoozedUntil(fmtDayNum(x.snoozedUntil)) : ""].filter(Boolean).join(" · ");
@@ -185,6 +186,8 @@ function TodoKaart({ x, acts, onSnooze, onGone }: { x?: TodoItem; acts: ReturnTy
         {to && !x.acts.some((a) => a.kind === "open") && <Button variant="secondary" icon="next" onClick={() => acts.openRow(x)}>{t.offertes.open}</Button>}
         {x.snoozedUntil === undefined && <Button variant="quiet" icon="clock" onClick={() => onSnooze(x)} data-act="uitstellen">{T.snooze}</Button>}
       </div>
+      {/* 4b.6: het voorstel zelf (nu → na, bron, beslissen, wie deed wat), met de rechten van het bronscherm. */}
+      {x.kind === "voorstel" && <TodoVoorstel todoKey={x.key} go={go} />}
     </div>
   );
 }
@@ -219,7 +222,7 @@ export function TodoPage({ go, home, selected }: { go: (to: string) => void; hom
       {/* 4b.4 Werklijst: op een breed scherm de regels links (dringendste eerst) en de gekozen regel rechts met zijn knoppen; pijltjes lopen erdoor. */}
       {d && breed && d.items.length > 0 && (
         <Werklijst items={d.items} rowKey={(x) => x.key} selected={selected} label={T.title} testid="todo-werklijst" onSelect={(k) => go(`te-doen/${encodeURIComponent(k)}`)}
-          detail={selected ? <TodoKaart x={d.items.find((x) => x.key === selected)} acts={acts} onSnooze={setSnooze} onGone={() => go("te-doen")} /> : undefined}
+          detail={selected ? <TodoKaart x={d.items.find((x) => x.key === selected)} acts={acts} onSnooze={setSnooze} onGone={() => go("te-doen")} go={go} /> : undefined}
           row={(x) => (
             <span className="a-list__main" data-urgency={N(x.urgency)} data-kind={x.kind}>
               <b>{x.workCode ? `${x.workCode} · ` : ""}{x.title}</b>

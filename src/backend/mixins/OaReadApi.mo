@@ -312,6 +312,26 @@ mixin (
     };
     let via = switch (j.via) { case (#bot(b)) "bot:" # b.toText(); case _ "ai" };
     let (qid, version) = OaQuotes.store(tenders, ctr, i, pr, fileId, p.id, now, [("inlezen", j.id.toText()), ("inlezenVia", via)]);
+    // 4b.6 aanpassen vóór aanvaarden: welke punten van het voorstel kantoor anders registreerde (enkel de sleutels, geen bedragen).
+    switch (j.proposal) {
+      case (?prop) {
+        // Review 4b.6 L2: regels = aantal, omschrijving, hoeveelheid of eenheidsprijs anders; het totaal enkel als kantoor een totaal
+        // of hoofdstuktotalen registreerde die afwijken (bij posten volgt het totaal de regels: dan geldt "regels").
+        let sameLines = switch (i.prices) {
+          case (#lines ls) ls.size() == prop.lines.size() and Array.tabulate<Bool>(ls.size(), func(k) = ls[k].description == prop.lines[k].description and ls[k].qtyMilli == prop.lines[k].qtyMilli and ls[k].unitCents == prop.lines[k].unitCents).all(func(x : Bool) : Bool = x);
+          case _ prop.lines.size() == 0;
+        };
+        let totalDiff = switch (i.prices) { case (#lines _) not sameLines; case _ prop.totalCents != ?pr.net };
+        let changed = [
+          (if (not sameLines) "regels" else ""),
+          (if (prop.quoteDay != ?i.quoteDay) "datum" else ""),
+          (if (prop.reverse != ?i.reverse) "btw-verlegd" else ""),
+          (if (totalDiff) "totaal" else ""),
+        ].filter(func(k : Text) : Bool = k != "");
+        if (changed.size() > 0) j.extra := OaRead.extraSet(j.extra, "aangepast", Text.join(changed.values(), ","));
+      };
+      case null {};
+    };
     OaRead.close(oaRead, j, #applied(qid), ?p.id, now);
     orFollow(j, #accepted, p.id, now);
     syncTasks();

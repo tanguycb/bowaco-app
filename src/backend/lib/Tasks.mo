@@ -26,6 +26,7 @@ import Order "mo:core/Order";
 import Text "mo:core/Text";
 import Types "../types";
 import Config "Config";
+import OaRead "OaRead";
 
 module {
   type Task = Types.AssistTask;
@@ -38,6 +39,8 @@ module {
     aiCheck : Types.AiCheckState;
     invCheck : Types.InvCheckState;
     bots : Types.BotState;
+    // 4b.6: enkel lezen of een ingelezen OA-offerte intussen ingetrokken is (ongedaan maken = intrekken).
+    tenders : Types.TenderState;
   };
 
   // ── Woorden ─────────────────────────────────────────────────────────────
@@ -111,6 +114,16 @@ module {
   func personWho(p : ?Nat) : Who { switch p { case (?x) #person(x); case null #clock } };
   func point(key : Text, after : Text, source : Types.TaskRef) : Types.TaskPoint { { key; now = ""; after; source; secret = false; extra = [] } };
   func secretPoint(key : Text, source : Types.TaskRef) : Types.TaskPoint { { key; now = ""; after = ""; source; secret = true; extra = [] } };
+  // 4b.6 aanpassen vóór aanvaarden: het dossier bewaart in extra "aangepast" de sleutels van de punten die de mens anders overnam
+  // (komma's; bij vergelijken het nummer van de post). Het punt krijgt dan extra ("aangepast", "1"); het voorstel staat op #adjusted.
+  public func adjustedKeys(x : Types.Extra) : [Text] {
+    switch (extraGet(x, "aangepast")) { case (?t) t.split(#char ',').filter(func(k : Text) : Bool = k != "").toArray(); case null [] };
+  };
+  func markAdjusted(ps : [Types.TaskPoint], keys : [Text]) : [Types.TaskPoint] {
+    if (keys.size() == 0) return ps;
+    ps.map(func(x : Types.TaskPoint) : Types.TaskPoint = if (keys.any(func(k : Text) : Bool = k == x.key or ("post:" # k) == x.key)) ({ x with extra = [("aangepast", "1")] }) else x);
+  };
+  public func isAdjusted(x : Types.TaskPoint) : Bool { has(x.extra, "aangepast") };
   func isoDay(day : Nat) : Text {
     let z = day + 719468;
     let era = z / 146097;
@@ -158,19 +171,42 @@ module {
   func failWord(t : Text) : Text { if (t.contains(#text "vervallen")) "vervallen" else if (t.contains(#text "onbruikbaar")) "onbruikbaar" else "mislukt" };
 
   // 3.8 inlezen.
-  public func fromOaRead(j : Types.OaReadJob) : Shape {
+  // 4b.6: tenders = enkel om te zien of de geregistreerde OA-offerte intussen ingetrokken is (= ongedaan gemaakt). Ongedaan maken kan
+  // zolang ze niet ingetrokken is, ook na aanvaarden door een mens (dezelfde handeling: intrekken, met de voorwaarden van 2c.3).
+  public func fromOaRead(j : Types.OaReadJob, tenders : Types.TenderState) : Shape {
     let doer = viaWho(j.via);
     let auto = extraGet(j.extra, "zelf") == ?"1";
     let hasP = j.proposal != null;
+    let adj = adjustedKeys(j.extra);
+    var undoAt : ?Int = null;
+    var undoBy : ?Who = null;
     let (state, pstate, undo) : (Types.TaskState, Types.ProposalState, Types.TaskUndo) = switch (j.status) {
       case (#open) (if (has(j.extra, "bezig")) #busy else #waiting, #open, #none);
       case (#proposed) (#ready, #open, #none);
-      case (#applied _) (#done, if auto #auto else #accepted, if auto #possible("intrekken") else #none);
+      case (#applied qid) {
+        let taken : Types.ProposalState = if auto #auto else if (adj.size() > 0) #adjusted else #accepted;
+        switch (tenders.oaQuotes.get(qid)) {
+          case (?q) switch (q.status) {
+            case (#withdrawn _) {
+              undoAt := switch (OaRead.extraGet(q.extra, "ingetrokkenOp")) { case (?x) Int.fromText(x); case null null };
+              undoBy := switch (OaRead.extraGet(q.extra, "ingetrokkenDoor")) { case (?x) switch (Nat.fromText(x)) { case (?n) ?#person(n); case null null }; case null null };
+              (#done, #undone, #done(undoAt ?? 0));
+            };
+            case (#received) (#done, taken, #possible("intrekken"));
+          };
+          case null (#done, taken, #none);
+        };
+      };
       case (#rejected why) (closedState(hasP), if (why == "bot ingetrokken") #withdrawn else #rejected, #none);
       case (#cancelled) (closedState(hasP), #rejected, #none);
       case (#failed t) (#failed(failWord(t)), #withdrawn, #none);
       case (#other t) {
-        if (t == "ongedaan") (#done, #undone, #done(switch (extraGet(j.extra, "ongedaanOp")) { case (?x) switch (Int.fromText(x)) { case (?i) i; case null 0 }; case null 0 }))
+        // Review 4b.6 M1: ongedaan via Beheer (undoBotAction): wie en wanneer uit het dossier (ongedaanDoor sinds 4b.6; anders BOWACO).
+        if (t == "ongedaan") {
+          undoAt := switch (extraGet(j.extra, "ongedaanOp")) { case (?x) Int.fromText(x); case null null };
+          undoBy := switch (extraGet(j.extra, "ongedaanDoor")) { case (?x) switch (Nat.fromText(x)) { case (?n) ?#person(n); case null null }; case null null };
+          (#done, #undone, #done(undoAt ?? 0));
+        }
         else (#other(word(t)), #other(word(t)), #none);
       };
     };
@@ -183,16 +219,17 @@ module {
         at = p.at;
         auto;
         confidence = ?p.confidence;
-        points = [
+        points = markAdjusted([
           point("regels", p.lines.size().toText(), src),
           point("datum", switch (p.quoteDay) { case (?d) isoDay(d); case null "" }, src),
           point("btw-verlegd", switch (p.reverse) { case (?true) "ja"; case (?false) "nee"; case null "" }, src),
           secretPoint("totaal", src),
-        ];
+        ], adj);
         actionId = actionOf(j.extra);
         state = pstate;
-        decidedBy = if (auto and pstate == #auto) ?doer else if decided ?personWho(j.decidedBy) else null;
-        decidedAt = if decided j.decidedAt else null;
+        // 4b.6: ingetrokken na registreren = ongedaan, door wie introk en wanneer (de aanvaarding blijft in de tijdlijn).
+        decidedBy = if (undoAt != null) (if (undoBy != null) undoBy else ?#clock) else if (auto and pstate == #auto) ?doer else if decided ?personWho(j.decidedBy) else null;
+        decidedAt = if (undoAt != null) undoAt else if decided j.decidedAt else null;
         undo;
       };
       case null null;
@@ -206,7 +243,8 @@ module {
       doer;
       createdAt = j.createdAt;
       state;
-      at = switch (j.decidedAt, j.proposal) { case (?d, _) d; case (null, ?p) p.at; case (null, null) j.createdAt };
+      // Review 4b.6 L6: na ongedaan maken telt dat moment (updatedAt, opruimen na taskKeep).
+      at = switch (undoAt, j.decidedAt, j.proposal) { case (?u, _, _) u; case (null, ?d, _) d; case (null, null, ?p) p.at; case (null, null, null) j.createdAt };
       who = if (state == #ready) doer else if (auto and pstate == #auto) doer else if (isFinal(state)) personWho(j.decidedBy) else if (state == #busy) doer else #person(j.createdBy);
       proposal;
     };
@@ -220,7 +258,8 @@ module {
       case (#open) (if (has(j.extra, "bezig") or has(j.extra, "uitgegeven")) #busy else #waiting, #open);
       case (#proposed) (#ready, #open);
       case (#closed why) {
-        if (why == "gezien" or why == "overgenomen") (#done, #accepted)
+        if (why == "overgenomen" and adjustedKeys(j.extra).size() > 0) (#done, #adjusted)
+        else if (why == "gezien" or why == "overgenomen") (#done, #accepted)
         else if (why.contains(#text "vervallen")) (closedState(hasP), #expired)
         else (closedState(hasP), #withdrawn);
       };
@@ -240,10 +279,10 @@ module {
         at = r.at;
         auto = false;
         confidence = ?r.confidence;
-        points = [point("oordeel", word(r.verdict), subject), point("keuzes", r.picks.size().toText(), subject), point("bevindingen", r.findings.size().toText(), subject)].concat(
+        points = markAdjusted([point("oordeel", word(r.verdict), subject), point("keuzes", r.picks.size().toText(), subject), point("bevindingen", r.findings.size().toText(), subject)].concat(
           // 4b.6: één punt per gekozen post, met de OA-offerte als bron (nooit een bedrag).
           r.picks.sliceToArray(0, Nat.min(r.picks.size(), Config.taskMaxPoints)).map(func(p : Types.AiCheckPick) : Types.TaskPoint = point("post:" # p.itemId.toText(), switch (p.oaQuoteId) { case (?q) q.toText(); case null "" }, switch (p.oaQuoteId) { case (?q) #oaQuote(q); case null subject }))
-        );
+        ), adjustedKeys(j.extra));
         actionId = actionOf(j.extra);
         state = pstate;
         decidedBy = if decided ?personWho(j.decidedBy) else null;
@@ -376,7 +415,7 @@ module {
     t.events := if (all.size() <= Config.taskMaxEvents) all else [all[0]].concat(all.sliceToArray(all.size() - (Config.taskMaxEvents - 1 : Nat), all.size()));
   };
   func samePoints(a : [Types.TaskPoint], b : [Types.TaskPoint]) : Bool {
-    a.size() == b.size() and Array.tabulate<Bool>(a.size(), func(i) = a[i].key == b[i].key and a[i].after == b[i].after and a[i].now == b[i].now and a[i].secret == b[i].secret).all(func(x : Bool) : Bool = x);
+    a.size() == b.size() and Array.tabulate<Bool>(a.size(), func(i) = a[i].key == b[i].key and a[i].after == b[i].after and a[i].now == b[i].now and a[i].secret == b[i].secret and isAdjusted(a[i]) == isAdjusted(b[i])).all(func(x : Bool) : Bool = x);
   };
 
   // Eén dossier in het model zetten of gelijkzetten. Geeft true als er iets veranderde.
@@ -471,7 +510,7 @@ module {
   public func sync(s : Types.TaskStore, e : Env, now : Int, full : Bool) : Nat {
     var n = 0;
     let linked = Map.empty<Nat, ()>();
-    for (j in e.oaRead.jobs.values()) { if (put(s, fromOaRead(j))) n += 1; switch (actionOf(j.extra)) { case (?a) linked.add(a, ()); case null {} } };
+    for (j in e.oaRead.jobs.values()) { if (put(s, fromOaRead(j, e.tenders))) n += 1; switch (actionOf(j.extra)) { case (?a) linked.add(a, ()); case null {} } };
     for (j in e.aiCheck.jobs.values()) { if (put(s, fromAiCheck(j))) n += 1; switch (actionOf(j.extra)) { case (?a) linked.add(a, ()); case null {} } };
     for (j in e.invCheck.jobs.values()) { if (put(s, fromInvCheck(j))) n += 1; switch (actionOf(j.extra)) { case (?a) linked.add(a, ()); case null {} } };
     // Review 4b.5 M1: een opdracht wordt na 90 dagen opgeruimd, de actie van de bot niet. De koppeling staat ook in het model (het

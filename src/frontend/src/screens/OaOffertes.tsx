@@ -16,6 +16,7 @@ import { Loading } from "./common";
 import { fmtQty, parseQty } from "./Offertes";
 import { Field } from "./Werven";
 import { TenderCheckPanel } from "./Nakijken";
+import { VergelijkLijn, VergelijkVoorstelTab, useVergelijkVoorstel } from "./Voorstel";
 import { QuoteSheet, download, unitOf } from "./Prijsvragen";
 import { readTenderSheet, MAX_BYTES, type SheetResult } from "../tender/sheetread.ts";
 import { roundDiv, totals, type Included } from "../tender/calc.ts";
@@ -713,6 +714,11 @@ function CompareBlad(p: BladProps) {
   const [tab, setTab] = useState("lijn");
   const raster = useRef<HTMLDivElement>(null);
   const vorm = useRef<WerkvormHandle>(null);
+  // 4b.6: het voorstel van de assistent (3.9) landt in het paneel: per post in het lijnpaneel, alles in het tabblad Voorstel.
+  const [vpAan, setVpAan] = useState(false);
+  useEffect(() => { if (tab === "voorstel") setVpAan(true); }, [tab]);
+  const vv = useVergelijkVoorstel(d.tenderId, vpAan);
+  const voorstelOpen = vv.g?.task.state === "voorstel" ? 1 : 0;
   // Ctrl+Z / Ctrl+Shift+Z (enkel de keuzes; typen in een veld blijft van de browser).
   const terug = useRef(p);
   terug.current = p;
@@ -758,6 +764,7 @@ function CompareBlad(p: BladProps) {
           );
         })}
       </div>
+      <VergelijkLijn vv={vv} itemId={item.id} nuOrg={picks.has(String(item.id)) ? p.firmOf(picks.get(String(item.id))!) : undefined} open={p.open} onNeem={(q) => p.pickItem(item.id, q)} />
       {p.nonLowest.some((x) => x.id === item.id) && picks.get(String(item.id)) !== undefined && (
         <label className="bw-field rb-veld"><span className="bw-label">{W.cmp.reden}</span>
           <ReasonField key={String(item.id)} value={p.reasons[String(item.id)] ?? ""} readOnly={!p.open} onCommit={(s) => p.setReasons((r) => ({ ...r, [String(item.id)]: s }))} />
@@ -799,7 +806,12 @@ function CompareBlad(p: BladProps) {
       }}
       tabs={[
         { key: "lijn", label: W.cmp.tabLijn, inhoud: lijnPaneel },
-        { key: "nalezen", label: W.cmp.tabNalezen, inhoud: <TenderCheckPanel tenderId={d.tenderId} items={d.items} drafts={d.drafts} target0={p.target} isOpen={p.open} onUse={p.onUse} /> },
+        { key: "voorstel", label: t.voorstel.tab, badge: voorstelOpen || undefined, inhoud: (
+          <div data-testid="vp-tab">
+            <VergelijkVoorstelTab vv={vv} items={d.items} drafts={d.drafts} target0={p.target} isOpen={p.open} dirty={p.dirty} huidig={picks} firmaVan={(q) => { const x = quotes.find((qq) => String(qq.quote.id) === q); return x?.quote.orgName; }} onKlaar={p.onUse} />
+            <TenderCheckPanel tenderId={d.tenderId} items={d.items} drafts={d.drafts} target0={p.target} isOpen={p.open} onUse={p.onUse} />
+          </div>
+        ) },
       ]}
       totalen={<>
         {d.calc.quotes.map((tq, i) => {

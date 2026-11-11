@@ -154,6 +154,9 @@ node tests/proef-4b-1.mjs "$cid"
 # 4b.5: één model voor taak en voorstel (document koppelen en factuurcontrole door het model, elk dossier = één taak met dezelfde stand,
 # Te doen = de voorstellen van het model, enkel de beheerder leest het model, geen bedragen en geen vrije tekst van een bot).
 node tests/proef-4b-5.mjs "$cid"
+# 4b.6: het voorstelscherm en wie deed wat (aanvaarden, aanpassen en ongedaan maken per soort met dezelfde backendacties, de tijdlijn per
+# werf en per stuk, wat de calculator en de werfleider zien, externen niets, geen bedragen en geen vrije tekst van een assistent).
+node tests/proef-4b-6.mjs "$cid"
 # 4b.2: de balk (zoekindex per rol met dezelfde code als de app: geen lek, geen bedragen, alleen wat het menu en de rechten geven; het zoeken).
 node tests/proef-4b-2.mjs "$cid"
 node tests/proef-4b-3.mjs "$cid"

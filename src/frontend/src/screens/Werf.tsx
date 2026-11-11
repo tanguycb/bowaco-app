@@ -38,6 +38,7 @@ import { MeerwerkOffertes } from "./MinMeerForms";
 import { WorkNacalc } from "./Nacalc";
 import { WorkSales } from "./Facturen";
 import { MySales } from "./FacturenLijst";
+import { WieDeedWat } from "./Voorstel";
 
 const F = t.fase;
 
@@ -320,6 +321,8 @@ function Overzicht({ w, caps, go, fase }: { w: WorkView; caps: Caps; go: (to: st
           </section>
         )}
         {report !== null && <ReportSheet id={report} onClose={() => setReport(null)} />}
+        {/* 4b.6: wie deed wat op deze werf (taken en voorstellen van assistenten; rechten van het bronscherm). */}
+        {caps.readTeam && <WieDeedWat workId={w.id} go={go} verberg />}
         <details className="a-note">
           <summary>{F.rules.title}</summary>
           <ol>{F.rules.list.map((x) => <li key={x}>{x}</li>)}</ol>

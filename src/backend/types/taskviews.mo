@@ -3,7 +3,7 @@
 // GEEN bedragen en geen vrije tekst van een bot: punten met secret = true hebben geen waarde (die staat in het dossier).
 // who/by/givenBy/doer: "persoon:<id>", "bot:<id>", "app:caffeine", "app"; de naam erbij: de persoon, of de taak + "(assistent)".
 module {
-  public type AssistPointView = { key : Text; now : Text; after : Text; source : Text; secret : Bool };
+  public type AssistPointView = { key : Text; now : Text; after : Text; source : Text; secret : Bool; adjusted : Bool }; // adjusted (4b.6): anders overgenomen dan voorgesteld
   public type AssistEventView = { at : Int; who : Text; whoName : Text; what : Text };
   public type AssistProposalView = {
     id : Nat;
@@ -42,4 +42,11 @@ module {
   // (limit 0 of > Config.taskMaxPage = de grens). Nieuwste eerst.
   public type AssistTaskQuery = { workId : ?Nat; openOnly : Bool; kind : Text; offset : Nat; limit : Nat };
   public type AssistTaskPage = { total : Nat; items : [AssistTaskView] };
+
+  // 4b.6: het voorstelscherm en "wie deed wat" voor wie het bronscherm heeft (Rights.taskSight). full = false: enkel soort, stand,
+  // wie en de tijdlijn (points = [], subject = "", confidence = null, actionId = null, undo = ""). key = één taak ("" = alle);
+  // subject = enkel taken over dat stuk ("oa-factuur:12", "prijsvraag:3", "offerteversie:7"; "" = alle).
+  public type AssistTaskForQuery = { workId : ?Nat; key : Text; subject : Text; openOnly : Bool; kind : Text; offset : Nat; limit : Nat };
+  public type AssistTaskSeen = { task : AssistTaskView; full : Bool; subjectLabel : Text };
+  public type AssistTaskSeenPage = { total : Nat; items : [AssistTaskSeen] };
 };

@@ -1,0 +1,26 @@
+/* 4b.6 Het voorstelscherm en "wie deed wat": dunne lijnen, één kobalt accent, mono voor waarden (design system v3). */
+.vp { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--bw-line); }
+.vp-kop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vp-meta { margin: 0; font-size: var(--bw-fs-sm); }
+.vp-wie { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.vp-tabel { width: 100%; border-collapse: collapse; font-size: var(--bw-fs-sm); }
+.vp-tabel th { text-align: left; font-weight: 500; color: var(--bw-ink-2); font-size: var(--bw-fs-xs); border-bottom: 1px solid var(--bw-line-strong); padding: 4px 6px; }
+.vp-tabel td { border-bottom: 1px solid var(--bw-line); padding: 5px 6px; vertical-align: top; }
+.vp-tabel td[aria-hidden="true"] { color: var(--bw-ink-2); width: 1em; padding: 5px 0; }
+.vp-tabel .bw-input { min-width: 0; }
+.vp-rij--aangepast td:first-child { box-shadow: inset 2px 0 0 var(--bw-accent); }
+.vp-knoppen { gap: 6px; flex-wrap: wrap; }
+.vp-tijd { display: flex; flex-direction: column; gap: 4px; }
+.vp-tijd ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: var(--bw-fs-sm); }
+.vp-tijd li { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 2px 0; border-left: 2px solid var(--bw-line); padding-left: 8px; }
+.vp-tijd li[data-wie="assistent"] { border-left-color: var(--bw-accent); }
+.vp-tijd__at { color: var(--bw-ink-2); font-size: var(--bw-fs-xs); min-width: 8.5em; }
+.vp-lijn { border-left: 2px solid var(--bw-accent); padding-left: 8px; }
+.vp-lijn h4 { margin: 0 0 4px; }
+.vp-lijn p { margin: 2px 0; }
+@media (max-width: 640px) {
+  .vp-tabel th:nth-child(5), .vp-tabel td:nth-child(5) { display: none; }
+  .vp-tijd__at { min-width: 0; }
+}
+.bw-link { background: none; border: 0; padding: 0; color: var(--bw-accent); cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.bw-link:focus-visible { outline: 2px solid var(--bw-focus); outline-offset: 2px; }

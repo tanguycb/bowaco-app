@@ -972,7 +972,7 @@ module {
     e.tenders.oaQuotes.add(q.id, { q with status = #withdrawn("ongedaan: ingelezen door bot #" # a.botId.toText()); extra });
     // Review 3.8 L1: de opdracht toont "ongedaan".
     switch (x.data.find(func((k, _) : (Text, Text)) : Bool = k == "opdracht")) {
-      case (?(_, v)) switch (e.oaRead.jobs.get(Nat.fromText(v) ?? 0)) { case (?j) { j.status := #other("ongedaan"); j.extra := OaRead.extraSet(j.extra, "ongedaanOp", now.toText()) }; case null {} };
+      case (?(_, v)) switch (e.oaRead.jobs.get(Nat.fromText(v) ?? 0)) { case (?j) { j.status := #other("ongedaan"); j.extra := OaRead.extraSet(OaRead.extraSet(j.extra, "ongedaanOp", now.toText()), "ongedaanDoor", by.toText()) }; case null {} };
       case null {};
     };
     Access.audit(e.audit, who, ?by, ?q.workId, "oa-offerte-ingetrokken", "ongedaan: OA-offerte #" # q.id.toText() # " ingelezen door bot #" # a.botId.toText());

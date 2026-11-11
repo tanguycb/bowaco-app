@@ -199,6 +199,7 @@ mixin (
       };
       case null {};
     };
+    syncTasks(); // 4b.6: een ingelezen offerte intrekken = het voorstel ongedaan maken (model)
     Access.audit(audit, caller, ?p.id, ?q.workId, "oa-offerte-ingetrokken", (switch tender { case (?t) t.code # ": "; case null "los: " }) # Tenders.orgName(oqCtx(), q.orgId) # " versie " # q.version.toText() # ", reden: " # why # (if showReason " (zichtbaar voor de firma)" else " (intern)"));
     #ok;
   };
@@ -405,6 +406,13 @@ mixin (
     });
     switch (oqSave(caller, p, t, marked)) { case (#ok _) {}; case (#err e) return #err(e) };
     let r = switch (oqApply(caller, p, t, versionId)) { case (#ok x) x; case (#err e) Runtime.trap("Niets overgenomen: " # e) };
+    // 4b.6 aanpassen vóór aanvaarden: de posten die anders overgenomen werden dan voorgesteld (andere firma, of niet voorgesteld).
+    let bot = Map.empty<Nat, ?Nat>();
+    switch (j.result) { case (?res) { for (k in res.picks.values()) bot.add(k.itemId, k.oaQuoteId) }; case null {} };
+    let changed = picks.filter(func(k : TV.TenderPickInput) : Bool = switch (bot.get(k.itemId)) { case (?b) b != k.oaQuoteId; case null true }).map(func(k : TV.TenderPickInput) : Text = k.itemId.toText());
+    let dropped = bot.entries().filter(func((it, b) : (Nat, ?Nat)) : Bool = b != null and picks.find(func(k : TV.TenderPickInput) : Bool = k.itemId == it) == null).map(func((it, _) : (Nat, ?Nat)) : Text = it.toText()).toArray();
+    let adj = changed.concat(dropped);
+    if (adj.size() > 0) j.extra := AiCheck.extraSet(j.extra, "aangepast", Text.join(adj.sliceToArray(0, Nat.min(adj.size(), Config.taskMaxPoints)).values(), ","));
     AiCheck.follow(bots, j, true, ?p.id, now);
     AiCheck.close(j, #closed("overgenomen"), ?p.id, now);
     syncTasks();

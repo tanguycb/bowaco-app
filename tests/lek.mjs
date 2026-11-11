@@ -660,6 +660,9 @@ const table = {
   snoozeTodo: [ACTIVE, () => ["", []]],
   // 4b.5: het model van taak en voorstel (enkel de beheerder, #manageBots; geen bedragen en geen vrije tekst van een bot).
   listTasks: [ADMIN, () => [{ workId: [], openOnly: false, kind: "", offset: 0n, limit: 1n }]],
+  // 4b.6: het voorstelscherm en wie deed wat (interne rollen met de rechten van hun scherm, Rights.taskSight; externen geen toegang;
+  // wat elke rol ziet bewijst tests/proef-4b-6.mjs per taak en per soort).
+  listTasksFor: [INTERNAL, () => [{ workId: [], key: "", subject: "", openOnly: false, kind: "", offset: 0n, limit: 1n }]],
   exportIntern: [ADMIN, () => []],
   exportConfidential: [ADMIN, () => []],
   exportChunk: [ADMIN, () => ["persons", 0n, 1n]], // 1.9: export in stukken (O-11)

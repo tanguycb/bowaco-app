@@ -129,8 +129,8 @@ persistent actor Self {
   // 4b.5: het model van taak en voorstel gelijkzetten met de dossiers (lib/Tasks.mo). Na elke wijziging aan een opdracht of een
   // voorstel (de mixins krijgen deze functie mee), in de klokronde (vangnet, met opruimen) en hieronder bij elke installatie en
   // upgrade: zo komen de opdrachten van vóór 4b.5 in het model zonder dat de migratie de oude velden hoeft te lezen.
-  func syncTasks() { ignore Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots }, Time.now(), false) };
-  transient let _taskSync : Nat = Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots }, Time.now(), false);
+  func syncTasks() { ignore Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots; tenders }, Time.now(), false) };
+  transient let _taskSync : Nat = Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots; tenders }, Time.now(), false);
   include AccessApi(settings, access, works, robot, audit, ctr, org, oaDeals, bots);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
@@ -237,7 +237,7 @@ persistent actor Self {
   // 4b.1: Te doen (één lijst per persoon, de handeling als knop, uitstellen; geen bedragen).
   include TodoApi(settings, access, org, works, plan, board, reports, permits, quotes, quoteDocs, workStarts, minMeer, oaInvoices, purchases, oaDeals, siteAdmin, tenders, oaRead, aiCheck, invCheck, bots, audit, todo, tasks);
   // 4b.5: het model van taak en voorstel lezen (enkel #manageBots in deze stap).
-  include TasksApi(settings, access, works, tasks);
+  include TasksApi(settings, access, works, tasks, tenders, oaInvoices, quotes);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).
@@ -258,7 +258,7 @@ persistent actor Self {
     OaRead.idle(oaRead, Time.now());
     InvCheck.idle(invCheck, oaInvoices, bots, Time.now());
     // 4b.5: wat de klok hierboven sloot of liet vervallen, ook in het model (en taken zonder dossier na 400 dagen weg).
-    ignore Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots }, Time.now(), true);
+    ignore Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots; tenders }, Time.now(), true);
     // 1b.3: verlopen leases terug in de wachtrij; op het ingestelde moment de weekmails en herinneringen klaarzetten.
     Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr, tenders);
   };

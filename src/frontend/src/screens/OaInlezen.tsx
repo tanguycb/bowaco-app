@@ -10,6 +10,7 @@ import { t } from "../texts/nl";
 import { errText, fmtTime, unwrap, useBackend } from "../util";
 import { Field } from "./Werven";
 import { prepareUpload } from "../lib/uploadPrep";
+import { VoorstelVenster } from "./Voorstel";
 
 const R = t.oaInlezen;
 export const READ_MAX_BYTES = 1_350_000;
@@ -97,6 +98,7 @@ export function ReadList({ workId, onUse }: { workId: bigint; onUse: (full: OaRe
   const refresh = useRefreshReads();
   const q = useQuery({ queryKey: ["oaReads", String(workId)], queryFn: () => actor!.listOaReads(workId), enabled: !!actor && !isFetching, retry: 0 });
   const [ask, setAsk] = useState<{ k: "reject" | "cancel"; r: OaReadBrief } | null>(null);
+  const [vk, setVk] = useState<string | null>(null); // 4b.6: het voorstelvenster (wie deed wat, ongedaan maken) van een afgesloten opdracht
   const [reason, setReason] = useState("");
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
   const open = useMutation({ mutationFn: async (r: OaReadBrief) => unwrap(await actor!.readOaRead(r.id)), onSuccess: onUse, onError: fail, gcTime: 0 });
@@ -123,10 +125,12 @@ export function ReadList({ workId, onUse }: { workId: bigint; onUse: (full: OaRe
               {r.status === "voorstel" && <Button variant="primary" busy={open.isPending} onClick={() => open.mutate(r)} data-testid="or-use">{R.use}</Button>}
               {r.status === "voorstel" && <Button variant="quiet" onClick={() => setAsk({ k: "reject", r })} data-testid="or-reject">{R.reject}</Button>}
               {live && <Button variant="quiet" onClick={() => setAsk({ k: "cancel", r })} data-testid="or-cancel">{R.cancel}</Button>}
+              {!live && <Button variant="quiet" onClick={() => setVk(`oaread:${r.id}`)} data-testid="or-voorstel">{t.voorstel.titel}</Button>}
             </li>
           );
         })}
       </ul>
+      {vk && <VoorstelVenster taskKey={vk} onClose={() => setVk(null)} />}
       {ask?.k === "cancel" && <Confirm open title={R.cancelTitle} text={R.cancelText} confirmLabel={R.cancelConfirm} cancelLabel={R.back} busy={finish.isPending} onConfirm={() => finish.mutate(ask)} onClose={() => setAsk(null)} />}
       {ask?.k === "reject" && (
         <Sheet title={R.rejectTitle} open onClose={() => setAsk(null)} footer={<><Button onClick={() => setAsk(null)}>{t.common.cancel}</Button><Button variant="danger" busy={finish.isPending} disabled={reason.trim().length === 0} onClick={() => finish.mutate(ask)} data-testid="or-reject-ok">{R.reject}</Button></>}>

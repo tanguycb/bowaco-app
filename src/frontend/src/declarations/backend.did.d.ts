@@ -470,6 +470,7 @@ export interface AssistPointView {
   'after' : string,
   'source' : string,
   'secret' : boolean,
+  'adjusted' : boolean,
 }
 export interface AssistProposalView {
   'at' : bigint,
@@ -486,6 +487,15 @@ export interface AssistProposalView {
   'actionId' : [] | [bigint],
   'points' : Array<AssistPointView>,
 }
+export interface AssistTaskForQuery {
+  'key' : string,
+  'subject' : string,
+  'kind' : string,
+  'offset' : bigint,
+  'limit' : bigint,
+  'workId' : [] | [bigint],
+  'openOnly' : boolean,
+}
 export interface AssistTaskPage {
   'total' : bigint,
   'items' : Array<AssistTaskView>,
@@ -496,6 +506,15 @@ export interface AssistTaskQuery {
   'limit' : bigint,
   'workId' : [] | [bigint],
   'openOnly' : boolean,
+}
+export interface AssistTaskSeen {
+  'full' : boolean,
+  'task' : AssistTaskView,
+  'subjectLabel' : string,
+}
+export interface AssistTaskSeenPage {
+  'total' : bigint,
+  'items' : Array<AssistTaskSeen>,
 }
 export interface AssistTaskView {
   'id' : bigint,
@@ -8856,6 +8875,7 @@ export interface _SERVICE {
   'listRobots' : ActorMethod<[], Array<RobotView>>,
   'listSales' : ActorMethod<[bigint], Array<SalesBrief>>,
   'listTasks' : ActorMethod<[AssistTaskQuery], AssistTaskPage>,
+  'listTasksFor' : ActorMethod<[AssistTaskForQuery], AssistTaskSeenPage>,
   'listTechSheets' : ActorMethod<[boolean], Array<TechSheetView>>,
   'listTemplates' : ActorMethod<[], Array<TemplateView>>,
   'listTenders' : ActorMethod<[[] | [bigint]], Array<TenderStatusView>>,

@@ -5,6 +5,7 @@
 // betwisten vraagt een reden. De werfleider ziet de regels met hoeveelheden en uren, nooit een bedrag (oaInvoiceQty). De OA ziet
 // enkel de status van zijn eigen facturen (MijnFacturenPage), als de beheerder dat aanzette. Bevestigen in een paneel.
 import { InvCheckPanel } from "./FactuurControle";
+import { FactuurVoorstelTab } from "./Voorstel";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalBlob, OaInvoiceLineKind, OaInvoiceStatus, OrgKind, WithholdingResult, type Caps, type OaInvoiceFullView, type OaInvoiceInput, type OaInvoiceLine, type OaInvoiceQtyView, type OaLineQty, type OaPostOption, type OaVatRegime } from "../backend";
@@ -396,7 +397,8 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
           extraTabs={[
             { key: "factuur", label: T.amounts, inhoud: <div className="wv-kaart">{amountsCard}</div> },
             { key: "inhouding", label: T.withholding, inhoud: <div className="wv-kaart">{withholdCard}</div> },
-            { key: "nakijken", label: t.werkvorm.cmp.tabNalezen, inhoud: <InvCheckPanel invoiceId={id} workId={b.workId} file={v.file} canStart={v.canDecide && (b.status === OaInvoiceStatus.registered || b.status === OaInvoiceStatus.disputed)} /> },
+            // 4b.6: het voorstel van de assistent (3.10) landt hier: nu = de stand van de factuur → na = het oordeel, met de opmerkingen.
+            { key: "voorstel", label: t.voorstel.tab, inhoud: <div data-testid="vp-tab"><FactuurVoorstelTab invoiceId={id} standNu={T.status[b.status]} /><InvCheckPanel invoiceId={id} workId={b.workId} file={v.file} canStart={v.canDecide && (b.status === OaInvoiceStatus.registered || b.status === OaInvoiceStatus.disputed)} /></div> },
           ]}
           totalen={<>
             <Totaal label={T.net}>{fmtEuro(v.netCents)}</Totaal>
@@ -443,6 +445,7 @@ function FullInvoice({ id, go }: { id: bigint; go: (to: string) => void }) {
         <h2 className="bw-h3">{T.control} {flagN > 0 ? <span className="a-tag a-tag--warn">{T.flagCount(flagN)}</span> : <span className="a-tag a-tag--ok">{T.noFlags}</span>}</h2>
         <LinesControl lines={v.lines.map((l) => ({ q: l.q, m: l.m }))} />
       </section>
+      <FactuurVoorstelTab invoiceId={id} standNu={T.status[b.status]} />
       <InvCheckPanel invoiceId={id} workId={b.workId} file={v.file} canStart={v.canDecide && (b.status === OaInvoiceStatus.registered || b.status === OaInvoiceStatus.disputed)} />
 
       {sheets}

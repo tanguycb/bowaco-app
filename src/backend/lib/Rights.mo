@@ -468,6 +468,33 @@ module {
     #none;
   };
 
+  // ── Taken en voorstellen van assistenten (4b.6, vraag E-3 van 4b.5) ─────
+  // Wat iemand van een taak in het model ziet (voorstelscherm, wie deed wat). #full = de punten, het onderwerp en de beslissing:
+  // precies wie het bronscherm met de bedragen ziet (dezelfde regels als Te doen: inlezen en vergelijken = prijsvragen #full met
+  // #editTenders en #readCosts; nalezen = #editQuote, #readQuotes op de werf en #readCosts; factuurcontrole = OA-facturen #full en
+  // #readCosts; een actie van een bot uit zichzelf = #manageBots). #brief = een interne rol die de werf ziet (de werfleider): de
+  // soort, de stand, wie gaf, wie besliste en de tijdlijn, zonder punten, onderwerp of zekerheid. Externen en een taak zonder werf:
+  // niets (behalve #manageBots: de beheerder ziet alles, zoals Beheer → Assistenten). source: "oaread" · "vergelijken" ·
+  // "nalezen" · "invcheck" · "bot".
+  public type TaskSight = { #full; #brief; #none };
+
+  public func taskSight(ctx : Ctx, p : Person, source : Text, work : ?WorkId) : TaskSight {
+    if (p.archivedAt != null) { return #none };
+    if (may(ctx, p, #manageBots, null)) { return #full };
+    if (not internal(p)) { return #none };
+    let w = switch work { case (?x) x; case null return #none };
+    if (not seesWork(ctx, p, w)) { return #none };
+    let costs = may(ctx, p, #readCosts, null);
+    let full = if (source == "oaread" or source == "vergelijken") {
+      costs and may(ctx, p, #editTenders, null) and tenderScope(ctx, p, w) == #full;
+    } else if (source == "nalezen") {
+      costs and may(ctx, p, #editQuote, null) and may(ctx, p, #readQuotes, ?w);
+    } else if (source == "invcheck") {
+      costs and oaInvoiceScope(ctx, p, w) == #full;
+    } else false; // "bot": enkel #manageBots (hierboven)
+    if full #full else if (source == "bot") #none else #brief;
+  };
+
   // ── Afspraken met de gekozen OA (2c.4, R40) ──────────────────────────────
   // #full = admin en calculator: afspraken, prijzen, tarieven, voorschot, contracten (bedragen enkel via een update-call). #status =
   // de werfleider van de werf: per OA afspraak ja/nee, contractstatus, attesten (geldig tot), nooit een bedrag. De rest: niets via de
