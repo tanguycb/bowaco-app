@@ -157,9 +157,6 @@ node tests/proef-4b-3.mjs "$cid"
 # 4b.3b: het rekenblad (kolommen per rol, plakken uit Excel, ongedaan maken ook na een bewaring, bewaren terwijl je verder werkt,
 # rekenblad = klassieke editor op de server, wat niet klaar is weigert de server ook, de vorige prijs en de prijsgrens per rol).
 node tests/proef-4b-3b.mjs "$cid"
-# 4b.3c: de werkvorm (vergelijken, opmeting, vorderingsstaat, min-meerstaat, factuurcontrole): kern zonder netwerk, rekenmodules ongewijzigd,
-# alleen-lezen waar het hoort en de rechten per rol (op de gegevens die de proeven hierboven achterlieten; hierna draaien nog 2c-proeven).
-node tests/proef-4b-3c.mjs "$cid"
 # 2c.2: de prijsvraag-Excel heen en terug (zonder netwerk) en de prijsvraag door de backend (klaarzetten, toegang zonder werf,
 # Mijn prijsvragen, ontwerp, indienen, bijlagen, afsluiten, werfleider zonder bedragen, .did-controle). De klokproef (herinnering,
 # geen antwoord, 90 dagen na afsluiten) verzet de tijd van dit eigen net met ruim 90 dagen: daarom als LAATSTE canisterproef.
@@ -177,6 +174,9 @@ node tests/nacalc-4-6.mjs "$cid"
 # 2c.5: de min-meerstaat (offerte met korting, opmeting, regie aan het werftarief met datum, raming afgerekend, kosten / 0,8, regels met
 # akkoord, meerwerkofferte vanaf € 1.000, werfleider zonder bedragen, versies onder een controlecode, klant en architect, rekentest).
 node tests/minmeer-2c5.mjs "$cid"
+# 4b.3c: de werkvorm (vergelijken, opmeting, vorderingsstaat, min-meerstaat, factuurcontrole): kern zonder netwerk, rekenmodules ongewijzigd,
+# alleen-lezen waar het hoort en de rechten per rol (op de gegevens die de proeven hierboven achterlieten, o.a. de vorderingsstaten van 2c.5; vóór de klokproef van 2c.2).
+node tests/proef-4b-3c.mjs "$cid"
 # 2c.8: werfadministratie en oplevering (aangifte start + 15 dagen met meldingen, premie met minimum, attest voor de klant, werfvergadering en
 # oplevering met actie- en restpunten als taken, opleveringsdocument onder een controlecode, fiches, werfcode P.nnn, export). Vóór de klokproef.
 node tests/werfadmin-2c8.mjs "$cid"
