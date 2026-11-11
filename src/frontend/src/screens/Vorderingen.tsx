@@ -287,6 +287,7 @@ function LinesTable({ rows, edits, setEdit, editable, money }: { rows: Row[]; ed
 function useEdits() {
   const [g, setG] = useState<G.Geschiedenis<Map<string, PM.Edit>>>(() => G.begin(new Map()));
   const [afgerond, setAfgerond] = useState<Map<string, PM.Edit>[]>([]);
+  const alTerug = useRef(false); // de volgende bewaring is zelf een ongedaan maken: geen omgekeerde op de stapel (anders wisselt Ctrl+Z heen en weer)
   const edits = g.nu;
   const setEdit = (root: bigint, e: PM.Edit | undefined) =>
     setG((h) => {
@@ -302,6 +303,7 @@ function useEdits() {
       for (const [k, e] of bewaard) if (n.get(k) === e) n.delete(k);
       return G.begin(n);
     });
+    if (alTerug.current) { alTerug.current = false; return; }
     if (omgekeerd && omgekeerd.size > 0) setAfgerond((a) => [...a, omgekeerd].slice(-G.LIMIET));
   };
   const terug = () => {
@@ -309,6 +311,7 @@ function useEdits() {
     const inv = afgerond[afgerond.length - 1];
     if (!inv) return;
     setAfgerond((a) => a.slice(0, -1));
+    alTerug.current = true;
     setG((h) => G.zet(h, new Map([...h.nu, ...inv])));
   };
   return { edits, setEdit, reset, terug, vooruit: () => setG(G.opnieuw), kanTerug: g.terug.length > 0 || afgerond.length > 0, kanVooruit: g.vooruit.length > 0 };
@@ -898,10 +901,13 @@ function StatementBlad(p: StatementBladProps) {
   const auto = useVanzelf({ bewerkbaar: editable, wijzigingen: p.wijzigingen, geldig: p.geldig, bezig: p.bezig, sleutel: edits, bewaar: p.bewaar, uit: () => !!(document.activeElement as HTMLElement | null)?.closest?.("[data-geen-vanzelf]") });
   const terug = useRef(p.terug);
   terug.current = p.terug;
+  const bewerkbaar = useRef(editable);
+  bewerkbaar.current = editable;
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       const tg = e.target as HTMLElement | null;
       if (!(e.metaKey || e.ctrlKey) || (tg && /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName))) return;
+      if (!bewerkbaar.current) return; // een verstuurd of alleen-lezen stuk kent geen ongedaan maken
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) { e.preventDefault(); terug.current.ongedaan(); }
       else if ((k === "z" && e.shiftKey) || k === "y") { e.preventDefault(); terug.current.opnieuw(); }

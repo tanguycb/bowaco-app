@@ -191,17 +191,23 @@ export function useVanzelf(s: { bewerkbaar: boolean; wijzigingen: number; geldig
   const [fout, setFout] = useState(false);
   const [om, setOm] = useState<number | null>(null);
   const [bewaren, setBewaren] = useState(false);
+  const [tik, setTik] = useState(0);
+  // Het scherm verlaten met een wijziging die nog wacht: eerst bewaren (anders gaat ze stil verloren).
+  useEffect(() => () => {
+    const c = ref.current;
+    if (vanzelfKan({ bewerkbaar: c.bewerkbaar, wijzigingen: c.wijzigingen, bezig: c.bezig, geldig: c.geldig, fout: false }) && !c.uit?.()) void c.bewaar();
+  }, []);
   useEffect(() => {
     if (!vanzelfKan({ bewerkbaar: s.bewerkbaar, wijzigingen: s.wijzigingen, bezig: s.bezig || bewaren, geldig: s.geldig, fout })) return;
     const id = window.setTimeout(async () => {
       // Typen in een veld van het paneel (periode, notitie, index) laat het scherm met rust.
-      if (ref.current.uit?.()) return;
+      if (ref.current.uit?.()) { setTik((n) => n + 1); return; } // opnieuw kijken zodra het veld losgelaten is
       setBewaren(true);
       const ok = await ref.current.bewaar();
       setBewaren(false);
       if (ok) setOm(Date.now()); else setFout(true);
     }, VANZELF_MS);
     return () => window.clearTimeout(id);
-  }, [s.sleutel, s.bewerkbaar, s.wijzigingen, s.geldig, s.bezig, bewaren, fout]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.sleutel, s.bewerkbaar, s.wijzigingen, s.geldig, s.bezig, bewaren, fout, tik]); // eslint-disable-line react-hooks/exhaustive-deps
   return { fout, om, bewaren, opnieuw: () => setFout(false) };
 }
