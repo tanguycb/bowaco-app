@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ExternalBlob, OaInvoiceLineKind, OaInvoiceStatus, OrgKind, WithholdingResult, type Caps, type OaInvoiceFullView, type OaInvoiceInput, type OaInvoiceLine, type OaInvoiceQtyView, type OaLineQty, type OaPostOption, type OaVatRegime } from "../backend";
 import { Button, Icon, Meer, Sheet, useToast, Werklijst } from "../design";
-import { useInPaneel } from "../design/Werklijst";
+import { useBreed, useInPaneel, WERKLIJST_VANAF } from "../design/Werklijst";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, fmtEuro, fmtTime, inputToDay, parseEuro, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page } from "./common";
@@ -29,6 +29,7 @@ const regimeOf = (r: OaVatRegime): string => (r.__kind__ === "reverse" ? "revers
 const regimeTs = (k: string): OaVatRegime => (k === "reverse" ? { __kind__: "reverse", reverse: null } : { __kind__: "normal", normal: BigInt(k) });
 
 export function OaFacturenPage({ caps, go, route }: { caps: Caps; go: (to: string) => void; route: string[] }) {
+  const breed = useBreed(WERKLIJST_VANAF);
   // 2c.7: aankoopfacturen (meerdere werven, leveranciers) en Te betalen, als tabbladen van deze werklijst (geen menu-item).
   if (route[1] === "aankoop" && caps.purchases) {
     if (route[2] === "nieuw") return <PurchaseForm go={go} />;
@@ -41,7 +42,7 @@ export function OaFacturenPage({ caps, go, route }: { caps: Caps; go: (to: strin
     if (route[2] === "wijzigen" && caps.quotePrices) return <InvoiceForm key={`e${route[1]}`} id={BigInt(route[1])} go={go} />;
     // 4b.3 Werklijst: op een breed scherm de lijst links en de factuur rechts; smal zoals vroeger (enkel de factuur).
     const detail = caps.quotePrices ? <FullInvoice key={route[1]} id={BigInt(route[1])} go={go} /> : <QtyInvoice key={route[1]} id={BigInt(route[1])} go={go} />;
-    return <ListPage caps={caps} go={go} selected={route[1]} detail={detail} />;
+    return breed ? <ListPage caps={caps} go={go} selected={route[1]} detail={detail} /> : detail;
   }
   return <ListPage caps={caps} go={go} />;
 }
@@ -53,7 +54,7 @@ function ListPage({ caps, go, selected, detail }: { caps: Caps; go: (to: string)
   const q = useQuery({ queryKey: ["oaInvoices", status], queryFn: () => actor!.listOaInvoices(null, status ? (status as OaInvoiceStatus) : null), enabled: !!actor && !isFetching });
   const rows = q.data ?? [];
   return (
-    <Page label={T.label} title={T.title} actions={caps.quotePrices ? <Button variant="primary" icon="plus" onClick={() => go("oa-facturen/nieuw")} data-testid="oi-new">{T.register}</Button> : undefined}>
+    <Page label={T.label} title={T.title} actions={caps.quotePrices ? <Button variant={selected ? "secondary" : "primary"} icon="plus" onClick={() => go("oa-facturen/nieuw")} data-testid="oi-new">{T.register}</Button> : undefined}>
       <PurchaseTabs caps={caps} go={go} active="parts" />
       <label className="bw-field" style={{ maxWidth: 240 }}>
         <span className="bw-label">{T.statusFilter}</span>

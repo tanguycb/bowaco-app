@@ -40,7 +40,7 @@ export function SalesWorklist({ caps, go }: { caps: Caps; go: (to: string) => vo
           <span className="bw-muted">{T.list.open}: <b className="bw-num"><Cijfer go={go} naam={T.list.open} uitleg={t.schil.cijfer.open} regels={som(v.open.map((o) => [`${o.brief.number} · ${o.brief.workCode}`, o.openCents]))}>{fmtEuro(v.open.reduce((n, o) => n + o.openCents, 0n))}</Cijfer></b></span>
         </div>
         <h2 className="bw-h2">{T.list.due}</h2>
-        <Table id="sales-due" rows={v.due} rowKey={(d) => `${d.workId}-${d.stepKey}`} onRow={(d) => go(`werven/${d.workId}/facturatie/facturen`)} defaultSort="werf" empty={T.list.dueNone}
+        <Table id="sales-due" rows={v.due} rowKey={(d) => `${d.workId}-${d.stepKey}`} onRow={(d) => go(`werven/${d.workId}/facturatie/facturen`)} defaultSort="wanneer" empty={T.list.dueNone}
           columns={[
             { key: "werf", label: "Werf", sort: (d) => d.workCode, render: (d) => `${d.workCode} · ${d.workName}` },
             { key: "titel", label: T.cols.title, render: (d) => d.title },

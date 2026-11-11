@@ -1,6 +1,6 @@
 // v3 (4b.3): één tabelonderdeel voor de hele app (L9): vaste kop, sorteren op een kolom, kolommen kiezen (onthouden per
 // toestel), filters als knoppen, een teller en een lege toestand. De oude aanroepen (columns/rows/rowKey/onRow) blijven werken.
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { t } from "../texts/nl";
 import { Icon } from "./Icon";
 import { useBuiten } from "./Pop";
@@ -45,6 +45,8 @@ export function Table<T>({ columns, rows, rowKey, onRow, stackOnMobile = true, c
   useBuiten(kies, box, () => setKies(false));
   const zichtbaar = columns.filter((c) => !(c.optional && verborgen.includes(c.key)));
   const f = filters?.find((x) => x.key === filter);
+  // een filter waarvan de knop verdween (bv. andere gegevens), telt niet meer
+  useEffect(() => { if (filter !== null && !filters?.some((x) => x.key === filter)) setFilter(null); }, [filter, filters]);
   const shown = useMemo(() => tabelRijen(rows, columns, sort, f), [rows, columns, sort, f]);
   const wissel = (k: string) => {
     const v = verborgen.includes(k) ? verborgen.filter((x) => x !== k) : [...verborgen, k];

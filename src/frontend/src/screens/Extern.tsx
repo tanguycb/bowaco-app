@@ -59,7 +59,7 @@ export function HoursPanel({ compact }: { compact?: boolean }) {
                   {!l.reportFinal && <span className="bw-muted">{H.waitFinal}</span>}
                   {l.reportFinal && !l.canConfirm && <span className="bw-muted">{H.noRight}</span>}
                 </span>
-                {l.canConfirm && (!last || !last.ok) && <Button variant="primary" busy={m.isPending && m.variables?.id === l.attendanceId && m.variables.ok} onClick={() => m.mutate({ id: l.attendanceId, ok: true, remark: "" })}>{H.ok}</Button>}
+                {l.canConfirm && (!last || !last.ok) && <Button busy={m.isPending && m.variables?.id === l.attendanceId && m.variables.ok} onClick={() => m.mutate({ id: l.attendanceId, ok: true, remark: "" })}>{H.ok}</Button>}
                 {l.canConfirm && (!last || last.ok) && <Button onClick={() => setDispute(l)}>{H.notOk}</Button>}
               </li>
             );

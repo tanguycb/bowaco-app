@@ -107,7 +107,9 @@ export function WerfDetail({ id, caps, go, tab, sub }: { id: bigint; caps: Caps;
   );
   return (
     <Page label={w.code} title={tabOpen && cur ? cur.label : w.name} info={null} wide={cur?.key === "planning" && !phone} inline={kort}
-      kop={kort ? <>{feiten}{stap?.action && <Button size="sm" icon="next" onClick={act} data-testid="dossier-volgende" title={t.stap[stap.key].t}>{t.stap[stap.key].b}</Button>}</> : undefined}
+      kop={kort ? <>{feiten}{stap && (stap.action
+        ? <Button size="sm" icon="next" onClick={act} data-testid="dossier-volgende" title={t.stap[stap.key].t}>{t.stap[stap.key].b}</Button>
+        : <span className="bw-muted" data-testid="dossier-volgende">{F.next}: {t.stap[stap.key].t}</span>)}</> : undefined}
       actions={<>
       {w.caps.edit && !tabOpen && <Button icon="edit" size={kort ? "sm" : "md"} onClick={() => setEditing(true)}>{t.werven.edit}</Button>}
       {tabOpen ? <Button icon="back" onClick={() => go(`werven/${id}`)}>{w.name}</Button> : <Button icon="back" variant="quiet" size={kort ? "sm" : "md"} onClick={() => go(caps.home === "week" ? "week" : "werven")}>{t.common.back}</Button>}

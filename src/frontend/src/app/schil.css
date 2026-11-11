@@ -6,7 +6,7 @@
 .a-side { gap: 14px; padding: 10px 8px 12px; }
 .a-side__brand { display: flex; align-items: center; min-height: 32px; padding: 0 8px; }
 .a-side__mono { display: none; font-weight: 800; font-stretch: 125%; letter-spacing: 0.02em; color: var(--bw-brand); font-size: 0.95rem; }
-.a-nav__item { min-height: 36px; padding: 0 10px; gap: 10px; }
+.a-side .a-nav__item { min-height: 36px; padding: 0 10px; gap: 10px; } /* enkel het menu op de computer; het gsm-menu houdt 44 px */
 .a-nav__t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .a-nav__label { padding: 0 10px 2px; font: 500 var(--bw-fs-xs) var(--bw-font-text); letter-spacing: 0; text-transform: none; color: var(--bw-ink-2); }
 .a-nav__group { display: flex; flex-direction: column; gap: 1px; }

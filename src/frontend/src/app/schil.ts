@@ -40,7 +40,7 @@ export function kruimels(route: string[], caps: Caps): Kruimel[] {
   const tabs = page === "beheer" ? beheerTabs(caps) : page === "weekbord" ? planningTabs(caps) : hubTabs(page, caps);
   const two = route.slice(0, 2).join("/");
   const tab = tabs.find((x) => x.to === two) ?? tabs.find((x) => x.to === page);
-  if (tab && tabs.length > 1 && tab.label !== item?.label) out.push({ label: tab.label, to: tab.to });
+  if (tab && tabs.length > 1 && tab.label !== item?.label) out.push({ label: tab.label, to: tab.to }); // mag hetzelfde adres hebben als het menu-item (Facturatie → Facturen): de sleutel in App is de plaats
   if (page === "te-doen" && !item) out.push({ label: t.todo.title, to: "te-doen" });
   if (page === "login" && !item) out.push({ label: t.nav.login, to: "login" });
   return out;
@@ -53,6 +53,7 @@ export function toontUitleg(r: string[]): boolean {
   if (r.length > 2) return false;
   const [p, s] = r;
   if (p === "werven") return !/^\d+$/.test(s);
+  if (s === "nieuw") return false; // een formulier krijgt de uitleg van de lijst niet
   return ["beheer", "weekbord", "oa-facturen", "adresboek"].includes(p);
 }
 
@@ -75,7 +76,7 @@ export function paginaUitleg(page: string, caps: Caps, sub?: string): string | n
     case "prijsvragen": return caps.tenders ? (caps.quotePrices ? t.prijsvragen.overviewLead : t.prijsvragen.leadLeader) : U.mijnPrijsvragen;
     case "posten": return `${t.posten.lead}${caps.libraryPrices ? "" : ` ${t.posten.leadNoPrices}`}`;
     case "facturen": return U.facturen;
-    case "vorderingen": return t.vorderingen.lead;
+    case "vorderingen": return `${t.vorderingen.lead} ${t.uitleg.vordering}`;
     case "oa-facturen": return caps.quotePrices ? t.oaFacturen.lead : t.oaFacturen.leadQty;
     case "nacalculatie": return t.nacalc.leadAll;
     case "mijn-facturen": return U.mijnFacturen;

@@ -207,7 +207,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   // openen hun nieuwe plaats en de adresbalk volgt.
   const { page, redirect } = resolveRoute(route, caps);
   const active = activeKey(groups, redirect ? redirect.split("/") : route);
-  const tabs = route.length <= 1 ? hubTabs(page, caps) : [];
+  const tabs = route.length <= 1 || (toontUitleg(route) && route[0] !== "werven") ? hubTabs(page, caps) : []; // 4b.3: ook met een gekozen regel in de werklijst
   // 2b.4: de uitlegbalk van Aan de slag (?start=3) en "Zo werkt het voor jou" op het startscherm, één keer per persoon.
   const startN = caps.manageSettings ? startParam(window.location.hash) : null;
   const startState = useStartState();
@@ -399,7 +399,7 @@ function Kruimelpad({ route, caps }: { route: string[]; caps: Caps }) {
   return (
     <nav className="a-top__crumbs" aria-label={tt.schil.waar} data-testid="kruimels">
       {k.map((x, i) => (
-        <span key={x.to} className="a-row--tight" style={{ display: "inline-flex", gap: 6, minWidth: 0 }}>
+        <span key={`${i}-${x.to}`} className="a-row--tight" style={{ display: "inline-flex", gap: 6, minWidth: 0 }}>
           {i > 0 && <span className="a-top__sep" aria-hidden>/</span>}
           <a href={`#/${x.to}`} aria-current={i === k.length - 1 ? "page" : undefined}>{x.label}</a>
         </span>

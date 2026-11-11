@@ -92,6 +92,7 @@ for (const [k, n] of Object.entries(NAMES)) {
     if (kr.length === 0 || kr[0].label !== it.label || kr.some((x) => !tabs.has(x.label))) kfout.push(`${it.to}: ${kr.map((x) => x.label).join(" / ")}`);
   }
   check(`${k}: kruimelpad = menu-item + tabblad, niets daarbuiten`, kfout.length === 0, kfout.slice(0, 3).join("; "));
+  check(`${k}: Vorderingsstaten: de ⓘ legt ook het woord uit`, !pages.has("vorderingen") || S.paginaUitleg("vorderingen", caps).includes(t.uitleg.vordering));
   check(`${k}: Te doen en Mijn toegang hebben een kruimel`, S.kruimels(["te-doen"], caps).length >= 1 && S.kruimels(["login"], caps).length >= 1);
   // (4) tellers van het dossier
   const st = await stagesOf(a);
@@ -120,7 +121,7 @@ for (const [k, n] of Object.entries(NAMES)) {
 
 // toontUitleg
 check("ⓘ op het scherm en zijn tabbladen", S.toontUitleg(["overzicht"]) && S.toontUitleg(["beheer", "toegang"]) && S.toontUitleg(["werven", "lopend"]) && S.toontUitleg(["oa-facturen", "12"]));
-check("geen ⓘ van de lijst op een werf of een los stuk", !S.toontUitleg(["werven", "12"]) && !S.toontUitleg(["werven", "12", "planning"]) && !S.toontUitleg(["oa-facturen", "12", "wijzigen"]));
+check("geen ⓘ van de lijst op een werf of een los stuk", !S.toontUitleg(["werven", "12"]) && !S.toontUitleg(["werven", "12", "planning"]) && !S.toontUitleg(["oa-facturen", "12", "wijzigen"]) && !S.toontUitleg(["oa-facturen", "nieuw"]));
 
 // tellers: vaste gevallen
 {

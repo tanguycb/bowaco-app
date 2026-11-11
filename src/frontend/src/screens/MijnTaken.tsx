@@ -94,7 +94,7 @@ export function MijnTaken({ go }: { go: (to: string) => void }) {
                   <StatusBadge status={r.taskStatus as unknown as Status} small />
                 </button>
                 <span className={`a-tag${k === "confirmed" ? " a-tag--ok" : k === "declined" ? " a-tag--bad" : ""}`}>{t.plan.conf[k]}</span>
-                {r.canConfirm && k !== "confirmed" && <Button variant="primary" busy={answer.isPending && answer.variables?.id === a.id} onClick={() => answer.mutate({ id: a.id, ok: true })}>{t.plan.confirm}</Button>}
+                {r.canConfirm && k !== "confirmed" && <Button busy={answer.isPending && answer.variables?.id === a.id} onClick={() => answer.mutate({ id: a.id, ok: true })}>{t.plan.confirm}</Button>}
                 {r.canConfirm && k !== "declined" && <Button onClick={() => setDeclining(r)}>{t.plan.decline}</Button>}
               </li>
             );

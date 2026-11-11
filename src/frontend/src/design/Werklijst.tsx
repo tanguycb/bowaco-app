@@ -11,7 +11,7 @@ export const useInPaneel = () => useContext(PaneelContext);
 
 export const WERKLIJST_VANAF = 1100;
 
-function useBreed(px: number) {
+export function useBreed(px: number) {
   const q = `(min-width: ${px}px)`;
   const [m, setM] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
   useEffect(() => {
@@ -44,8 +44,7 @@ export function Werklijst<T>({ items, rowKey, row, selected, onSelect, detail, l
     if (!breed || selected === undefined) return;
     list.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(selected)}"]`)?.scrollIntoView({ block: "nearest" });
   }, [breed, selected]);
-  // Smal: het gekozen stuk alleen (zoals vroeger), anders de lijst.
-  if (!breed && selected !== undefined && detail) return <>{detail}</>;
+  // Smal: enkel de lijst. Het scherm dat de werklijst gebruikt, toont smal het gekozen stuk zelf (zonder de lijstpagina errond).
   const key = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();

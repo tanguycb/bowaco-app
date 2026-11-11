@@ -74,7 +74,7 @@ export function Adresboek({ caps, route, go }: { caps: Caps; route: string[]; go
           rowKey={(r) => String(r.o.id)}
           onRow={(r) => go(`adresboek/${r.o.id}`)}
           selected={openId !== null ? String(openId) : undefined}
-          filters={KINDS.filter((k) => shown.some((r) => r.o.kind === k)).map((k) => ({ key: k, label: t.orgKinds[k], test: (r: (typeof shown)[number]) => r.o.kind === k }))}
+          filters={KINDS.filter((k) => rows.some((r) => r.o.kind === k)).map((k) => ({ key: k, label: t.orgKinds[k], test: (r: (typeof shown)[number]) => r.o.kind === k }))}
           count
           columns={[
             { key: "n", label: A.colFirm, sort: (r) => r.o.name, render: (r) => <span><b>{r.o.name}</b><br /><span className="bw-muted">{t.orgKinds[r.o.kind]}</span></span> },
