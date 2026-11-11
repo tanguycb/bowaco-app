@@ -24,3 +24,6 @@
   .k-dlg__foot { display: none; }
 }
 .a-side > .k-trigger { width: 100%; margin: 4px 0 8px; }
+.k-trigger__text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.k-dlg__in::-webkit-search-cancel-button { display: none; }
+.a-side > .k-trigger { gap: 6px; padding: 0 8px; }
