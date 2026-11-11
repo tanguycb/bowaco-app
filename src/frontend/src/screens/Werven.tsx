@@ -1,7 +1,7 @@
 // Werven (1.1): lijst met zoeken en deelwerven, nieuwe werf of deelwerf, en de onderdelen die de
 // werfpagina (Werf.tsx) gebruikt. Wat iemand mag, beslist de backend (Rights.mo).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalBlob, OrgKind, type Caps, type FileView, type WorkView } from "../backend";
 import { Button, Choice, Icon, Sheet, Table, useToast } from "../design";
 import { t } from "../texts/nl";
@@ -43,7 +43,8 @@ export function Werven({ caps, go, route }: { caps: Caps; go: (to: string) => vo
   const on = !!actor && !isFetching;
   const orgs = useQuery({ queryKey: ["orgs", false], queryFn: () => actor!.listOrgs(false), enabled: on && caps.readTeam });
   const persons = useQuery({ queryKey: ["persons", false], queryFn: () => actor!.listPersons(false), enabled: on && caps.readTeam });
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(route?.[1] === "nieuw" && caps.createWork); // 4b.2: de balk opent #/werven/nieuw
+  useEffect(() => { if (route?.[1] === "nieuw") window.location.replace("#/werven"); }, [route?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
   const [q, setQ] = useState("");
   const [leader, setLeader] = useState("all");
   const [cancelled, setCancelled] = useState(false);

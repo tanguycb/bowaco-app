@@ -26,6 +26,7 @@ import { Werfverslag } from "../screens/Werfverslag";
 import { OutboxSheet } from "../screens/Verslagen";
 import { MijnUren } from "../screens/Extern";
 import { TodoPage, TodoTeller } from "../screens/TeDoen";
+import { BalkKnop, useBalkSneltoets, Venster as BalkVenster } from "../balk/Balk";
 import { PlanningHub } from "../screens/PlanningTabs";
 import { IntroCard, StartBanner, useStartState } from "../screens/Start";
 import { introKind, startParam } from "./start";
@@ -187,6 +188,8 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const [outbox, setOutbox] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [kies, setKies] = useState(false);
+  const [balk, setBalk] = useState(false); // 4b.2: zoeken en doen
+  useBalkSneltoets(setBalk);
   const askLogout = () => (ob.ops.length > 0 ? setLeaving(true) : onLogout());
   // 2b.2: de oude adressen (Instellingen, Codes, Auditlog, Postbode, Boete opzoeken, Organisaties, Onderaannemers)
   // openen hun nieuwe plaats en de adresbalk volgt.
@@ -301,6 +304,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
     <div className={bar.length > 0 ? "a-app a-app--bottom" : "a-app"}>
       <aside className="a-side">
         <div className="a-side__brand"><Wordmark size={17} sub={t.app.sub} /></div>
+        <BalkKnop onOpen={() => setBalk(true)} testid="balk-open-zij" />
         <div className="a-row--tight"><TodoTeller go={go} />
         {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}</div>
         {navList()}
@@ -315,6 +319,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
       <div className="a-main">
         <header className="a-bar">
           <span className="a-bar__brand"><Wordmark size={16} sub={t.app.sub} /></span>
+          <BalkKnop onOpen={() => setBalk(true)} testid="balk-open-gsm" />
           <TodoTeller go={go} />
           {(caps.writeReports || caps.measure || ob.ops.length > 0) && <ConnectionStatus online={ob.online} waiting={ob.pending + ob.failed.length} syncedAt={ob.syncedAt ? new Date(ob.syncedAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" }) : undefined} onClick={() => setOutbox(true)} />}
           {bar.length === 0 && <Button variant="quiet" icon="menu" iconOnly onClick={() => setMenu(true)}>Menu</Button>}
@@ -343,6 +348,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
           ))}
         </nav>
       )}
+      {balk && <BalkVenster caps={caps} userKey={person.id.toString()} go={go} onVerslag={() => setKies(true)} onClose={() => setBalk(false)} />}
       {kies && <VerslagKies go={go} onClose={() => setKies(false)} />}
       {outbox && <OutboxSheet onClose={() => setOutbox(false)} />}
       {leaving && (

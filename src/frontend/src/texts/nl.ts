@@ -272,6 +272,30 @@ export const nl = {
     today: "Vandaag op de werven",
     beheerCijfers: "De toegangscijfers staan in Beheer, tabblad Toegang & codes.",
   },
+  // 4b.2: de balk (zoeken en doen, zonder taalmodel).
+  balk: {
+    titel: "Zoeken en doen",
+    placeholder: "Zoek of doe iets",
+    open: "Zoeken en doen openen",
+    open2: "openen",
+    kies: "kiezen",
+    sluit: "Sluiten",
+    laden: "Even laden…",
+    niets: (q: string) => (q ? `Niets gevonden voor "${q}".` : "Niets te tonen."),
+    scherm: "Scherm",
+    handeling: "Handeling",
+    documentenVan: "Documenten van",
+    soort: { handeling: "Handeling", scherm: "Scherm", werf: "Werf", firma: "Firma", persoon: "Persoon", offerte: "Offerte", factuur: "Factuur", document: "Documenten" } as Record<string, string>,
+    doe: {
+      nieuweWerf: "Nieuwe werf of aanvraag",
+      nieuweFirma: "Nieuwe firma",
+      nieuweOaFactuur: "OA-factuur registreren",
+      nieuweAankoop: "Aankoopfactuur registreren",
+      werfverslag: "Werfverslag schrijven",
+      offertes: "Offertes openen",
+      prijsvragen: "Prijsvragen openen",
+    },
+  },
   // 4b.1: Te doen (één lijst per persoon, de handeling als knop, uitstellen).
   todo: {
     title: "Te doen",

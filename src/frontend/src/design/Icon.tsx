@@ -12,6 +12,7 @@ const P: Record<string, string> = {
   back: "M15 5 8 12l7 7",
   next: "M9 5l7 7-7 7",
   plus: "M12 5v14 M5 12h14",
+  search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M16.5 16.5 21 21",
   minus: "M5 12h14",
   close: "M6 6l12 12 M18 6 6 18",
   clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2",

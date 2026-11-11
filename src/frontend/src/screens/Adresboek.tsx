@@ -37,7 +37,8 @@ export function Adresboek({ caps, route, go }: { caps: Caps; route: string[]; go
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
   const [kind, setKind] = useState<OrgKind | "">("");
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(route[1] === "nieuw" && caps.manageOrgs); // 4b.2: de balk opent #/adresboek/nieuw
+  useEffect(() => { if (route[1] === "nieuw") window.location.replace("#/adresboek"); }, [route[1]]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const h = setTimeout(() => setQ(text), 150);
     return () => clearTimeout(h);

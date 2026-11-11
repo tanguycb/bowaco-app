@@ -151,6 +151,8 @@ node tests/proef-3-12.mjs "$cid"
 node tests/briefing-4-4.mjs "$cid"
 # 4b.1: Te doen (per rol de juiste regels, lek per regel, uitstellen, de knop bij een regel).
 node tests/proef-4b-1.mjs "$cid"
+# 4b.2: de balk (zoekindex per rol met dezelfde code als de app: geen lek, geen bedragen, alleen wat het menu en de rechten geven; het zoeken).
+node tests/proef-4b-2.mjs "$cid"
 # 2c.2: de prijsvraag-Excel heen en terug (zonder netwerk) en de prijsvraag door de backend (klaarzetten, toegang zonder werf,
 # Mijn prijsvragen, ontwerp, indienen, bijlagen, afsluiten, werfleider zonder bedragen, .did-controle). De klokproef (herinnering,
 # geen antwoord, 90 dagen na afsluiten) verzet de tijd van dit eigen net met ruim 90 dagen: daarom als LAATSTE canisterproef.
