@@ -48,7 +48,9 @@ const caps = {};
 for (const [k, a] of Object.entries(who)) {
   const me = await a.me();
   caps[k] = me.caps[0] ?? me.caps;
-  idx[k] = await Z.laadIndex(a, caps[k]);
+  // De app roept met null/undefined (de wrapper in backend.ts); de ruwe Candid-actor wil [] voor een lege optie: dezelfde oproepen.
+  const shim = new Proxy(a, { get: (t, n) => (n === "listQuotes" ? (w, x) => t.listQuotes(w === null ? [] : w, x) : n === "listOaInvoices" ? (w, st) => t.listOaInvoices(w === null ? [] : w, st === null ? [] : st) : t[n]) });
+  idx[k] = await Z.laadIndex(shim, caps[k]);
 }
 const kinds = (r) => new Set(r.map((x) => x.soort));
 const of = (k, s) => idx[k].filter((x) => x.soort === s);
@@ -64,6 +66,16 @@ for (const k of Object.keys(who)) {
 }
 check("admin: eigen proefwerf, firma en personen in de index", of("admin", "werf").some((r) => r.titel.includes(`Z${sfx}`)) && of("admin", "firma").some((r) => r.titel.includes(sfx)) && of("admin", "persoon").length >= 3);
 for (const k of ["klant", "arch", "vc", "oa"]) check(`${k}: geen personen en geen firma's`, !kinds(idx[k]).has("persoon") && !kinds(idx[k]).has("firma") || caps[k].readOa);
+
+// de bronnen offertes en facturen leveren echt iets (een stille fout zou ze weggooien) en komen overeen met de lijst zelf
+{
+  const ql = await admin.listQuotes([], false);
+  const il = await admin.listOaInvoices([], []);
+  check(`admin: offertes in de index = listQuotes (${ql.length})`, ql.length > 0 && of("admin", "offerte").length === ql.length);
+  check(`admin: facturen in de index = listOaInvoices (${il.length})`, il.length > 0 && of("admin", "factuur").length === il.length);
+  const wl = await who.wl.listOaInvoices([], []).catch(() => []);
+  check("werfleider: facturen in de index = zijn eigen lijst", of("wl", "factuur").length === wl.length);
+}
 
 // (2) lek
 const big = (_, v) => (typeof v === "bigint" ? v.toString() : v);
