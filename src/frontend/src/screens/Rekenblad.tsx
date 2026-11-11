@@ -153,6 +153,21 @@ export function Rekenblad(p: BladProps) {
     return () => window.removeEventListener("resize", zet);
   }, []);
 
+  // Ctrl+Z / Ctrl+Shift+Z ook als de focus nergens staat (bv. na Esc in een cel of een klik naast het raster): de toets komt
+  // dan op <body> binnen, buiten het blad (draftproef 11-11).
+  const terugRef = useRef({ ongedaan: p.ongedaan, opnieuw: p.opnieuw });
+  terugRef.current = { ongedaan: p.ongedaan, opnieuw: p.opnieuw };
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.target !== document.body || !(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === "z") { e.preventDefault(); if (e.shiftKey) terugRef.current.opnieuw(); else terugRef.current.ongedaan(); }
+      else if (k === "y") { e.preventDefault(); terugRef.current.opnieuw(); }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
+
   // Een weergave zonder vorige versie kan niet; het verschil laadt de vorige versie één keer.
   useEffect(() => { if (weergave === "verschil" && !p.diff.marks) p.diff.laad(); }, [weergave]); // eslint-disable-line react-hooks/exhaustive-deps
   // Een gekozen lijn die weg is, telt niet meer.
