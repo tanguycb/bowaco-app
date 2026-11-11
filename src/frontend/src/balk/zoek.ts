@@ -74,6 +74,7 @@ export async function laadIndex(actor: backendInterface, caps: Caps): Promise<Re
     naam: "personen", ok: caps.readTeam,
     vraag: async () => (await actor.listPersons(false)).map((p) => mk("persoon", String(p.id), p.name, B.soort.persoon, p.orgId !== undefined ? `adresboek/${p.orgId}` : "team", p.shortCode !== undefined ? [p.shortCode] : [])),
   };
+  // Let op: listQuotes geeft hoogstens Config.maxQuoteRead (400) offertes, de nieuwste eerst; oudere zoek je via de werf.
   const offertes: Bron<Regel> = {
     naam: "offertes", ok: caps.quotes,
     vraag: async () => (await actor.listQuotes(null, false)).map((q) => mk("offerte", String(q.id), `${q.number} · ${q.title}`, [q.workCode, q.clientName].filter(Boolean).join(" · "), `werven/${q.workId}/offerte`, [q.workName])),

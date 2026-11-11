@@ -49,13 +49,14 @@ export function Venster({ caps, userKey, go, onVerslag, onClose }: { caps: Caps;
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const hits = useMemo(() => zoek(idx.data ?? [], text), [idx.data, text]);
-  useEffect(() => { input.current?.focus(); }, []);
+  // Focus naar het veld en bij sluiten terug naar wat focus had.
+  useEffect(() => { const prev = document.activeElement as HTMLElement | null; input.current?.focus(); return () => prev?.focus?.(); }, []);
   useEffect(() => { setSel(0); }, [text]);
   useEffect(() => { (list.current?.children[sel] as HTMLElement | undefined)?.scrollIntoView({ block: "nearest" }); }, [sel]);
   const kies = (r: Regel) => { onClose(); if (r.to === "verslag") onVerslag(); else go(r.to); };
   const key = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(hits.length - 1, s + 1)); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.max(0, Math.min(hits.length - 1, s + 1))); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }
     else if (e.key === "Enter" && hits[sel]) { e.preventDefault(); kies(hits[sel]); }
   };

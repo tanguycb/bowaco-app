@@ -116,7 +116,7 @@ function AppInner() {
     const offM = qc.getMutationCache().subscribe((ev) => {
       if (ev.type === "updated" && ev.action.type === "error" && unlinked(ev.action.error)) recheck();
       // 2b.3: na elke geslaagde handeling de stand van de werven opnieuw (stappenbalk en volgende stap)
-      if (ev.type === "updated" && ev.action.type === "success") void qc.invalidateQueries({ queryKey: ["stages"] });
+      if (ev.type === "updated" && ev.action.type === "success") { void qc.invalidateQueries({ queryKey: ["stages"] }); void qc.invalidateQueries({ queryKey: ["balk"] }); }
     });
     return () => { window.removeEventListener("hashchange", onHash); offQ(); offM(); };
   }, [qc]);
