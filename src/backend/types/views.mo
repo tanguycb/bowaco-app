@@ -1840,6 +1840,9 @@ module {
   };
   // Verkoopprijs per lijn (admin, calculator; architect met de grant #readSellPrices).
   public type QuoteSellLine = { lineId : Nat; unitSellCents : ?Int; lineSellCents : Int };
+  // 4b.3b: de vorige prijs van een post (het rekenblad): dezelfde post (bibliotheek, anders dezelfde omschrijving) in de jongste
+  // verzonden versie van een andere offerte of een vorige versie van dezelfde. VERTROUWELIJK (admin, calculator).
+  public type QuotePrevPrice = { lineId : Nat; quoteId : Nat; versionId : Nat; quoteNumber : Text; version : Nat; status : Types.QuoteStatus; at : Int; workCode : Text; byLibItem : Bool; costCents : ?Int; unitSellCents : ?Int; unit : Text; orgId : ?Nat; orgName : Text };
   // VERTROUWELIJK per lijn (admin, calculator): aankoopprijs, regel, reden, OA, de marge die eruit volgt, markeringen.
   public type QuoteCostLine = {
     lineId : Nat;

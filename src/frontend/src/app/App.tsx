@@ -20,7 +20,7 @@ import { Beheer } from "../screens/Beheer";
 import { TabBar } from "../screens/Tabs";
 import { VerslagKies } from "../screens/VerslagKies";
 import { activeKey, bottomBar, hubTabs, navFor, resolveRoute } from "./nav";
-import { kruimels, leesKeuze, menuStand, paginaUitleg, toontUitleg } from "./schil";
+import { isWerkblad, kruimels, leesKeuze, menuStand, paginaUitleg, toontUitleg } from "./schil";
 import { UitlegContext, useWorks } from "../screens/common";
 import { t as tt } from "../texts/nl";
 import { MijnLogin } from "../screens/MijnLogin";
@@ -196,8 +196,12 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   // 4b.3: het menu als rail. De keuze (open of rail) onthoudt dit toestel; zonder keuze beslist de breedte.
   const breedte = useBreedte();
   const [keuze, setKeuze] = useState(() => { try { return leesKeuze(localStorage.getItem("bw-menu")); } catch { return null; } });
-  const rail = menuStand(breedte, keuze) === "rail";
+  // 4b.3b: op het rekenblad vanzelf een rail; de knop klapt het daar even open (de keuze van het toestel blijft).
+  const werkblad = isWerkblad(route);
+  const [werkbladOpen, setWerkbladOpen] = useState(false);
+  const rail = (werkblad && werkbladOpen ? menuStand(breedte, "open") : menuStand(breedte, keuze, werkblad)) === "rail";
   const wisselMenu = () => {
+    if (werkblad) { setWerkbladOpen(rail); return; }
     const n = rail ? "open" : "rail";
     setKeuze(n);
     try { localStorage.setItem("bw-menu", n); } catch { /* enkel gemak */ }

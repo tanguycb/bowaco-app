@@ -20,6 +20,8 @@ import { OpenConfidential } from "./Dossier";
 import { ChapterMargin, FormPanel, KindSheet, SubgroupHead } from "./OfferteVorm";
 import { prepareUpload } from "../lib/uploadPrep";
 import { QuoteReviewPanel } from "./Nakijken";
+import * as B from "../quote/blad.ts";
+import { Rekenblad, type BladActies } from "./Rekenblad";
 
 const O = t.offertes;
 const FORMS: ContractForm[] = [ContractForm.vh, ContractForm.fixed, ContractForm.regie, ContractForm.estimate, ContractForm.budget, ContractForm.perAttachment];
@@ -265,13 +267,24 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const [read, setRead] = useState<QuoteRead | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [model, setModel] = useState<M.Model | null>(null);
-  const [, bump] = useReducer((x: number) => x + 1, 0);
+  const [tick, bump] = useReducer((x: number) => x + 1, 0);
   const [saving, setSaving] = useState(false);
   const [serverOk, setServerOk] = useState<boolean | null>(null);
   const [sheet, setSheet] = useState<null | { kind: "line"; key: string } | { kind: "lib"; chapter: string } | { kind: "libChapters" } | { kind: "send" } | { kind: "decide"; accepted: boolean } | { kind: "signed" } | { kind: "archive" } | { kind: "header" } | { kind: "kind" }>(null);
   // De vorige versie, één keer gelezen; het verschil zelf rekent bij elke wijziging opnieuw (Chrome-test C3).
   const [prev, setPrev] = useState<M.Model | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  // 4b.3b: het rekenblad (standaard voor wie alles ziet, op een scherm met muis) of de klassieke editor (tweede weergave).
+  const [keuze, setKeuze] = useState<B.Editor | null>(() => { try { return B.leesEditorKeuze(localStorage.getItem("bw-offerte-editor")); } catch { return null; } });
+  const breedte = useVensterBreedte();
+  const vinger = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
+  const hist = useRef(new B.Geschiedenis());
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [autoFout, setAutoFout] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const unitsRef = useRef<string[] | null>(null);
+  const magVanzelf = useRef(true);
+  const kiesKeuze = (k: B.Editor) => { setKeuze(k); try { localStorage.setItem("bw-offerte-editor", k); } catch { /* enkel gemak */ } };
 
   // Welke versie: de gevraagde, anders de nieuwste.
   const all = useQuery({ queryKey: ["quotes", "alle", true], queryFn: () => actor!.listQuotes(null, true), enabled: on && wanted === undefined });
@@ -285,6 +298,8 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       setRead(r);
       setServerOk(null);
       setPrev(null);
+      hist.current = new B.Geschiedenis();
+      setAutoFout(null);
       if (r.scope === QuoteScope.full) {
         const cached = unsaved.get(String(versionId));
         unsaved.delete(String(versionId));
@@ -317,18 +332,24 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
     };
   }, []);
 
+  const blad = !!read && B.kiesEditor(read.scope as B.Scope, breedte, vinger, keuze) === "blad";
   const edit = (f: (m: M.Model) => void) => {
     if (!model || !editable) return;
+    if (blad) hist.current.voor(model); // 4b.3b: elke wijziging één stap ongedaan maken
     f(model);
     setServerOk(null);
     bump();
   };
 
-  const save = useCallback(async () => {
-    if (!actor || !model || !editable || saving) return;
+  // 4b.3b: `stil` = vanzelf bewaren (rekenblad): geen melding; een fout zet het vanzelf bewaren stil tot "opnieuw proberen".
+  const save = useCallback(async (stil = false) => {
+    if (!actor || !model || !editable || saving || savingRef.current) return;
+    savingRef.current = true; // 4b.3b (review): synchroon, zodat een tweede oproep in dezelfde render niet meegaat
     setSaving(true);
     try {
       for (let b = M.nextBatch(model); b; b = M.nextBatch(model)) {
+        // vanzelf bewaren: wat tijdens de bewaring "niet klaar" werd, wacht (de server zou het hele stuk weigeren)
+        if (stil && B.nietKlaar(model, unitsRef.current).length > 0) return;
         const h = b.header;
         const r = unwrap(await actor.saveQuoteDraft(
           model.versionId,
@@ -359,14 +380,18 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
           regie: i.regie ? { orgId: i.regie.orgId ?? undefined, costCents: i.regie.costCents, sellCents: i.regie.sellCents ?? undefined, followRate: i.regie.followRate } : undefined,
           discount: discToTs(i.discount), discountText: i.discountText,
         }, { subtotalCents: fs.expect.subtotal, discountCents: fs.expect.discount, totalCents: fs.expect.total }));
-        M.applyFormSaved(model, r.rev, r.refs);
+        M.applyFormSaved(model, r.rev, r.refs, fs.snap);
         setServerOk(true);
       }
-      toast.show({ kind: "ok", text: O.saved });
+      setSavedAt(Date.now());
+      setAutoFout(null);
+      if (!stil) toast.show({ kind: "ok", text: O.saved });
       void qc.invalidateQueries({ queryKey: ["quotes"] });
     } catch (e) {
-      toast.show({ kind: "error", text: errText(e) });
+      if (stil) setAutoFout(errText(e));
+      else toast.show({ kind: "error", text: errText(e) });
     } finally {
+      savingRef.current = false;
       setSaving(false);
       bump();
     }
@@ -380,6 +405,26 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [save]);
+
+  // 4b.3b: vanzelf bewaren op het rekenblad, even na de laatste wijziging; enkel als alles klaar is (anders weigert de server
+  // het hele stuk) en niet na een fout. Bij het verlaten van het tabblad meteen.
+  const libUnitsData = useQuery({ queryKey: ["libUnits", false], queryFn: () => actor!.libraryUnits(false), enabled: on && caps.readLibrary }).data;
+  unitsRef.current = libUnitsData ? libUnitsData.map((u) => u.key) : null;
+  const wachtOp = model && editable && blad ? B.nietKlaar(model, unitsRef.current) : [];
+  magVanzelf.current = wachtOp.length === 0 && !autoFout;
+  useEffect(() => {
+    if (!blad || !editable || !model || saving || autoFout || pending === 0 || wachtOp.length > 0) return;
+    const h = window.setTimeout(() => void save(true), B.BEWAAR_NA);
+    return () => window.clearTimeout(h);
+  }, [blad, editable, model, saving, autoFout, pending, wachtOp.length, tick, save]);
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => {
+    if (!blad) return;
+    const on = () => { if (document.visibilityState === "hidden" && magVanzelf.current && modelRef.current && M.pendingCount(modelRef.current) > 0) void saveRef.current(true); };
+    document.addEventListener("visibilitychange", on);
+    return () => document.removeEventListener("visibilitychange", on);
+  }, [blad]);
 
   const rulesQ = useQuery({ queryKey: ["quoteRules"], queryFn: () => actor!.getQuoteRules(), enabled: on && caps.editQuotes });
   const libUnits = useQuery({ queryKey: ["libUnits", false], queryFn: () => actor!.libraryUnits(false), enabled: on && caps.readLibrary });
@@ -431,6 +476,61 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
   const header = model?.header;
   const chapters = model ? M.activeChapters(model) : read.chapters.map((c) => ({ key: `i${c.id}`, id: c.id, code: c.code, title: c.title }));
 
+  const sheets = (
+    <>
+      {sheet?.kind === "line" && model && <LineSheet m={model} lineKey={sheet.key} editable={editable} units={units} orgs={orgs.data ?? []} edit={edit} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "lib" && model && <LibPicker m={model} chapter={sheet.chapter} caps={caps} edit={edit} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "libChapters" && model && <LibChapters m={model} edit={edit} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "header" && model && <HeaderSheet m={model} orgs={orgs.data ?? []} workVatBp={v.workVatBp} damage={read.form?.kind === QuoteKind.damage} edit={edit} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "kind" && <KindSheet read={read} orgs={orgs.data ?? []} onClose={() => setSheet(null)} onDone={() => { setSheet(null); void load(); }} />}
+      {sheet?.kind === "send" && model && totals && <SendSheet versionId={v.id} total={totals.total} findings={findings} loaded={!!ruleSet} onSend={async (reason) => { await send(reason); }} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "signed" && <SignedSheet workId={read.quote.workId} onDone={async (fileId, note) => { await registerSigned(fileId, note); }} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "decide" && <DecideSheet accepted={sheet.accepted} onDone={async (note) => { await decide(sheet.accepted, note); }} onClose={() => setSheet(null)} />}
+      {sheet?.kind === "archive" && <ArchiveSheet onDone={async (reason) => { await archive(reason); }} onClose={() => setSheet(null)} />}
+    </>
+  );
+
+  // 4b.3b: het rekenblad (enkel #full, scherm met muis). De handelingen en panelen zijn die van de klassieke editor.
+  if (blad && model && totals) {
+    const full = scope === QuoteScope.full;
+    const acties: BladActies = {
+      versturen: editable ? () => setSheet({ kind: "send" }) : undefined,
+      pdf: full && read.doc ? () => void openPdf() : undefined,
+      nieuweVersie: full && caps.editQuotes && !read.quote.archived && !read.quote.versions.some((x) => x.status === QuoteStatus.draft) ? () => void newVersion() : undefined,
+      aanvaard: full && caps.editQuotes && v.status === QuoteStatus.sent ? () => setSheet({ kind: "decide", accepted: true }) : undefined,
+      geweigerd: full && caps.editQuotes && v.status === QuoteStatus.sent ? () => setSheet({ kind: "decide", accepted: false }) : undefined,
+      mail: full && caps.editQuotes && v.status === QuoteStatus.sent && read.doc?.info.frozen && caps.readConfidentialContact ? () => void mailClient() : undefined,
+      getekend: full && caps.editQuotes && (v.status === QuoteStatus.sent || v.status === QuoteStatus.accepted) && read.doc?.info.frozen && !read.doc.acceptance?.signed ? () => setSheet({ kind: "signed" }) : undefined,
+      archiveren: full && caps.editQuotes && !read.quote.archived ? () => setSheet({ kind: "archive" }) : undefined,
+      dearchiveren: full && caps.editQuotes && read.quote.archived ? () => void unarchive() : undefined,
+      kop: editable ? () => setSheet({ kind: "header" }) : undefined,
+      soort: editable && read.form ? () => setSheet({ kind: "kind" }) : undefined,
+      bibHoofdstukken: editable && caps.readLibrary ? () => setSheet({ kind: "libChapters" }) : undefined,
+      bib: editable && caps.readLibrary ? (ch) => setSheet({ kind: "lib", chapter: ch }) : undefined,
+      herlaad: () => { unsaved.delete(String(model.versionId)); void load(); },
+      klassiek: () => kiesKeuze("klassiek"),
+      werf: () => go(`werven/${read.quote.workId}/offerte`),
+      werfStart: caps.workStarts && v.status === QuoteStatus.accepted ? <StartButton workId={read.quote.workId} versionId={v.id} go={go} /> : undefined,
+    };
+    return (
+      <>
+        <Rekenblad
+          read={read} m={model} caps={caps} editable={editable} edit={edit}
+          ongedaan={() => { if (model && editable && hist.current.ongedaan(model)) { setServerOk(null); bump(); } }}
+          opnieuw={() => { if (model && editable && hist.current.opnieuw(model)) { setServerOk(null); bump(); } }}
+          kanTerug={editable && hist.current.kanTerug} kanVooruit={editable && hist.current.kanVooruit}
+          units={units} orgs={orgs.data ?? []} findings={findings} rulesLoaded={!!ruleSet || !editable} totals={totals} pending={pending}
+          bewaar={{ saving, savedAt, fout: autoFout, wacht: wachtOp, serverOk, opnieuw: () => setAutoFout(null) }}
+          diff={{ label: prevId !== undefined ? t.blad.weergaven.verschil(O.version(v.basedOnVersion!)) : null, marks: diff, gone: diffGone, laad: () => void showDiff() }}
+          self={{ failed: self.failed, passed: self.passed }}
+          acties={acties} go={go}
+        />
+        {sheets}
+      </>
+    );
+  }
+  const bladKan = scope === QuoteScope.full && B.kiesEditor("full", breedte, vinger, null) === "blad";
+
   return (
     <Page
       wide
@@ -438,6 +538,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
       title={`${read.quote.number} · ${header?.title ?? v.title}`}
       actions={
         <>
+          {bladKan && <Button variant="quiet" icon="grid" title={t.blad.klassiekUitleg} onClick={() => kiesKeuze("blad")} data-testid="naar-blad">{t.blad.naarBlad}</Button>}
           <Button icon="back" onClick={() => go(`werven/${read.quote.workId}/offerte`)}>{O.work}</Button>
           {editable && <Button variant="primary" icon="check" busy={saving} disabled={pending === 0} onClick={() => void save()}>{pending ? `${t.common.save} (${pending})` : t.common.save}</Button>}
         </>
@@ -579,15 +680,7 @@ function OfferteEditor({ quoteId, versionId: wanted, caps, go }: { quoteId: bigi
         </aside>
       </div>
 
-      {sheet?.kind === "line" && model && <LineSheet m={model} lineKey={sheet.key} editable={editable} units={units} orgs={orgs.data ?? []} edit={edit} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "lib" && model && <LibPicker m={model} chapter={sheet.chapter} caps={caps} edit={edit} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "libChapters" && model && <LibChapters m={model} edit={edit} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "header" && model && <HeaderSheet m={model} orgs={orgs.data ?? []} workVatBp={v.workVatBp} damage={read.form?.kind === QuoteKind.damage} edit={edit} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "kind" && <KindSheet read={read} orgs={orgs.data ?? []} onClose={() => setSheet(null)} onDone={() => { setSheet(null); void load(); }} />}
-      {sheet?.kind === "send" && model && totals && <SendSheet versionId={v.id} total={totals.total} findings={findings} loaded={!!ruleSet} onSend={async (reason) => { await send(reason); }} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "signed" && <SignedSheet workId={read.quote.workId} onDone={async (fileId, note) => { await registerSigned(fileId, note); }} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "decide" && <DecideSheet accepted={sheet.accepted} onDone={async (note) => { await decide(sheet.accepted, note); }} onClose={() => setSheet(null)} />}
-      {sheet?.kind === "archive" && <ArchiveSheet onDone={async (reason) => { await archive(reason); }} onClose={() => setSheet(null)} />}
+      {sheets}
     </Page>
   );
 
@@ -1237,4 +1330,15 @@ function StartButton({ workId, versionId, go }: { workId: bigint; versionId: big
   const open = (q.data ?? []).some((p) => p.versionId === versionId);
   if (!q.data) return null;
   return open ? <Button variant="primary" icon="building" onClick={() => go(`werfstart/${versionId}`)}>{t.werfstart.open}</Button> : <Button icon="building" onClick={() => go(`werfstart/${versionId}`)}>{t.werfstart.openDone}</Button>;
+}
+
+/** 4b.3b: de breedte van het venster (rekenblad of klassieke editor). */
+function useVensterBreedte(): number {
+  const [w, setW] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
+  useEffect(() => {
+    const on = () => setW(window.innerWidth);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  return w;
 }

@@ -13,6 +13,7 @@ import "./app/opmeting.css";
 // 4b.3: design system versie 3 en de schil komen als laatste, zodat één stelsel geldt.
 import "./design/v3.css";
 import "./app/schil.css";
+import "./app/rekenblad.css";
 import { InternetIdentityProvider } from "@caffeineai/core-infrastructure";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";

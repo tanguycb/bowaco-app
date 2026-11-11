@@ -15,11 +15,15 @@ export function dichtheid(breedte: number, vinger: boolean): Dichtheid {
 /** Het menu: volledig (± 228 px), als rail (iconen) of verborgen (gsm: het menu zit dan achter de knop of de onderbalk). */
 export type MenuStand = "open" | "rail" | "verborgen";
 export const RAIL_TOT = 1280;
-/** Zonder eigen keuze: onder 1280 px vanzelf een rail, zodat lijsten en de werf de breedte krijgen. */
-export function menuStand(breedte: number, keuze: "open" | "rail" | null): MenuStand {
+/** Zonder eigen keuze: onder 1280 px vanzelf een rail, zodat lijsten en de werf de breedte krijgen. 4b.3b: op een werkblad (het
+ *  rekenblad) altijd een rail; openklappen kan daar voor even (App), zonder de keuze van het toestel te veranderen. */
+export function menuStand(breedte: number, keuze: "open" | "rail" | null, werkblad = false): MenuStand {
   if (breedte < DICHT_VANAF) return "verborgen";
+  if (werkblad) return "rail";
   return keuze ?? (breedte < RAIL_TOT ? "rail" : "open");
 }
+/** 4b.3b: een werkblad = een offerte die openstaat (#/offertes/<offerte>/<versie>). */
+export const isWerkblad = (route: string[]) => route[0] === "offertes" && /^\d+$/.test(route[1] ?? "");
 /** De opgeslagen keuze lezen (enkel "open" of "rail"; al de rest = geen keuze). */
 export function leesKeuze(v: string | null | undefined): "open" | "rail" | null {
   return v === "open" || v === "rail" ? v : null;

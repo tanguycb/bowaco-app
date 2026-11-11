@@ -52,7 +52,9 @@ export type ChapterRef = { id: bigint } | { ref: string };
 export type ChapterOp = { id: bigint | null; ref: string; code: string; title: string; order: bigint; libChapterId: bigint | null; remove: boolean };
 export type LineOp = Omit<LineData, "chapter"> & { id: bigint | null; ref: string; chapter: ChapterRef; remove: boolean };
 export type Expect = { subtotal: bigint; vat: bigint; total: bigint; optionsPlus: bigint; optionsMinus: bigint; cost: bigint; margin: bigint; chapters: { chapter: ChapterRef; sell: bigint }[] };
-export type Batch = { header: Header | null; chapterOps: ChapterOp[]; lineOps: LineOp[]; expect: Expect; keys: string[] };
+/** `snap` (4b.3b): de inhoud zoals ze in dit stuk vertrok. Het rekenblad bewaart vanzelf terwijl je verder werkt: wat je tijdens
+ *  een bewaring wijzigt, blijft dan "gewijzigd" in plaats van ongezien als bewaard te tellen. */
+export type Batch = { header: Header | null; chapterOps: ChapterOp[]; lineOps: LineOp[]; expect: Expect; keys: string[]; snap?: { ch: Map<string, ChapterData & { removed: boolean }>; ln: Map<string, LineData & { removed: boolean }> } };
 
 export const MAX_OPS = 300;
 
@@ -393,6 +395,10 @@ export function nextBatch(m: Model, max = MAX_OPS): Batch | null {
       chapters: t.chapters.map((c) => ({ chapter: refOf(m, c.chapter), sell: c.sell })),
     },
     keys: [...keys],
+    snap: {
+      ch: new Map(takeCh.map((c) => [c.key, { code: c.code, title: c.title, order: c.order, libChapterId: c.libChapterId, removed: c.removed }])),
+      ln: new Map(takeLn.map((l) => [l.key, { chapter: l.chapter, order: l.order, kind: l.kind, code: l.code, title: l.title, text: l.text, specRef: l.specRef, qtyMilli: l.qtyMilli, unit: l.unit, form: l.form, libItemId: l.libItemId, libItemVersion: l.libItemVersion, price: { ...l.price }, removed: l.removed }])),
+    },
   };
 }
 
@@ -405,14 +411,33 @@ export function applySaved(m: Model, b: Batch, rev: bigint, refs: [string, bigin
   for (const c of m.chapters) {
     if (!keys.has(c.key)) continue;
     if (c.id === null) c.id = ids.get(c.key) ?? null;
-    c.base = { code: c.code, title: c.title, order: c.order, libChapterId: c.libChapterId, removed: c.removed };
-    c.dirty = false;
+    c.base = b.snap?.ch.get(c.key) ?? { code: c.code, title: c.title, order: c.order, libChapterId: c.libChapterId, removed: c.removed };
+    c.dirty = true;
+    c.dirty = changedChapter(c); // 4b.3b: wat tijdens de bewaring nog veranderde, blijft te bewaren
   }
   for (const l of m.lines) {
     if (!keys.has(l.key)) continue;
     if (l.id === null) l.id = ids.get(l.key) ?? null;
-    l.base = { chapter: l.chapter, order: l.order, kind: l.kind, code: l.code, title: l.title, text: l.text, specRef: l.specRef, qtyMilli: l.qtyMilli, unit: l.unit, form: l.form, libItemId: l.libItemId, libItemVersion: l.libItemVersion, price: { ...l.price }, removed: l.removed };
-    l.dirty = false;
+    const sl = b.snap?.ln.get(l.key);
+    l.base = sl ? { ...sl, price: { ...sl.price } } : { chapter: l.chapter, order: l.order, kind: l.kind, code: l.code, title: l.title, text: l.text, specRef: l.specRef, qtyMilli: l.qtyMilli, unit: l.unit, form: l.form, libItemId: l.libItemId, libItemVersion: l.libItemVersion, price: { ...l.price }, removed: l.removed };
+    l.dirty = true;
+    l.dirty = changedLine(l);
+  }
+  // 4b.3b: een nieuw hoofdstuk of een nieuwe lijn die tijdens de bewaring weer weg ging (removeLine wist een lijn zonder id), staat
+  // nu wel op de server: terug in het model als "weg", zodat de volgende bewaring ze ook daar weghaalt.
+  if (b.snap) {
+    for (const op of b.chapterOps) {
+      const id = ids.get(op.ref);
+      const sc = b.snap.ch.get(op.ref);
+      if (op.id !== null || id === undefined || !sc || m.chapters.some((c) => c.key === op.ref)) continue;
+      m.chapters.push({ ...sc, key: op.ref, id, seq: 10_000 + m.next++, base: { ...sc }, removed: true, dirty: true });
+    }
+    for (const op of b.lineOps) {
+      const id = ids.get(op.ref);
+      const sl = b.snap.ln.get(op.ref);
+      if (op.id !== null || id === undefined || !sl || m.lines.some((l) => l.key === op.ref)) continue;
+      m.lines.push({ ...sl, price: { ...sl.price }, key: op.ref, id, base: { ...sl, price: { ...sl.price } }, removed: true, dirty: true });
+    }
   }
   m.chapters = m.chapters.filter((c) => !(c.removed && !c.dirty));
   m.lines = m.lines.filter((l) => !(l.removed && !l.dirty));
@@ -506,6 +531,8 @@ export type FormSave = {
     discountText: string;
   };
   expect: { subtotal: bigint; discount: bigint; total: bigint };
+  /** 4b.3b: de vorm en de subgroepen zoals ze in deze bewaring vertrokken (zie Batch.snap). */
+  snap?: { form: Form; subs: Map<string, SubgroupData & { removed: boolean }> };
 };
 
 /** De bewaaropdracht voor saveQuoteForm (na de lijnen: elke lijn en elk hoofdstuk heeft dan een id). null = niets. */
@@ -530,17 +557,26 @@ export function formSave(m: Model): FormSave | null {
   return {
     input: { hideZeroLines: f.hideZeroLines, regieText: f.regieText, textBlockKeys: [...f.textBlockKeys], subgroupOps, lineOps, chapterMargins, regie: f.regie ? { orgId: f.regie.orgId, costCents: f.regie.cost, sellCents: f.regie.sell, followRate: !!f.regie.follow } : null, discount: f.discount, discountText: f.discountText },
     expect: { subtotal: t.subtotal, discount: t.discount, total: t.total },
+    snap: { form: cloneForm(f), subs: new Map(m.subgroups.map((g) => [g.key, { chapter: g.chapter, title: g.title, order: g.order, removed: g.removed }])) },
   };
 }
 
 /** Na een geslaagde saveQuoteForm: de nieuwe ids van de subgroepen en de vorm is de nieuwe basis. */
-export function applyFormSaved(m: Model, rev: bigint, refs: [string, bigint][]): void {
+export function applyFormSaved(m: Model, rev: bigint, refs: [string, bigint][], snap?: FormSave["snap"]): void {
   const ids = new Map(refs);
   m.rev = rev;
   for (const g of m.subgroups) {
     if (g.id === null) g.id = ids.get(g.key) ?? null;
-    g.base = { chapter: g.chapter, title: g.title, order: g.order, removed: g.removed };
+    const sg = snap?.subs.get(g.key);
+    // 4b.3b (review): een subgroep die pas tijdens deze bewaring bijkwam, zat er niet in: ze blijft "nieuw" (geen basis).
+    if (sg) g.base = { ...sg };
+    else if (!snap) g.base = { chapter: g.chapter, title: g.title, order: g.order, removed: g.removed };
   }
-  m.subgroups = m.subgroups.filter((g) => !g.removed);
-  m.formBase = cloneForm(m.form);
+  // 4b.3b: een nieuwe subgroep die tijdens de bewaring weer weg ging, staat nu op de server: terug als "weg".
+  if (snap) for (const [k, sg] of snap.subs) {
+    const id = ids.get(k);
+    if (id !== undefined && !m.subgroups.some((g) => g.key === k)) m.subgroups.push({ ...sg, key: k, id, base: { ...sg }, removed: true });
+  }
+  m.subgroups = m.subgroups.filter((g) => !(g.removed && g.base?.removed));
+  m.formBase = snap ? cloneForm(snap.form) : cloneForm(m.form);
 }

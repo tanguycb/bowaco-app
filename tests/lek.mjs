@@ -395,6 +395,7 @@ const table = {
   // onbekende versie blijven dicht). Bewerken, versturen, beslissen: admin en calculator. Volgnummer: admin (R17).
   listQuotes: [INTERNAL, () => [[], false]],
   readQuoteVersion: [INTERNAL, () => [X]],
+  readPreviousPrices: [["admin", "calculator"], () => [X]], // 4b.3b: de vorige prijs (aankoop en verkoop): enkel kantoor
   createQuote: [["admin", "calculator"], () => [{ workId: X, number: "", title: "" }]],
   setQuoteSequence: [ADMIN, () => [1n, 0n]],
   quoteSequence: [ADMIN, () => [2026n]],

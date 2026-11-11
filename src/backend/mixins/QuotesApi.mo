@@ -196,6 +196,103 @@ mixin (
     #ok(vid);
   };
 
+  // ── 4b.3b: de vorige prijs per post (het rekenblad, paneel van de gekozen lijn) ─────
+  // Voor elke post van deze versie: dezelfde post in de jongste VERZONDEN versie (verzonden, aanvaard of geweigerd) van een
+  // andere offerte of van een vorige versie van dezelfde offerte. Eerst op de post uit de bibliotheek, anders op dezelfde
+  // omschrijving (minstens 6 tekens, hoofdletters en spaties tellen niet). Enkel offertes van werven die de beller mag zien.
+  // Bedragen: enkel #full (aankoopprijs en marge), update-call met één auditregel (R23). Niets wordt bewaard.
+  public shared ({ caller }) func readPreviousPrices(versionId : Nat) : async Result.Result<[Views.QuotePrevPrice], Text> {
+    let p = Access.requireActive(access, caller);
+    let ctx = { works; settings };
+    // Eerst het recht op aankoopprijzen (enkel kantoor): wie dat niet heeft, hoort ook niet of een versie bestaat.
+    Rights.require(ctx, p, #readCosts, null);
+    let (v, q) = switch (qtFind(versionId)) { case (?x) x; case null { return #err("Onbekende versie") } };
+    Rights.require(ctx, p, #readQuotes, ?q.workId);
+    Rights.require(ctx, p, #readSellPrices, ?q.workId);
+    let norm = func(t : Text) : Text {
+      var out = "";
+      var space = false;
+      for (ch in t.toLower().chars()) {
+        if (ch == ' ' or ch == '\t' or ch == '\n') { space := true } else { if (space and out.size() > 0) { out #= " " }; space := false; out #= Text.fromChar(ch) };
+      };
+      out;
+    };
+    // Wat we zoeken: post uit de bibliotheek → lijnen; omschrijving → lijnen (enkel posten en opties, geen tekstregels).
+    let byLib = Map.empty<Nat, [Nat]>();
+    let byTitle = Map.empty<Text, [Nat]>();
+    for (l in Quotes.ids(quotes.linesByVersion, v.id).values()) {
+      switch (quotes.lines.get(l)) {
+        case (?x) {
+          if (x.archivedAt == null and x.kind != #text) {
+            switch (x.libItemId) {
+              case (?li) { Quotes.addIndex(byLib, li, x.id) };
+              case null {
+                let k = norm(x.title);
+                if (k.size() >= 6) { byTitle.add(k, (switch (byTitle.get(k)) { case (?xs) xs; case null [] }).concat([x.id])) };
+              };
+            };
+          };
+        };
+        case null {};
+      };
+    };
+    type Best = { line : Types.QuoteLine; ver : Types.QuoteVersion; quote : Types.Quote; at : Int; byLib : Bool };
+    let best = Map.empty<Nat, Best>();
+    if (byLib.size() + byTitle.size() > 0) {
+      for (ver in quotes.versions.values()) {
+        let at = switch (ver.sent) { case (?s) s.at; case null 0 };
+        let counts = ver.id != v.id and at > 0 and (ver.status == #sent or ver.status == #accepted or ver.status == #rejected or ver.status == #superseded);
+        if (counts) {
+          switch (quotes.quotes.get(ver.quoteId)) {
+            case (?oq) {
+              if (Rights.may(ctx, p, #readQuotes, ?oq.workId) and Rights.may(ctx, p, #readSellPrices, ?oq.workId)) {
+                for (l in Quotes.ids(quotes.linesByVersion, ver.id).values()) {
+                  switch (quotes.lines.get(l)) {
+                    case (?x) {
+                      if (x.archivedAt == null and x.kind != #text) {
+                        let (targets, lib) : ([Nat], Bool) = switch (x.libItemId) {
+                          case (?li) { (Quotes.ids(byLib, li), true) };
+                          case null { (switch (byTitle.get(norm(x.title))) { case (?xs) xs; case null [] }, false) };
+                        };
+                        for (t in targets.values()) {
+                          let better = switch (best.get(t)) { case (?b) at > b.at; case null true };
+                          if (better) { best.add(t, { line = x; ver; quote = oq; at; byLib = lib }) };
+                        };
+                      };
+                    };
+                    case null {};
+                  };
+                };
+              };
+            };
+            case null {};
+          };
+        };
+      };
+    };
+    Access.audit(audit, caller, ?p.id, ?q.workId, "bekeek:vorige-prijzen", q.number # " v" # v.version.toText() # ": " # best.size().toText() # " posten");
+    let std = Library.standardMargin(settings);
+    #ok(best.entries().map(func((lineId, b) : (Nat, Best)) : Views.QuotePrevPrice {
+      let pr = Quotes.priceOf(quotes, b.line.id);
+      {
+        lineId;
+        quoteId = b.quote.id;
+        versionId = b.ver.id;
+        quoteNumber = b.quote.number;
+        version = b.ver.version;
+        status = b.ver.status;
+        at = b.at;
+        workCode = switch (works.works.get(b.quote.workId)) { case (?w) w.code; case null "" };
+        byLibItem = b.byLib;
+        costCents = pr.cost;
+        unitSellCents = Quotes.unitSellOf(quotes, quoteForms, b.ver, b.line, std);
+        unit = b.line.unit;
+        orgId = pr.orgId;
+        orgName = Quotes.orgName(org, pr.orgId);
+      };
+    }).toArray());
+  };
+
   // ── Bewaren (enkel een ontwerp) ────────────────────────────────────────
   // Kop, hoofdstukken en lijnen die veranderden, met de totalen die de browser uitrekende. Alles of niets: eerst alles
   // nakijken en uitrekenen op een kopie, pas dan schrijven. Geen stil overschrijven: `rev` = de stand die de beller las.
