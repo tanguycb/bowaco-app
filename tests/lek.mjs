@@ -658,6 +658,8 @@ const table = {
   // 4b.1: Te doen (iedere actieve persoon zijn eigen lijst; wat erin staat bewijst tests/proef-4b-1.mjs per regel en per rol).
   myTodo: [ACTIVE, () => [{ day: BigInt(Math.floor(Date.now() / 86_400_000)), offset: 0n, limit: 1n, snoozed: false, kind: "" }]],
   snoozeTodo: [ACTIVE, () => ["", []]],
+  // 4b.5: het model van taak en voorstel (enkel de beheerder, #manageBots; geen bedragen en geen vrije tekst van een bot).
+  listTasks: [ADMIN, () => [{ workId: [], openOnly: false, kind: "", offset: 0n, limit: 1n }]],
   exportIntern: [ADMIN, () => []],
   exportConfidential: [ADMIN, () => []],
   exportChunk: [ADMIN, () => ["persons", 0n, 1n]], // 1.9: export in stukken (O-11)

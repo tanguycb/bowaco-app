@@ -66,6 +66,7 @@ mixin (
   aiCheck : Types.AiCheckState,
   audit : Types.AuditState,
   ctr : Types.Counters,
+  syncTasks : () -> (), // 4b.5: het model van taak en voorstel gelijkzetten na een wijziging (lib/Tasks.mo)
 ) {
 
   func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; plan; reports; workStarts; surveys; purchases; invCheck; permits; siteAdmin; minMeer; library; quoteForms; aiCheck; audit; ctr } };
@@ -164,11 +165,13 @@ mixin (
     // beantwoorden we zelf met MCP-inhoud (image of resource met base64). Enkel een gewone POST op /mcp met een geldig token en
     // één JSON-RPC-bericht; al de rest (ook een batch) gaat naar het pakket.
     switch (who) {
-      case (?_) switch (mcpContent(req)) { case (?r) return r; case null {} };
+      case (?_) switch (mcpContent(req)) { case (?r) { syncTasks(); return r }; case null {} };
       case null {};
     };
     let server : Mcp.Server = { name = "BOWACO"; version = "3.12"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
     let out = switch (await* Mcp.handleUpdate(bots.oauth, server, req)) { case (?r) r; case null Http.notFound() };
+    // 4b.5: wat een tool-oproep aan een opdracht of voorstel veranderde, staat meteen ook in het model van taak en voorstel.
+    if (who != null) syncTasks();
     // 3.12 (review M3): een code van een intussen ingetrokken bot leverde bij het inwisselen nog een koppeling op: die gaat hier weg.
     if (path0 == "/token") dropInactiveGrants();
     out;
@@ -514,6 +517,7 @@ mixin (
     switch (Proof.openRoundOf(proof, #bot(botId))) { case (?r) Proof.close(Bots.proofEnv(botEnv()), r, ?p.id, now, true); case null {} };
     // 3.12 (review M3): zijn open opdrachten sluiten en zijn onbesliste voorstellen weigeren (een ingetrokken bot is mogelijk gekaapt).
     let closed = Bots.onRevoke(botEnv(), botId, p.id, now);
+    syncTasks();
     Access.audit(audit, caller, ?p.id, null, "bot-ingetrokken", "bot #" # botId.toText() # (if (closed > 0) " (" # closed.toText() # " open opdrachten en voorstellen gesloten)" else ""));
     #ok;
   };
@@ -615,6 +619,7 @@ mixin (
     a.decidedBy := ?p.id;
     a.decidedAt := ?now;
     a.note := Access.cleanText(note, Config.maxText) ?? "";
+    syncTasks();
     Access.audit(audit, caller, ?p.id, a.workId, if accept "bot-voorstel-aanvaard" else "bot-voorstel-geweigerd", "#" # id.toText());
     #ok;
   };
@@ -629,6 +634,7 @@ mixin (
     a.state := #undone;
     a.decidedBy := ?p.id;
     a.decidedAt := ?Time.now();
+    syncTasks();
     Access.audit(audit, caller, ?p.id, a.workId, "bot-ongedaan", "#" # id.toText());
     #ok;
   };

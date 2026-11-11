@@ -151,6 +151,9 @@ node tests/proef-3-12.mjs "$cid"
 node tests/briefing-4-4.mjs "$cid"
 # 4b.1: Te doen (per rol de juiste regels, lek per regel, uitstellen, de knop bij een regel).
 node tests/proef-4b-1.mjs "$cid"
+# 4b.5: één model voor taak en voorstel (document koppelen en factuurcontrole door het model, elk dossier = één taak met dezelfde stand,
+# Te doen = de voorstellen van het model, enkel de beheerder leest het model, geen bedragen en geen vrije tekst van een bot).
+node tests/proef-4b-5.mjs "$cid"
 # 4b.2: de balk (zoekindex per rol met dezelfde code als de app: geen lek, geen bedragen, alleen wat het menu en de rechten geven; het zoeken).
 node tests/proef-4b-2.mjs "$cid"
 node tests/proef-4b-3.mjs "$cid"

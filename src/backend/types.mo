@@ -2798,6 +2798,73 @@ module {
     extra : Map.Map<Text, Text>; // reserve
   };
 
+  // ── 4b.5: één model voor taak en voorstel (bouwplan §9 fase 4b, optiedocument richting B) ──
+  // Eigen stabiel veld `tasks` (deelvorm, OldActor = {}). Elke opdracht aan een assistent (een bot via MCP of de Caffeine-weg) is één
+  // TAAK met hoogstens één VOORSTEL; inlezen (3.8), vergelijken (3.9), factuurcontrole (3.10), nalezen (3.11) en document koppelen
+  // (3.4) staan erachter. De inhoud van een taak (het bestand, de regels, de bedragen, de bevindingen) blijft in het eigen veld van de
+  // soort (oaRead, aiCheck, invCheck, bots.actions): dat is het DOSSIER, met zijn rekenregels en rechten. Hier staat wat voor elke
+  // soort hetzelfde is: wie gaf de taak, wie voert ze uit, de stand, het voorstel, wie besliste, ongedaan maken en de tijdlijn.
+  // GEEN bedragen en geen vrije tekst van een bot in dit veld (enkel tellingen, sleutels, vaste woorden en verwijzingen).
+  // lib/Tasks.mo houdt het bij (`sync`): na elke wijziging aan een dossier, bij elke installatie en upgrade (zo komen de taken van
+  // vóór 4b.5 erin) en in de klokronde. Varianten met een reservetag en records met `extra` (M0170).
+  // Wie: een persoon, een bot (eigen principal), de Caffeine-weg van de app ("caffeine"), of de app zelf (klok, intrekken).
+  public type TaskWho = { #person : PersonId; #bot : Nat; #app : Text; #clock; #other : Text };
+  // Het dossier achter de taak (de bron). De sleutel van de taak is "<bron>:<id>", dezelfde als in Te doen (4b.1).
+  public type TaskSrc = { #oaRead : Nat; #aiCheck : Nat; #invCheck : Nat; #botAction : Nat; #other : Text };
+  // Waar het over gaat of waarop een punt steunt (4b.6: "bron per punt").
+  public type TaskRef = { #file : Nat; #doc : Nat; #tender : Nat; #quote : Nat; #oaQuote : Nat; #oaInvoice : Nat; #org : Nat; #none; #other : Text };
+  // Stand van de taak: wacht · bezig · voorstel klaar · klaar · mislukt · geannuleerd.
+  public type TaskState = { #waiting; #busy; #ready; #done; #failed : Text; #cancelled; #other : Text };
+  // Stand van het voorstel. #auto = de assistent deed het zelf (Zelf doen); #adjusted = aanvaard na aanpassen (4b.6); #withdrawn =
+  // de taak ging dicht zonder beslissing over het voorstel (ingetrokken bot, het stuk veranderde, de firma trok in).
+  public type ProposalState = { #open; #accepted; #adjusted; #rejected; #auto; #undone; #expired; #withdrawn; #other : Text };
+  // Ongedaan maken (4b.6): kan niet · kan (met de handeling) · gedaan.
+  public type TaskUndo = { #none; #possible : Text; #done : Int; #other : Text };
+  // Eén punt van een voorstel (4b.6: "nu → na aanvaarden", bron per punt). secret = de waarde is vertrouwelijk en staat NIET hier
+  // (enkel in het dossier, achter de rechten van het scherm); now/after zijn dan "".
+  public type TaskPoint = { key : Text; now : Text; after : Text; source : TaskRef; secret : Bool; extra : Extra };
+  // Eén regel van de tijdlijn ("wie deed wat", 4b.6): what = de nieuwe stand ("taak:wacht", "voorstel:open" …).
+  public type TaskEvent = { at : Int; who : TaskWho; what : Text; extra : Extra };
+  public type TaskProposal = {
+    id : Nat;
+    taskId : Nat;
+    by : TaskWho;
+    at : Int;
+    auto : Bool; // Zelf doen (de app voerde het meteen uit)
+    var confidence : ?Nat;
+    var points : [TaskPoint];
+    var actionId : ?Nat; // het voorstel van de bot in bots.actions (3.4), als er een is
+    var state : ProposalState;
+    var decidedBy : ?TaskWho;
+    var decidedAt : ?Int;
+    var undo : TaskUndo;
+    var extra : Extra;
+  };
+  public type AssistTask = {
+    id : Nat;
+    key : Text; // "<bron>:<id>"
+    kind : Text; // de taak zoals in Config.botTasks ("oa-offerte-inlezen", "offertes-vergelijken" …)
+    src : TaskSrc;
+    workId : ?WorkId;
+    subject : TaskRef; // het stuk waarover het gaat (prijsvraag, offerte, OA-factuur, bestand)
+    givenBy : TaskWho; // de eigenaar (de persoon die de taak gaf; bij een bot die uit zichzelf iets voorstelt: de bot)
+    doer : TaskWho; // de uitvoerder
+    createdAt : Int;
+    var state : TaskState;
+    var updatedAt : Int;
+    var proposalId : ?Nat;
+    var events : [TaskEvent];
+    var extra : Extra;
+  };
+  public type TaskStore = {
+    tasks : Map.Map<Nat, AssistTask>;
+    byKey : Map.Map<Text, Nat>;
+    byWork : Map.Map<Nat, [Nat]>;
+    proposals : Map.Map<Nat, TaskProposal>;
+    var next : Nat; // laatst uitgegeven nummer (taken en voorstellen samen)
+    extra : Map.Map<Text, Text>; // reserve
+  };
+
   // Tellers per collectie (D3): sleutel = naam van de collectie, waarde = laatst uitgegeven id.
   // Een Map in plaats van een record: een nieuwe collectie vraagt dan geen migratie van de tellers.
   public type Counters = Map.Map<Text, Nat>;

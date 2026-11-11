@@ -52,6 +52,7 @@ mixin (
   audit : Types.AuditState,
   ctr : Types.Counters,
   isAiLive : () -> Bool,
+  syncTasks : () -> (), // 4b.5: het model van taak en voorstel gelijkzetten na een wijziging (lib/Tasks.mo)
 ) {
 
   func icOffice(p : Types.Person, workId : Nat) : Bool { Rights.oaInvoiceScope({ works; settings }, p, workId) == #full };
@@ -135,6 +136,7 @@ mixin (
     let job : Types.InvCheckJob = { id; workId = inv.workId; invoiceId = inv.id; orgId = inv.orgId; name; mime = i.mime; size = i.content.size(); via; createdAt = now; createdBy = p.id; var status = #open; var result = null; var decidedAt = null; var decidedBy = null; var extra = [] };
     invCheck.jobs.add(id, job);
     InvCheck.addIndex(invCheck, inv.workId, id);
+    syncTasks();
     invCheck.content.add(id, i.content);
     Access.audit(audit, caller, ?p.id, ?inv.workId, "factuurcontrole-start", "opdracht #" # id.toText() # " " # icOrgName(inv.orgId) # " " # inv.number # " via " # (switch via { case (#bot(b)) "bot #" # b.toText(); case _ "Caffeine AI" }));
     #ok(id);
@@ -166,6 +168,7 @@ mixin (
     let p = Access.requireActive(access, caller);
     let j = switch (icJob(p, id)) { case (#ok x) x; case (#err e) return #err(e) };
     InvCheck.settle(invCheck, oaInvoices, bots, j, Time.now());
+    syncTasks();
     Access.audit(audit, caller, ?p.id, ?j.workId, "bekeek:factuurcontrole:" # id.toText(), icOrgName(j.orgId) # " · " # InvCheck.statusKey(j.status));
     #ok({ brief = icBrief(j); result = j.result });
   };
@@ -198,13 +201,15 @@ mixin (
       case (?t) { switch (Int.fromText(t)) { case (?at) { if (now0 - at < 300_000_000_000) return #err("Deze opdracht wordt al gecontroleerd; wacht even") }; case null {} } };
       case null {};
     };
-    let unmark = func() { j.extra := j.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "bezig") };
+    // Review 4b.5 L1: het model volgt het merk "bezig" meteen (ook als de oproep daarna mislukt).
+    let unmark = func() { j.extra := j.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "bezig"); syncTasks() };
     let content : Text = if (not live) v.dryRun else {
       if (not w.enabled or w.budgetMonthCents == 0) { return #err(w.name # " staat uit (Beheer → AI-medewerkers)") };
       if (not ai.models.containsKey(w.modelAlias)) { return #err("Het model van de fiche staat niet in de catalogus") };
       if (ai.runningByPerson.containsKey(p.id)) { return #err("Je hebt al een oproep lopen; wacht even") };
       if (ai.runningByPerson.size() >= Config.aiMaxConcurrent) { return #err("Druk bezig, probeer zo meteen") };
       j.extra := InvCheck.extraSet(j.extra, "bezig", Int.toText(now0));
+      syncTasks();
       let e = { settings; access; robot; ai; audit; ctr };
       let now = Time.now();
       let reserve = switch (Connector.reserve(e, w, caller, ?p.id, ?j.workId, now)) { case (#ok x) x; case (#err t) { unmark(); return #err(t) } };
@@ -225,6 +230,7 @@ mixin (
       case (#ok res) {
         j.result := ?res;
         j.status := #proposed;
+        syncTasks();
         Access.audit(audit, caller, ?p.id, ?j.workId, "factuurcontrole-voorstel", "opdracht #" # j.id.toText() # " (Caffeine AI" # (if live ")" else ", testmodus)"));
         #ok({ status = "voorstel"; dry = not live });
       };
@@ -236,6 +242,7 @@ mixin (
         } else {
           j.extra := InvCheck.extraSet(j.extra, "pogingen", tries.toText());
         };
+        syncTasks();
         #ok({ status = "mislukt"; dry = not live });
       };
     };
@@ -249,6 +256,7 @@ mixin (
     let j = switch (icJob(p, id)) { case (#ok x) x; case (#err e) return #err(e) };
     let now = Time.now();
     InvCheck.settle(invCheck, oaInvoices, bots, j, now);
+    syncTasks();
     if (not InvCheck.isLive(j)) { return #err("Deze opdracht is al afgesloten") };
     switch outcome {
       case (#seen) {
@@ -261,6 +269,7 @@ mixin (
         InvCheck.close(invCheck, j, #cancelled, ?p.id, now);
       };
     };
+    syncTasks();
     Access.audit(audit, caller, ?p.id, ?j.workId, "factuurcontrole-af", "opdracht #" # j.id.toText() # " " # InvCheck.statusKey(j.status));
     #ok;
   };

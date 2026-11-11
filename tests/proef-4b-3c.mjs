@@ -57,11 +57,14 @@ check("(B2) de pauze is 2,5 s, zoals het rekenblad", K.VANZELF_MS === 2500);
 // ── C. Rekenresultaten ongewijzigd ──────────────────────────────────────
 const git = (...a) => { try { return execFileSync("git", ["-C", repo, ...a], { encoding: "utf8" }); } catch (e) { return String(e); } };
 const basis = "8a79006";
-const verschil = (pad) => git("diff", "--stat", basis, "--", pad).trim();
+// 4b.5: de controle gaat over de stap 4b.3c zelf (8a79006 → 00c355c). Latere stappen mogen de backend wel wijzigen (4b.5: het model
+// van taak en voorstel); vergeleken met de werkmap zou C1/C2 dan rood worden zonder dat 4b.3c iets rekende.
+const eind = "00c355c";
+const verschil = (pad) => git("diff", "--stat", basis, eind, "--", pad).trim();
 for (const pad of ["src/frontend/src/tender", "src/frontend/src/progress", "src/frontend/src/minmeer", "src/frontend/src/nacalc", "src/frontend/src/quote/calc.ts", "src/frontend/src/quote/rules.ts", "src/frontend/src/pdf", "src/backend"]) {
-  check(`(C1) ${pad} is ongewijzigd t.o.v. ${basis} (de vorm rekent niets)`, verschil(pad) === "", verschil(pad).slice(0, 200));
+  check(`(C1) ${pad} is in 4b.3c (${basis} → ${eind}) ongewijzigd (de vorm rekent niets)`, verschil(pad) === "", verschil(pad).slice(0, 200));
 }
-const gewijzigd = git("diff", "--name-only", basis).split("\n").filter(Boolean);
+const gewijzigd = git("diff", "--name-only", basis, eind).split("\n").filter(Boolean);
 check("(C2) enkel schermen, ontwerp, teksten, opmaak, de proef en de documentatie zijn aangeraakt", gewijzigd.every((f) => /^src\/frontend\/src\/(screens|design|app|texts|quote\/blad\.ts)|^src\/frontend\/proef\/|^tests\/|^docs\//.test(f)), gewijzigd.filter((f) => !/^src\/frontend\/src\/(screens|design|app|texts|quote\/blad\.ts)|^src\/frontend\/proef\/|^tests\/|^docs\//.test(f)).join(", "));
 
 // ── D. Rechten per rol op de backend ────────────────────────────────────

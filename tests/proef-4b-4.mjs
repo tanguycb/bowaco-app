@@ -57,11 +57,13 @@ check("(C3) geen enkel eurobedrag in de teksten van de starten", !/€|euro|prij
 // ── E. Enkel schermen ───────────────────────────────────────────────────
 const git = (...a) => { try { return execFileSync("git", ["-C", repo, ...a], { encoding: "utf8" }); } catch (e) { return String(e); } };
 const basis = "00c355c";
+// 4b.5: de controle gaat over de stap 4b.4 zelf (00c355c → fe0f754); latere stappen mogen de backend wel wijzigen.
+const eind = "fe0f754";
 for (const pad of ["src/backend", "src/frontend/src/tender", "src/frontend/src/progress", "src/frontend/src/minmeer", "src/frontend/src/nacalc", "src/frontend/src/quote", "src/frontend/src/pdf"]) {
-  const v = git("diff", "--stat", basis, "--", pad).trim();
-  check(`(E1) ${pad} is ongewijzigd t.o.v. ${basis}`, v === "", v.slice(0, 200));
+  const v = git("diff", "--stat", basis, eind, "--", pad).trim();
+  check(`(E1) ${pad} is in 4b.4 (${basis} → ${eind}) ongewijzigd`, v === "", v.slice(0, 200));
 }
-const gew = git("diff", "--name-only", basis).split("\n").filter(Boolean);
+const gew = git("diff", "--name-only", basis, eind).split("\n").filter(Boolean);
 check("(E2) enkel schermen, ontwerp, teksten, opmaak, de proef en de documentatie zijn aangeraakt", gew.every((f) => /^src\/frontend\/src\/(screens|design|app|texts)|^src\/frontend\/proef\/|^tests\/|^docs\//.test(f)), gew.filter((f) => !/^src\/frontend\/src\/(screens|design|app|texts)|^src\/frontend\/proef\/|^tests\/|^docs\//.test(f)).join(", "));
 
 // ── D. Backend ──────────────────────────────────────────────────────────

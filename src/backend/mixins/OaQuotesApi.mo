@@ -49,6 +49,7 @@ mixin (
   aiCheck : Types.AiCheckState,
   audit : Types.AuditState,
   ctr : Types.Counters,
+  syncTasks : () -> (), // 4b.5: het model van taak en voorstel gelijkzetten na een wijziging (lib/Tasks.mo)
 ) {
 
   func oqCtx() : Tenders.Ctx { { settings; access; org; oa; works; quotes; files } };
@@ -387,6 +388,7 @@ mixin (
     Rights.require(ctx, p, #readQuotes, ?t.workId);
     let now = Time.now();
     AiCheck.settle(tenders, quotes, bots, j, now);
+    syncTasks();
     if (j.status != #proposed) { return #err("Deze opdracht heeft geen open voorstel") };
     if (AiCheck.basisOf(j) != AiCheck.tenderBasis(tenders, t) or j.basis != AiCheck.tenderBasis(tenders, t)) { return #err("Er kwam intussen een nieuwe offerte binnen of de prijsvraag wijzigde: laat opnieuw nakijken of kies zelf") };
     let v = quotes.versions.get(versionId) ?? return #err("Onbekende versie");
@@ -405,6 +407,7 @@ mixin (
     let r = switch (oqApply(caller, p, t, versionId)) { case (#ok x) x; case (#err e) Runtime.trap("Niets overgenomen: " # e) };
     AiCheck.follow(bots, j, true, ?p.id, now);
     AiCheck.close(j, #closed("overgenomen"), ?p.id, now);
+    syncTasks();
     Access.audit(audit, caller, ?p.id, ?t.workId, "vergelijking-overgenomen", "opdracht #" # j.id.toText() # " " # t.code # ": " # r.lines.toText() # " posten in versie " # v.version.toText());
     #ok(r);
   };

@@ -458,6 +458,63 @@ export interface AssignmentView {
   'confirmation' : Confirmation,
   'workId' : WorkId,
 }
+export interface AssistEventView {
+  'at' : bigint,
+  'who' : string,
+  'whoName' : string,
+  'what' : string,
+}
+export interface AssistPointView {
+  'key' : string,
+  'now' : string,
+  'after' : string,
+  'source' : string,
+  'secret' : boolean,
+}
+export interface AssistProposalView {
+  'at' : bigint,
+  'by' : string,
+  'id' : bigint,
+  'byName' : string,
+  'auto' : boolean,
+  'undo' : string,
+  'decidedByName' : string,
+  'state' : string,
+  'confidence' : [] | [bigint],
+  'decidedAt' : [] | [bigint],
+  'decidedBy' : string,
+  'actionId' : [] | [bigint],
+  'points' : Array<AssistPointView>,
+}
+export interface AssistTaskPage {
+  'total' : bigint,
+  'items' : Array<AssistTaskView>,
+}
+export interface AssistTaskQuery {
+  'kind' : string,
+  'offset' : bigint,
+  'limit' : bigint,
+  'workId' : [] | [bigint],
+  'openOnly' : boolean,
+}
+export interface AssistTaskView {
+  'id' : bigint,
+  'key' : string,
+  'subject' : string,
+  'doer' : string,
+  'kind' : string,
+  'name' : string,
+  'createdAt' : bigint,
+  'updatedAt' : bigint,
+  'state' : string,
+  'events' : Array<AssistEventView>,
+  'doerName' : string,
+  'givenByName' : string,
+  'proposal' : [] | [AssistProposalView],
+  'workId' : [] | [bigint],
+  'givenBy' : string,
+  'workCode' : string,
+}
 export interface Attendance {
   'id' : bigint,
   'day' : Day,
@@ -8798,6 +8855,7 @@ export interface _SERVICE {
   'listReports' : ActorMethod<[bigint, bigint, bigint], Array<ReportSummary>>,
   'listRobots' : ActorMethod<[], Array<RobotView>>,
   'listSales' : ActorMethod<[bigint], Array<SalesBrief>>,
+  'listTasks' : ActorMethod<[AssistTaskQuery], AssistTaskPage>,
   'listTechSheets' : ActorMethod<[boolean], Array<TechSheetView>>,
   'listTemplates' : ActorMethod<[], Array<TemplateView>>,
   'listTenders' : ActorMethod<[[] | [bigint]], Array<TenderStatusView>>,

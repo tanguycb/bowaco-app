@@ -7,6 +7,7 @@ import Map "mo:core/Map";
 import Types "types";
 import Config "lib/Config";
 import Housekeeping "lib/Housekeeping";
+import Tasks "lib/Tasks";
 import Permits "lib/Permits";
 import StorageGate "mixins/StorageGate";
 import AccessApi "mixins/AccessApi";
@@ -65,6 +66,7 @@ import NacalcApi "mixins/NacalcApi";
 import BriefingApi "mixins/BriefingApi";
 import InvCheck "lib/InvCheck";
 import TodoApi "mixins/TodoApi";
+import TasksApi "mixins/TasksApi";
 import AiCheckApi "mixins/AiCheckApi";
 import AiCheck "lib/AiCheck";
 import OAuth "mo:caffeineai-mcp-server/OAuth";
@@ -108,6 +110,7 @@ persistent actor Self {
   let aiCheck : Types.AiCheckState; // 3.9 + 3.11: nakijkopdrachten (OA-offertes vergelijken per prijsvraag, offerte nalezen vóór verzending)
   let invCheck : Types.InvCheckState; // 3.10: controleopdrachten van OA-facturen (resultaat met bevindingen vertrouwelijk, inhoud tot afsluiten)
   let todo : Types.TodoState; // 4b.1: Te doen (enkel wat iemand uitstelde; de lijst zelf wordt berekend)
+  let tasks : Types.TaskStore; // 4b.5: één model voor taak en voorstel (de dossiers blijven in oaRead, aiCheck, invCheck en bots)
   let ai : Types.AiState; // 3.1: AI-connector (fiches, catalogus, logboek zonder inhoud, budget per maand, Postvak in later)
   let audit : Types.AuditState;
   let ctr : Types.Counters;
@@ -122,6 +125,12 @@ persistent actor Self {
   func isAiLive() : Bool { AiConnector.isLive(Principal.fromActor(Self), isDraft()) };
 
   include StorageGate(settings, access, works, tenders, oaDeals);
+
+  // 4b.5: het model van taak en voorstel gelijkzetten met de dossiers (lib/Tasks.mo). Na elke wijziging aan een opdracht of een
+  // voorstel (de mixins krijgen deze functie mee), in de klokronde (vangnet, met opruimen) en hieronder bij elke installatie en
+  // upgrade: zo komen de opdrachten van vóór 4b.5 in het model zonder dat de migratie de oude velden hoeft te lezen.
+  func syncTasks() { ignore Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots }, Time.now(), false) };
+  transient let _taskSync : Nat = Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots }, Time.now(), false);
   include AccessApi(settings, access, works, robot, audit, ctr, org, oaDeals, bots);
   include PeopleApi(settings, access, org, works, audit, ctr);
   include WorksApi(settings, access, org, works, dossier, plan, wadm, audit, ctr);
@@ -189,7 +198,7 @@ persistent actor Self {
   // werf, Mijn prijsvragen van de OA, eigen PDF opladen); herinnering en "geen antwoord" in Post.tick.
   include TendersApi(settings, access, org, oa, works, files, plan, library, quotes, quoteForms, tenders, post, dossier, reports, permits, surveys, oaDeals, purchases, siteAdmin, audit, ctr);
 
-  include OaQuotesApi(settings, access, org, oa, works, files, library, quotes, tenders, oaDeals, bots, aiCheck, audit, ctr);
+  include OaQuotesApi(settings, access, org, oa, works, files, library, quotes, tenders, oaDeals, bots, aiCheck, audit, ctr, syncTasks);
 
   // 2c.4: afspraken met de gekozen OA (tarieven met datum, afspraak per werf, contract uit het sjabloon, attesten; meldingen in de
   // uurlijkse ronde hieronder).
@@ -209,24 +218,26 @@ persistent actor Self {
 
   // 3.4 + 3.13: de MCP-server (caffeineai-mcp-server: OAuth 2.1 + Internet Identity, /mcp) met de tools van lib/Bots.mo, en het
   // beheer van de bots (enkel #manageBots). Een bot is geen persoon; elke tool-oproep gaat door Rights.mayBot en de fiche.
-  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, proof, oa, quotes, oaDeals, oaRead, plan, reports, workStarts, surveys, purchases, invCheck, permits, siteAdmin, minMeer, library, quoteForms, aiCheck, audit, ctr);
+  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, proof, oa, quotes, oaDeals, oaRead, plan, reports, workStarts, surveys, purchases, invCheck, permits, siteAdmin, minMeer, library, quoteForms, aiCheck, audit, ctr, syncTasks);
   // 3.5: de proefbank (enkel #manageBots): testsets, proefrondes voor een bot (proeftools op /mcp) of voor Caffeine AI, score per geval.
   include ProofApi(settings, access, works, files, dossier, org, tenders, oaRead, oaInvoices, quotes, robot, ai, bots, proof, audit, ctr, isAiLive);
   // 3.8: OA-offerte inlezen (PDF of foto via een bot, tekst via Caffeine AI) → een voorstel dat kantoor in het formulier overneemt.
-  include OaReadApi(settings, access, org, oa, works, files, quotes, tenders, robot, ai, bots, oaRead, audit, ctr, isAiLive);
+  include OaReadApi(settings, access, org, oa, works, files, quotes, tenders, robot, ai, bots, oaRead, audit, ctr, isAiLive, syncTasks);
   // 3.10: OA-factuurcontrole (PDF, foto of Peppol-UBL via een bot, tekst via Caffeine AI) → een voorstel (goedkeuren · navragen ·
   // weigeren) met bevindingen; een mens beslist met de gewone knoppen van de factuur.
   // 3.9 + 3.11: nakijkopdrachten (een bot via MCP of Caffeine AI op het dossier van de app) → een voorstel per post (3.9; overnemen met
   // één klik = applyTenderCheck in OaQuotesApi) of opmerkingen bij het versturen van een offerte (3.11; nooit wijzigen of versturen).
-  include AiCheckApi(settings, access, org, works, library, quotes, quoteForms, tenders, oaDeals, surveys, robot, ai, bots, aiCheck, audit, ctr, isAiLive);
-  include InvCheckApi(settings, access, org, works, plan, reports, quotes, workStarts, surveys, oaInvoices, oaDeals, purchases, tenders, robot, ai, bots, invCheck, audit, ctr, isAiLive);
+  include AiCheckApi(settings, access, org, works, library, quotes, quoteForms, tenders, oaDeals, surveys, robot, ai, bots, aiCheck, audit, ctr, isAiLive, syncTasks);
+  include InvCheckApi(settings, access, org, works, plan, reports, quotes, workStarts, surveys, oaInvoices, oaDeals, purchases, tenders, robot, ai, bots, invCheck, audit, ctr, isAiLive, syncTasks);
   // 4.6: nacalculatie (gepland tegenover werkelijk, enkel admin en calculator; de browser rekent).
   include NacalcApi(settings, access, org, works, dossier, plan, reports, quotes, quoteDocs, quoteForms, workStarts, surveys, progress, oaInvoices, oaDeals, purchases, minMeer, sales, audit);
   // 4.4: maandagbriefing (enkel lezen, zonder bedragen; voor de zaakvoerder).
   include BriefingApi(settings, access, org, works, plan, reports, dossier, permits, siteAdmin, quotes, minMeer, oaRead, aiCheck, invCheck, purchases);
 
   // 4b.1: Te doen (één lijst per persoon, de handeling als knop, uitstellen; geen bedragen).
-  include TodoApi(settings, access, org, works, plan, board, reports, permits, quotes, quoteDocs, workStarts, minMeer, oaInvoices, purchases, oaDeals, siteAdmin, tenders, oaRead, aiCheck, invCheck, bots, audit, todo);
+  include TodoApi(settings, access, org, works, plan, board, reports, permits, quotes, quoteDocs, workStarts, minMeer, oaInvoices, purchases, oaDeals, siteAdmin, tenders, oaRead, aiCheck, invCheck, bots, audit, todo, tasks);
+  // 4b.5: het model van taak en voorstel lezen (enkel #manageBots in deze stap).
+  include TasksApi(settings, access, works, tasks);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).
@@ -246,6 +257,8 @@ persistent actor Self {
     AiCheck.idle(aiCheck, tenders, quotes, bots, Time.now());
     OaRead.idle(oaRead, Time.now());
     InvCheck.idle(invCheck, oaInvoices, bots, Time.now());
+    // 4b.5: wat de klok hierboven sloot of liet vervallen, ook in het model (en taken zonder dossier na 400 dagen weg).
+    ignore Tasks.sync(tasks, { oaRead; aiCheck; invCheck; bots }, Time.now(), true);
     // 1b.3: verlopen leases terug in de wachtrij; op het ingestelde moment de weekmails en herinneringen klaarzetten.
     Post.tick({ settings; access; org; oa; works; plan; reports }, post, audit, ctr, tenders);
   };

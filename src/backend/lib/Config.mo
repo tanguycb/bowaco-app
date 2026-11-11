@@ -733,6 +733,11 @@ module {
   public let botMaxRemark : Nat = 500;
   public let botMaxList : Nat = 200; // hoogstens zoveel rijen per lees-tool
   public let botActionExpire : Int = 2_592_000_000_000_000; // 30 dagen: een onbeslist voorstel vervalt
+  // 4b.5: één model voor taak en voorstel (lib/Tasks.mo). Een taak met een dossier dat weg is, blijft voor de tijdlijn nog 400 dagen.
+  public let taskKeep : Int = 34_560_000_000_000_000; // 400 dagen
+  public let taskMaxEvents : Nat = 30; // regels in de tijdlijn van één taak (de eerste blijft altijd)
+  public let taskMaxPoints : Nat = 60; // punten per voorstel (één per gekozen post bij een vergelijking)
+  public let taskMaxPage : Nat = 100; // listTasks: hoogstens zoveel per pagina
 
   // ── Proefbank (stap 3.5, bouwplan §6 "Autonomie per taak", eigenaar 08-11) ──
   // Zelf doen kan pas aan als de LAATSTE gesloten proefronde van die bot (of AI-fiche) voor die taak minstens proofMinPct % juist is

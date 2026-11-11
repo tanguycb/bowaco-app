@@ -5311,6 +5311,63 @@ export const SalesBrief = IDL.Record({
   'creditOf' : IDL.Text,
   'workCode' : IDL.Text,
 });
+export const AssistTaskQuery = IDL.Record({
+  'kind' : IDL.Text,
+  'offset' : IDL.Nat,
+  'limit' : IDL.Nat,
+  'workId' : IDL.Opt(IDL.Nat),
+  'openOnly' : IDL.Bool,
+});
+export const AssistEventView = IDL.Record({
+  'at' : IDL.Int,
+  'who' : IDL.Text,
+  'whoName' : IDL.Text,
+  'what' : IDL.Text,
+});
+export const AssistPointView = IDL.Record({
+  'key' : IDL.Text,
+  'now' : IDL.Text,
+  'after' : IDL.Text,
+  'source' : IDL.Text,
+  'secret' : IDL.Bool,
+});
+export const AssistProposalView = IDL.Record({
+  'at' : IDL.Int,
+  'by' : IDL.Text,
+  'id' : IDL.Nat,
+  'byName' : IDL.Text,
+  'auto' : IDL.Bool,
+  'undo' : IDL.Text,
+  'decidedByName' : IDL.Text,
+  'state' : IDL.Text,
+  'confidence' : IDL.Opt(IDL.Nat),
+  'decidedAt' : IDL.Opt(IDL.Int),
+  'decidedBy' : IDL.Text,
+  'actionId' : IDL.Opt(IDL.Nat),
+  'points' : IDL.Vec(AssistPointView),
+});
+export const AssistTaskView = IDL.Record({
+  'id' : IDL.Nat,
+  'key' : IDL.Text,
+  'subject' : IDL.Text,
+  'doer' : IDL.Text,
+  'kind' : IDL.Text,
+  'name' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'updatedAt' : IDL.Int,
+  'state' : IDL.Text,
+  'events' : IDL.Vec(AssistEventView),
+  'doerName' : IDL.Text,
+  'givenByName' : IDL.Text,
+  'proposal' : IDL.Opt(AssistProposalView),
+  'workId' : IDL.Opt(IDL.Nat),
+  'givenBy' : IDL.Text,
+  'workCode' : IDL.Text,
+});
+export const AssistTaskPage = IDL.Record({
+  'total' : IDL.Nat,
+  'items' : IDL.Vec(AssistTaskView),
+});
 export const TechSheetView = IDL.Record({
   'id' : IDL.Nat,
   'title' : IDL.Text,
@@ -9354,6 +9411,7 @@ export const idlService = IDL.Service({
     ),
   'listRobots' : IDL.Func([], [IDL.Vec(RobotView)], ['query']),
   'listSales' : IDL.Func([IDL.Nat], [IDL.Vec(SalesBrief)], ['query']),
+  'listTasks' : IDL.Func([AssistTaskQuery], [AssistTaskPage], ['query']),
   'listTechSheets' : IDL.Func([IDL.Bool], [IDL.Vec(TechSheetView)], ['query']),
   'listTemplates' : IDL.Func([], [IDL.Vec(TemplateView)], ['query']),
   'listTenders' : IDL.Func(
@@ -15083,6 +15141,63 @@ export const idlFactory = ({ IDL }) => {
     'creditOf' : IDL.Text,
     'workCode' : IDL.Text,
   });
+  const AssistTaskQuery = IDL.Record({
+    'kind' : IDL.Text,
+    'offset' : IDL.Nat,
+    'limit' : IDL.Nat,
+    'workId' : IDL.Opt(IDL.Nat),
+    'openOnly' : IDL.Bool,
+  });
+  const AssistEventView = IDL.Record({
+    'at' : IDL.Int,
+    'who' : IDL.Text,
+    'whoName' : IDL.Text,
+    'what' : IDL.Text,
+  });
+  const AssistPointView = IDL.Record({
+    'key' : IDL.Text,
+    'now' : IDL.Text,
+    'after' : IDL.Text,
+    'source' : IDL.Text,
+    'secret' : IDL.Bool,
+  });
+  const AssistProposalView = IDL.Record({
+    'at' : IDL.Int,
+    'by' : IDL.Text,
+    'id' : IDL.Nat,
+    'byName' : IDL.Text,
+    'auto' : IDL.Bool,
+    'undo' : IDL.Text,
+    'decidedByName' : IDL.Text,
+    'state' : IDL.Text,
+    'confidence' : IDL.Opt(IDL.Nat),
+    'decidedAt' : IDL.Opt(IDL.Int),
+    'decidedBy' : IDL.Text,
+    'actionId' : IDL.Opt(IDL.Nat),
+    'points' : IDL.Vec(AssistPointView),
+  });
+  const AssistTaskView = IDL.Record({
+    'id' : IDL.Nat,
+    'key' : IDL.Text,
+    'subject' : IDL.Text,
+    'doer' : IDL.Text,
+    'kind' : IDL.Text,
+    'name' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'updatedAt' : IDL.Int,
+    'state' : IDL.Text,
+    'events' : IDL.Vec(AssistEventView),
+    'doerName' : IDL.Text,
+    'givenByName' : IDL.Text,
+    'proposal' : IDL.Opt(AssistProposalView),
+    'workId' : IDL.Opt(IDL.Nat),
+    'givenBy' : IDL.Text,
+    'workCode' : IDL.Text,
+  });
+  const AssistTaskPage = IDL.Record({
+    'total' : IDL.Nat,
+    'items' : IDL.Vec(AssistTaskView),
+  });
   const TechSheetView = IDL.Record({
     'id' : IDL.Nat,
     'title' : IDL.Text,
@@ -19003,6 +19118,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'listRobots' : IDL.Func([], [IDL.Vec(RobotView)], ['query']),
     'listSales' : IDL.Func([IDL.Nat], [IDL.Vec(SalesBrief)], ['query']),
+    'listTasks' : IDL.Func([AssistTaskQuery], [AssistTaskPage], ['query']),
     'listTechSheets' : IDL.Func(
         [IDL.Bool],
         [IDL.Vec(TechSheetView)],

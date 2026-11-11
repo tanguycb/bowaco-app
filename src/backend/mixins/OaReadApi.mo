@@ -50,6 +50,7 @@ mixin (
   audit : Types.AuditState,
   ctr : Types.Counters,
   isAiLive : () -> Bool,
+  syncTasks : () -> (), // 4b.5: het model van taak en voorstel gelijkzetten na een wijziging (lib/Tasks.mo)
 ) {
 
   func orOffice(p : Types.Person, workId : Nat) : Bool {
@@ -164,6 +165,7 @@ mixin (
     oaRead.jobs.add(id, job);
     OaRead.addIndex(oaRead, i.workId, id);
     oaRead.content.add(id, i.content);
+    syncTasks();
     Access.audit(audit, caller, ?p.id, ?i.workId, "oa-inlezen-start", "opdracht #" # id.toText() # " " # orOrgName(i.orgId) # " via " # (switch via { case (#bot(b)) "bot #" # b.toText(); case _ "Caffeine AI" }));
     #ok(id);
   };
@@ -240,13 +242,15 @@ mixin (
       case (?t) { switch (Int.fromText(t)) { case (?at) { if (now0 - at < 300_000_000_000) return #err("Deze opdracht wordt al ingelezen; wacht even") }; case null {} } };
       case null {};
     };
-    let unmark = func() { j.extra := j.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "bezig") };
+    // Review 4b.5 L1: het model volgt het merk "bezig" meteen (ook als de oproep daarna mislukt).
+    let unmark = func() { j.extra := j.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "bezig"); syncTasks() };
     let content : Text = if (not live) v.dryRun else {
       if (not w.enabled or w.budgetMonthCents == 0) { return #err(w.name # " staat uit (Beheer → AI-medewerkers)") };
       if (not ai.models.containsKey(w.modelAlias)) { return #err("Het model van de fiche staat niet in de catalogus") };
       if (ai.runningByPerson.containsKey(p.id)) { return #err("Je hebt al een oproep lopen; wacht even") };
       if (ai.runningByPerson.size() >= Config.aiMaxConcurrent) { return #err("Druk bezig, probeer zo meteen") };
       j.extra := OaRead.extraSet(j.extra, "bezig", Int.toText(now0));
+      syncTasks();
       let e = { settings; access; robot; ai; audit; ctr };
       let now = Time.now();
       let reserve = switch (Connector.reserve(e, w, caller, ?p.id, ?j.workId, now)) { case (#ok x) x; case (#err t) { unmark(); return #err(t) } };
@@ -266,11 +270,13 @@ mixin (
       case (#ok prop) {
         j.proposal := ?prop;
         j.status := #proposed;
+        syncTasks();
         Access.audit(audit, caller, ?p.id, ?j.workId, "oa-inlezen-voorstel", "opdracht #" # j.id.toText() # " (Caffeine AI" # (if live ")" else ", testmodus)"));
         #ok({ status = "voorstel"; dry = not live });
       };
       case (#err m) {
         OaRead.close(oaRead, j, #failed("het antwoord was onbruikbaar: " # Text.fromIter(m.chars().take(120))), ?p.id, Time.now());
+        syncTasks();
         #ok({ status = "mislukt"; dry = not live });
       };
     };
@@ -308,6 +314,7 @@ mixin (
     let (qid, version) = OaQuotes.store(tenders, ctr, i, pr, fileId, p.id, now, [("inlezen", j.id.toText()), ("inlezenVia", via)]);
     OaRead.close(oaRead, j, #applied(qid), ?p.id, now);
     orFollow(j, #accepted, p.id, now);
+    syncTasks();
     Access.audit(audit, caller, ?p.id, ?j.workId, "oa-offerte-geregistreerd", (switch (pr.tender) { case (?t) t.code # ": "; case null "los: " }) # orOrgName(i.orgId) # " versie " # version.toText() # " (ingelezen, opdracht #" # j.id.toText() # ", " # pr.form # ", " # pr.lines.size().toText() # " regels)");
     #ok({ oaQuoteId = qid; version; netCents = pr.net });
   };
@@ -347,6 +354,7 @@ mixin (
       case (#cancelled) { OaRead.close(oaRead, j, #cancelled, ?p.id, now); #rejected };
     };
     orFollow(j, actionState, p.id, now);
+    syncTasks();
     Access.audit(audit, caller, ?p.id, ?j.workId, "oa-inlezen-af", "opdracht #" # j.id.toText() # " " # OaRead.statusKey(j.status));
     #ok;
   };

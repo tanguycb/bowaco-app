@@ -25,6 +25,7 @@ import Board "Board";
 import Config "Config";
 import Permits "Permits";
 import Plan "Plan";
+import Tasks "Tasks";
 import Purchase "Purchase";
 import Reports "Reports";
 import MinMeer "MinMeer";
@@ -55,6 +56,7 @@ module {
     bots : Types.BotState;
     audit : Types.AuditState;
     todo : Types.TodoState;
+    tasks : Types.TaskStore; // 4b.5: de voorstellen van assistenten komen uit het model van taak en voorstel
   };
 
   // De rechten van de lezer op één werf, één keer berekend (Rights.may doorloopt de lidmaatschappen).
@@ -595,43 +597,82 @@ module {
   };
 
   // ── Voorstellen van assistenten (3.4–3.11): enkel wie ze mag beslissen; geen uitkomst, geen bedrag ──
+  // 4b.5: de lijst komt uit het model van taak en voorstel (lib/Tasks.mo): elke taak met haar dossier. De voorwaarde per regel blijft
+  // die van het dossier zelf (de opdracht wacht op een beslissing; het voorstel van de bot is onbeslist), zodat Te doen dezelfde
+  // regels toont als vóór 4b.5. Volgorde zoals toen: inlezen, nakijken, factuurcontrole, dan de voorstellen van bots (op nummer).
   func proposals(c : Ctx, now : Int, perm : Nat -> Perm, botsOk : Bool, s : Sink) {
-    for (j in c.oaRead.jobs.values()) {
-      if (j.status == #proposed and perm(j.workId).tenderFull) {
-        let to = "werven/" # j.workId.toText() # "/offerte/oa-offertes";
-        push(s, row(c, "oaread:" # j.id.toText(), "voorstel", "inlezen", 1, null, ageOf(now, j.createdAt), ?j.workId, "Ingelezen offerte nakijken", orgName(c, j.orgId), to, [open("Nakijken", to)], ("inleesopdracht", j.id), assistantName("inlezen")));
+    let botOpen = List.empty<(Nat, Types.BotAction)>();
+    let botOf = func(t : Types.AssistTask) {
+      if (not botsOk) return;
+      let aid = switch (Tasks.proposalOf(c.tasks, t)) { case (?p) p.actionId; case null null };
+      switch (aid) {
+        case (?id) switch (c.bots.actions.get(id)) { case (?a) { if (a.state == #proposed) botOpen.add((id, a)) }; case null {} };
+        case null {};
       };
     };
-    for (j in c.aiCheck.jobs.values()) {
-      if (j.status == #proposed) {
-        let (ok, task, title, to) = switch (j.target) {
-          case (#tender _) (perm(j.workId).tenderFull, "vergelijken", "Vergelijking van offertes nakijken", "werven/" # j.workId.toText() # "/offerte/prijsvragen");
-          case (#quote _) (perm(j.workId).office, "nalezen", "Opmerkingen bij de offerte nakijken", "werven/" # j.workId.toText() # "/offerte");
-          case (#other _) (false, "", "", "");
-        };
-        if (ok) { push(s, row(c, "check:" # j.id.toText(), "voorstel", task, 1, null, ageOf(now, j.createdAt), ?j.workId, title, "", to, [open("Nakijken", to)], ("nakijkopdracht", j.id), assistantName(task))) };
-      };
-    };
-    for (j in c.invCheck.jobs.values()) {
-      if (j.status == #proposed and perm(j.workId).oaInvFull) {
-        let number = switch (c.oaInvoices.invoices.get(j.invoiceId)) { case (?i) i.number; case null "" };
-        let to = "oa-facturen/" # j.invoiceId.toText();
-        push(s, row(c, "invcheck:" # j.id.toText(), "voorstel", "factuurcontrole", 1, null, ageOf(now, j.createdAt), ?j.workId, "Controle van factuur " # number # " nakijken", orgName(c, j.orgId), to, [open("Nakijken", to)], ("controleopdracht", j.id), assistantName("factuurcontrole")));
-      };
-    };
-    // Acties van een bot die op de beheerder wachten (3.4: document koppelen, factuurcontrole): aanvaarden of weigeren hier.
-    if (botsOk) {
-      for (a in c.bots.actions.values()) {
-        if (a.state == #proposed and (switch (a.workId) { case (?w) liveWork(c, w); case null true })) {
-          let task = botTaskName(a.task);
-          let title = switch (a.action) {
-            case (#docLink d) "Bestand koppelen: " # short(d.title, 60);
-            case (#invoiceCheck i) { switch (c.oaInvoices.invoices.get(i.invoiceId)) { case (?x) "Controle van factuur " # x.number; case null "Factuurcontrole" } };
-            case (#other o) "Voorstel: " # short(o.tool, 40);
+    for (t in Tasks.ofSource(c.tasks, "oaread").values()) {
+      switch (t.src) {
+        case (#oaRead id) switch (c.oaRead.jobs.get(id)) {
+          case (?j) {
+            if (j.status == #proposed and perm(j.workId).tenderFull) {
+              let to = "werven/" # j.workId.toText() # "/offerte/oa-offertes";
+              push(s, row(c, t.key, "voorstel", "inlezen", 1, null, ageOf(now, j.createdAt), ?j.workId, "Ingelezen offerte nakijken", orgName(c, j.orgId), to, [open("Nakijken", to)], ("inleesopdracht", j.id), assistantName("inlezen")));
+            };
           };
-          let acts = [act("bot-aanvaarden", "Aanvaarden", "", [a.id]), act("bot-weigeren", "Weigeren", "", [a.id])];
-          push(s, row(c, "bot:" # a.id.toText(), "voorstel", task, 1, null, ageOf(now, a.at), a.workId, title, short(a.reason, 120), "beheer/ai", acts, ("botactie", a.id), assistantName(task)));
+          case null {};
         };
+        case _ {};
+      };
+      botOf(t);
+    };
+    for (t in Tasks.ofSource(c.tasks, "check").values()) {
+      switch (t.src) {
+        case (#aiCheck id) switch (c.aiCheck.jobs.get(id)) {
+          case (?j) {
+            if (j.status == #proposed) {
+              let (ok, task, title, to) = switch (j.target) {
+                case (#tender _) (perm(j.workId).tenderFull, "vergelijken", "Vergelijking van offertes nakijken", "werven/" # j.workId.toText() # "/offerte/prijsvragen");
+                case (#quote _) (perm(j.workId).office, "nalezen", "Opmerkingen bij de offerte nakijken", "werven/" # j.workId.toText() # "/offerte");
+                case (#other _) (false, "", "", "");
+              };
+              if (ok) { push(s, row(c, t.key, "voorstel", task, 1, null, ageOf(now, j.createdAt), ?j.workId, title, "", to, [open("Nakijken", to)], ("nakijkopdracht", j.id), assistantName(task))) };
+            };
+          };
+          case null {};
+        };
+        case _ {};
+      };
+      botOf(t);
+    };
+    for (t in Tasks.ofSource(c.tasks, "invcheck").values()) {
+      switch (t.src) {
+        case (#invCheck id) switch (c.invCheck.jobs.get(id)) {
+          case (?j) {
+            if (j.status == #proposed and perm(j.workId).oaInvFull) {
+              let number = switch (c.oaInvoices.invoices.get(j.invoiceId)) { case (?i) i.number; case null "" };
+              let to = "oa-facturen/" # j.invoiceId.toText();
+              push(s, row(c, t.key, "voorstel", "factuurcontrole", 1, null, ageOf(now, j.createdAt), ?j.workId, "Controle van factuur " # number # " nakijken", orgName(c, j.orgId), to, [open("Nakijken", to)], ("controleopdracht", j.id), assistantName("factuurcontrole")));
+            };
+          };
+          case null {};
+        };
+        case _ {};
+      };
+      botOf(t);
+    };
+    for (t in Tasks.ofSource(c.tasks, "bot").values()) botOf(t);
+    // Acties van een bot die op de beheerder wachten (3.4: document koppelen, factuurcontrole; ook het voorstel van een bot op een
+    // opdracht): aanvaarden of weigeren hier.
+    for ((_, a) in botOpen.toArray().sort(func(x : (Nat, Types.BotAction), y : (Nat, Types.BotAction)) : Order.Order = Nat.compare(x.0, y.0)).values()) {
+      if (switch (a.workId) { case (?w) liveWork(c, w); case null true }) {
+        let task = botTaskName(a.task);
+        let title = switch (a.action) {
+          case (#docLink d) "Bestand koppelen: " # short(d.title, 60);
+          case (#invoiceCheck i) { switch (c.oaInvoices.invoices.get(i.invoiceId)) { case (?x) "Controle van factuur " # x.number; case null "Factuurcontrole" } };
+          case (#other o) "Voorstel: " # short(o.tool, 40);
+        };
+        let acts = [act("bot-aanvaarden", "Aanvaarden", "", [a.id]), act("bot-weigeren", "Weigeren", "", [a.id])];
+        push(s, row(c, "bot:" # a.id.toText(), "voorstel", task, 1, null, ageOf(now, a.at), a.workId, title, short(a.reason, 120), "beheer/ai", acts, ("botactie", a.id), assistantName(task)));
       };
     };
   };

@@ -35,9 +35,10 @@ mixin (
   bots : Types.BotState,
   audit : Types.AuditState,
   todo : Types.TodoState,
+  tasks : Types.TaskStore, // 4b.5: het model van taak en voorstel (enkel lezen)
 ) {
   func tdCtx() : Todo.Ctx {
-    { settings; access; org; works; plan; board; reports; permits; quotes; quoteDocs; workStarts; minMeer; oaInvoices; purchases; oaDeals; siteAdmin; tenders; oaRead; aiCheck; invCheck; bots; audit; todo };
+    { settings; access; org; works; plan; board; reports; permits; quotes; quoteDocs; workStarts; minMeer; oaInvoices; purchases; oaDeals; siteAdmin; tenders; oaRead; aiCheck; invCheck; bots; audit; todo; tasks };
   };
   func tdServerDay() : Nat { Int.abs(Time.now() / Config.day) };
 
