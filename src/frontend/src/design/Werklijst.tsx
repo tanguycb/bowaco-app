@@ -3,6 +3,7 @@
 // Op een smal scherm (gsm, kleine laptop) blijft het zoals vroeger: lijst → stuk → terug.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "../texts/nl";
+import { VastPaneel } from "./Sheet";
 import { volgende } from "./tabel";
 
 /** Een scherm dat in het paneel van een werklijst staat, toont een compacte kop (Page leest dit). */
@@ -34,9 +35,14 @@ type Props<T> = {
   detail?: ReactNode;
   label: string;
   testid?: string;
+  /** Het gekozen stuk is een Sheet (fiche, factuur): het staat dan als vast paneel rechts. */
+  vast?: boolean;
+  /** Boven de lijst (zoekveld, filters). */
+  kop?: ReactNode;
 };
 
-export function Werklijst<T>({ items, rowKey, row, selected, onSelect, detail, label, testid }: Props<T>) {
+export function Werklijst<T>({ items, rowKey, row, selected, onSelect, detail, label, testid, vast, kop }: Props<T>) {
+  const [host, setHost] = useState<HTMLElement | null>(null);
   const breed = useBreed(WERKLIJST_VANAF);
   const list = useRef<HTMLUListElement>(null);
   const keys = items.map(rowKey);
@@ -73,11 +79,12 @@ export function Werklijst<T>({ items, rowKey, row, selected, onSelect, detail, l
   return (
     <div className="bw-wl">
       <div className="bw-wl__l">
+        {kop}
         {lijst}
         <p className="bw-muted bw-wl__hint">{t.schil.werklijst.pijl}</p>
       </div>
-      <div className="bw-wl__r" data-testid="werklijst-paneel">
-        {detail ? <PaneelContext.Provider value={true}>{detail}</PaneelContext.Provider> : <p className="a-empty">{t.schil.werklijst.kies}</p>}
+      <div className="bw-wl__r" data-testid="werklijst-paneel" ref={vast ? setHost : undefined}>
+        {detail && vast ? (host ? <VastPaneel.Provider value={host}>{detail}</VastPaneel.Provider> : null) : detail ? <PaneelContext.Provider value={true}>{detail}</PaneelContext.Provider> : <p className="a-empty">{t.schil.werklijst.kies}</p>}
       </div>
     </div>
   );

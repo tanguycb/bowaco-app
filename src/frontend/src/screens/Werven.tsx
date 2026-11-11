@@ -10,6 +10,7 @@ import { errText, fmtBytes, fmtTime, optText, unwrap, useBackend } from "../util
 import { EmptyState, factsOf, Loading, Page, PhaseLabel, useReviewNotes, useStages, useWorks, WorkList } from "./common";
 import { DashCounters, useDashboard } from "./Dashboard";
 import { isClient } from "../app/nav";
+import { KlantStart, VeiligStart } from "./ExternStart";
 import { volgendeStap, werfFase, werfGroep } from "../app/fase";
 import { prepareUpload } from "../lib/uploadPrep";
 
@@ -52,6 +53,10 @@ export function Werven({ caps, go, route }: { caps: Caps; go: (to: string) => vo
   const W = t.wervenFase;
   const group: Group = (GROUPS as readonly string[]).includes(route?.[1] ?? "") ? (route![1] as Group) : "lopend";
   const newBtn = caps.createWork && <Button variant="primary" icon="plus" onClick={() => setOpen(true)}>{W.newRequest}</Button>;
+  // 4b.4: de klant en de architect of veiligheidscoördinator krijgen een eigen start in plaats van de werflijst.
+  if (!caps.readTeam && caps.home === "werven" && !route?.[1]) {
+    return <Page title={t.werven.title}>{isClient(caps) ? <KlantStart caps={caps} go={go} /> : <VeiligStart caps={caps} go={go} />}</Page>;
+  }
   if (!caps.readTeam) {
     const list = works.data ? nested(works.data, q) : [];
     return (

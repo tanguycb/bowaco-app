@@ -54,11 +54,12 @@ export function kruimels(route: string[], caps: Caps): Kruimel[] {
  *  regel (de lijst blijft in beeld). Niet: een werf (die heeft haar eigen kop) of een stuk dat los openstaat. */
 export function toontUitleg(r: string[]): boolean {
   if (r.length <= 1) return true;
+  if (r[0] === "offertes" && r[1] === "k" && r.length === 3) return true; // 4b.4: een offerte gekozen in de werklijst
   if (r.length > 2) return false;
   const [p, s] = r;
   if (p === "werven") return !/^\d+$/.test(s);
   if (s === "nieuw") return false; // een formulier krijgt de uitleg van de lijst niet
-  return ["beheer", "weekbord", "oa-facturen", "adresboek"].includes(p);
+  return ["beheer", "weekbord", "oa-facturen", "adresboek", "facturen", "te-doen"].includes(p);
 }
 
 /** De uitleg achter de ⓘ naast de schermtitel (L6: niet meer als alinea boven het scherm). Per rol waar de rol

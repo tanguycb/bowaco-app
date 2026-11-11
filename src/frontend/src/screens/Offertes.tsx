@@ -6,7 +6,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ExternalBlob, ContractForm, OrgKind, QuoteKind, QuoteLineKind, QuoteScope, QuoteStatus, type Caps, type QuoteDiscount, type LibChapterView, type LibItemView, type LibSellRule, type OrgView, type QuoteChapterRef, type QuoteRead, type QuoteSummary, type UnitView } from "../backend";
-import { Button, Choice, Icon, Info, Sheet, useToast } from "../design";
+import { Button, Choice, Icon, Info, Sheet, useToast, Werklijst } from "../design";
+import { useBreed, WERKLIJST_VANAF } from "../design/Werklijst";
 import { calcLine, type Discount, type Kind, type Rule } from "../quote/calc.ts";
 import * as M from "../quote/model.ts";
 import { addressOk, blocks, evaluate, warnings, type Finding, type RuleSet, type StdPost } from "../quote/rules.ts";
@@ -125,7 +126,8 @@ export function OffertesPage({ caps, go, route }: { caps: Caps; go: (to: string)
     const v = route[2] && /^\d+$/.test(route[2]) ? BigInt(route[2]) : undefined;
     return <OfferteEditor key={`${route[1]}-${route[2] ?? ""}`} quoteId={BigInt(route[1])} versionId={v} caps={caps} go={go} />;
   }
-  return <QuotesOverview caps={caps} go={go} />;
+  // 4b.4 Werklijst: #/offertes/k/<offerte> kiest een offerte in de lijst (de editor blijft #/offertes/<offerte>/<versie>).
+  return <QuotesOverview caps={caps} go={go} selected={route[1] === "k" && /^\d+$/.test(route[2] ?? "") ? route[2] : undefined} />;
 }
 
 function useQuotes(workId: bigint | null, archived: boolean) {
@@ -133,7 +135,8 @@ function useQuotes(workId: bigint | null, archived: boolean) {
   return useQuery({ queryKey: ["quotes", workId === null ? "alle" : String(workId), archived], queryFn: () => actor!.listQuotes(workId, archived), enabled: !!actor && !isFetching });
 }
 
-function QuotesOverview({ caps, go }: { caps: Caps; go: (to: string) => void }) {
+function QuotesOverview({ caps, go, selected }: { caps: Caps; go: (to: string) => void; selected?: string }) {
+  const breed = useBreed(WERKLIJST_VANAF);
   const [archived, setArchived] = useState(false);
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
@@ -149,9 +152,54 @@ function QuotesOverview({ caps, go }: { caps: Caps; go: (to: string) => void }) 
         <label className="a-check"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} /> {O.showArchived}</label>
       </div>
       <Loading q={list} />
-      {list.data && rows.length === 0 && !q && !archived ? <EmptyState title={t.leeg.offertes.t} text={t.leeg.offertes.d} action={caps.createWork && <Button variant="primary" icon="plus" onClick={() => go("werven/aanvragen")}>{t.leeg.request}</Button>} /> : list.data && <QuoteTable rows={rows} go={go} empty={O.none} showWork />}
+      {list.data && rows.length === 0 && !q && !archived ? <EmptyState title={t.leeg.offertes.t} text={t.leeg.offertes.d} action={caps.createWork && <Button variant="primary" icon="plus" onClick={() => go("werven/aanvragen")}>{t.leeg.request}</Button>} /> : list.data && (breed && rows.length > 0 ? (
+        <Werklijst items={rows} rowKey={(x) => String(x.id)} selected={selected} label={O.title} testid="offertes-lijst" onSelect={(k) => go(`offertes/k/${k}`)}
+          detail={selected ? <OfferteKaart quote={(list.data ?? []).find((x) => String(x.id) === selected)} go={go} /> : undefined}
+          row={(x) => {
+            const v = x.versions[0];
+            return (
+              <>
+                <span className="a-tag">{x.number}</span>
+                <span className="a-list__main">
+                  <b>{x.title}</b>
+                  <span className="bw-muted">{[`${x.workCode} ${x.workName}`, x.clientName].filter(Boolean).join(" · ")}{x.archived ? ` · ${O.archived}` : ""}</span>
+                </span>
+                {v && <span className={`a-tag ${statusTag(v.status)}`}>{O.version(v.version)} {statusWord(v.status)}</span>}
+              </>
+            );
+          }} />
+      ) : <QuoteTable rows={rows} go={go} empty={O.none} showWork />)}
       {creating && <NewQuote onClose={() => setCreating(false)} go={go} />}
     </Page>
+  );
+}
+
+/** 4b.4: het gekozen stuk in de Werklijst Offertes: wie en wat, de versies, en Openen (de editor of het rekenblad blijft een eigen scherm). Geen bedragen. */
+function OfferteKaart({ quote, go }: { quote?: QuoteSummary; go: (to: string) => void }) {
+  if (!quote) return <p className="a-empty">{t.schil.werklijst.kies}</p>;
+  const last = quote.versions[0];
+  return (
+    <div className="a-page--paneel a-stack" data-testid="offerte-kaart">
+      <div className="a-row a-row--between">
+        <h2 className="bw-h2"><span className="a-tag">{quote.number}</span> {quote.title}</h2>
+        {last && <Button variant="primary" icon="edit" onClick={() => go(`offertes/${quote.id}/${last.id}`)} data-testid="offerte-open">{O.open}</Button>}
+      </div>
+      <p className="bw-muted">{[`${quote.workCode} ${quote.workName}`, quote.clientName || O.noClient].join(" · ")}{quote.archived ? ` · ${O.archived}${quote.archiveReason ? `: ${quote.archiveReason}` : ""}` : ""}</p>
+      <span className="bw-label">{O.versions}</span>
+      <ul className="a-list">
+        {quote.versions.map((v) => (
+          <li key={String(v.id)}>
+            <button type="button" className="a-list__btn" onClick={() => go(`offertes/${quote.id}/${v.id}`)}>
+              <span className="a-tag">{O.version(v.version)}</span>
+              <span className="a-list__main"><b>{statusWord(v.status)}</b><span className="bw-muted">{Number(v.lines)} lijnen · {v.createdByName} · {fmtTime(v.updatedAt)}</span></span>
+              <span className={`a-tag ${statusTag(v.status)}`}>{statusWord(v.status)}</span>
+              <Icon name="next" size={18} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="a-row"><Button onClick={() => go(`werven/${quote.workId}`)}>{`${quote.workCode} ${quote.workName}`}</Button></div>
+    </div>
   );
 }
 

@@ -177,6 +177,9 @@ node tests/minmeer-2c5.mjs "$cid"
 # 4b.3c: de werkvorm (vergelijken, opmeting, vorderingsstaat, min-meerstaat, factuurcontrole): kern zonder netwerk, rekenmodules ongewijzigd,
 # alleen-lezen waar het hoort en de rechten per rol (op de gegevens die de proeven hierboven achterlieten, o.a. de vorderingsstaten van 2c.5; vóór de klokproef van 2c.2).
 node tests/proef-4b-3c.mjs "$cid"
+# 4b.4: Eén tik, de onderbalk van de onderaannemer, de starten van klant, architect en veiligheidscoördinator, geen bedragen voor externen
+# (op de gegevens van de rollentest en de proeven hierboven; geen schrijfacties die een klokproef storen).
+node tests/proef-4b-4.mjs "$cid"
 # 2c.8: werfadministratie en oplevering (aangifte start + 15 dagen met meldingen, premie met minimum, attest voor de klant, werfvergadering en
 # oplevering met actie- en restpunten als taken, opleveringsdocument onder een controlecode, fiches, werfcode P.nnn, export). Vóór de klokproef.
 node tests/werfadmin-2c8.mjs "$cid"

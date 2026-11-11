@@ -9,7 +9,7 @@ import { BoardAttention } from "./Weekbord";
 import type { Caps } from "../backend";
 import { MyTenderList } from "./Prijsvragen";
 import { MijnAttesten, MijnContracten } from "./Attesten";
-import { TodoBlock } from "./TeDoen";
+import { TodoBlock, TodoEenTik } from "./TeDoen";
 
 const TITLE: Record<string, string> = { vandaag: t.home.vandaag, week: t.home.week, offertes: t.home.offertes, werven: t.home.werven };
 
@@ -17,12 +17,15 @@ export function Home({ kind, go, caps }: { kind: string; go: (to: string) => voi
   const works = useWorks();
   return (
     <Page title={TITLE[kind] ?? t.home.werven}>
-      {/* 4b.1: externen krijgen hun eigen Te doen (bevestigen, prijsvragen, akkoord) bovenaan. */}
-      {caps && !caps.readTeam && <TodoBlock go={go} home={caps.home} hideEmpty />}
+      {/* 4b.4: elke externe rol heeft een eigen start. Onderaannemer = "Voor jou": eerst wat bevestigd moet worden (één knop per dag), dan de
+          week, dan Te doen en de rest. Klant = de stand in één zin. Architect en veiligheidscoördinator = wat voor hen klaarstaat. */}
+      {caps && kind === "week" && <MijnTaken go={go} only />}
+      {caps && kind === "week" && <TodoEenTik go={go} home={caps.home} zonder={["taak-bevestigen"]} />}
+      {kind === "week" && <MijnTaken go={go} />}
+      {caps && !caps.readTeam && kind === "week" && <TodoBlock go={go} home={caps.home} hideEmpty zonder={["taak-bevestigen"]} />}
       {kind === "week" && caps?.myTenders && <MyTenderList go={go} embedded />}
       {kind === "week" && caps?.myDeals && <MijnContracten />}
       {kind === "week" && caps?.myDeals && <MijnAttesten />}
-      {kind === "week" && <MijnTaken go={go} />}
       {kind === "week" && <HoursPanel compact />}
       {kind === "week" && caps?.measureRead && <div><Button icon="ruler" onClick={() => go("opmeting")}>{t.opmeting.title}</Button></div>}
       {caps && !caps.readTeam && <MijnWerven go={go} />}

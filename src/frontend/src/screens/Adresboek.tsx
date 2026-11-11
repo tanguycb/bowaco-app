@@ -5,7 +5,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { OrgKind, WorkStatus, type Caps, type ContactConfidentialView, type MailPreview, type OaPersonView, type OaView, type OrgView, type PersonView, type TradeView } from "../backend";
-import { Button, Choice, Icon, Sheet, Table, useToast } from "../design";
+import { Button, Choice, Icon, Sheet, Table, useToast, Werklijst } from "../design";
+import { useBreed, WERKLIJST_VANAF } from "../design/Werklijst";
 import { t } from "../texts/nl";
 import { errText, optText, todayDay, unwrap, useBackend } from "../util";
 import { EmptyState, Loading, Page, useWorks, WorkPhase } from "./common";
@@ -37,6 +38,8 @@ export function Adresboek({ caps, route, go }: { caps: Caps; route: string[]; go
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
+  const breed = useBreed(WERKLIJST_VANAF);
+  const [soort, setSoort] = useState<OrgKind | "">("");
   // 4b.2: de balk opent #/adresboek/nieuw (ook als dit scherm al open staat).
   useEffect(() => { if (route[1] === "nieuw") { if (caps.manageOrgs) setCreating(true); window.location.replace("#/adresboek"); } }, [route[1]]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -61,12 +64,33 @@ export function Adresboek({ caps, route, go }: { caps: Caps; route: string[]; go
       ...people.flatMap((p) => [p.name, p.shortCode ?? ""]), ...(v?.persons ?? []).flatMap((p) => [p.email ?? "", p.jobTitle])].join(" ");
     return fold(hay).includes(f) || fold(hay.replace(/[\s.]/g, "")).includes(f.replace(/[\s.]/g, ""));
   });
+  const fiche = openId !== null ? <FirmaFiche key={String(openId)} id={openId} caps={caps} trades={trades.data ?? []} onClose={() => go("adresboek")} go={go} /> : undefined;
+  const gekozen = shown.filter((r) => soort === "" || r.o.kind === soort);
   return (
     <Page title={A.title} actions={caps.manageOrgs && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{A.new}</Button>}>
       <input className="bw-input" type="search" aria-label={A.search} placeholder={A.search} value={text} onChange={(e) => setText(e.target.value)} data-testid="adresboek-zoek" />
       <Loading q={orgs} />
       {orgs.data && shown.length === 0 && (rows.length === 0 ? <EmptyState title={t.leeg.firmas.t} text={t.leeg.firmas.d} action={caps.manageOrgs && <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{t.leeg.firmas.add}</Button>} extra={caps.importOa && <Button onClick={() => go("beheer/planning")}>{t.leeg.werven.import}</Button>} /> : <p className="a-empty">{A.noMatch}</p>)}
-      {shown.length > 0 && (
+      {/* 4b.4 Werklijst: op een breed scherm de firma's links en de fiche als vast paneel rechts (niet meer over het scherm). */}
+      {breed && shown.length > 0 && (
+        <Werklijst items={gekozen} rowKey={(r) => String(r.o.id)} selected={openId !== null ? String(openId) : undefined} detail={fiche} vast label={A.title} testid="adresboek-lijst"
+          onSelect={(k) => go(`adresboek/${k}`)}
+          kop={
+            <div className="a-row a-todo-filter" role="group" aria-label={A.colFirm}>
+              <button type="button" className="bw-filter" aria-pressed={soort === ""} onClick={() => setSoort("")}>{t.todo.filterAll}<span className="bw-filter__n">{shown.length}</span></button>
+              {KINDS.filter((k) => shown.some((r) => r.o.kind === k)).map((k) => (
+                <button key={k} type="button" className="bw-filter" aria-pressed={soort === k} onClick={() => setSoort(k)}>{t.orgKinds[k]}<span className="bw-filter__n">{shown.filter((r) => r.o.kind === k).length}</span></button>
+              ))}
+            </div>
+          }
+          row={(r) => (
+            <span className="a-list__main">
+              <b>{r.o.name}</b>
+              <span className="bw-muted">{t.orgKinds[r.o.kind]}{r.o.trades.length ? ` · ${r.o.trades.map(tradeName).join(", ")}` : ""}</span>
+            </span>
+          )} />
+      )}
+      {!breed && shown.length > 0 && (
         // 4b.3: het tabelonderdeel: de soort als filterknoppen, sorteren op naam, codes en contact als kolom naar keuze.
         <Table
           id="adresboek"
@@ -86,7 +110,8 @@ export function Adresboek({ caps, route, go }: { caps: Caps; route: string[]; go
         />
       )}
       {creating && <FirmaFiche id="new" caps={caps} trades={trades.data ?? []} onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); go(`adresboek/${id}`); }} go={go} />}
-      {openId !== null && <FirmaFiche key={String(openId)} id={openId} caps={caps} trades={trades.data ?? []} onClose={() => go("adresboek")} go={go} />}
+      {!breed && fiche}
+      {breed && fiche && shown.length === 0 && fiche}
     </Page>
   );
 }

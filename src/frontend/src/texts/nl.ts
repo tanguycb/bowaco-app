@@ -299,6 +299,7 @@ export const nl = {
   // 4b.1: Te doen (één lijst per persoon, de handeling als knop, uitstellen).
   todo: {
     title: "Te doen",
+    eenTik: "Met één tik",
     lead: "Alles wat op jou wacht, het dringendste eerst. De knop bij een regel doet meteen wat nodig is; Uitstellen haalt een regel weg tot de dag die je kiest.",
     nothing: "Niets dat nu op je wacht.",
     nothingSnoozed: "Niets uitgesteld.",
@@ -369,7 +370,7 @@ export const nl = {
   },
   home: {
     vandaag: "Vandaag",
-    week: "Mijn week",
+    week: "Voor jou",
     offertes: "Offertes",
     werven: "Mijn werven",
     later: "De planning staat op de werfpagina.",
@@ -964,6 +965,31 @@ export const nl = {
     remove: "Weghalen",
     addRule: "Regel toevoegen",
   },
+  klantStart: {
+    stand: (fase: string) => `Uw werf staat in de fase «${fase}».`,
+    stilgelegd: "Uw werf ligt stil.",
+    offerte: "Mijn offerte",
+    vorderingen: "Vorderingsstaten",
+    werf: "Mijn werf",
+  },
+  veiligStart: {
+    klaar: "Dit staat voor jou klaar",
+    regels: {
+      planning: { t: "Planning", d: "Wie wanneer op de werf is." },
+      verslagen: { t: "Verslagen", d: "De werfverslagen die BOWACO met je deelt." },
+      vergunningen: { t: "Vergunningen", d: "Wat is aangevraagd en wat vervalt." },
+      documenten: { t: "Documenten", d: "De stukken van de werf die je mag inzien." },
+      documentenUpload: { t: "Documenten", d: "De stukken van de werf; je kan er zelf stukken bij zetten." },
+    } as Record<string, { t: string; d: string }>,
+  },
+  voorJou: {
+    title: "Voor jou",
+    bevestig: (n: number) => (n === 1 ? "Bevestig 1 dag" : `Bevestig ${n} dagen`),
+    alles: "Alles bevestigen",
+    niets: "Je week is bevestigd.",
+    weekKop: "Je week",
+    onderbalk: { week: "Week", uren: "Uren", prijsvragen: "Prijsvragen", meer: "Meer" },
+  },
   mine: {
     title: "Mijn week",
     lead: "Je werven per dag. Bevestig wat klopt; zeg met \"Kan niet\" wat niet lukt.",
@@ -1118,6 +1144,16 @@ export const nl = {
     count: (n: number) => (n === 1 ? "1 regel" : `${n} regels`),
   },
   vandaag: {
+    eenTik: {
+      titel: "Eén tik",
+      wie: "Wie is er?",
+      klopt: "Klopt",
+      taak: "Taak klaar?",
+      klaar: "Klaar",
+      bewaard: "Bewaard in het werfverslag",
+      klaar0: "Alles bevestigd. De rest staat in het werfverslag.",
+    },
+    zijkant: "Aandacht",
     all: "Alle werven van vandaag",
     mine: "Mijn werven",
     noWorks: "Vandaag geen werven met werk in de planning.",

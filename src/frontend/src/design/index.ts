@@ -6,7 +6,7 @@ export { Card } from "./Card";
 export { Table, type Column } from "./Table";
 export { StatusBadge } from "./StatusBadge";
 export { Steps } from "./Steps";
-export { Sheet } from "./Sheet";
+export { Sheet, VastPaneel } from "./Sheet";
 export { PhotoGrid, type PhotoItem } from "./PhotoGrid";
 export { ToastProvider, useToast } from "./Toast";
 export { Wordmark, ConnectionStatus, Choice, Stepper } from "./Controls";

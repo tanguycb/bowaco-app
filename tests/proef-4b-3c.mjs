@@ -62,7 +62,7 @@ for (const pad of ["src/frontend/src/tender", "src/frontend/src/progress", "src/
   check(`(C1) ${pad} is ongewijzigd t.o.v. ${basis} (de vorm rekent niets)`, verschil(pad) === "", verschil(pad).slice(0, 200));
 }
 const gewijzigd = git("diff", "--name-only", basis).split("\n").filter(Boolean);
-check("(C2) enkel schermen, ontwerp, teksten, opmaak, de proef en de documentatie zijn aangeraakt", gewijzigd.every((f) => /^src\/frontend\/src\/(screens|design|app|texts|quote\/blad\.ts)|^tests\/|^docs\//.test(f)), gewijzigd.filter((f) => !/^src\/frontend\/src\/(screens|design|app|texts|quote\/blad\.ts)|^tests\/|^docs\//.test(f)).join(", "));
+check("(C2) enkel schermen, ontwerp, teksten, opmaak, de proef en de documentatie zijn aangeraakt", gewijzigd.every((f) => /^src\/frontend\/src\/(screens|design|app|texts|quote\/blad\.ts)|^src\/frontend\/proef\/|^tests\/|^docs\//.test(f)), gewijzigd.filter((f) => !/^src\/frontend\/src\/(screens|design|app|texts|quote\/blad\.ts)|^src\/frontend\/proef\/|^tests\/|^docs\//.test(f)).join(", "));
 
 // ── D. Rechten per rol op de backend ────────────────────────────────────
 if (cid) {

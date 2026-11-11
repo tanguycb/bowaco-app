@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Principal } from "@icp-sdk/core/principal";
 import { Variant_active_pending_anonymous_unlinked as Status, type Caps, type MeView } from "../backend";
-import { Button, ConnectionStatus, Icon, Sheet, useToast, Wordmark, WerkbladVlag } from "../design";
+import { Button, ConnectionStatus, Icon, Sheet, useToast, Wordmark, WerkbladVlag, type IconName } from "../design";
 import { cacheGet, cachePut, openDb } from "../offline/db";
 import { OutboxProvider, useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
@@ -234,7 +234,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const screen = (() => {
     switch (page) {
       case "overzicht": return <Overzicht go={go} caps={caps} />;
-      case "te-doen": return <TodoPage go={go} home={caps.home} />;
+      case "te-doen": return <TodoPage go={go} home={caps.home} selected={route[1] ? (() => { try { return decodeURIComponent(route[1]); } catch { return undefined; } })() : undefined} />;
       case "vandaag":
         if (caps.writeReports) return <Vandaag go={go} caps={caps} />;
         return <Home kind={page} go={go} caps={caps} />;
@@ -256,7 +256,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         if (caps.oaInvoices) return <OaFacturenPage caps={caps} go={go} route={route} />;
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "facturen":
-        if (caps.sales) return <SalesWorklist caps={caps} go={go} />;
+        if (caps.sales) return <SalesWorklist caps={caps} go={go} selected={/^\d+$/.test(route[1] ?? "") ? route[1] : undefined} />;
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "briefing":
         if (caps.manageSettings) return <BriefingPage go={go} caps={caps} />;
@@ -364,7 +364,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
           ) : k === "meer" ? (
             <button key={k} type="button" className="a-bottom__item" onClick={() => setMenu(true)}><Icon name="menu" size={22} />{t.menu.more}</button>
           ) : (
-            <a key={k} href={`#/${k}`} className="a-bottom__item" aria-current={active === k ? "page" : undefined}><Icon name={k === "vandaag" ? "home" : "building"} size={22} />{k === "vandaag" ? t.nav.vandaag : t.nav.werven}</a>
+            <a key={k} href={`#/${k}`} className="a-bottom__item" aria-current={(bar.includes(route[0] ?? "") ? route[0] === k : active === k) ? "page" : undefined}><Icon name={BAR_ICON[k] ?? "building"} size={22} />{BAR_LABEL[k] ?? t.nav.werven}</a>
           ))}
         </nav>
       )}
@@ -383,6 +383,9 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
     </div>
   );
 }
+
+const BAR_ICON: Record<string, IconName> = { vandaag: "home", week: "calendar", uren: "clock", prijsvragen: "euro", werven: "building" };
+const BAR_LABEL: Record<string, string> = { vandaag: t.nav.vandaag, week: t.voorJou.onderbalk.week, uren: t.voorJou.onderbalk.uren, prijsvragen: t.voorJou.onderbalk.prijsvragen, werven: t.nav.werven };
 
 /** 4b.3: de breedte van het venster (voor de rail). */
 function useBreedte(): number {

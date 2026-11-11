@@ -4,7 +4,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Caps, SalesSettingsView } from "../backend";
-import { Button, Cijfer, Table, Tag, useToast, type CijferRegel, Info } from "../design";
+import { Button, Cijfer, Table, Tag, useToast, Werklijst, type CijferRegel, Info } from "../design";
+import { useBreed, WERKLIJST_VANAF } from "../design/Werklijst";
 import { t } from "../texts/nl";
 import { errText, fmtBp, fmtDayNum, fmtEuro, parsePct, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
@@ -24,7 +25,8 @@ function som(xs: [string, bigint][]): CijferRegel[] {
   return [...top, ...(xs.length > 6 ? [{ label: t.schil.cijferRest(xs.length - 6), waarde: fmtEuro(rest) }] : []), { label: t.schil.cijferTotaal, waarde: fmtEuro(tot), totaal: true }];
 }
 
-export function SalesWorklist({ caps, go }: { caps: Caps; go: (to: string) => void }) {
+export function SalesWorklist({ caps, go, selected }: { caps: Caps; go: (to: string) => void; selected?: string }) {
+  const breed = useBreed(WERKLIJST_VANAF);
   const { actor, isFetching } = useBackend();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["salesWorklist"], queryFn: async () => unwrap(await actor!.salesWorklist()), enabled: !!actor && !isFetching, retry: false });
@@ -50,6 +52,20 @@ export function SalesWorklist({ caps, go }: { caps: Caps; go: (to: string) => vo
             { key: "ontwerp", label: T.draft, optional: true, render: (d) => (d.draftId !== undefined ? <Tag>{T.draft}</Tag> : "") },
           ]} />
         <h2 className="bw-h2">{T.list.open}</h2>
+        {/* 4b.4 Werklijst: op een breed scherm de openstaande facturen en ontwerpen links, de factuur als vast paneel rechts. */}
+        {breed && (v.open.length > 0 || v.drafts.length > 0 || selected) ? (
+          <Werklijst vast label={T.list.open} testid="sales-werklijst" selected={selected} onSelect={(k) => go(`facturen/${k}`)}
+            items={[...v.open.map((o) => ({ id: o.brief.id, titel: `${o.brief.number} · ${o.brief.workCode}`, sub: `${o.workName} · ${o.clientName} · ${fmtDayNum(o.brief.dueDay)}`, late: o.daysLate, bedrag: o.openCents as bigint | undefined, ontwerp: false })),
+              ...v.drafts.map((d) => ({ id: d.id, titel: `${d.workCode} · ${d.kindTitle}`, sub: d.title, late: 0n, bedrag: undefined, ontwerp: true }))]}
+            rowKey={(x) => String(x.id)}
+            detail={selected ? <FactuurSheet key={selected} id={BigInt(selected)} caps={caps} onClose={() => go("facturen")} onOpen={(i) => go(`facturen/${i}`)} /> : undefined}
+            row={(x) => (
+              <>
+                <span className="a-list__main"><b className={x.ontwerp ? undefined : "bw-code"}>{x.titel}</b><span className="bw-muted">{x.sub}</span></span>
+                {x.ontwerp ? <Tag>{T.draft}</Tag> : <span className="bw-num">{x.late > 0n && <Tag tone="bad">{T.list.late(Number(x.late))}</Tag>} {fmtEuro(x.bedrag ?? 0n)}</span>}
+              </>
+            )} />
+        ) : <>
         <Table id="sales-open" rows={v.open} rowKey={(o) => String(o.brief.id)} onRow={(o) => setOpen(o.brief.id)} defaultSort="-laat" empty={T.list.openNone}
           columns={[
             { key: "nummer", label: T.cols.number, sort: (o) => o.brief.number, render: (o) => <span className="bw-code">{o.brief.number}</span> },
@@ -63,9 +79,11 @@ export function SalesWorklist({ caps, go }: { caps: Caps; go: (to: string) => vo
           <h2 className="bw-h2">{T.list.drafts}</h2>
           <ul>{v.drafts.map((d) => <li key={String(d.id)}><a href="#" onClick={(e) => { e.preventDefault(); setOpen(d.id); }}>{d.workCode} · {d.kindTitle} · {d.title}</a></li>)}</ul>
         </>}
+        </>}
         <QuarterExport today={v.today} />
       </>}
-      {open !== null && <FactuurSheet id={open} caps={caps} onClose={() => { setOpen(null); void qc.invalidateQueries({ queryKey: ["salesWorklist"] }); }} onOpen={setOpen} />}
+      {!breed && (open !== null || selected) && <FactuurSheet id={open ?? BigInt(selected!)} caps={caps} onClose={() => { setOpen(null); if (selected) go("facturen"); void qc.invalidateQueries({ queryKey: ["salesWorklist"] }); }} onOpen={setOpen} />}
+      {breed && open !== null && <FactuurSheet id={open} caps={caps} onClose={() => { setOpen(null); void qc.invalidateQueries({ queryKey: ["salesWorklist"] }); }} onOpen={setOpen} />}
     </section>
     </Page>
   );

@@ -17,7 +17,7 @@ import { fmtDm, fmtShort, isoWeek, today, weekday } from "./planUtil";
 const N = Number;
 const WD = ["ma", "di", "wo", "do", "vr"];
 
-export function MijnTaken({ go }: { go: (to: string) => void }) {
+export function MijnTaken({ go, only }: { go: (to: string) => void; only?: boolean }) {
   const { actor, isFetching } = useBackend();
   const on = !!actor && !isFetching;
   const qc = useQueryClient();
@@ -53,6 +53,56 @@ export function MijnTaken({ go }: { go: (to: string) => void }) {
   const conflicts = (row?.conflicts ?? []).filter((c) => tab === "later" || N(c.week) === wk);
   const self = me.data?.person;
   const [sharing, setSharing] = useState(false);
+
+  // 4b.4 "Voor jou": enkel wat nog bevestigd moet worden (deze en volgende week), bovenaan, met Bevestigen en Kan niet bij elke regel
+  // en één knop om alles in één keer te bevestigen. De volledige week staat eronder (dezelfde gegevens, dezelfde knoppen).
+  const openRows = rows.filter((r) => r.canConfirm && r.assignment.confirmation.__kind__ !== "confirmed" && r.assignment.confirmation.__kind__ !== "declined" && N(r.assignment.start) <= monday + 13);
+  const [alles, setAlles] = useState(false);
+  const bevestigAlles = async () => {
+    setAlles(true);
+    try { for (const r of openRows) await actor!.confirmAssignment(r.assignment.id, true, "").then((x) => unwrap(x)); toast.show({ kind: "ok", text: t.common.saved }); }
+    catch (e) { toast.show({ kind: "error", text: errText(e) }); }
+    finally { setAlles(false); void qc.invalidateQueries({ queryKey: ["mine"] }); void qc.invalidateQueries({ queryKey: ["myBoard"] }); void qc.invalidateQueries({ queryKey: ["todo"] }); }
+  };
+  const declineSheet = (
+    <Sheet title={t.plan.declineTitle} open={declining !== null} onClose={() => setDeclining(null)} footer={<>
+      <Button onClick={() => setDeclining(null)}>{t.common.cancel}</Button>
+      <Button variant="primary" disabled={!why.trim()} busy={answer.isPending} onClick={() => declining && answer.mutate({ id: declining.assignment.id, ok: false })}>{t.plan.decline}</Button>
+    </>}>
+      {declining && <p><b>{declining.taskTitle}</b> · {declining.workCode}</p>}
+      <Field label={t.plan.declineReason}><textarea className="bw-input" rows={3} maxLength={1000} value={why} onChange={(e) => setWhy(e.target.value)} autoFocus /></Field>
+    </Sheet>
+  );
+  if (only) {
+    if (openRows.length === 0) return mine.data ? <p className="bw-muted a-note-small" data-testid="voorjou-niets"><Icon name="check" size={16} /> {t.voorJou.niets}</p> : null;
+    return (
+      <section className="a-section v-tik" data-testid="voorjou-bevestigen">
+        <div className="a-row a-row--between">
+          <h2 className="bw-h2">{t.voorJou.bevestig(openRows.length)}</h2>
+          {openRows.length > 1 && <Button variant="primary" icon="check" busy={alles} onClick={() => void bevestigAlles()} data-testid="voorjou-alles">{t.voorJou.alles}</Button>}
+        </div>
+        <ul className="a-list">
+          {openRows.map((r) => {
+            const a = r.assignment;
+            return (
+              <li key={String(a.id)} className="v-tik__row" data-assignment={String(a.id)}>
+                <span className="a-list__main">
+                  <span className="bw-muted">{r.workCode} · {r.workName}</span>
+                  <b>{r.taskTitle}</b>
+                  <span className="bw-num">{fmtShort(a.start)}{a.end !== a.start ? ` – ${fmtShort(a.end)}` : ""}</span>
+                </span>
+                <span className="a-row">
+                  <Button variant="primary" size="lg" icon="check" busy={answer.isPending && answer.variables?.id === a.id} onClick={() => answer.mutate({ id: a.id, ok: true })}>{t.plan.confirm}</Button>
+                  <Button size="lg" onClick={() => setDeclining(r)}>{t.plan.decline}</Button>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        {declineSheet}
+      </section>
+    );
+  }
 
   return (
     <section className="a-section">
@@ -104,13 +154,7 @@ export function MijnTaken({ go }: { go: (to: string) => void }) {
       {row && self && (
         <AbsencePanel orgId={row.orgId} from={monday} canEdit={board.data!.canReport} own persons={[{ id: self.id, name: self.name }]} />
       )}
-      <Sheet title={t.plan.declineTitle} open={declining !== null} onClose={() => setDeclining(null)} footer={<>
-        <Button onClick={() => setDeclining(null)}>{t.common.cancel}</Button>
-        <Button variant="primary" disabled={!why.trim()} busy={answer.isPending} onClick={() => declining && answer.mutate({ id: declining.assignment.id, ok: false })}>{t.plan.decline}</Button>
-      </>}>
-        {declining && <p><b>{declining.taskTitle}</b> · {declining.workCode}</p>}
-        <Field label={t.plan.declineReason}><textarea className="bw-input" rows={3} maxLength={1000} value={why} onChange={(e) => setWhy(e.target.value)} autoFocus /></Field>
-      </Sheet>
+      {declineSheet}
     </section>
   );
 }

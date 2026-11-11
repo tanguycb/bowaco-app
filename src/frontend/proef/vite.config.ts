@@ -11,6 +11,8 @@ import { join, resolve } from "node:path";
 import { defineConfig } from "vite";
 
 const cid = process.env.CID ?? "";
+// 4b.4: BOWACO_HOST = een draft in plaats van het eigen net (https://icp-api.io + CID van de draft): enkel om schermen per rol na te kijken met de testsleutels.
+const host = process.env.BOWACO_HOST ?? `http://localhost:${process.env.BOWACO_PORT ?? "8041"}`;
 
 export default defineConfig({
   root: resolve(__dirname, ".."),
@@ -20,14 +22,14 @@ export default defineConfig({
       name: "bowaco-proef",
       // De CSP van de app (1.9) laat enkel het IC toe; de proef praat met het EIGEN net op localhost (enkel hier).
       transformIndexHtml(html) {
-        return html.replace("connect-src 'self'", `connect-src 'self' http://localhost:${process.env.BOWACO_PORT ?? "8041"}`);
+        return html.replace("connect-src 'self'", `connect-src 'self' ${host}`);
       },
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
           const url = req.url ?? "";
           if (url.startsWith("/env.json")) {
             res.setHeader("content-type", "application/json");
-            res.end(JSON.stringify({ backend_host: `http://localhost:${process.env.BOWACO_PORT ?? "8041"}`, backend_canister_id: cid, project_id: "undefined", ii_derivation_origin: "undefined", storage_gateway_url: "undefined" }));
+            res.end(JSON.stringify({ backend_host: host, backend_canister_id: cid, project_id: "undefined", ii_derivation_origin: "undefined", storage_gateway_url: "undefined" }));
             return;
           }
           const m = url.match(/^\/__proef\/([a-z0-9-]+)$/);

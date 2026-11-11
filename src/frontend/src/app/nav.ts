@@ -184,7 +184,10 @@ export function activeKey(groups: NavGroup[], route: string[]): string | undefin
   return (all.find((i) => i.match.includes(two)) ?? all.find((i) => i.match.includes(first)))?.key;
 }
 
-/** De vaste balk onderaan op de gsm, voor de werfleider (startscherm Vandaag): Vandaag · Werven · + Verslag · Meer. */
+/** De vaste balk onderaan op de gsm: voor de werfleider (startscherm Vandaag): Vandaag · Werven · + Verslag · Meer; voor de onderaannemer
+ *  (4b.4, startscherm "Voor jou"): Week · Uren · Prijsvragen · Meer. Zonder prijsvragen vervalt dat item en blijft Werven over. */
 export function bottomBar(caps: Caps): string[] {
-  return caps.home === "vandaag" && caps.writeReports ? ["vandaag", "werven", "verslag", "meer"] : [];
+  if (caps.home === "vandaag" && caps.writeReports) return ["vandaag", "werven", "verslag", "meer"];
+  if (caps.home === "week" && !caps.readTeam) return ["week", "uren", caps.myTenders ? "prijsvragen" : "werven", "meer"];
+  return [];
 }

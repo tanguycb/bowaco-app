@@ -19,6 +19,10 @@ async function load(file) {
 export const loadNav = () => load("nav.ts");
 /** 2b.3: de faseregels, de tabbladen per rol en de volgende stap (src/frontend/src/app/fase.ts). */
 export const loadFase = () => load("fase.ts");
+/** 4b.4: Eén tik en de starten van klant, architect en veiligheidscoördinator (src/frontend/src/app/eentik.ts). */
+export const loadEenTik = () => load("eentik.ts");
+/** 4b.4: de schil (ⓘ per route). */
+export const loadSchil = () => load("schil.ts");
 
 /** De 21 menu-items van de beheerder tot en met draft 49, de oude adressen en wat ze nu openen (tabel oud → nieuw). */
 export const OUD_NAAR_NIEUW = [

@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Principal } from "@icp-sdk/core/principal";
 import { useState } from "react";
 import type { TodoAct, TodoItem, TodoPage as TodoPageView } from "../backend";
-import { Button, Icon, Sheet, useToast } from "../design";
+import { Button, Icon, Sheet, useToast, Werklijst } from "../design";
+import { useBreed, WERKLIJST_VANAF } from "../design/Werklijst";
 import { t } from "../texts/nl";
 import { dayToInput, errText, fmtDayNum, inputToDay, todayDay, unwrap, useBackend } from "../util";
 import { Loading, Page } from "./common";
@@ -166,8 +167,31 @@ function Groups({ items, acts, onSnooze }: { items: TodoItem[]; acts: ReturnType
   );
 }
 
+/** 4b.4: de gekozen regel in de Werklijst: titel, detail en alle knoppen groot genoeg om er op te mikken. */
+function TodoKaart({ x, acts, onSnooze, onGone }: { x?: TodoItem; acts: ReturnType<typeof useActs>; onSnooze: (x: TodoItem) => void; onGone: () => void }) {
+  if (!x) return <div className="a-page--paneel"><p className="a-empty" data-testid="todo-kaart-weg">{T.nothing}</p><Button onClick={onGone}>{T.back}</Button></div>;
+  const to = acts.where(x);
+  const meta = [x.detail, x.age > 0 && x.kind !== "melding" ? T.age(N(x.age)) : "", x.snoozedUntil !== undefined ? T.snoozedUntil(fmtDayNum(x.snoozedUntil)) : ""].filter(Boolean).join(" · ");
+  return (
+    <div className="a-page--paneel a-stack" data-testid="todo-kaart" data-key={x.key}>
+      <span className="bw-label">{T.urgency[N(x.urgency)]} · {T.kinds[x.kind] ?? x.kind}</span>
+      <h2 className="bw-h2">{x.workCode ? `${x.workCode} · ` : ""}{x.title}</h2>
+      {meta && <p className="bw-muted">{meta}</p>}
+      {x.by && <span className="a-todo__by"><span className="a-todo__sq" aria-hidden="true" />{x.by}</span>}
+      <div className="a-row">
+        {x.acts.map((a, i) => (
+          <Button key={`${a.kind}${i}`} variant={i === 0 ? "primary" : "secondary"} busy={acts.busy(x, a)} onClick={() => acts.fire(x, a)} data-act={a.kind}>{a.text}</Button>
+        ))}
+        {to && !x.acts.some((a) => a.kind === "open") && <Button variant="secondary" icon="next" onClick={() => acts.openRow(x)}>{t.offertes.open}</Button>}
+        {x.snoozedUntil === undefined && <Button variant="quiet" icon="clock" onClick={() => onSnooze(x)} data-act="uitstellen">{T.snooze}</Button>}
+      </div>
+    </div>
+  );
+}
+
 /** De pagina Te doen (#/te-doen): filter per soort, het uitgestelde apart, alle meldingen (ook gelezen) achter een knop. */
-export function TodoPage({ go, home }: { go: (to: string) => void; home: string }) {
+export function TodoPage({ go, home, selected }: { go: (to: string) => void; home: string; selected?: string }) {
+  const breed = useBreed(WERKLIJST_VANAF);
   const [snoozed, setSnoozed] = useState(false);
   const [kind, setKind] = useState("");
   const [offset, setOffset] = useState(0);
@@ -192,7 +216,18 @@ export function TodoPage({ go, home }: { go: (to: string) => void; home: string 
       </div>
       <Loading q={q} />
       {d && d.items.length === 0 && <p className="a-empty" data-testid="todo-leeg">{snoozed ? T.nothingSnoozed : T.nothing}</p>}
-      {d && <Groups items={d.items} acts={acts} onSnooze={setSnooze} />}
+      {/* 4b.4 Werklijst: op een breed scherm de regels links (dringendste eerst) en de gekozen regel rechts met zijn knoppen; pijltjes lopen erdoor. */}
+      {d && breed && d.items.length > 0 && (
+        <Werklijst items={d.items} rowKey={(x) => x.key} selected={selected} label={T.title} testid="todo-werklijst" onSelect={(k) => go(`te-doen/${encodeURIComponent(k)}`)}
+          detail={selected ? <TodoKaart x={d.items.find((x) => x.key === selected)} acts={acts} onSnooze={setSnooze} onGone={() => go("te-doen")} /> : undefined}
+          row={(x) => (
+            <span className="a-list__main" data-urgency={N(x.urgency)} data-kind={x.kind}>
+              <b>{x.workCode ? `${x.workCode} · ` : ""}{x.title}</b>
+              <span className="bw-muted">{T.urgency[N(x.urgency)]}{x.detail ? ` · ${x.detail}` : ""}{x.by ? ` · ${x.by}` : ""}</span>
+            </span>
+          )} />
+      )}
+      {d && !breed && <Groups items={d.items} acts={acts} onSnooze={setSnooze} />}
       {d && total > PAGE && (
         <div className="a-row" data-testid="todo-pages">
           <Button variant="quiet" icon="back" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE))}>{T.prev}</Button>
@@ -209,13 +244,14 @@ export function TodoPage({ go, home }: { go: (to: string) => void; home: string 
 }
 
 /** Het blok bovenaan een startscherm: de eerste regels en "Alles bekijken". */
-export function TodoBlock({ go, home, hideEmpty, max = 6 }: { go: (to: string) => void; home: string; hideEmpty?: boolean; max?: number }) {
+export function TodoBlock({ go, home, hideEmpty, max = 6, zonder = [] }: { go: (to: string) => void; home: string; hideEmpty?: boolean; max?: number; zonder?: string[] }) {
   const q = useTodo(FIRST);
   const acts = useActs(go, home);
   const [snooze, setSnooze] = useState<TodoItem | null>(null);
   const d = q.data;
-  const total = N(d?.total ?? 0n);
-  if (hideEmpty && d && total === 0) return null;
+  const verborgen = d ? d.items.filter((x) => x.acts.some((a) => zonder.includes(a.kind))).length : 0;
+  const total = N(d?.total ?? 0n) - verborgen;
+  if (hideEmpty && d && total <= 0) return null;
   return (
     <section className="a-section" data-testid="te-doen">
       <div className="a-row a-row--between">
@@ -224,7 +260,7 @@ export function TodoBlock({ go, home, hideEmpty, max = 6 }: { go: (to: string) =
       </div>
       {!d && <Loading q={q} />}
       {d && total === 0 && <p className="a-empty">{T.nothing}</p>}
-      {d && <Groups items={d.items.slice(0, max)} acts={acts} onSnooze={setSnooze} />}
+      {d && <Groups items={d.items.filter((x) => !x.acts.some((a) => zonder.includes(a.kind))).slice(0, max)} acts={acts} onSnooze={setSnooze} />}
       {snooze && <SnoozeSheet item={snooze} onClose={() => setSnooze(null)} />}
     </section>
   );
@@ -239,5 +275,29 @@ export function TodoTeller({ go }: { go: (to: string) => void }) {
     <button type="button" className={`bw-conn${urgent ? " a-bell--on" : ""}`} aria-label={n > 0 ? T.teller(n) : T.title} title={T.title} onClick={() => go("te-doen")} data-testid="todo-teller">
       <Icon name="list" size={16} />{n > 0 ? n : ""}
     </button>
+  );
+}
+
+/** 4b.4: de regels van Te doen met een bevestiging van één tik (taak bevestigen, voorstel aanvaarden, koppeling bevestigen), groot en bovenaan
+ *  op de gsm. De rest van Te doen staat eronder. Rechten per regel beslist de backend, zoals overal in Te doen. */
+const EEN_TIK = ["taak-bevestigen", "bot-aanvaarden", "koppeling-bevestigen"];
+export const eenTikActs = (x: TodoItem) => x.acts.filter((a) => EEN_TIK.includes(a.kind));
+export function TodoEenTik({ go, home, max = 4, zonder = [] }: { go: (to: string) => void; home: string; max?: number; zonder?: string[] }) {
+  const q = useTodo(FIRST);
+  const acts = useActs(go, home);
+  const rows = (q.data?.items ?? []).filter((x) => eenTikActs(x).some((a) => !zonder.includes(a.kind))).slice(0, max);
+  if (rows.length === 0) return null;
+  return (
+    <section className="a-section v-tik" data-testid="een-tik-todo" aria-label={T.eenTik}>
+      <h2 className="bw-h2">{T.eenTik}</h2>
+      <ul className="a-list">
+        {rows.map((x) => (
+          <li key={x.key} className="v-tik__row" data-key={x.key}>
+            <span className="a-list__main"><span className="bw-muted">{x.workCode ? `${x.workCode} · ` : ""}{x.detail || T.kinds[x.kind] || x.kind}</span><b>{x.title}</b></span>
+            {eenTikActs(x).filter((a) => !zonder.includes(a.kind)).map((a, i) => <Button key={`${a.kind}${i}`} variant={i === 0 ? "primary" : "secondary"} size="lg" busy={acts.busy(x, a)} onClick={() => acts.fire(x, a)} data-act={a.kind}>{a.text}</Button>)}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

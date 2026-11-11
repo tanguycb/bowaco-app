@@ -8,7 +8,9 @@ import { useCached } from "../offline/cached";
 import { useOutbox } from "../offline/outbox";
 import { t } from "../texts/nl";
 import { fmtDayNum, todayDay, useBackend } from "../util";
-import { TodoBlock } from "./TeDoen";
+import { TodoBlock, TodoEenTik } from "./TeDoen";
+import { EenTikRijen } from "./EenTik";
+import { BoardAttention } from "./Weekbord";
 import { EmptyState, Loading, Page, WorkPhase } from "./common";
 import { PermitsOnSite } from "./Vergunningen";
 
@@ -42,13 +44,23 @@ export function Vandaag({ go, caps }: { go: (to: string) => void; caps: Caps }) 
       {!q.data && <Loading q={q} />}
       {q.error && !q.data && <p className="a-err">{t.verslag.noCache}</p>}
       {q.data && works.length === 0 && <EmptyState title={t.leeg.vandaag.t} text={t.leeg.vandaag.d} action={<Button onClick={() => go("werven")}>{t.nav.werven}</Button>} />}
-      {/* 2b.4: de werfkaarten van vandaag bovenaan, de rest eronder. */}
-      <div className="v-cards">
-        {works.map((w) => <WorkCard key={String(w.id)} w={w} day={day} go={go} />)}
+      {/* 4b.4: eerst wat met één tik bevestigd kan worden, dan de werven van vandaag. Op een desktop staan de werven links en
+          rechts wat aandacht vraagt (Te doen, planning, vergunningen): een eigen indeling in plaats van een uitgerekte gsm. */}
+      <div className="v-dag">
+        <div className="v-dag__main">
+          {q.data && works.length > 0 && <EenTikRijen works={works.filter((w) => w.mine)} day={day} />}
+          <TodoEenTik go={go} home={caps.home} />
+          <div className="v-cards">
+            {works.map((w) => <WorkCard key={String(w.id)} w={w} day={day} go={go} />)}
+          </div>
+        </div>
+        <aside className="v-dag__side" aria-label={V.zijkant}>
+          {/* 4b.1: Vraagt aandacht ging op in Te doen (de regels van de werfleider). */}
+          <TodoBlock go={go} home={caps.home} />
+          {caps.readOrgPlanning && <section className="a-section v-dag__plan" data-testid="vandaag-planning"><h2 className="bw-h2">{t.overzicht.attention}</h2><BoardAttention go={go} /></section>}
+          {caps.permits && <PermitsOnSite />}
+        </aside>
       </div>
-      {caps.permits && <PermitsOnSite />}
-      {/* 4b.1: Vraagt aandacht ging op in Te doen (de regels van de werfleider). */}
-      <TodoBlock go={go} home={caps.home} />
     </Page>
   );
 }
