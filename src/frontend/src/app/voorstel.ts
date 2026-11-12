@@ -90,7 +90,8 @@ export function regels(t: Taak, o: {
 } = {}): Regel[] {
   const p = t.proposal;
   if (!p) return [];
-  return p.points.map((x) => {
+  // Bij nalezen heeft "keuzes" geen betekenis (enkel opmerkingen).
+  return p.points.filter((x) => !(t.kind === "offerte-nalezen" && x.key === "keuzes")).map((x) => {
     const naDossier = o.na?.(x.key);
     const nuDossier = o.nu?.(x.key);
     const na = naDossier ?? (x.secret ? "vertrouwelijk" : x.key.startsWith("post:") ? (x.after === "" ? "geen firma" : o.firmaVan?.(x.after) ?? `OA-offerte ${x.after}`) : waardeTekst(x.key, x.after));
@@ -104,17 +105,18 @@ export function kanBeslissen(g: Gezien): boolean { return g.full && g.task.state
 /** Ongedaan maken: het model zegt welke handeling ("intrekken", "ontkoppelen"); enkel met de volle rechten. */
 export function ongedaanHandeling(g: Gezien): string { return g.full ? g.task.proposal?.undo ?? "" : ""; }
 
-export type TijdRegel = { at: bigint; key: string; taak: string; stuk: string; wie: string; assistent: boolean; wat: string };
+export type TijdRegel = { at: bigint; key: string; taak: string; stuk: string; wie: string; assistent: boolean; wat: string; nr: number };
 
 /** Wie deed wat over een reeks taken (per werf of per stuk): nieuwste eerst. */
 export function wieDeedWat(items: Gezien[]): TijdRegel[] {
   const out: TijdRegel[] = [];
   for (const g of items) {
-    for (const e of g.task.events) {
-      out.push({ at: e.at, key: g.task.key, taak: SOORT[g.task.kind] ?? g.task.name, stuk: g.subjectLabel, wie: e.whoName || (isAssistent(e.who) ? g.task.name : "BOWACO"), assistent: isAssistent(e.who), wat: gebeurtenisTekst(e.what) });
-    }
+    g.task.events.forEach((e, nr) => {
+      out.push({ at: e.at, key: g.task.key, taak: SOORT[g.task.kind] ?? g.task.name, stuk: g.subjectLabel, wie: e.whoName || (isAssistent(e.who) ? g.task.name : "BOWACO"), assistent: isAssistent(e.who), wat: nr > 0 && e.what === "taak:wacht" ? "taak wacht opnieuw" : gebeurtenisTekst(e.what), nr });
+    });
   }
-  return out.sort((a, b) => (a.at === b.at ? (a.key < b.key ? -1 : a.key > b.key ? 1 : 0) : a.at > b.at ? -1 : 1));
+  // Nieuwste eerst; bij hetzelfde tijdstip binnen een taak de latere regel van de tijdlijn eerst (anders "gaf de taak" boven "begon eraan").
+  return out.sort((a, b) => (a.at !== b.at ? (a.at > b.at ? -1 : 1) : a.key !== b.key ? (a.key < b.key ? -1 : 1) : b.nr - a.nr));
 }
 
 /** Het meest relevante voorstel over een stuk: een open voorstel eerst, anders het nieuwste. */

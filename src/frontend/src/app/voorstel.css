@@ -24,3 +24,5 @@
 }
 .bw-link { background: none; border: 0; padding: 0; color: var(--bw-accent); cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .bw-link:focus-visible { outline: 2px solid var(--bw-focus); outline-offset: 2px; }
+.vp-wie > .bw-h2 { text-align: left; }
+.vp-tabel td:nth-child(2), .vp-tabel td:nth-child(4) { font-variant-numeric: tabular-nums; }

@@ -74,9 +74,9 @@ export function VoorstelKaart({ g, rijen, knoppen, onder, kolom, testid = "vp-ka
             {rijen.map((r) => (
               <tr key={r.key} data-punt={r.key} className={r.aangepast ? "vp-rij--aangepast" : undefined}>
                 <td>{r.label}{r.aangepast && <> <Tag tone="warn">{T.aangepast}</Tag></>}</td>
-                <td className="bw-mono">{r.nu}</td>
+                <td>{r.nu}</td>
                 <td aria-hidden="true">→</td>
-                <td className="bw-mono" data-geheim={r.geheim ? "1" : undefined}>{r.geheim ? <i>{T.geheim}</i> : r.na}</td>
+                <td data-geheim={r.geheim ? "1" : undefined}>{r.geheim ? <i>{T.geheim}</i> : r.na}</td>
                 <td className="bw-muted">{r.bron}</td>
                 {kolom && <td>{kolom(r)}</td>}
               </tr>
@@ -184,8 +184,8 @@ function BeslisKnoppen({ g, naarStuk, aanvaard, extra }: { g: V.Gezien; naarStuk
   return (
     <>
       {open && (aanvaard ?? (inlezen
-        ? naarStuk && <Button variant="primary" onClick={naarStuk} data-testid="vp-aanpassen">{T.aanpassen}</Button>
-        : <Button variant="primary" busy={beslis.isPending && beslis.variables?.doe === "aanvaard"} onClick={() => doe("aanvaard")} data-testid="vp-aanvaard">{b?.soort === "bot" ? T.aanvaarden : T.gezien}</Button>))}
+        ? naarStuk && <Button variant="secondary" onClick={naarStuk} data-testid="vp-aanpassen">{T.aanpassen}</Button>
+        : <Button variant="secondary" busy={beslis.isPending && beslis.variables?.doe === "aanvaard"} onClick={() => doe("aanvaard")} data-testid="vp-aanvaard">{b?.soort === "bot" ? T.aanvaarden : T.gezien}</Button>))}
       {open && <Button variant="quiet" onClick={() => setVraag("weiger")} data-testid="vp-weiger">{T.weigeren}</Button>}
       {undo !== "" && undo !== "gedaan" && <Button variant="quiet" icon="back" onClick={() => setVraag("ongedaan")} data-testid="vp-ongedaan">{T.ongedaan}</Button>}
       {extra}
@@ -261,7 +261,7 @@ export function VoorstelInhoud({ g, go }: { g: V.Gezien; go?: (to: string) => vo
     </>
   ) : undefined;
   const naar = route && go ? () => go(route) : undefined;
-  return <VoorstelKaart g={g} rijen={rijen} onder={onder} knoppen={g.full ? <BeslisKnoppen g={g} naarStuk={naar} aanvaard={vergelijk && naar ? <Button variant="primary" onClick={naar} data-testid="vp-aanpassen">{T.aanpassen}</Button> : undefined} /> : undefined} />;
+  return <VoorstelKaart g={g} rijen={rijen} onder={onder} knoppen={g.full ? <BeslisKnoppen g={g} naarStuk={naar} aanvaard={vergelijk && naar ? <Button variant="secondary" onClick={naar} data-testid="vp-aanpassen">{T.aanpassen}</Button> : undefined} /> : undefined} />;
 }
 
 /** In de kaart van Te doen: het voorstel van de assistent achter deze regel (sleutel = de sleutel van de taak). */
@@ -362,7 +362,7 @@ export function VergelijkVoorstelTab({ vv, items, drafts, target0, isOpen, dirty
   const overneem = isOpen && drafts.length > 0 && picks.length > 0 && !vv.full?.brief.stale ? (
     <>
       <select className="bw-input pv-sm" aria-label={t.nakijken.applyTo} value={doel} onChange={(e) => setDoel(e.target.value)} data-testid="vp-doel">{drafts.map((x) => <option key={String(x.versionId)} value={String(x.versionId)}>{t.offertes.version(Number(x.version))}</option>)}</select>
-      <Button variant="primary" disabled={dirty || !doel} title={dirty ? T.eerstBewaren : undefined} onClick={() => setVraag(true)} data-testid="vp-overnemen">{T.overnemen(versie)}</Button>
+      <Button variant="secondary" disabled={dirty || !doel} title={dirty ? T.eerstBewaren : undefined} onClick={() => setVraag(true)} data-testid="vp-overnemen">{T.overnemen(versie)}</Button>
     </>
   ) : undefined;
   const zetGezien = () => { void (async () => { try { unwrap(await actor!.finishAiCheck(V.bronVan(g.task.key)!.id, AiCheckOutcome.seen)); toast.show({ kind: "ok", text: T.aanvaardOk }); vernieuw(); } catch (e) { toast.show({ kind: "error", text: errText(e) }); } })(); };
