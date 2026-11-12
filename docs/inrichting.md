@@ -119,6 +119,9 @@ node tools/inrichting/lekcontrole.mjs <live-id>
 
 - Op live kiezen beide vanzelf de inrichtingsidentiteit; enkel zij mag opladen (`storageClientInrichting`). Een draft
   krijgt nooit een echt bestand (de stap weigert het).
+- **Uitzondering demodraft (eigenaar 12-11):** een echte werf mag met documenten naar ÉÉN draft, enkel met
+  `JA_EIGENAAR=1 DEMO_DRAFT=<draft-id> DEMO_DRAFT_WERVEN=<codes met komma>` en `--project <project-id>`
+  (identiteit standaard `proef-admin`). Een andere draft of een andere werfcode blijft geweigerd.
 - Hoogstens 3 uploads tegelijk (`--uploads 2` kan). Een logboek per canister
   (`~/.bowaco/inrichting/werf/<code>/upload-<canister>.json`) onthoudt wat al in de opslag staat: na een fout of een
   onderbreking gewoon dezelfde opdracht opnieuw; hij laadt niet opnieuw op en registreert enkel wat ontbreekt.

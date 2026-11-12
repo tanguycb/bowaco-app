@@ -120,6 +120,7 @@ fi
 node tests/inrichting.mjs "$cid"
 # 2b.6 live: de weigering van de echte omgeving in het gereedschap (zonder netwerk).
 node tests/live-grens.mjs
+node tests/demo-draft-grens.mjs
 # mail-caffeine: de app verstuurt zelf (nep-maildienst); de gateway (fase 3) enkel nog eenheidstesten.
 node tests/mail-proef.mjs "$cid"
 # 3.1: de AI-connector op de caffeine-weg tegen de nep-inferentiedienst (rechten per rol, fiches, budget en reservering, uitkomstklassen,

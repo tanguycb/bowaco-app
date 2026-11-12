@@ -31,8 +31,11 @@ export async function stap8({ actor, plan, echt, verslag, gelijktijdig, cid, opt
   const echtPlan = plan.bron !== "test";
   // Opladen enkel buiten het lokale net: op live (echt plan, ja van de eigenaar) of, met een testplan, op een draft.
   const opladen = !isLocal();
-  if (opladen && echtPlan && !isLiveCanister(cid)) throw new Error("echte bestanden enkel naar live (tools/live-canisters.json), nooit naar een draft");
-  if (opladen && echtPlan && process.env.JA_EIGENAAR !== "1") throw new Error("opladen naar live enkel met JA_EIGENAAR=1");
+  // Uitzondering (eigenaar 12-11, demo aan de zaakvoerder): een echte werf met documenten op ÉÉN genoemde draft. Enkel als de
+  // canister in DEMO_DRAFT staat (exact dit id) én de werfcode in DEMO_DRAFT_WERVEN (komma's); nooit zonder JA_EIGENAAR=1.
+  const demoDraft = !isLiveCanister(cid) && process.env.DEMO_DRAFT === cid && (process.env.DEMO_DRAFT_WERVEN ?? "").split(",").map((s) => s.trim()).includes(w.code);
+  if (opladen && echtPlan && !isLiveCanister(cid) && !demoDraft) throw new Error("echte bestanden enkel naar live (tools/live-canisters.json), nooit naar een draft (uitzondering: DEMO_DRAFT=<draft-id> en DEMO_DRAFT_WERVEN=<codes>)");
+  if (opladen && echtPlan && process.env.JA_EIGENAAR !== "1") throw new Error("opladen naar live of naar de demodraft enkel met JA_EIGENAAR=1");
 
   // ── 1. Documentsoorten en eenheden ─────────────────────────────────────
   const soorten = await actor.listDocKinds(true);
