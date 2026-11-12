@@ -41,6 +41,8 @@ import Briefing "Briefing";
 import BriefingViews "../types/briefingviews";
 import OaInvoice "OaInvoice";
 import Tenders "Tenders";
+import Tasks "Tasks";
+import Order "mo:core/Order";
 
 module {
   type Json = Json.Json;
@@ -78,6 +80,10 @@ module {
     aiCheck : Types.AiCheckState;
     audit : Types.AuditState;
     ctr : Types.Counters;
+    // 4b.8: het model van taak en voorstel (vrije taken van een assistent) en wat deze oproep raakte (review M2 van 4b.5: na een
+    // tool-oproep enkel die dossiers gelijkzetten, McpApi → Tasks.syncSome).
+    tasks : Types.TaskStore;
+    touched : List.List<Types.TaskSrc>;
   };
 
   // 3.5: de instructieversie van de bot (een label; de instructie zelf staat in de routine bij de leverancier).
@@ -87,7 +93,8 @@ module {
   // Voorstel. saveBot weigert Zelf doen al zonder geslaagde ronde; dit vangt een wissel of een oude fiche op bij het uitvoeren.
   public func effectiveLevel(e : Env, b : Bot, task : Text) : Types.BotLevel {
     switch (Rights.botLevel(b, task)) {
-      case (#auto) switch (Proof.gate(e.proof, #bot(b.id), task, b.vendor, b.model, instructionOf(b), ?{ allWorks = b.allWorks; works = b.works; kinds = b.docKinds })) { case (#ok) #auto; case (#err(_)) #proposal };
+      // 4b.8: de assistent van de zaakvoerder doet nooit zelf iets (ook niet met een oude fiche).
+      case (#auto) if (isOwnerBot(b)) #proposal else switch (Proof.gate(e.proof, #bot(b.id), task, b.vendor, b.model, instructionOf(b), ?{ allWorks = b.allWorks; works = b.works; kinds = b.docKinds })) { case (#ok) #auto; case (#err(_)) #proposal };
       case l l;
     };
   };
@@ -151,7 +158,8 @@ module {
 
   func logCall(e : Env, b : Bot, tool : Text, workId : ?Nat, argsSha : Text, outcome : Types.BotCallOutcome, actionId : ?Nat) {
     let id = Ids.next(e.ctr, "botCall");
-    e.bots.log.add(id, { id; botId = b.id; tool; workId; argsSha256 = argsSha; at = Time.now(); outcome; actionId });
+    // 4b.8: een onbekende toolnaam komt van buitenaf (McpApi vangt ze nu op): kort en zonder stuurtekens in het logboek.
+    e.bots.log.add(id, { id; botId = b.id; tool = clean(tool, 60); workId; argsSha256 = argsSha; at = Time.now(); outcome; actionId });
   };
 
   // Opruimen in de klokronde: het logboek na 400 dagen, oude dagtellers, onbesliste voorstellen na 30 dagen (begrensd).
@@ -179,6 +187,18 @@ module {
     for (a in bs.actions.values()) {
       if (a.state == #proposed and now - a.at > Config.botActionExpire) a.state := #expired;
     };
+    // 4b.8 (vraag E-2 van 4b.5, voorlopig akkoord): een besliste, uitgevoerde, ongedane of vervallen actie gaat 400 dagen na haar
+    // laatste stap weg (begrensd per ronde). Wie deed wat blijft in het model van taak en voorstel (Tasks: taskKeep).
+    let keepA = now - Config.botActionKeepDays * 86_400_000_000_000;
+    let gone = List.empty<Nat>();
+    label prune for ((id, a) in bs.actions.entries()) {
+      if (gone.size() >= Config.botActionPrunePerRound) break prune;
+      let last = switch (a.decidedAt, a.appliedAt) { case (?d, _) d; case (null, ?x) x; case (null, null) a.at };
+      // Review 4b.8 L5: wat nog ongedaan te maken is (een koppeling, een offerte die de app zelf registreerde), blijft.
+      let undoable = (a.state == #done or a.state == #accepted) and (switch (a.action) { case (#docLink _) a.docId != null; case (#other x) x.data.any(func((k, _) : (Text, Text)) : Bool = k == "oaOfferte"); case _ false });
+      if (a.state != #proposed and not undoable and last < keepA) gone.add(id);
+    };
+    for (id in gone.values()) bs.actions.remove(id);
   };
 
   // 3.12 (review M3): intrekken sluit ook wat de bot nog open had. Een ingetrokken bot is mogelijk gekaapt: zijn open opdrachten
@@ -196,6 +216,10 @@ module {
     };
     for (a in e.bots.actions.values()) {
       if (a.botId == botId and a.state == #proposed) { a.state := #rejected; a.decidedBy := ?by; a.decidedAt := ?now; a.note := "Bot ingetrokken"; n += 1 };
+    };
+    // 4b.8 (review M3): zijn vrije taken gaan dicht (anders wachten ze op een uitvoerder die er niet meer is).
+    for (t in e.tasks.tasks.values()) {
+      if (Tasks.isBotTask(t) and t.doer == #bot(botId) and not Tasks.isFinal(t.state)) { Tasks.closeBotTask(e.tasks, t, #person(by), now); n += 1 };
     };
     n;
   };
@@ -342,26 +366,26 @@ module {
   func defs() : [Def] {
     [
       { name = "mijn_fiche"; description = "Toont je eigen fiche: welke tools, werven en documentsoorten je mag gebruiken, de autonomie per taak (zelf, voorstel, nooit) en hoeveel oproepen je vandaag nog hebt."; input = []; required = []; readOnly = true },
-      { name = "werven"; description = "Lijst van de werven die je mag zien: id, code, naam, status en gemeente. Geen adressen, geen bedragen."; input = []; required = []; readOnly = true },
-      { name = "maandagbriefing"; description = "Het wekelijkse overzicht voor de zaakvoerder uit de interne gegevens van BOWACO, enkel de werven op je fiche: planning van de week, wat aandacht vraagt, open voorstellen, vervallende attesten, vergunningen en verzekeringen, facturen te beslissen en klantakkoorden die wachten. Enkel lezen, geen bedragen. Vat het kort samen; beslis niets en verstuur niets."; input = []; required = []; readOnly = true },
+      { name = "werven"; description = "Lijst van de werven die je mag zien: id, code, naam, status en gemeente (kort: id, code, naam). Geen adressen, geen bedragen. Met paginering."; input = pagingInput(Config.botMaxList, Config.botMaxList, true); required = []; readOnly = true },
+      { name = "maandagbriefing"; description = "Het wekelijkse overzicht voor de zaakvoerder uit de interne gegevens van BOWACO, enkel de werven op je fiche: planning van de week, wat aandacht vraagt, open voorstellen, vervallende attesten, vergunningen en verzekeringen, facturen te beslissen en klantakkoorden die wachten. Enkel lezen, geen bedragen. Vat het kort samen; beslis niets en verstuur niets. Kort: per onderdeel het totaal en de eerste 3 punten."; input = [("vorm", Tool.enumeration(["kort", "uitgebreid"], "kort = per onderdeel het totaal en de eerste 3 punten; uitgebreid = alles (standaard)."))]; required = []; readOnly = true },
       {
         name = "werf_documenten";
         description = "De documenten van een werf (enkel de documentsoorten op je fiche, nooit vertrouwelijke): soort, titel, status, termijn en geldigheid. Met de tool document_koppelen op je fiche ook de losse bestanden van die werf (naam, type, grootte) die nog aan geen document hangen. Nooit de inhoud of een link naar een bestand.";
-        input = [("werfId", Tool.integer("Het id van de werf (uit de tool werven)."))];
+        input = [("werfId", Tool.integer("Het id van de werf (uit de tool werven)."))].concat(pagingInput(Config.botMaxList, Config.botMaxList, true));
         required = ["werfId"];
         readOnly = true;
       },
       {
         name = "oa_offertes";
-        description = "De offertes van onderaannemers op een werf: firma, offertenummer, datum, geldig tot, versie, bron en status. Zonder bedragen of prijzen.";
-        input = [("werfId", Tool.integer("Het id van de werf."))];
+        description = "De offertes van onderaannemers op een werf: firma, offertenummer, datum, geldig tot, versie, bron en status (kort: id, firma, nummer, status). Zonder bedragen of prijzen. Met paginering.";
+        input = [("werfId", Tool.integer("Het id van de werf."))].concat(pagingInput(Config.botMaxList, Config.botMaxList, true));
         required = ["werfId"];
         readOnly = true;
       },
       {
         name = "oa_facturen";
-        description = "De facturen van onderaannemers op een werf: firma, factuurnummer, factuurdatum, vervaldag, periode, btw-regime en status. Zonder bedragen.";
-        input = [("werfId", Tool.integer("Het id van de werf."))];
+        description = "De facturen van onderaannemers op een werf: firma, factuurnummer, factuurdatum, vervaldag, periode, btw-regime en status (kort: id, firma, nummer, status). Zonder bedragen. Met paginering.";
+        input = [("werfId", Tool.integer("Het id van de werf."))].concat(pagingInput(Config.botMaxList, Config.botMaxList, true));
         required = ["werfId"];
         readOnly = true;
       },
@@ -485,6 +509,60 @@ module {
         required = ["opdracht", "vorm"];
         readOnly = false;
       },
+      // 4b.8: één ingang voor elk werk, en leestools binnen de fiche (zonder bedragen).
+      {
+        name = "taken";
+        description = "Je open taken, de oudste eerst: de opdrachten die BOWACO je gaf (OA-offerte inlezen, offertes vergelijken, offerte nalezen, factuurcontrole) en vrije taken. Met taak=<sleutel> krijg je één taak met haar dossier en de velden van je antwoord. Antwoord met de tool voorstel. Met paginering.";
+        input = [
+          ("taak", Tool.string("De sleutel van één taak (bv. oaread:12, check:4, invcheck:7, taak:31): dan het dossier en de antwoordvelden.")),
+          ("soort", Tool.enumeration(["oa-offerte-inlezen", "offertes-vergelijken", "offerte-nalezen", "factuurcontrole", "vrije-taak"], "Enkel taken van deze soort.")),
+          ("werfId", Tool.integer("Enkel taken op deze werf (uit de tool werven).")),
+        ].concat(pagingInput(Config.botPageDefault, Config.botPageMax, false));
+        required = [];
+        readOnly = true;
+      },
+      {
+        name = "voorstel";
+        description = "Stuur je antwoord op één taak uit de tool taken: taak = de sleutel, inhoud = een object met de velden die taken (met taak=<sleutel>) onder 'antwoord' toont. Of het een voorstel blijft of de app het zelf doet, bepaalt je fiche; je verstuurt, betaalt en keurt nooit goed.";
+        input = [
+          ("taak", Tool.string("De sleutel van de taak (uit taken).")),
+          ("inhoud", #Object([("type", #String("object")), ("description", #String("De antwoordvelden van deze taak (zie 'antwoord' in taken met taak=<sleutel>)."))])),
+        ];
+        required = ["taak", "inhoud"];
+        readOnly = false;
+      },
+      {
+        name = "te_doen";
+        description = "Wat wacht er op de werven van je fiche: problemen en taken te laat, open voorstellen, vervallende attesten, vergunningen en verzekeringen, facturen te beslissen en klantakkoorden; het dringendste eerst. Enkel lezen, geen bedragen. Met paginering.";
+        input = [("werfId", Tool.integer("Enkel deze werf (uit de tool werven)."))].concat(pagingInput(Config.botPageDefault, Config.botPageMax, false));
+        required = [];
+        readOnly = true;
+      },
+      {
+        name = "planning";
+        description = "De planning van de werven op je fiche tussen van en tot: taak, start, einde, verantwoordelijke firma en status (uitgebreid: soort, vak, procent, werkdagen, levering besteld, de firma's die uitvoeren met hun bevestiging). Geen notities, geen personen, geen bedragen. Met paginering.";
+        input = [
+          ("werfId", Tool.integer("Enkel deze werf (uit de tool werven).")),
+          ("van", Tool.string("Vanaf deze dag, jjjj-mm-dd (standaard vandaag).")),
+          ("tot", Tool.string("Tot en met deze dag, jjjj-mm-dd (standaard 4 weken na van; hoogstens 366 dagen).")),
+        ].concat(pagingInput(Config.botPageDefault, Config.botPageMax, false));
+        required = [];
+        readOnly = true;
+      },
+      {
+        name = "werf_stand";
+        description = "De stand van één werf: status, planning (taken, klaar, bezig, vertraagd, geblokkeerd, gemiddeld procent, de volgende stappen), documenten per status, aantal offertes en facturen van onderaannemers per status, open taken van assistenten en het laatste werfverslag. Geen bedragen, geen personen.";
+        input = [("werfId", Tool.integer("Het id van de werf (uit de tool werven).")), ("vorm", Tool.enumeration(["kort", "uitgebreid"], "kort = tellingen en de volgende 3 stappen; uitgebreid = ook de volgende 10 en de open documenten."))];
+        required = ["werfId"];
+        readOnly = true;
+      },
+      {
+        name = "facturen_wachten";
+        description = "Enkel voor de assistent van de zaakvoerder: de facturen van onderaannemers die op een beslissing van BOWACO wachten, over de werven van je fiche (werf, firma, nummer, vervaldag; uitgebreid ook factuurdatum, dagen tot de vervaldag, bijlage, stand van de controle). Geen bedragen. Met paginering.";
+        input = [("werfId", Tool.integer("Enkel deze werf (uit de tool werven)."))].concat(pagingInput(Config.botPageDefault, Config.botPageMax, false));
+        required = [];
+        readOnly = true;
+      },
     ];
   };
 
@@ -588,35 +666,58 @@ module {
       return #err(proofBusy);
     };
     let ctx = { works = e.works; settings = e.settings };
+    // 4b.8: taken met taak en voorstel: de taak moet een open taak van DEZE bot zijn die zijn fiche toelaat (anders één weigering:
+    // geen orakel); de werf van de oproep is dan die van de taak.
+    let withTask = tool == "voorstel" or (tool == "taken" and Tool.field(args, "taak") != null and Tool.field(args, "taak") != ?#Null);
+    let target : ?Target = if (not withTask) null else switch (targetOf(e, b, Tool.text(args, "taak") ?? "")) {
+      case (?t) ?t;
+      case null {
+        logCall(e, b, tool, workId, argsSha, #refused("taak"), null);
+        return #err(if (not b.tools.any(func x = x == tool)) refuseTool(b) else refuseTask(b));
+      };
+    };
     // De werf van de oproep: rechtstreeks (werfId) of via de factuur.
-    let needsWork = tool == "werf_documenten" or tool == "oa_offertes" or tool == "oa_facturen" or tool == "document_koppelen" or tool == "voorstel_factuurcontrole" or tool == "voorstel_oa_offerte" or tool == "voorstel_vergelijking" or tool == "opmerkingen_offerte";
+    let needsWork = tool == "werf_documenten" or tool == "oa_offertes" or tool == "oa_facturen" or tool == "document_koppelen" or tool == "voorstel_factuurcontrole" or tool == "voorstel_oa_offerte" or tool == "voorstel_vergelijking" or tool == "opmerkingen_offerte" or tool == "werf_stand";
+    // 4b.8: een werf is een filter (mag weg); is ze er, dan moet ze op de fiche staan.
+    let optWork = (tool == "te_doen" or tool == "planning" or tool == "facturen_wachten" or tool == "taken") and not withTask and workId != null;
     // 3.10: met een opdracht = de werf van de opdracht, enkel een open opdracht van DEZE bot (anders dezelfde weigering).
     let withJob = tool == "voorstel_factuurcontrole" and Tool.field(args, "opdracht") != null and Tool.field(args, "opdracht") != ?#Null;
-    let scopeWork : ?Nat = if (not needsWork) null else if withJob invJobWork(e, b, Tool.nat(args, "opdracht")) else switch (tool, Tool.nat(args, "factuurId")) {
-      case ("voorstel_factuurcontrole", ?fid) switch (e.oaInvoices.invoices.get(fid)) { case (?inv) ?inv.workId; case null null };
-      case ("voorstel_factuurcontrole", null) null;
-      // 3.8: de werf van de opdracht, enkel een opdracht voor DEZE bot (een andere = dezelfde weigering, geen orakel).
-      case ("voorstel_oa_offerte", _) jobWork(e, b, Tool.nat(args, "opdracht"));
-      // 3.9 + 3.11: idem voor een nakijkopdracht van de juiste soort.
-      case ("voorstel_vergelijking", _) checkJobWork(e, b, Tool.nat(args, "opdracht"), "vergelijking");
-      case ("opmerkingen_offerte", _) checkJobWork(e, b, Tool.nat(args, "opdracht"), "nalezen");
-      case _ workId;
+    let scopeWork : ?Nat = switch target {
+      case (?t) t.workId;
+      case null if (optWork) workId else if (not needsWork) null else if withJob invJobWork(e, b, Tool.nat(args, "opdracht")) else switch (tool, Tool.nat(args, "factuurId")) {
+        case ("voorstel_factuurcontrole", ?fid) switch (e.oaInvoices.invoices.get(fid)) { case (?inv) ?inv.workId; case null null };
+        case ("voorstel_factuurcontrole", null) null;
+        // 3.8: de werf van de opdracht, enkel een opdracht voor DEZE bot (een andere = dezelfde weigering, geen orakel).
+        case ("voorstel_oa_offerte", _) jobWork(e, b, Tool.nat(args, "opdracht"));
+        // 3.9 + 3.11: idem voor een nakijkopdracht van de juiste soort.
+        case ("voorstel_vergelijking", _) checkJobWork(e, b, Tool.nat(args, "opdracht"), "vergelijking");
+        case ("opmerkingen_offerte", _) checkJobWork(e, b, Tool.nat(args, "opdracht"), "nalezen");
+        case _ workId;
+      };
     };
     if (needsWork and scopeWork == null) {
       logCall(e, b, tool, workId, argsSha, #refused("werf"), null);
-      return #err(if (tool == "voorstel_factuurcontrole" or tool == "voorstel_oa_offerte" or tool == "voorstel_vergelijking" or tool == "opmerkingen_offerte") "Geen toegang: deze tool of deze werf staat niet op je fiche" else "Geef een geldige werfId");
+      // 4b.8: de weigering zegt wat wel mag (de eigen opdrachten, de werven van de fiche); dezelfde tekst voor onbekend en andermans.
+      return #err(if (tool == "voorstel_factuurcontrole" or tool == "voorstel_oa_offerte" or tool == "voorstel_vergelijking" or tool == "opmerkingen_offerte") (if (not b.tools.any(func x = x == tool)) refuseTool(b) else refuseTask(b)) else if (workId == null) "Geef werfId: het id (een getal) van een werf. Wat wel mag: " # worksAllowed(e, b) # "." else refuseWork(e, b));
+    };
+    // 4b.8: de bredere leestools van de zaakvoerder werken enkel op zijn eigen fiche (ook als iemand de fiche anders zou bewaren).
+    if (Config.botOwnerTools().any(func x = x == tool) and not isOwnerBot(b)) {
+      logCall(e, b, tool, scopeWork, argsSha, #refused("fiche"), null);
+      return #err(refuseTool(b));
     };
     if (not Rights.mayBot(ctx, b, tool, scopeWork)) {
       logCall(e, b, tool, scopeWork, argsSha, #refused("fiche"), null);
-      return #err("Geen toegang: deze tool of deze werf staat niet op je fiche");
+      return #err(refuseFor(e, b, tool));
     };
+    // Paginering en vorm (4b.8): een fout in de invoer zegt hoe het wel moet.
+    let pg = func(defSize : Nat, maxSize : Nat, defLong : Bool) : { #ok : Paging; #err : Text } { paging(args, defSize, maxSize, defLong) };
     let r : { #ok : (Json, ?Nat); #err : Text } = switch tool {
       case "mijn_fiche" #ok(fiche(e, b, now), null);
-      case "werven" #ok(listWorks(e, b), null);
-      case "werf_documenten" #ok(workDocs(e, b, scopeWork ?? 0), null);
-      case "oa_offertes" #ok(oaQuotes(e, scopeWork ?? 0), null);
-      case "oa_facturen" #ok(oaInvoiceList(e, scopeWork ?? 0), null);
-      case "maandagbriefing" #ok(briefing(e, b, now), null);
+      case "werven" switch (pg(Config.botMaxList, Config.botMaxList, true)) { case (#ok p) #ok(listWorks(e, b, p), null); case (#err m) #err(m) };
+      case "werf_documenten" switch (pg(Config.botMaxList, Config.botMaxList, true)) { case (#ok p) #ok(workDocs(e, b, scopeWork ?? 0, p), null); case (#err m) #err(m) };
+      case "oa_offertes" switch (pg(Config.botMaxList, Config.botMaxList, true)) { case (#ok p) #ok(oaQuotes(e, scopeWork ?? 0, p), null); case (#err m) #err(m) };
+      case "oa_facturen" switch (pg(Config.botMaxList, Config.botMaxList, true)) { case (#ok p) #ok(oaInvoiceList(e, scopeWork ?? 0, p), null); case (#err m) #err(m) };
+      case "maandagbriefing" switch (pg(1, 1, true)) { case (#ok p) #ok(briefing(e, b, now, p.long), null); case (#err m) #err(m) };
       case "document_koppelen" docLinkTool(e, b, caller, scopeWork ?? 0, args, now);
       case "voorstel_factuurcontrole" if withJob invCheckTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now) else invoiceCheckTool(e, b, caller, scopeWork ?? 0, args, now);
       case "controleopdrachten" #ok(invJobs(e, b), null);
@@ -626,10 +727,27 @@ module {
       case "voorstel_vergelijking" checkTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now);
       case "opmerkingen_offerte" checkTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now);
       case "voorstel_oa_offerte" oaReadTool(e, b, caller, Tool.nat(args, "opdracht") ?? 0, args, now);
-      case _ #err("Onbekende tool");
+      case "taken" switch (target) {
+        case (?t) switch (takenDetail(e, b, t, now)) { case (#ok j) #ok(j, null); case (#err m) #err(m) };
+        case null switch (pg(Config.botPageDefault, Config.botPageMax, false)) { case (#ok p) switch (takenList(e, b, args, p, scopeWork)) { case (#ok j) #ok(j, null); case (#err m) #err(m) }; case (#err m) #err(m) };
+      };
+      case "voorstel" switch (target) { case (?t) voorstelTool(e, b, caller, t, args, now); case null #err(refuseTask(b)) };
+      case "te_doen" switch (pg(Config.botPageDefault, Config.botPageMax, false)) { case (#ok p) #ok(teDoen(e, b, p, scopeWork, now), null); case (#err m) #err(m) };
+      case "planning" switch (pg(Config.botPageDefault, Config.botPageMax, false)) { case (#ok p) switch (planningTool(e, b, args, p, scopeWork, now)) { case (#ok j) #ok(j, null); case (#err m) #err(m) }; case (#err m) #err(m) };
+      // Review 4b.8 L7: een gearchiveerde of geannuleerde werf heeft geen stand (dezelfde weigering).
+      case "werf_stand" if (not visibleWork(e, b)(scopeWork ?? 0)) #err(refuseWork(e, b)) else switch (pg(1, 1, false)) { case (#ok p) #ok(werfStand(e, b, scopeWork ?? 0, p.long, now), null); case (#err m) #err(m) };
+      case "facturen_wachten" switch (pg(Config.botPageDefault, Config.botPageMax, false)) { case (#ok p) #ok(facturenWachten(e, b, p, scopeWork, now), null); case (#err m) #err(m) };
+      case _ #err(refuseTool(b));
+    };
+    // 4b.5 review M2: wat deze oproep aan een opdracht of actie veranderde (McpApi zet enkel die in het model gelijk).
+    switch (tool, Tool.nat(args, "opdracht")) {
+      case ("voorstel_oa_offerte", ?id) e.touched.add(#oaRead(id));
+      case ("voorstel_vergelijking" or "opmerkingen_offerte", ?id) e.touched.add(#aiCheck(id));
+      case ("voorstel_factuurcontrole", ?id) { if withJob e.touched.add(#invCheck(id)) };
+      case _ {};
     };
     switch r {
-      case (#ok(j, actionId)) { logCall(e, b, tool, scopeWork, argsSha, #ok, actionId); #ok(j) };
+      case (#ok(j, actionId)) { switch actionId { case (?a) e.touched.add(#botAction(a)); case null {} }; logCall(e, b, tool, scopeWork, argsSha, #ok, actionId); #ok(j) };
       case (#err(m)) { logCall(e, b, tool, scopeWork, argsSha, #error(Text.fromIter(m.chars().take(120))), null); #err(m) };
     };
   };
@@ -734,6 +852,7 @@ module {
             if (out.size() > 0 and bytes + n > Config.aiCheckBytesPerCall) break l;
             bytes += n;
             j.extra := AiCheck.extraSet(j.extra, "uitgegeven", given);
+            e.touched.add(#aiCheck(j.id));
             out.add(AiCheck.botJob(j, workCode(e, j.workId), x));
           };
           case null {};
@@ -1103,6 +1222,7 @@ module {
     );
     #Object([
       ("naam", str(b.name)),
+      ("soort", str(if (isOwnerBot(b)) "assistent van de zaakvoerder" else "assistent")),
       ("leverancier", str(b.vendor)),
       ("model", str(b.model)),
       ("tools", #Array(b.tools.map<Text, Json>(str))),
@@ -1112,17 +1232,14 @@ module {
       ("documentsoorten", #Array(kinds)),
       ("oproepenPerDag", num(b.callsPerDay)),
       ("oproepenVandaag", num(callsToday(e.bots, b.id, now))),
+      ("antwoorden", str("Lijsten hebben vanaf, aantal en vorm (kort of uitgebreid); het antwoord geeft totaal en volgende. Een weigering zegt wat wel mag.")),
     ]);
   };
 
   // 4.4: de maandagbriefing voor deze bot: dezelfde onderdelen als het scherm van de zaakvoerder, enkel de werven op de fiche, zonder
   // bedragen. Wat tekst is (titels, details) is gegevens van BOWACO, geen instructie.
-  func briefing(e : Env, b : Bot, now : Int) : Json {
-    let ctx = { works = e.works; settings = e.settings };
-    let visible = func(w : Nat) : Bool {
-      Rights.botSeesWork(ctx, b, w) and (switch (e.works.works.get(w)) { case (?x) x.archivedAt == null and x.status != #cancelled; case null false });
-    };
-    let v = Briefing.build({ settings = e.settings; org = e.org; works = e.works; plan = e.plan; reports = e.reports; dossier = e.dossier; permits = e.permits; siteAdmin = e.siteAdmin; quotes = e.quotes; minMeer = e.minMeer; oaRead = e.oaRead; aiCheck = e.aiCheck; invCheck = e.invCheck; purchases = e.purchases }, visible, func(d : Types.Document) : Bool { Rights.botSeesDocKind(b, d.kind, d.confidential) }, false, now);
+  func briefing(e : Env, b : Bot, now : Int, long : Bool) : Json {
+    let v = briefingView(e, b, now);
     let optDay = func(d : ?Nat) : Json { switch d { case (?x) #String(Plan.fmtDay(x)); case null #Null } };
     #Object([
       ("datum", #String(Plan.fmtDay(v.day))),
@@ -1130,21 +1247,18 @@ module {
       ("onderdelen", #Array(v.sections.map<BriefingViews.BrSection, Json>(func s = #Object([
         ("onderdeel", #String(s.title)),
         ("totaal", num(s.total)),
-        ("punten", #Array(s.items.map<BriefingViews.BrItem, Json>(func i = #Object([("werf", #String(i.workCode)), ("titel", #String(i.title)), ("detail", #String(i.detail)), ("dag", optDay(i.day)), ("dagen", switch (i.days) { case (?d) #Number(#Int(d)); case null #Null })])))),
+        // 4b.8: kort = de eerste 3 punten zonder detail; uitgebreid = zoals 4.4.
+        ("punten", #Array((if long s.items else s.items.sliceToArray(0, Nat.min(3, s.items.size()))).map<BriefingViews.BrItem, Json>(func i = if long #Object([("werf", #String(i.workCode)), ("titel", #String(i.title)), ("detail", #String(i.detail)), ("dag", optDay(i.day)), ("dagen", switch (i.days) { case (?d) #Number(#Int(d)); case null #Null })]) else #Object([("werf", #String(i.workCode)), ("titel", #String(i.title))])))),
       ])))),
     ]);
   };
 
-  func listWorks(e : Env, b : Bot) : Json {
+  func listWorks(e : Env, b : Bot, p : Paging) : Json {
     let ctx = { works = e.works; settings = e.settings };
-    let out = List.empty<Json>();
-    label l for (w in e.works.works.values()) {
-      if (out.size() >= Config.botMaxList) break l;
-      if (w.archivedAt == null and Rights.botSeesWork(ctx, b, w.id)) {
-        out.add(#Object([("id", num(w.id)), ("code", str(w.code)), ("naam", str(w.name)), ("status", str(workStatusKey(w.status))), ("gemeente", str(w.address.city))]));
-      };
-    };
-    #Object([("werven", #Array(out.toArray()))]);
+    let ws = e.works.works.values().filter(func(w : Types.Work) : Bool = w.archivedAt == null and Rights.botSeesWork(ctx, b, w.id)).toArray();
+    page(ws, p, "werven", func(w : Types.Work, long : Bool) : Json {
+      if long #Object([("id", num(w.id)), ("code", str(w.code)), ("naam", str(w.name)), ("status", str(workStatusKey(w.status))), ("gemeente", str(w.address.city))]) else #Object([("id", num(w.id)), ("code", str(w.code)), ("naam", str(w.name))]);
+    }, []);
   };
 
   // Bestanden die al aan een (niet-gearchiveerd) document van die werf hangen.
@@ -1154,23 +1268,22 @@ module {
     m;
   };
 
-  func workDocs(e : Env, b : Bot, workId : Nat) : Json {
-    let docs = List.empty<Json>();
-    for (d in Dossier.docsOf(e.dossier, workId).values()) {
-      let acc = Dossier.docAccess(e.settings, d);
-      if (docs.size() < Config.botMaxList and Rights.botSeesDocKind(b, d.kind, acc.confidential)) {
-        docs.add(#Object([
-          ("id", num(d.id)),
-          ("soort", str(d.kind)),
-          ("titel", str(d.title)),
-          ("status", str(docStatusKey(Dossier.effectiveStatus(d)))),
-          ("versies", num(d.fileIds.size())),
-          ("termijn", optDay(d.dueDay)),
-          ("geldigTot", optDay(d.validUntil)),
-        ]));
-      };
-    };
-    let fields = List.fromArray<(Text, Json)>([("werfId", num(workId)), ("documenten", #Array(docs.toArray()))]);
+  func workDocs(e : Env, b : Bot, workId : Nat, p : Paging) : Json {
+    let docs = Dossier.docsOf(e.dossier, workId).filter(func(d : Types.Document) : Bool = Rights.botSeesDocKind(b, d.kind, Dossier.docAccess(e.settings, d).confidential));
+    let paged = page(docs, p, "documenten", func(d : Types.Document, long : Bool) : Json {
+      let st = str(docStatusKey(Dossier.effectiveStatus(d)));
+      if (not long) return #Object([("id", num(d.id)), ("soort", str(d.kind)), ("titel", str(d.title)), ("status", st)]);
+      #Object([
+        ("id", num(d.id)),
+        ("soort", str(d.kind)),
+        ("titel", str(d.title)),
+        ("status", st),
+        ("versies", num(d.fileIds.size())),
+        ("termijn", optDay(d.dueDay)),
+        ("geldigTot", optDay(d.validUntil)),
+      ]);
+    }, [("werfId", num(workId))]);
+    let fields = List.fromArray<(Text, Json)>(switch paged { case (#Object(fs)) fs; case _ [] });
     if (b.tools.any(func t = t == "document_koppelen")) {
       let used = attachedFiles(e, workId);
       let loose = List.empty<Json>();
@@ -1184,11 +1297,12 @@ module {
     #Object(fields.toArray());
   };
 
-  func oaQuotes(e : Env, workId : Nat) : Json {
-    let out = List.empty<Json>();
-    for (q in e.tenders.oaQuotes.values()) {
-      if (out.size() < Config.botMaxList and q.workId == workId) {
-        out.add(#Object([
+  func oaQuotes(e : Env, workId : Nat, p : Paging) : Json {
+    let qs = e.tenders.oaQuotes.values().filter(func(q : Types.OaQuote) : Bool = q.workId == workId).toArray();
+    page(qs, p, "offertes", func(q : Types.OaQuote, long : Bool) : Json {
+      let status = str(switch (q.status) { case (#received) "ontvangen"; case (#withdrawn(_)) "ingetrokken" });
+      if (not long) return #Object([("id", num(q.id)), ("firma", str(orgName(e, q.orgId))), ("nummer", str(q.number)), ("status", status)]);
+      #Object([
           ("id", num(q.id)),
           ("firma", str(orgName(e, q.orgId))),
           ("nummer", str(q.number)),
@@ -1199,18 +1313,16 @@ module {
           ("bron", str(switch (q.source) { case (#sheet) "excel"; case (#app) "app"; case (#hand) "met de hand" })),
           ("status", str(switch (q.status) { case (#received) "ontvangen"; case (#withdrawn(_)) "ingetrokken" })),
           ("prijsvraag", switch (q.tenderId) { case (?x) num(x); case null #Null }),
-        ]));
-      };
-    };
-    #Object([("werfId", num(workId)), ("offertes", #Array(out.toArray()))]);
+      ]);
+    }, [("werfId", num(workId))]);
   };
 
-  func oaInvoiceList(e : Env, workId : Nat) : Json {
-    let out = List.empty<Json>();
-    for (id in (e.oaInvoices.byWork.get(workId) ?? []).values()) {
-      switch (e.oaInvoices.invoices.get(id)) {
-        case (?inv) if (out.size() < Config.botMaxList and inv.workId == workId) {
-          out.add(#Object([
+  func oaInvoiceList(e : Env, workId : Nat, p : Paging) : Json {
+    let invs = (e.oaInvoices.byWork.get(workId) ?? []).filterMap(func(id : Nat) : ?Types.OaInvoice = switch (e.oaInvoices.invoices.get(id)) { case (?i) if (i.workId == workId) ?i else null; case null null });
+    page(invs, p, "facturen", func(inv : Types.OaInvoice, long : Bool) : Json {
+      let status = str(switch (inv.status) { case (#registered) "geregistreerd"; case (#approved) "goedgekeurd"; case (#disputed) "betwist"; case (#withdrawn) "ingetrokken" });
+      if (not long) return #Object([("id", num(inv.id)), ("firma", str(orgName(e, inv.orgId))), ("nummer", str(inv.number)), ("status", status)]);
+      #Object([
             ("id", num(inv.id)),
             ("firma", str(orgName(e, inv.orgId))),
             ("nummer", str(inv.number)),
@@ -1222,12 +1334,464 @@ module {
             ("vermeldingVerlegd", #Bool(inv.reverseMention)),
             ("status", str(switch (inv.status) { case (#registered) "geregistreerd"; case (#approved) "goedgekeurd"; case (#disputed) "betwist"; case (#withdrawn) "ingetrokken" })),
             ("bijlage", #Bool(inv.fileId != null)),
-          ]));
+      ]);
+    }, [("werfId", num(workId))]);
+  };
+
+  // ── 4b.8: paginering, vorm en "wat wel mag" ─────────────────────────────
+  // Elke lijst geeft totaal, vanaf en volgende (null = einde); vorm kort = de kern per rij, uitgebreid = alle velden. De oude tools
+  // houden hun velden en hun grens (uitgebreid en Config.botMaxList standaard), de nieuwe starten kort met Config.botPageDefault.
+  type Paging = { from : Nat; size : Nat; long : Bool };
+
+  func paging(args : Tool.Args, defSize : Nat, maxSize : Nat, defLong : Bool) : { #ok : Paging; #err : Text } {
+    let from = switch (Tool.field(args, "vanaf")) {
+      case (null or ?#Null) 0;
+      case _ switch (Tool.nat(args, "vanaf")) { case (?n) n; case null return #err("vanaf: een geheel getal vanaf 0 (neem 'volgende' uit het vorige antwoord)") };
+    };
+    let size = switch (Tool.field(args, "aantal")) {
+      case (null or ?#Null) defSize;
+      case _ switch (Tool.nat(args, "aantal")) {
+        case (?n) { if (n == 0 or n > maxSize) return #err("aantal: 1 tot " # maxSize.toText()); n };
+        case null return #err("aantal: een geheel getal van 1 tot " # maxSize.toText());
+      };
+    };
+    let long = switch (Tool.field(args, "vorm")) {
+      case (null or ?#Null) defLong;
+      case (?#String("kort")) false;
+      case (?#String("uitgebreid")) true;
+      case _ return #err("vorm: \"kort\" of \"uitgebreid\"");
+    };
+    #ok({ from; size; long });
+  };
+
+  func page<T>(xs : [T], p : Paging, key : Text, row : (T, Bool) -> Json, head : [(Text, Json)]) : Json {
+    let total = xs.size();
+    let a = Nat.min(p.from, total);
+    let z = Nat.min(a + p.size, total);
+    #Object(head.concat([
+      (key, #Array(xs.sliceToArray(a, z).map<T, Json>(func x = row(x, p.long)))),
+      ("totaal", num(total)),
+      ("vanaf", num(a)),
+      ("volgende", if (z < total) num(z) else #Null),
+      ("vorm", str(if (p.long) "uitgebreid" else "kort")),
+    ]));
+  };
+
+  func pagingInput(defSize : Nat, maxSize : Nat, defLong : Bool) : [(Text, Json)] {
+    [
+      ("vanaf", Tool.integer("Vanaf welke rij (0 = de eerste). Neem 'volgende' uit het vorige antwoord voor de volgende pagina.")),
+      ("aantal", Tool.integer("Hoeveel rijen (1 tot " # maxSize.toText() # "; standaard " # defSize.toText() # ").")),
+      ("vorm", Tool.enumeration(["kort", "uitgebreid"], "kort = de kern per rij, uitgebreid = alle velden (standaard " # (if defLong "uitgebreid" else "kort") # ").")),
+    ];
+  };
+
+  let noAccess = "Geen toegang: deze tool of deze werf staat niet op je fiche.";
+
+  // De werven die wel mogen, in woorden (enkel wat de tool werven ook toont: geen orakel).
+  func worksAllowed(e : Env, b : Bot) : Text {
+    if (b.allWorks) return "alle werven (zie de tool werven)";
+    let codes = List.empty<Text>();
+    for (w in b.works.values()) {
+      switch (e.works.works.get(w)) { case (?x) { if (x.archivedAt == null and codes.size() < 10) codes.add(x.code # " (werfId " # w.toText() # ")") }; case null {} };
+    };
+    if (codes.size() == 0) "geen enkele werf; vraag BOWACO je fiche aan te vullen" else "de werven " # codes.values().join(", ") # (if (b.works.size() > 10) ", …" else "") # " (zie de tool werven)";
+  };
+  public func refuseWork(e : Env, b : Bot) : Text { noAccess # " Wat wel mag: " # worksAllowed(e, b) # "." };
+  public func refuseTool(b : Bot) : Text { noAccess # " Wat wel mag: de tools " # b.tools.values().join(", ") # " (zie mijn_fiche)." };
+  func refuseTask(b : Bot) : Text {
+    noAccess # " Deze taak is onbekend, al beantwoord of niet de jouwe. Wat wel mag: " # (if (b.tools.any(func t = t == "taken")) "je eigen open taken uit de tool taken." else "je eigen open opdrachten (zie mijn_fiche).");
+  };
+  func refuseFor(e : Env, b : Bot, tool : Text) : Text {
+    if (not b.tools.any(func t = t == tool) or (switch (Rights.botTaskOf(tool)) { case (?k) k != "" and Rights.botLevel(b, k) == #never; case null true })) refuseTool(b) else refuseWork(e, b);
+  };
+
+  // Review 4b.8 L1: een tool die niet in de lijst van deze bot staat (McpApi.unknownTool): telt mee, één regel in het logboek, dezelfde
+  // weigering voor elke naam (ook de bijlagetools, die call anders apart behandelt).
+  public func refuseUnknown(e : Env, caller : Principal, tool : Text, args : Tool.Args) : Text {
+    let b = activeBot(e.bots, caller) ?? return "Geen toegang: deze koppeling hoort niet (meer) bij een actieve bot";
+    let now = Time.now();
+    let key = dayKey(b.id, today(now));
+    let used = e.bots.daily.get(key) ?? 0;
+    if (used >= b.callsPerDay) return "Daglimiet bereikt (" # b.callsPerDay.toText() # " oproepen). Probeer morgen opnieuw.";
+    e.bots.daily.add(key, used + 1);
+    logCall(e, b, tool, null, Encoding.sha256Hex((#Object(args) : Json).stringify()), #refused("fiche"), null);
+    refuseTool(b);
+  };
+
+  // 4b.8: de assistent van de zaakvoerder (extra "soort" = "zaakvoerder"): een bredere leesfiche, schrijft enkel voorstellen.
+  public func isOwnerBot(b : Bot) : Bool { Proof.extraGet(b.extra, "soort") == ?"zaakvoerder" };
+
+  // ── 4b.8: taken en voorstel ─────────────────────────────────────────────
+  // Eén ingang voor elk werk van een assistent: `taken` toont zijn open taken (de opdrachten van 3.8–3.11 en de vrije taken), met
+  // `taak` één taak met haar dossier en de antwoordvelden; `voorstel` stuurt het antwoord. Het recht per soort blijft de tool van die
+  // soort op de fiche (Config.botKindTools): dezelfde opdrachten, dezelfde rekenregels, dezelfde poort als de oude tools.
+  type Target = { key : Text; src : Types.TaskSrc; kind : Text; workId : ?Nat; listTool : Text; answerTool : Text };
+
+  func kindTools(kind : Text) : (Text, Text) {
+    switch (Config.botKindTools().find(func((k, _, _) : (Text, Text, Text)) : Bool = k == kind)) { case (?(_, l, a)) (l, a); case null ("", "") };
+  };
+  func checkKind(j : Types.AiCheckJob) : Text { if (AiCheck.kindKey(j.target) == "vergelijking") "offertes-vergelijken" else "offerte-nalezen" };
+
+  // Een open taak van DEZE bot die zijn fiche toelaat; anders null (één weigering voor onbekend, andermans en buiten de fiche).
+  func targetOf(e : Env, b : Bot, key : Text) : ?Target {
+    let ctx = { works = e.works; settings = e.settings };
+    let parts = key.split(#char ':');
+    let pre = parts.next() ?? return null;
+    let id = Nat.fromText(parts.next() ?? return null) ?? return null;
+    if (parts.next() != null) return null;
+    let job = func(kind : Text, src : Types.TaskSrc, w : Nat) : ?Target {
+      let (l, a) = kindTools(kind);
+      if (not Rights.mayBot(ctx, b, l, ?w)) return null;
+      ?{ key; src; kind; workId = ?w; listTool = l; answerTool = a };
+    };
+    switch pre {
+      case "oaread" { let w = jobWork(e, b, ?id) ?? return null; let j = e.oaRead.jobs.get(id) ?? return null; if (j.status != #open) return null; job("oa-offerte-inlezen", #oaRead(id), w) };
+      case "check" {
+        let j = e.aiCheck.jobs.get(id) ?? return null;
+        let kind = checkKind(j);
+        let w = checkJobWork(e, b, ?id, AiCheck.kindKey(j.target)) ?? return null;
+        job(kind, #aiCheck(id), w);
+      };
+      case "invcheck" { let w = invJobWork(e, b, ?id) ?? return null; let j = e.invCheck.jobs.get(id) ?? return null; if (j.status != #open) return null; job("factuurcontrole", #invCheck(id), w) };
+      case "taak" {
+        let t = Tasks.byKey(e.tasks, key) ?? return null;
+        if (not Tasks.isBotTask(t) or t.doer != #bot(b.id) or (t.state != #waiting and t.state != #busy)) return null;
+        if (not b.tools.any(func x = x == "taken") or Rights.botLevel(b, "vrije-taak") == #never) return null;
+        switch (t.workId) { case (?w) { if (not visibleWork(e, b)(w)) return null }; case null {} };
+        ?{ key; src = #other(key); kind = "vrije-taak"; workId = t.workId; listTool = "taken"; answerTool = "voorstel" };
+      };
+      case _ null;
+    };
+  };
+
+  type TaskRow = { key : Text; kind : Text; workId : ?Nat; at : Int; title : Text; state : Text; due : ?Nat };
+
+  func takenList(e : Env, b : Bot, args : Tool.Args, p : Paging, werf : ?Nat) : { #ok : Json; #err : Text } {
+    let ctx = { works = e.works; settings = e.settings };
+    let soort = switch (Tool.field(args, "soort")) {
+      case (null or ?#Null) "";
+      case (?#String(s)) { if (s != "vrije-taak" and kindTools(s).0 == "") return #err("soort: een van oa-offerte-inlezen, offertes-vergelijken, offerte-nalezen, factuurcontrole, vrije-taak (of weglaten)"); s };
+      case _ return #err("soort: tekst (of weglaten)");
+    };
+    let rows = List.empty<TaskRow>();
+    let want = func(kind : Text, w : ?Nat) : Bool {
+      (soort == "" or soort == kind) and (werf == null or werf == w);
+    };
+    let okKind = func(kind : Text, w : Nat) : Bool { Rights.mayBot(ctx, b, kindTools(kind).0, ?w) };
+    // Inlezen: op Zelf doen enkel de opdracht die aan de beurt is (3.12 review H2).
+    let one = effectiveLevel(e, b, "oa-offerte-inlezen") == #auto;
+    let current = if one currentReadJob(e, b) else null;
+    label r for (j in e.oaRead.jobs.values()) {
+      if (rows.size() >= 1_000) break r;
+      if (j.via == #bot(b.id) and j.status == #open and want("oa-offerte-inlezen", ?j.workId) and okKind("oa-offerte-inlezen", j.workId) and (not one or current == ?j.id)) {
+        rows.add({ key = "oaread:" # j.id.toText(); kind = "oa-offerte-inlezen"; workId = ?j.workId; at = j.createdAt; title = "Offerte van " # orgName(e, j.orgId) # " inlezen"; state = "open"; due = null });
+      };
+    };
+    label c for (j in e.aiCheck.jobs.values()) {
+      if (rows.size() >= 1_000) break c;
+      let kind = checkKind(j);
+      if (j.via == #bot(b.id) and j.status == #open and want(kind, ?j.workId) and okKind(kind, j.workId)) {
+        let title = switch (j.target) {
+          case (#tender id) "Offertes vergelijken" # (switch (e.tenders.tenders.get(id)) { case (?t) " (" # t.code # ")"; case null "" });
+          case _ "Offerte nalezen vóór verzending";
         };
+        rows.add({ key = "check:" # j.id.toText(); kind; workId = ?j.workId; at = j.createdAt; title; state = "open"; due = null });
+      };
+    };
+    label i for (j in e.invCheck.jobs.values()) {
+      if (rows.size() >= 1_000) break i;
+      if (j.via == #bot(b.id) and j.status == #open and want("factuurcontrole", ?j.workId) and okKind("factuurcontrole", j.workId)) {
+        switch (e.oaInvoices.invoices.get(j.invoiceId)) {
+          case (?inv) { if (InvCheck.invoiceOpen(inv)) rows.add({ key = "invcheck:" # j.id.toText(); kind = "factuurcontrole"; workId = ?j.workId; at = j.createdAt; title = "Factuur " # inv.number # " van " # orgName(e, inv.orgId) # " controleren"; state = "open"; due = null }) };
+          case null {};
+        };
+      };
+    };
+    if (Rights.botLevel(b, "vrije-taak") != #never) {
+      label f for (t in e.tasks.tasks.values()) {
+        if (rows.size() >= 1_000) break f;
+        if (Tasks.isBotTask(t) and t.doer == #bot(b.id) and (t.state == #waiting or t.state == #busy) and want("vrije-taak", t.workId) and (switch (t.workId) { case (?w) Rights.botSeesWork(ctx, b, w); case null true })) {
+          rows.add({ key = t.key; kind = "vrije-taak"; workId = t.workId; at = t.createdAt; title = Tasks.extraOf(t, "titel"); state = Tasks.stateKey(t.state); due = Nat.fromText(Tasks.extraOf(t, "uiterlijk")) });
+        };
+      };
+    };
+    let sorted = rows.toArray().sort(func(x : TaskRow, y : TaskRow) : Order.Order = Int.compare(x.at, y.at));
+    let row = func(x : TaskRow, long : Bool) : Json {
+      let w = switch (x.workId) { case (?id) str(workCode(e, id)); case null #Null };
+      let day = isoDay(Int.abs(x.at / Config.day));
+      if (not long) return #Object([("taak", str(x.key)), ("soort", str(x.kind)), ("werf", w), ("titel", str(x.title)), ("sinds", str(day))]);
+      #Object([("taak", str(x.key)), ("soort", str(x.kind)), ("werf", w), ("werfId", switch (x.workId) { case (?id) num(id); case null #Null }), ("titel", str(x.title)), ("stand", str(x.state)), ("sinds", str(day)), ("uiterlijk", optDay(x.due))]);
+    };
+    #ok(page(sorted, p, "taken", row, [("uitleg", str("De oudste eerst. Vraag één taak met haar dossier: taken met taak=<sleutel>. Antwoord met voorstel (taak + inhoud)."))]));
+  };
+
+  // De antwoordvelden van een soort: dezelfde als de oude tool (zonder "opdracht"), zodat het antwoord dezelfde regels volgt.
+  func answerFields(tool : Text) : (Json, [Text]) {
+    switch (defs().find(func(d : Def) : Bool = d.name == tool)) {
+      case (?d) (#Object(d.input.filter(func((k, _) : (Text, Json)) : Bool = k != "opdracht")), d.required.filter(func(k : Text) : Bool = k != "opdracht"));
+      case null (#Object([]), []);
+    };
+  };
+
+  func takenDetail(e : Env, b : Bot, t : Target, now : Int) : { #ok : Json; #err : Text } {
+    let (dossier, extra) : (Json, [(Text, Json)]) = switch (t.src) {
+      case (#oaRead id) {
+        let j = e.oaRead.jobs.get(id) ?? return #err(refuseTask(b));
+        let code = switch (j.tenderId) { case (?x) switch (e.tenders.tenders.get(x)) { case (?y) y.code; case null "" }; case null "" };
+        (OaRead.botJob(j, orgName(e, j.orgId), code, OaRead.itemsOf(e.tenders, j)), [("bestand", str(if (b.tools.any(func x = x == "inleesbestand")) "Haal het bestand met inleesbestand (opdracht " # id.toText() # ")." else "Het bestand vraagt de tool inleesbestand op je fiche."))]);
+      };
+      case (#aiCheck id) {
+        let j = e.aiCheck.jobs.get(id) ?? return #err(refuseTask(b));
+        var given = "";
+        let d : Json = switch (j.target) {
+          case (#tender x) switch (AiCheck.openTender(e.tenders, x)) { case (?tt) { given := AiCheck.tenderBasis(e.tenders, tt); AiCheck.tenderDossier(tenderCtx(e, now), tt) }; case null return #err(refuseTask(b)) };
+          case (#quote x) switch (AiCheck.draftVersion(e.quotes, x)) { case (?(v, q)) { given := AiCheck.quoteBasis(v); AiCheck.quoteDossier(quoteCtx(e), q, v, null) }; case null return #err(refuseTask(b)) };
+          case (#other _) return #err(refuseTask(b));
+        };
+        // Zoals vergelijkopdrachten/naleesopdrachten: het voorstel draagt de stand van het dossier van NU (3.12 review L).
+        j.extra := AiCheck.extraSet(j.extra, "uitgegeven", given);
+        e.touched.add(t.src);
+        (AiCheck.botJob(j, workCode(e, j.workId), d), []);
+      };
+      case (#invCheck id) {
+        let j = e.invCheck.jobs.get(id) ?? return #err(refuseTask(b));
+        let inv = e.oaInvoices.invoices.get(j.invoiceId) ?? return #err(refuseTask(b));
+        (InvCheck.botJob(j, workCode(e, j.workId), InvCheck.dossier(invCtx(e), e.tenders, inv, orgName(e, inv.orgId), true)), [("bestand", str(if (b.tools.any(func x = x == "controlebestand")) "Haal het bestand met controlebestand (opdracht " # id.toText() # ")." else "Het bestand vraagt de tool controlebestand op je fiche."))]);
+      };
+      case (#other key) {
+        let task = Tasks.byKey(e.tasks, key) ?? return #err(refuseTask(b));
+        Tasks.botBusy(task, b.id, now);
+        (#Object([("titel", str(Tasks.extraOf(task, "titel"))), ("werf", switch (task.workId) { case (?w) str(workCode(e, w)); case null #Null }), ("werfId", switch (task.workId) { case (?w) num(w); case null #Null }), ("uiterlijk", optDay(Nat.fromText(Tasks.extraOf(task, "uiterlijk")))), ("gegevenDoor", str("BOWACO"))]), []);
+      };
+      case (#botAction _) return #err(refuseTask(b));
+    };
+    let (velden, verplicht) = if (t.kind == "vrije-taak") {
+      (#Object([("uitkomst", Tool.enumeration(["klaar", "kan_niet"], "klaar = gedaan, kan_niet = lukt niet (zeg waarom in antwoord).")), ("antwoord", Tool.string("Wat je deed of vond, kort (hoogstens " # Config.botAnswerMax.toText() # " tekens)."))]), ["uitkomst", "antwoord"]);
+    } else answerFields(t.answerTool);
+    let mag = t.kind == "vrije-taak" or b.tools.any(func x = x == t.answerTool);
+    #ok(#Object([
+      ("taak", str(t.key)),
+      ("soort", str(t.kind)),
+      ("werf", switch (t.workId) { case (?w) str(workCode(e, w)); case null #Null }),
+      ("dossier", dossier),
+      ("antwoord", #Object([
+        ("tool", str("voorstel")),
+        ("taak", str(t.key)),
+        ("velden", velden),
+        ("verplicht", #Array(verplicht.map<Text, Json>(str))),
+        ("uitleg", str(if mag "Stuur voorstel met taak=" # t.key # " en inhoud = een object met deze velden. BOWACO beslist; jij verstuurt, betaalt en keurt nooit goed." else "Je fiche laat voor deze soort enkel lezen toe: antwoorden vraagt de tool " # t.answerTool # " op je fiche (BOWACO beslist).")),
+      ])),
+    ].concat(extra)));
+  };
+
+  // Het antwoord op een vrije taak: altijd een voorstel (een mens aanvaardt of weigert in Te doen); de tekst blijft in de actie.
+  func freeAnswer(e : Env, b : Bot, caller : Principal, key : Text, inhoud : Tool.Args, now : Int) : { #ok : (Json, ?Nat); #err : Text } {
+    let t = Tasks.byKey(e.tasks, key) ?? return #err(refuseTask(b));
+    let uitkomst = switch (Tool.text(inhoud, "uitkomst")) { case (?"klaar") "klaar"; case (?"kan_niet") "kan niet"; case _ return #err("inhoud.uitkomst: \"klaar\" of \"kan_niet\"") };
+    let raw = Tool.text(inhoud, "antwoord") ?? "";
+    if (raw.size() > Config.botAnswerMax * 4) return #err("inhoud.antwoord: hoogstens " # Config.botAnswerMax.toText() # " tekens");
+    let antwoord = clean(raw, Config.botAnswerMax);
+    if (antwoord == "") return #err("inhoud.antwoord: schrijf kort wat je deed of waarom het niet kan");
+    if (openActions(e, b.id) >= Config.botMaxOpenActions) return #err("Te veel open voorstellen; wacht tot BOWACO ze bekeek");
+    let a = newAction(e, b, "vrije-taak", t.workId, #other({ tool = "voorstel"; data = [("taak", key), ("uitkomst", uitkomst)] }), antwoord, now);
+    Tasks.botAnswer(e.tasks, t, b.id, a.id, uitkomst, now);
+    Access.audit(e.audit, caller, null, t.workId, "bot-voorstel", "bot #" # b.id.toText() # " vrije-taak #" # a.id.toText() # " (" # key # ")");
+    #ok(#Object([("actie", num(a.id)), ("stand", str("voorstel")), ("uitleg", str("BOWACO aanvaardt of weigert je antwoord in Te doen."))]), ?a.id);
+  };
+
+  func voorstelTool(e : Env, b : Bot, caller : Principal, t : Target, args : Tool.Args, now : Int) : { #ok : (Json, ?Nat); #err : Text } {
+    let ctx = { works = e.works; settings = e.settings };
+    let inhoud0 : Tool.Args = switch (Tool.field(args, "inhoud")) {
+      case (?#Object(a)) a;
+      case _ return #err("inhoud: een object met de antwoordvelden van deze taak (zie 'antwoord' in taken met taak=" # t.key # ")");
+    };
+    if (t.kind == "vrije-taak") return freeAnswer(e, b, caller, t.key, inhoud0, now);
+    if (not Rights.mayBot(ctx, b, t.answerTool, t.workId)) return #err(noAccess # " Wat wel mag: deze taak lezen met taken; antwoorden vraagt de tool " # t.answerTool # " op je fiche (BOWACO beslist).");
+    let id = switch (t.src) { case (#oaRead x) x; case (#aiCheck x) x; case (#invCheck x) x; case _ return #err(refuseTask(b)) };
+    let inhoud = inhoud0.filter(func((k, _) : (Text, Json)) : Bool = k != "opdracht").concat([("opdracht", num(id))]);
+    e.touched.add(t.src);
+    switch (t.src) {
+      case (#oaRead _) oaReadTool(e, b, caller, id, inhoud, now);
+      case (#aiCheck _) checkTool(e, b, caller, id, inhoud, now);
+      case (#invCheck _) invCheckTool(e, b, caller, id, inhoud, now);
+      case _ #err(refuseTask(b));
+    };
+  };
+
+  // ── 4b.8: leestools binnen de fiche, zonder bedragen ────────────────────
+  func visibleWork(e : Env, b : Bot) : Nat -> Bool {
+    let ctx = { works = e.works; settings = e.settings };
+    func(w : Nat) : Bool {
+      Rights.botSeesWork(ctx, b, w) and (switch (e.works.works.get(w)) { case (?x) x.archivedAt == null and x.status != #cancelled; case null false });
+    };
+  };
+
+  func briefingView(e : Env, b : Bot, now : Int) : BriefingViews.BriefingView {
+    Briefing.build({ settings = e.settings; org = e.org; works = e.works; plan = e.plan; reports = e.reports; dossier = e.dossier; permits = e.permits; siteAdmin = e.siteAdmin; quotes = e.quotes; minMeer = e.minMeer; oaRead = e.oaRead; aiCheck = e.aiCheck; invCheck = e.invCheck; purchases = e.purchases }, visibleWork(e, b), func(d : Types.Document) : Bool { Rights.botSeesDocKind(b, d.kind, Dossier.docAccess(e.settings, d).confidential) }, false, now);
+  };
+
+  // Wat wacht er (per werf): de onderdelen van de maandagbriefing zonder de weekplanning, als één lijst (dringendste eerst).
+  func teDoen(e : Env, b : Bot, p : Paging, werf : ?Nat, now : Int) : Json {
+    let v = briefingView(e, b, now);
+    let rows = List.empty<(Text, BriefingViews.BrItem)>();
+    let heads = List.empty<Json>();
+    for (s in v.sections.values()) {
+      if (s.key != "week") {
+        heads.add(#Object([("onderdeel", str(s.key)), ("titel", str(s.title)), ("totaal", num(s.total)), ("getoond", num(s.items.size()))]));
+        for (i in s.items.values()) { if (werf == null or i.workId == werf) rows.add((s.key, i)) };
+      };
+    };
+    let row = func((k, i) : (Text, BriefingViews.BrItem), long : Bool) : Json {
+      let base = [("werf", str(i.workCode)), ("onderdeel", str(k)), ("titel", str(i.title)), ("dagen", switch (i.days) { case (?d) #Number(#Int(d)); case null #Null })];
+      #Object(if long base.concat([("werfId", switch (i.workId) { case (?w) num(w); case null #Null }), ("detail", str(i.detail)), ("dag", optDay(i.day))]) else base);
+    };
+    page(rows.toArray(), p, "punten", row, [("datum", str(isoDay(v.day))), ("onderdelen", #Array(heads.toArray())), ("uitleg", str("Per onderdeel hoogstens " # Config.brMaxItems.toText() # " punten (het dringendste eerst); totaal telt alles. Dagen: tot de dag (negatief = voorbij) of hoe lang het al wacht."))]);
+  };
+
+  type PlanRow = { t : Types.Task; end : Nat };
+  func confKey(c : Types.Confirmation) : Text { switch c { case (#open) "open"; case (#confirmed _) "bevestigd"; case (#declined _) "geweigerd" } };
+
+  // De planning binnen de fiche: taken van de planning die in [van, tot] vallen. Geen notities (vrije tekst), geen personen.
+  func planningTool(e : Env, b : Bot, args : Tool.Args, p : Paging, werf : ?Nat, now : Int) : { #ok : Json; #err : Text } {
+    let td = today(now);
+    let van = switch (Tool.field(args, "van")) { case (null or ?#Null) td; case (?#String(t)) (OaRead.parseDay(t) ?? return #err("van: een datum jjjj-mm-dd")); case _ return #err("van: een datum jjjj-mm-dd") };
+    let tot = switch (Tool.field(args, "tot")) { case (null or ?#Null) van + 27; case (?#String(t)) (OaRead.parseDay(t) ?? return #err("tot: een datum jjjj-mm-dd")); case _ return #err("tot: een datum jjjj-mm-dd") };
+    if (tot < van) return #err("tot: ligt vóór van");
+    if (tot > van + 366) return #err("tot: hoogstens 366 dagen na van");
+    let vis = visibleWork(e, b);
+    let rows = List.empty<PlanRow>();
+    for ((w, ts) in Plan.tasksByWork(e.plan).entries()) {
+      if ((werf == null or werf == ?w) and vis(w)) {
+        let cal = Plan.calFor(e.plan, e.works, w);
+        for (t in ts.values()) {
+          if (t.archivedAt == null) {
+            let end = if (t.workdays == 0) t.start else Plan.endDay(cal, t.start, t.workdays);
+            if (t.start <= tot and end >= van and rows.size() < 5_000) rows.add({ t; end });
+          };
+        };
+      };
+    };
+    let sorted = rows.toArray().sort(func(x : PlanRow, y : PlanRow) : Order.Order = switch (Nat.compare(x.t.start, y.t.start)) { case (#equal) Nat.compare(x.t.id, y.t.id); case o o });
+    // Wie voert uit: enkel de firma's en hun bevestiging, voor de taken op deze pagina (één doorloop).
+    let a0 = Nat.min(p.from, sorted.size());
+    let z0 = Nat.min(a0 + p.size, sorted.size());
+    let onPage = Map.empty<Nat, ()>();
+    for (r in sorted.sliceToArray(a0, z0).values()) onPage.add(r.t.id, ());
+    let assigns = Map.empty<Nat, List.List<Json>>();
+    if (p.long) {
+      for (a in e.plan.assignments.values()) {
+        if (a.archivedAt == null and onPage.containsKey(a.taskId)) {
+          let l = switch (assigns.get(a.taskId)) { case (?x) x; case null { let x = List.empty<Json>(); assigns.add(a.taskId, x); x } };
+          if (l.size() < 10) l.add(#Object([("firma", str(orgName(e, a.orgId))), ("van", optDay(a.fromDay)), ("tot", optDay(a.toDay)), ("bevestiging", str(confKey(a.confirmation)))]));
+        };
+      };
+    };
+    let row = func(r : PlanRow, long : Bool) : Json {
+      let t = r.t;
+      let firm = switch (t.responsibleOrgId) { case (?o) str(orgName(e, o)); case null #Null };
+      let base = [("werf", str(workCode(e, t.workId))), ("taak", str(t.title)), ("start", str(isoDay(t.start))), ("einde", str(isoDay(r.end))), ("firma", firm), ("status", str(Plan.statusKey(t.status)))];
+      if (not long) return #Object(base);
+      #Object(base.concat([
+        ("werfId", num(t.workId)),
+        ("soort", str(Plan.kindKey(t.kind))),
+        ("vak", switch (t.trade) { case (?x) str(x); case null #Null }),
+        ("procent", num(t.percent)),
+        ("werkdagen", num(t.workdays)),
+        ("besteld", switch (t.kind) { case (#delivery) #Bool(t.orderDay != null); case _ #Null }),
+        ("uitvoerders", #Array(switch (assigns.get(t.id)) { case (?l) l.toArray(); case null [] })),
+      ]));
+    };
+    #ok(page(sorted, p, "taken", row, [("van", str(isoDay(van))), ("tot", str(isoDay(tot)))]));
+  };
+
+  // De stand van één werf: tellingen en de volgende stappen, zonder bedragen, zonder namen van personen.
+  func werfStand(e : Env, b : Bot, w : Nat, long : Bool, now : Int) : Json {
+    let td = today(now);
+    let x = e.works.works.get(w);
+    var n = 0; var done = 0; var busy = 0; var late = 0; var blocked = 0; var pct = 0;
+    let next = List.empty<Types.Task>();
+    for (t in Plan.tasksOf(e.plan, w).values()) {
+      if (t.archivedAt == null) {
+        n += 1;
+        pct += t.percent;
+        switch (t.status) { case (#done) done += 1; case (#busy) busy += 1; case (#delayed) late += 1; case (#blocked) blocked += 1; case (#planned) {} };
+        if (t.status != #done) next.add(t);
+      };
+    };
+    let upcoming = next.toArray().sort(func(a : Types.Task, c : Types.Task) : Order.Order = Nat.compare(a.start, c.start));
+    let shown = upcoming.sliceToArray(0, Nat.min(upcoming.size(), if long 10 else 3));
+    let docs = Map.empty<Text, Nat>();
+    let open = List.empty<Json>();
+    for (d in Dossier.docsOf(e.dossier, w).values()) {
+      let acc = Dossier.docAccess(e.settings, d);
+      if (Rights.botSeesDocKind(b, d.kind, acc.confidential)) {
+        let st = docStatusKey(Dossier.effectiveStatus(d));
+        docs.add(st, (docs.get(st) ?? 0) + 1);
+        if (long and (st == "ontbreekt" or st == "verlopen" or st == "gevraagd") and open.size() < 20) open.add(#Object([("soort", str(d.kind)), ("titel", str(d.title)), ("status", str(st)), ("termijn", optDay(d.dueDay))]));
+      };
+    };
+    var quotes = 0;
+    for (q in e.tenders.oaQuotes.values()) { if (q.workId == w and q.status == #received) quotes += 1 };
+    let inv = Map.empty<Text, Nat>();
+    for (id in (e.oaInvoices.byWork.get(w) ?? []).values()) {
+      switch (e.oaInvoices.invoices.get(id)) {
+        case (?i) { let k = switch (i.status) { case (#registered) "te beslissen"; case (#approved) "goedgekeurd"; case (#disputed) "betwist"; case (#withdrawn) "ingetrokken" }; inv.add(k, (inv.get(k) ?? 0) + 1) };
         case null {};
       };
     };
-    #Object([("werfId", num(workId)), ("facturen", #Array(out.toArray()))]);
+    var tasksOpen = 0; var tasksReady = 0;
+    // Review 4b.8 L2: enkel taken van assistenten (geen taken tussen collega's).
+    for (t in Tasks.ofWork(e.tasks, w).values()) {
+      let assistant = switch (t.doer) { case (#bot _ or #app _) true; case _ false };
+      if (assistant) { if (t.state == #ready) tasksReady += 1 else if (not Tasks.isFinal(t.state)) tasksOpen += 1 };
+    };
+    var lastReport : ?Nat = null;
+    for (r in e.reports.reports.values()) {
+      if (r.workId == w) { let d = Int.abs(r.createdAt / Config.day); switch lastReport { case (?l) { if (d > l) lastReport := ?d }; case null lastReport := ?d } };
+    };
+    let counts = func(m : Map.Map<Text, Nat>) : Json {
+      let l = List.empty<(Text, Json)>();
+      for ((k, v) in m.entries()) l.add((k, num(v)));
+      #Object(l.toArray());
+    };
+    #Object([
+      ("werf", switch x { case (?y) #Object([("id", num(w)), ("code", str(y.code)), ("naam", str(y.name)), ("status", str(workStatusKey(y.status))), ("gemeente", str(y.address.city))]); case null #Null }),
+      ("datum", str(isoDay(td))),
+      ("planning", #Object([
+        ("taken", num(n)), ("klaar", num(done)), ("bezig", num(busy)), ("vertraagd", num(late)), ("geblokkeerd", num(blocked)),
+        ("gemiddeldProcent", num(if (n == 0) 0 else pct / n)),
+        ("volgende", #Array(shown.map<Types.Task, Json>(func t = #Object([("taak", str(t.title)), ("start", str(isoDay(t.start))), ("status", str(Plan.statusKey(t.status))), ("firma", switch (t.responsibleOrgId) { case (?o) str(orgName(e, o)); case null #Null })])))),
+      ])),
+      ("documenten", counts(docs)),
+      ("documentenOpen", if long #Array(open.toArray()) else #Null),
+      ("oaOffertes", num(quotes)),
+      ("oaFacturen", counts(inv)),
+      ("taakjesAssistenten", #Object([("open", num(tasksOpen)), ("voorstelKlaar", num(tasksReady))])),
+      ("laatsteVerslag", optDay(lastReport)),
+      ("vorm", str(if long "uitgebreid" else "kort")),
+    ]);
+  };
+
+  // Enkel de assistent van de zaakvoerder: de facturen van onderaannemers die op een beslissing wachten, zonder bedragen.
+  func facturenWachten(e : Env, b : Bot, p : Paging, werf : ?Nat, now : Int) : Json {
+    let vis = visibleWork(e, b);
+    let td = today(now);
+    let check = Map.empty<Nat, Text>();
+    for (j in e.invCheck.jobs.values()) {
+      let k = switch (j.status) { case (#open) "opdracht loopt"; case (#proposed) "voorstel klaar"; case _ "" };
+      if (k != "") check.add(j.invoiceId, k);
+    };
+    let rows = List.empty<Types.OaInvoice>();
+    for (i in e.oaInvoices.invoices.values()) {
+      if (i.status == #registered and (werf == null or werf == ?i.workId) and vis(i.workId) and rows.size() < 5_000) rows.add(i);
+    };
+    let sorted = rows.toArray().sort(func(a : Types.OaInvoice, c : Types.OaInvoice) : Order.Order = Nat.compare(a.dueDay ?? a.invoiceDay, c.dueDay ?? c.invoiceDay));
+    let row = func(i : Types.OaInvoice, long : Bool) : Json {
+      let base = [("werf", str(workCode(e, i.workId))), ("firma", str(orgName(e, i.orgId))), ("nummer", str(i.number)), ("vervaldag", optDay(i.dueDay))];
+      if (not long) return #Object(base);
+      #Object(base.concat([("werfId", num(i.workId)), ("factuurId", num(i.id)), ("factuurdatum", str(isoDay(i.invoiceDay))), ("dagenTotVervaldag", switch (i.dueDay) { case (?d) #Number(#Int((d : Int) - (td : Int))); case null #Null }), ("bijlage", #Bool(i.fileId != null)), ("controle", str(check.get(i.id) ?? "geen"))]));
+    };
+    page(sorted, p, "facturen", row, [("uitleg", str("Facturen die op een beslissing van BOWACO wachten (vroegste vervaldag eerst). Beslissen doet BOWACO in de app."))]);
   };
 
   // ── Schrijven: acties ───────────────────────────────────────────────────

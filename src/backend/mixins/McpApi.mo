@@ -35,6 +35,7 @@ import Ids "../lib/Ids";
 import Proof "../lib/Proof";
 import Rights "../lib/Rights";
 import OaRead "../lib/OaRead";
+import Tasks "../lib/Tasks";
 
 mixin (
   settings : Types.SettingsState,
@@ -67,9 +68,11 @@ mixin (
   audit : Types.AuditState,
   ctr : Types.Counters,
   syncTasks : () -> (), // 4b.5: het model van taak en voorstel gelijkzetten na een wijziging (lib/Tasks.mo)
+  tasks : Types.TaskStore, // 4b.8: vrije taken van een assistent, en enkel de geraakte dossiers gelijkzetten (review M2 van 4b.5)
 ) {
 
-  func botEnv() : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; plan; reports; workStarts; surveys; purchases; invCheck; permits; siteAdmin; minMeer; library; quoteForms; aiCheck; audit; ctr } };
+  func botEnvT(touched : List.List<Types.TaskSrc>) : Bots.Env { { settings; access; org; works; files; dossier; tenders; oaInvoices; bots; proof; oa; quotes; oaDeals; oaRead; plan; reports; workStarts; surveys; purchases; invCheck; permits; siteAdmin; minMeer; library; quoteForms; aiCheck; audit; ctr; tasks; touched } };
+  func botEnv() : Bots.Env { botEnvT(List.empty<Types.TaskSrc>()) };
 
   func requireBotAdmin(caller : Principal) : Types.Person {
     let p = Access.requireActive(access, caller);
@@ -164,18 +167,50 @@ mixin (
     // 3.8: een bestand als bijlage (inleesbestand, proef_bestand). Het pakket geeft enkel tekstinhoud terug; deze ene oproep
     // beantwoorden we zelf met MCP-inhoud (image of resource met base64). Enkel een gewone POST op /mcp met een geldig token en
     // één JSON-RPC-bericht; al de rest (ook een batch) gaat naar het pakket.
+    // 4b.8: wat deze oproep aan opdrachten, acties en vrije taken raakte (Bots.call vult het); enkel dat gaat naar het model.
+    let touched = List.empty<Types.TaskSrc>();
     switch (who) {
-      case (?_) switch (mcpContent(req)) { case (?r) { syncTasks(); return r }; case null {} };
+      // Een bijlage verandert niets aan een opdracht: geen gelijkzetting nodig (review M2 van 4b.5).
+      case (?b) {
+        switch (mcpContent(req)) { case (?r) return r; case null {} };
+        // 4b.8: een tool die niet in de lijst van deze bot staat, krijgt een weigering die zegt wat wel mag (en een regel in het
+        // logboek: vraag E9 van 3.12). Nog altijd een protocolfout (-32602), zoals de MCP-specificatie vraagt.
+        switch (unknownTool(req, b, touched)) { case (?r) return r; case null {} };
+      };
       case null {};
     };
-    let server : Mcp.Server = { name = "BOWACO"; version = "3.12"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnv(), who) };
+    let server : Mcp.Server = { name = "BOWACO"; version = "4b.8"; instructions = Bots.instructions(); tools = Bots.toolsFor(botEnvT(touched), who) };
     let out = switch (await* Mcp.handleUpdate(bots.oauth, server, req)) { case (?r) r; case null Http.notFound() };
-    // 4b.5: wat een tool-oproep aan een opdracht of voorstel veranderde, staat meteen ook in het model van taak en voorstel.
-    if (who != null) syncTasks();
+    // 4b.5 + 4b.8 (review M2): enkel wat de tool-oproep aan een opdracht, voorstel of vrije taak veranderde, staat meteen in het model;
+    // de volledige ronde blijft voor de klok en de schermen.
+    if (who != null and touched.size() > 0) ignore Tasks.syncSome(tasks, { oaRead; aiCheck; invCheck; bots; tenders }, touched.toArray(), Time.now());
     // 3.12 (review M3): een code van een intussen ingetrokken bot leverde bij het inwisselen nog een koppeling op: die gaat hier weg.
     if (path0 == "/token") dropInactiveGrants();
     out;
   };
+
+  // 4b.8: een oproep van een tool die niet op de fiche staat (of niet bestaat). Enkel een klein verzoek (zoals mcpContent) en één
+  // JSON-RPC-bericht; de rest gaat naar het pakket ("Unknown tool"). Bots.call telt de oproep, logt ze en geeft de tekst.
+  func unknownTool(req : Http.Request, b : Types.Bot, touched : List.List<Types.TaskSrc>) : ?Http.Response {
+    let path = Http.path(req.url);
+    if ((path != "/mcp" and path != "/mcp/") or req.method.toUpper() != "POST") return null;
+    if (req.body.size() > Config.mcpMaxContentCall * 4) return null;
+    let body = Http.bodyText(req) ?? return null;
+    if (not body.contains(#text "tools/call")) return null;
+    let #Object(fs) = Json.parse(body) ?? return null else return null;
+    let get = func(xs : [(Text, Json.Json)], k : Text) : ?Json.Json { switch (xs.find(func((a, _) : (Text, Json.Json)) : Bool = a == k)) { case (?(_, v)) ?v; case null null } };
+    if (get(fs, "method") != ?#String("tools/call") or get(fs, "jsonrpc") != ?#String("2.0")) return null;
+    let id = switch (get(fs, "id")) { case (?#String(t)) #String(t); case (?#Number(n)) #Number(n); case _ return null };
+    let #Object(params) = get(fs, "params") ?? return null else return null;
+    let name = switch (get(params, "name")) { case (?#String(n)) n; case _ return null };
+    let env = botEnvT(touched);
+    if (Bots.toolsFor(env, ?b).any(func(t : Tool.Tool) : Bool = t.name == name)) return null;
+    let args : [(Text, Json.Json)] = switch (get(params, "arguments")) { case (?#Object(a)) a; case _ [] };
+    // Een tool van de fiche die tijdens een proefronde niet werkt: de uitleg van de proefronde (Bots.call); al de rest: wat wel mag.
+    let msg = if (b.tools.any(func(t : Text) : Bool = t == name) and name != "inleesbestand" and name != "controlebestand") (switch (Bots.call(env, req_caller(b), name, args)) { case (#err(m)) m; case (#ok(_)) "Onbekende tool" }) else Bots.refuseUnknown(env, req_caller(b), name, args);
+    ?Reply.json(200, #Object([("jsonrpc", #String("2.0")), ("id", id), ("error", #Object([("code", #Number(#Int(-32602))), ("message", #String("Unknown tool: " # OaRead.txt(name, 60) # ". " # msg))]))]));
+  };
+  func req_caller(b : Types.Bot) : Principal { switch (b.principal) { case (?p) p; case null Principal.anonymous() } };
 
   func mcpContent(req : Http.Request) : ?Http.Response {
     let path = Http.path(req.url);
@@ -337,6 +372,7 @@ mixin (
     {
       id = b.id;
       name = b.name;
+      kind = if (Bots.isOwnerBot(b)) "zaakvoerder" else "";
       vendor = b.vendor;
       model = b.model;
       principal = b.principal;
@@ -399,6 +435,16 @@ mixin (
     for (t in i.tools.values()) {
       if (Rights.botTaskOf(t) == null) { return #err("Onbekende tool: " # t) };
     };
+    // 4b.8: de assistent van de zaakvoerder: een bredere leesfiche (ook facturen_wachten), schrijft enkel voorstellen (geen tool van
+    // een taak die iets doet, nergens Zelf doen). Claude koppelt nooit als persoon: ook deze assistent is een bot met een fiche.
+    let owner : Bool = switch (i.id) { case (?id) switch (bots.bots.get(id)) { case (?b) Bots.isOwnerBot(b); case null false }; case null false };
+    for (t in i.tools.values()) {
+      if (not owner and Config.botOwnerTools().any(func x = x == t)) { return #err("De tool " # t # " hoort enkel bij de assistent van de zaakvoerder") };
+      if (owner and Rights.botTaskOf(t) != ?"") { return #err("De assistent van de zaakvoerder leest en stelt enkel voor: de tool " # t # " hoort bij een taak die iets doet") };
+    };
+    if (owner) {
+      for ((k, l) in i.tasks.values()) { if (l == #auto) return #err("De assistent van de zaakvoerder doet nooit zelf iets: zet " # k # " op Voorstel of Nooit") };
+    };
     if (i.works.size() > 500 or not uniq<Nat>(i.works, Nat.equal)) { return #err("Werven: elke werf hoogstens één keer") };
     for (w in i.works.values()) {
       switch (works.works.get(w)) { case (?x) { if (x.archivedAt != null) return #err("Werf #" # w.toText() # " is gearchiveerd") }; case null return #err("Onbekende werf #" # w.toText()) };
@@ -429,7 +475,7 @@ mixin (
       };
     };
     let withInstr = func(x : Types.Extra) : Types.Extra {
-      x.filter(func((a, _) : (Text, Text)) : Bool = a != "instructie").concat(if (instructionNew == "") [] else [("instructie", instructionNew)]);
+      x.filter(func((a, _) : (Text, Text)) : Bool = a != "instructie" and a != "soort").concat(if (instructionNew == "") [] else [("instructie", instructionNew)]).concat(if owner [("soort", "zaakvoerder")] else []);
     };
     let now = Time.now();
     switch (i.id) {
@@ -471,6 +517,24 @@ mixin (
         #ok(id);
       };
     };
+  };
+
+  // 4b.8: de soort van een assistent: de assistent van de zaakvoerder (bredere leesfiche, enkel voorstellen) of een gewone. Wordt hij
+  // de assistent van de zaakvoerder, dan gaan de tools die iets doen van zijn fiche en staat niets meer op Zelf doen; terug gewoon:
+  // facturen_wachten gaat weg. De fiche zelf blijft saveBot (met rev-controle).
+  public shared ({ caller }) func setBotKind(botId : Nat, rev : Nat, owner : Bool) : async Result.Result<(), Text> {
+    let p = requireBotAdmin(caller);
+    let b = bots.bots.get(botId) ?? return #err("Onbekende bot");
+    if (b.revokedAt != null) { return #err("Deze bot is ingetrokken") };
+    if (b.rev != rev) { return #err("Intussen gewijzigd: herlaad de fiche") };
+    if (Bots.isOwnerBot(b) == owner) { return #ok };
+    let tools = b.tools.filter(func(t : Text) : Bool = if owner (Rights.botTaskOf(t) == ?"") else not Config.botOwnerTools().any(func x = x == t));
+    let tasks = if owner b.tasks.map<(Text, Types.BotLevel), (Text, Types.BotLevel)>(func(x) = (x.0, if (x.1 == #auto) #proposal else x.1)) else b.tasks;
+    let extra = b.extra.filter(func((a, _) : (Text, Text)) : Bool = a != "soort").concat(if owner [("soort", "zaakvoerder")] else []);
+    let now = Time.now();
+    bots.bots.add(botId, { b with tools; tasks; extra; rev = b.rev + 1; updatedAt = now; updatedBy = p.id });
+    Access.audit(audit, caller, ?p.id, null, "bot-soort", "bot #" # botId.toText() # (if owner " zaakvoerder" else " gewoon"));
+    #ok;
   };
 
   // Een eenmalige koppelcode (24 u) voor een bot die nog geen Internet Identity heeft. De code staat enkel in dit antwoord.

@@ -57,6 +57,7 @@ const EXCEPT = [
   ["texts/nl.ts", "Een beveiligd inlogsysteem zonder wachtwoord", "uitleg ⓘ bij het inlogscherm"],
   ["screens/MijnOfferte.tsx", "mq-hash", "CSS-klasse, geen schermtekst"],
   ["app/App.tsx", "toegang is nog niet bevestigd of is stopgezet", "herkent de melding van het kantoor, niet getoond"],
+  ["screens/Voorstel.tsx", "vp-lijn", "CSS-klasse, geen schermtekst"],
 ];
 
 function walk(dir, out = []) {

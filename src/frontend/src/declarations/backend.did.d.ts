@@ -837,6 +837,7 @@ export interface BotView {
   'tools' : Array<string>,
   'codePending' : boolean,
   'effective' : Array<[string, BotLevel]>,
+  'kind' : string,
   'name' : string,
   'createdAt' : bigint,
   'docKinds' : Array<string>,
@@ -1824,6 +1825,12 @@ export interface FrozenPost {
   'unitCents' : [] | [bigint],
   'root' : bigint,
   'unit' : string,
+}
+export interface GiveBotTaskInput {
+  'title' : string,
+  'dueDay' : [] | [bigint],
+  'botId' : bigint,
+  'workId' : [] | [bigint],
 }
 export interface GiveTaskInput {
   'title' : string,
@@ -8809,6 +8816,7 @@ export interface _SERVICE {
   'getReportDay' : ActorMethod<[bigint, bigint], Array<ReportView>>,
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
+  'giveBotTask' : ActorMethod<[GiveBotTaskInput], Result_7>,
   'giveTask' : ActorMethod<[GiveTaskInput], Result_7>,
   'handleIssue' : ActorMethod<[bigint, string], Result_1>,
   'handoverDoc' : ActorMethod<[bigint], Result_91>,
@@ -8901,6 +8909,7 @@ export interface _SERVICE {
   'listReports' : ActorMethod<[bigint, bigint, bigint], Array<ReportSummary>>,
   'listRobots' : ActorMethod<[], Array<RobotView>>,
   'listSales' : ActorMethod<[bigint], Array<SalesBrief>>,
+  'listTaskBots' : ActorMethod<[], Array<Colleague>>,
   'listTasks' : ActorMethod<[AssistTaskQuery], AssistTaskPage>,
   'listTasksFor' : ActorMethod<[AssistTaskForQuery], AssistTaskSeenPage>,
   'listTechSheets' : ActorMethod<[boolean], Array<TechSheetView>>,
@@ -9159,6 +9168,7 @@ export interface _SERVICE {
     Result_1
   >,
   'setBoardRules' : ActorMethod<[BoardRulesInput], Result_1>,
+  'setBotKind' : ActorMethod<[bigint, bigint, boolean], Result_1>,
   'setCapacity' : ActorMethod<[string, [] | [bigint], string], Result_1>,
   'setContract' : ActorMethod<[bigint, ContractInput, bigint], Result_7>,
   'setDocKind' : ActorMethod<[DocKindInput], Result_1>,

@@ -9,6 +9,7 @@ module {
   public type BotView = {
     id : Nat;
     name : Text;
+    kind : Text; // 4b.8: "zaakvoerder" of "" (gewone assistent)
     vendor : Text;
     model : Text;
     principal : ?Principal;

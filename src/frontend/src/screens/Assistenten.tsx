@@ -64,7 +64,8 @@ export function TaakGeven({ werf, kind, onClose, go }: { werf?: bigint; kind?: s
   const on = !!actor && !isFetching;
   const qc = useQueryClient();
   const toast = useToast();
-  const [soort, setSoort] = useState<"mens" | "assistent">(kind ? "assistent" : "mens");
+  const [soort, setSoort] = useState<"mens" | "assistent" | "vrij">(kind ? "assistent" : "mens");
+  const [bot, setBot] = useState("");
   const [werfKeuze, setWerfKeuze] = useState(werf !== undefined ? String(werf) : "");
   const [wie, setWie] = useState("");
   const [tekst, setTekst] = useState("");
@@ -73,19 +74,24 @@ export function TaakGeven({ werf, kind, onClose, go }: { werf?: bigint; kind?: s
   const works = useQuery({ queryKey: ["works"], queryFn: () => actor!.listWorks(), enabled: on });
   const cols = useQuery({ queryKey: ["collegas", werfKeuze], queryFn: () => actor!.listColleagues(werfKeuze ? BigInt(werfKeuze) : null), enabled: on && soort === "mens", retry: 0 });
   const ass = useAssistenten();
+  // 4b.8: een vrije taak aan een assistent (enkel de beheerder: de lijst geeft anders geen toegang en de keuze verschijnt niet).
+  const vrijQ = useQuery({ queryKey: ["taakBots"], queryFn: () => actor!.listTaskBots(), enabled: on, retry: 0, staleTime: 60_000 });
+  const magVrij = vrijQ.isSuccess;
   const geef = useMutation({
-    mutationFn: async () => unwrap(await actor!.giveTask({ doerId: BigInt(wie), workId: werfKeuze ? BigInt(werfKeuze) : undefined, title: tekst.trim(), dueDay: dag ? inputToDay(dag) : undefined })),
+    mutationFn: async () => unwrap(soort === "vrij"
+      ? await actor!.giveBotTask({ botId: BigInt(bot), workId: werfKeuze ? BigInt(werfKeuze) : undefined, title: tekst.trim(), dueDay: dag ? inputToDay(dag) : undefined })
+      : await actor!.giveTask({ doerId: BigInt(wie), workId: werfKeuze ? BigInt(werfKeuze) : undefined, title: tekst.trim(), dueDay: dag ? inputToDay(dag) : undefined })),
     onSuccess: () => { toast.show({ kind: "ok", text: A.gegeven }); for (const k of ["taken", "todo"]) void qc.invalidateQueries({ queryKey: [k] }); onClose(); },
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   const route = plek(welke, werfKeuze);
   return (
-    <Sheet title={A.geefTitel} open side onClose={onClose} footer={soort === "mens"
-      ? <><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={geef.isPending} disabled={!wie || tekst.trim().length < 3} onClick={() => geef.mutate()} data-testid="geef-ok">{A.geven}</Button></>
+    <Sheet title={A.geefTitel} open side onClose={onClose} footer={soort !== "assistent"
+      ? <><Button onClick={onClose}>{t.common.cancel}</Button><Button variant="primary" busy={geef.isPending} disabled={(soort === "mens" ? !wie : !bot) || tekst.trim().length < 3} onClick={() => geef.mutate()} data-testid="geef-ok">{A.geven}</Button></>
       : <><Button onClick={onClose}>{t.common.close}</Button>{go && route && <Button variant="primary" onClick={() => { onClose(); go(route); }} data-testid="geef-plek">{A.naarPlek}</Button>}</>}>
       <p className="bw-muted">{A.geefLead}</p>
       <Field label={A.wie}>
-        <Choice label={A.wie} value={soort} onChange={setSoort} options={[{ value: "mens", label: A.collegas }, { value: "assistent", label: A.assistenten }]} />
+        <Choice label={A.wie} value={soort} onChange={setSoort} options={[{ value: "mens", label: A.collegas }, { value: "assistent", label: A.assistenten }, ...(magVrij ? [{ value: "vrij" as const, label: A.vrij }] : [])]} />
       </Field>
       <Field label={A.werf}>
         <select className="bw-input" value={werfKeuze} onChange={(e) => { setWerfKeuze(e.target.value); setWie(""); }} data-testid="geef-werf">
@@ -93,14 +99,27 @@ export function TaakGeven({ werf, kind, onClose, go }: { werf?: bigint; kind?: s
           {(works.data ?? []).map((w) => <option key={String(w.id)} value={String(w.id)}>{w.code}</option>)}
         </select>
       </Field>
-      {soort === "mens" && (
+      {soort === "vrij" && (
         <>
-          <Field label={A.collegas}>
+          <p className="bw-muted">{A.vrijUitleg}</p>
+          {(vrijQ.data ?? []).length === 0 ? <p className="a-empty">{A.geenVrij}</p> : (
+            <Field label={A.assistenten}>
+              <select className="bw-input" value={bot} onChange={(e) => setBot(e.target.value)} data-testid="geef-bot">
+                <option value="">{A.kiesAssistent}</option>
+                {(vrijQ.data ?? []).map((c) => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
+              </select>
+            </Field>
+          )}
+        </>
+      )}
+      {(soort === "mens" || soort === "vrij") && (
+        <>
+          {soort === "mens" && <Field label={A.collegas}>
             <select className="bw-input" value={wie} onChange={(e) => setWie(e.target.value)} data-testid="geef-wie">
               <option value="">{A.kiesCollega}</option>
               {(cols.data ?? []).map((c) => <option key={String(c.id)} value={String(c.id)}>{c.name}</option>)}
             </select>
-          </Field>
+          </Field>}
           <Field label={A.omschrijving}>
             <textarea className="bw-input" rows={3} maxLength={160} value={tekst} placeholder={A.omschrijvingHint} onChange={(e) => setTekst(e.target.value)} data-testid="geef-tekst" />
           </Field>
@@ -144,6 +163,15 @@ export function TaakVenster({ taskKey, onClose }: { taskKey: string; onClose: ()
   });
   const k = g?.task;
   const open = k && (k.state === "wacht" || k.state === "bezig");
+  // 4b.8: het antwoord van een assistent op een vrije taak: aanvaarden of weigeren (enkel de beheerder gaf deze taak).
+  const vanBot = !!k && k.doer.startsWith("bot:");
+  const actie = k?.proposal?.state === "open" ? k.proposal.actionId : undefined;
+  const uitkomst = k?.proposal?.points.find((x) => x.key === "uitkomst")?.after ?? "";
+  const beslis = useMutation({
+    mutationFn: async (ja: boolean) => unwrap(await actor!.decideBotAction(actie!, ja, "")),
+    onSuccess: (_r, ja) => { toast.show({ kind: "ok", text: ja ? t.voorstel.aanvaardOk : t.voorstel.weigerOk }); for (const x of ["taken", "todo"]) void qc.invalidateQueries({ queryKey: [x] }); },
+    onError: (e) => toast.show({ kind: "error", text: errText(e) }),
+  });
   const uitvoerder = !!k && k.doer === ik;
   const gever = !!k && k.givenBy === ik;
   return (
@@ -154,7 +182,13 @@ export function TaakVenster({ taskKey, onClose }: { taskKey: string; onClose: ()
           <div className="a-row"><StandTag stand={k.state} />{k.workCode && <Tag code>{k.workCode}</Tag>}</div>
           {g.full ? <h2 className="bw-h2" data-testid="taak-titel">{k.title}</h2> : <p className="bw-muted" data-testid="taak-kort">{A.kort}</p>}
           <p className="bw-muted">{A.gaf(k.givenByName)} · {A.voor(k.doerName)}{k.dueDay !== undefined ? ` · ${A.uiterlijkOp(fmtDayNum(k.dueDay))}` : ""}</p>
-          {k.reason && <p><b>{A.reden}:</b> {k.reason}</p>}
+          {k.reason && <p data-testid="taak-reden"><b>{vanBot ? A.antwoord : A.reden}{vanBot && uitkomst ? ` (${A.uitkomst[uitkomst] ?? uitkomst})` : ""}:</b> {k.reason}</p>}
+          {vanBot && g.full && actie !== undefined && (
+            <div className="a-row">
+              <Button variant="primary" busy={beslis.isPending && beslis.variables === true} onClick={() => beslis.mutate(true)} data-act="taak-aanvaarden">{t.voorstel.aanvaarden}</Button>
+              <Button variant="quiet" busy={beslis.isPending && beslis.variables === false} onClick={() => beslis.mutate(false)} data-act="taak-weigeren">{t.voorstel.weigeren}</Button>
+            </div>
+          )}
           {g.full && open && (
             <div className="a-row">
               {uitvoerder && k.state === "wacht" && <Button variant="secondary" busy={stap.isPending && stap.variables === TaskStep.start} onClick={() => stap.mutate(TaskStep.start)} data-act="taak-start">{A.begin}</Button>}

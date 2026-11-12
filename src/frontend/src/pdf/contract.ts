@@ -115,7 +115,7 @@ export async function contractPdf(d: ContractPdfData, fonts: PdfFonts): Promise<
   y -= 24;
   para(d.title, F.b, 15, INK, 19);
   para(`${d.firm} · werf ${d.work}`, F.m, 10, GRAY);
-  if (d.provisional) { y -= 2; para("VOORLOPIGE TEKST: nog na te kijken door BOWACO en een jurist.", F.m, 8.5, WARN); }
+  if (d.provisional) { y -= 2; para("ONTWERPTEKST: nog na te kijken door BOWACO en een jurist.", F.m, 8.5, WARN); }
   y -= 10;
   // ── De tekst (artikels) ──
   for (const l of d.text.split(/\r?\n/)) {

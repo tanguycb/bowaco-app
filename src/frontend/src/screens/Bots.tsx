@@ -58,7 +58,7 @@ export function Bots() {
   const workCode = new Map((works.data ?? []).map((w) => [String(w.id), w.code]));
 
   const cols: Column<BotView>[] = [
-    { key: "name", label: B.cols.name, render: (b) => <b>{b.name}</b> },
+    { key: "name", label: B.cols.name, render: (b) => <b>{b.name}{b.kind === "zaakvoerder" ? ` · ${B.form.kindOwner}` : ""}</b> },
     { key: "vendor", label: B.cols.vendor, render: (b) => [b.vendor, b.model, b.instruction].filter(Boolean).join(" · ") || "–" },
     { key: "linked", label: B.cols.linked, render: (b) => (b.principal ? B.linked : b.codePending ? B.codeRuns : B.notLinked) },
     { key: "works", label: B.cols.works, render: (b) => (b.allWorks ? B.allWorks : b.works.map((w) => workCode.get(String(w)) ?? `#${String(w)}`).join(", ") || "–") },
@@ -152,6 +152,17 @@ function BotSheet({ bot, info, works, kinds, onClose, onSaved }: { bot: BotView 
     return p.passed ? B.form.proofOk(String(p.right), String(p.counted), pct) : B.form.proofLow(String(p.right), String(p.counted), pct);
   };
   const [tools, setTools] = useState<string[]>(bot?.tools ?? ["mijn_fiche", "werven"]);
+  // 4b.8: de assistent van de zaakvoerder (bredere leesfiche, enkel voorstellen; de backend controleert het ook).
+  const [owner, setOwnerRaw] = useState(bot?.kind === "zaakvoerder");
+  // Review 4b.8 M1: wat al bewaard is (soort en rev), zodat een tweede poging na een fout niet met een oude rev vertrekt.
+  const [saved, setSaved] = useState<{ rev: bigint; owner: boolean }>({ rev: bot?.rev ?? 0n, owner: bot?.kind === "zaakvoerder" });
+  const ownerTools = info.tools.filter((x) => x.readOnly).map((x) => x.name);
+  // Bij het wisselen van soort meteen de fiche passend maken (geen verborgen tools, geen Zelf doen bij de zaakvoerder).
+  const setOwner = (v: boolean) => {
+    setOwnerRaw(v);
+    setTools((ts) => (v ? ts.filter((x) => ownerTools.includes(x)) : ts.filter((x) => x !== "facturen_wachten")));
+    if (v) setTasks((ts) => Object.fromEntries(Object.entries(ts).map(([k, l]) => [k, l === BotLevel.auto ? BotLevel.proposal : l])));
+  };
   const [allWorks, setAllWorks] = useState(bot?.allWorks ?? false);
   const [ws, setWs] = useState<string[]>((bot?.works ?? []).map(String));
   const [dk, setDk] = useState<string[]>(bot?.docKinds ?? []);
@@ -162,12 +173,22 @@ function BotSheet({ bot, info, works, kinds, onClose, onSaved }: { bot: BotView 
     mutationFn: async () => {
       const n = Number(calls);
       if (!Number.isInteger(n) || n <= 0) throw new Error(F.calls);
-      unwrap(await actor!.saveBot({
-        id: bot?.id, rev: bot?.rev ?? 0n, name: name.trim(), vendor: vendor.trim(), model: model.trim(), tools, allWorks,
+      // 4b.8: eerst de soort (een bestaande bot), dan de fiche met de nieuwe rev. Een nieuwe bot: eerst de fiche zonder de tool van
+      // de zaakvoerder, dan de soort, dan (als die tool erbij moet) de fiche nog eens.
+      let rev = saved.rev;
+      if (bot && saved.owner !== owner) { unwrap(await actor!.setBotKind(bot.id, rev, owner)); rev += 1n; setSaved({ rev, owner }); }
+      const first = !bot && owner ? tools.filter((x) => x !== "facturen_wachten") : tools;
+      const input = (id: bigint | undefined, r: bigint, ts: string[]) => ({
+        id, rev: r, name: name.trim(), vendor: vendor.trim(), model: model.trim(), tools: ts, allWorks,
         works: allWorks ? [] : ws.map((w) => BigInt(w)), docKinds: dk, callsPerDay: BigInt(n),
         tasks: info.tasks.map((x) => [x.key, tasks[x.key] ?? BotLevel.proposal] as [string, BotLevel]),
         instruction: instruction.trim(),
-      }));
+      });
+      const id = unwrap(await actor!.saveBot(input(bot?.id, rev, first)));
+      if (!bot && owner) {
+        unwrap(await actor!.setBotKind(id, 1n, true));
+        if (first.length !== tools.length) unwrap(await actor!.saveBot(input(id, 2n, tools)));
+      }
     },
     onSuccess: onSaved,
   });
@@ -183,9 +204,18 @@ function BotSheet({ bot, info, works, kinds, onClose, onSaved }: { bot: BotView 
       </div>
       <Field label={F.instruction}><input className="bw-input" value={instruction} maxLength={60} onChange={(e) => setInstruction(e.target.value)} /></Field>
       <p className="bw-muted">{F.instructionHelp}</p>
+      <Field label={F.kind}>
+        <Choice label={F.kind} value={owner ? "owner" : "normal"} onChange={(v) => setOwner(v === "owner")} options={[{ value: "normal", label: F.kindNormal }, { value: "owner", label: F.kindOwner }]} />
+      </Field>
+      {owner && (
+        <div className="a-stack">
+          <p className="bw-muted">{F.kindHelp}</p>
+          <div><Button variant="secondary" size="sm" onClick={() => { setTools(ownerTools); setAllWorks(true); setTasks(Object.fromEntries(info.tasks.map((x) => [x.key, x.key === "vrije-taak" ? BotLevel.proposal : BotLevel.never] as [string, BotLevel]))); }} data-testid="bot-owner-preset">{F.ownerPreset}</Button></div>
+        </div>
+      )}
       <fieldset className="bw-field">
         <legend className="bw-label">{F.tools}</legend>
-        {info.tools.map((x) => (
+        {info.tools.filter((x) => owner ? ownerTools.includes(x.name) : x.name !== "facturen_wachten").map((x) => (
           <label key={x.name} className="a-check"><input type="checkbox" checked={tools.includes(x.name)} onChange={() => toggle(tools, x.name, setTools)} /> {B.tool[x.name] ?? x.name}</label>
         ))}
       </fieldset>

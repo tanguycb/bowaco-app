@@ -668,6 +668,10 @@ const table = {
   giveTask: [INTERNAL, () => [{ doerId: 0n, workId: [], title: "", dueDay: [] }]],
   stepTask: [INTERNAL, () => [999999n, { start: null }, ""]],
   listAssistants: [INTERNAL, () => []],
+  // 4b.8: een vrije taak aan een assistent, de assistenten die er een kunnen krijgen en de soort van een assistent (enkel de beheerder).
+  giveBotTask: [ADMIN, () => [{ botId: 999999n, workId: [], title: "", dueDay: [] }]],
+  listTaskBots: [ADMIN, () => []],
+  setBotKind: [ADMIN, () => [999999n, 0n, true]],
   exportIntern: [ADMIN, () => []],
   exportConfidential: [ADMIN, () => []],
   exportChunk: [ADMIN, () => ["persons", 0n, 1n]], // 1.9: export in stukken (O-11)
@@ -787,6 +791,9 @@ for (const k of Object.keys(table)) if (!methods.includes(k)) console.log(`· ta
     tries.push(["controleopdrachten", {}], ["controlebestand", { opdracht: 1 }], ["voorstel_factuurcontrole", { opdracht: 1, voorstel: "goedkeuren" }]);
     // 3.9 + 3.11: nakijkopdrachten buiten de fiche.
     tries.push(["vergelijkopdrachten", {}], ["voorstel_vergelijking", { opdracht: 1 }], ["naleesopdrachten", {}], ["opmerkingen_offerte", { opdracht: 1, oordeel: "in_orde" }]);
+    // 4b.8: de nieuwe tools buiten de fiche (taken, voorstel, te_doen, planning, werf_stand, facturen_wachten), ook met een geraden taak.
+    tries.push(["taken", {}], ["taken", { taak: "oaread:1" }], ["taken", { taak: "taak:1" }], ["voorstel", { taak: "taak:1", inhoud: { uitkomst: "klaar", antwoord: "x" } }], ["te_doen", {}], ["facturen_wachten", {}]);
+    for (const w of ids) tries.push(["planning", { werfId: w }], ["werf_stand", { werfId: w }], ["te_doen", { werfId: w }]);
     let botCalls = 0;
     for (const [n, a] of tries) {
       botCalls++;

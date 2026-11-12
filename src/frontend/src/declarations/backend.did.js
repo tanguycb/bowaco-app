@@ -4345,6 +4345,12 @@ export const ReportView = IDL.Record({
   'workDone' : IDL.Vec(WorkDoneView),
   'totalMinutes' : IDL.Nat,
 });
+export const GiveBotTaskInput = IDL.Record({
+  'title' : IDL.Text,
+  'dueDay' : IDL.Opt(IDL.Nat),
+  'botId' : IDL.Nat,
+  'workId' : IDL.Opt(IDL.Nat),
+});
 export const GiveTaskInput = IDL.Record({
   'title' : IDL.Text,
   'doerId' : IDL.Nat,
@@ -4707,6 +4713,7 @@ export const BotView = IDL.Record({
   'tools' : IDL.Vec(IDL.Text),
   'codePending' : IDL.Bool,
   'effective' : IDL.Vec(IDL.Tuple(IDL.Text, BotLevel)),
+  'kind' : IDL.Text,
   'name' : IDL.Text,
   'createdAt' : IDL.Int,
   'docKinds' : IDL.Vec(IDL.Text),
@@ -9305,6 +9312,7 @@ export const idlService = IDL.Service({
     ),
   'getSettings' : IDL.Func([], [SettingsView], ['query']),
   'getWork' : IDL.Func([IDL.Nat], [WorkView], ['query']),
+  'giveBotTask' : IDL.Func([GiveBotTaskInput], [Result_7], []),
   'giveTask' : IDL.Func([GiveTaskInput], [Result_7], []),
   'handleIssue' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
   'handoverDoc' : IDL.Func([IDL.Nat], [Result_91], ['query']),
@@ -9463,6 +9471,7 @@ export const idlService = IDL.Service({
     ),
   'listRobots' : IDL.Func([], [IDL.Vec(RobotView)], ['query']),
   'listSales' : IDL.Func([IDL.Nat], [IDL.Vec(SalesBrief)], ['query']),
+  'listTaskBots' : IDL.Func([], [IDL.Vec(Colleague)], ['query']),
   'listTasks' : IDL.Func([AssistTaskQuery], [AssistTaskPage], ['query']),
   'listTasksFor' : IDL.Func(
       [AssistTaskForQuery],
@@ -9828,6 +9837,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'setBoardRules' : IDL.Func([BoardRulesInput], [Result_1], []),
+  'setBotKind' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Bool], [Result_1], []),
   'setCapacity' : IDL.Func(
       [IDL.Text, IDL.Opt(IDL.Nat), IDL.Text],
       [Result_1],
@@ -14245,6 +14255,12 @@ export const idlFactory = ({ IDL }) => {
     'workDone' : IDL.Vec(WorkDoneView),
     'totalMinutes' : IDL.Nat,
   });
+  const GiveBotTaskInput = IDL.Record({
+    'title' : IDL.Text,
+    'dueDay' : IDL.Opt(IDL.Nat),
+    'botId' : IDL.Nat,
+    'workId' : IDL.Opt(IDL.Nat),
+  });
   const GiveTaskInput = IDL.Record({
     'title' : IDL.Text,
     'doerId' : IDL.Nat,
@@ -14601,6 +14617,7 @@ export const idlFactory = ({ IDL }) => {
     'tools' : IDL.Vec(IDL.Text),
     'codePending' : IDL.Bool,
     'effective' : IDL.Vec(IDL.Tuple(IDL.Text, BotLevel)),
+    'kind' : IDL.Text,
     'name' : IDL.Text,
     'createdAt' : IDL.Int,
     'docKinds' : IDL.Vec(IDL.Text),
@@ -19066,6 +19083,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getSettings' : IDL.Func([], [SettingsView], ['query']),
     'getWork' : IDL.Func([IDL.Nat], [WorkView], ['query']),
+    'giveBotTask' : IDL.Func([GiveBotTaskInput], [Result_7], []),
     'giveTask' : IDL.Func([GiveTaskInput], [Result_7], []),
     'handleIssue' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
     'handoverDoc' : IDL.Func([IDL.Nat], [Result_91], ['query']),
@@ -19228,6 +19246,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'listRobots' : IDL.Func([], [IDL.Vec(RobotView)], ['query']),
     'listSales' : IDL.Func([IDL.Nat], [IDL.Vec(SalesBrief)], ['query']),
+    'listTaskBots' : IDL.Func([], [IDL.Vec(Colleague)], ['query']),
     'listTasks' : IDL.Func([AssistTaskQuery], [AssistTaskPage], ['query']),
     'listTasksFor' : IDL.Func(
         [AssistTaskForQuery],
@@ -19617,6 +19636,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'setBoardRules' : IDL.Func([BoardRulesInput], [Result_1], []),
+    'setBotKind' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Bool], [Result_1], []),
     'setCapacity' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Nat), IDL.Text],
         [Result_1],

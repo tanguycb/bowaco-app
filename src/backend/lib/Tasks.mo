@@ -93,6 +93,7 @@ module {
       case "offerte-nalezen" "nalezen";
       case "factuurcontrole" "factuurcontrole";
       case "document-koppelen" "documenten";
+      case "vrije-taak" "vrije taken";
       case k k;
     };
   };
@@ -425,7 +426,9 @@ module {
   // nalezen, factuurcontrole): daar blijft het dossier met zijn rechten en rekenregels, zoals in 3.8–3.11.
   public func isManual(t : Task) : Bool { t.kind == "taak" };
   public func extraOf(t : Task, k : Text) : Text { switch (extraGet(t.extra, k)) { case (?v) v; case null "" } };
-  public func giveManual(s : Types.TaskStore, by : Nat, doer : Nat, workId : ?Nat, title : Text, due : ?Nat, now : Int) : Task {
+  // 4b.8: de uitvoerder is een persoon of (vraag E-1 van 4b.7) een assistent (#bot): die leest ze met de tool `taken` en antwoordt met
+  // `voorstel` (uitkomst klaar of kan niet, en een kort antwoord). Het antwoord zelf (tekst van een bot) blijft in bots.actions.
+  public func giveManual(s : Types.TaskStore, by : Nat, doer : Who, workId : ?Nat, title : Text, due : ?Nat, now : Int) : Task {
     let id = newId(s);
     let key = "taak:" # id.toText();
     let t : Task = {
@@ -436,7 +439,7 @@ module {
       workId;
       subject = #none;
       givenBy = #person(by);
-      doer = #person(doer);
+      doer;
       createdAt = now;
       var state = #waiting;
       var updatedAt = now;
@@ -456,6 +459,113 @@ module {
     let rest = t.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "reden");
     t.extra := if (reason == "") rest else rest.concat([("reden", reason)]);
     addEvent(t, { at = now; who = #person(who); what = "taak:" # stateKey(state); extra = [] });
+  };
+
+  // ── 4b.8: een vrije taak van een assistent ──────────────────────────────
+  public func isBotTask(t : Task) : Bool { isManual(t) and (switch (t.doer) { case (#bot _) true; case _ false }) };
+  // De assistent haalde de taak op (tool `taken` met deze taak): wacht → bezig.
+  public func botBusy(t : Task, botId : Nat, now : Int) {
+    if (t.state != #waiting) return;
+    t.state := #busy;
+    t.updatedAt := now;
+    addEvent(t, { at = now; who = #bot(botId); what = "taak:bezig"; extra = [] });
+  };
+  // Het antwoord van de assistent: altijd een voorstel (een mens aanvaardt of weigert in Te doen). uitkomst = "klaar" of "kan niet".
+  // Een vorig (geweigerd of vervallen) voorstel maakt plaats: de tijdlijn houdt het bij.
+  public func botAnswer(s : Types.TaskStore, t : Task, botId : Nat, actionId : Nat, uitkomst : Text, now : Int) {
+    switch (t.proposalId) { case (?old) s.proposals.remove(old); case null {} };
+    let pid = newId(s);
+    let pr : Proposal = {
+      id = pid;
+      taskId = t.id;
+      by = #bot(botId);
+      at = now;
+      auto = false;
+      var confidence = null;
+      var points = [point("uitkomst", uitkomst, #none)];
+      var actionId = ?actionId;
+      var state = #open;
+      var decidedBy = null;
+      var decidedAt = null;
+      var undo = #none;
+      var extra = [];
+    };
+    s.proposals.add(pid, pr);
+    t.proposalId := ?pid;
+    t.state := #ready;
+    t.updatedAt := now;
+    addEvent(t, { at = now; who = #bot(botId); what = "voorstel:open"; extra = [] });
+  };
+  // Review 4b.8 M3: een vrije taak van een bot die niet verder kan (bot ingetrokken, taak geannuleerd): geannuleerd, een open voorstel
+  // ingetrokken. De open actie weigert de aanroeper (Bots.onRevoke, TasksApi.stepTask).
+  public func closeBotTask(s : Types.TaskStore, t : Task, who : Who, now : Int) {
+    if (isFinal(t.state)) return;
+    switch (proposalOf(s, t)) {
+      case (?p) { if (p.state == #open) { p.state := #withdrawn; p.decidedBy := ?who; p.decidedAt := ?now; addEvent(t, { at = now; who; what = "voorstel:" # proposalKey(#withdrawn); extra = [] }) } };
+      case null {};
+    };
+    t.state := #cancelled;
+    t.updatedAt := now;
+    addEvent(t, { at = now; who; what = "taak:" # stateKey(#cancelled); extra = [] });
+  };
+
+  // De stand van een vrije taak volgt de beslissing over de actie (Te doen: bot-aanvaarden/-weigeren = decideBotAction; de klok laat
+  // een onbeslist voorstel na 30 dagen vervallen; intrekken van de bot weigert het). Aanvaard: klaar (of mislukt bij "kan niet");
+  // geweigerd of vervallen: de taak wacht opnieuw. Geeft true als er iets veranderde.
+  func freeOne(s : Types.TaskStore, e : Env, t : Task, now : Int) : Bool {
+    if (t.state != #ready) return false;
+    let p = proposalOf(s, t) ?? return false;
+    if (p.state != #open) return false;
+    let a = e.bots.actions.get(p.actionId ?? return false) ?? return false;
+    let who : Who = switch (a.decidedBy) { case (?x) #person(x); case null #clock };
+    let at = switch (a.decidedAt) { case (?x) x; case null now };
+    let kanNiet = p.points.any(func(x : Types.TaskPoint) : Bool = x.key == "uitkomst" and x.after == "kan niet");
+    switch (a.state) {
+      case (#accepted) {
+        p.state := #accepted;
+        t.state := if kanNiet #failed("kan niet") else #done;
+      };
+      case (#rejected or #expired) {
+        p.state := if (a.state == #expired) #expired else #rejected;
+        t.state := #waiting;
+      };
+      case _ return false;
+    };
+    p.decidedBy := ?who;
+    p.decidedAt := ?at;
+    t.updatedAt := Int.max(t.updatedAt, at);
+    addEvent(t, { at; who; what = "voorstel:" # proposalKey(p.state); extra = [] });
+    addEvent(t, { at; who; what = "taak:" # stateKey(t.state); extra = [] });
+    true;
+  };
+  func freeAll(s : Types.TaskStore, e : Env, now : Int) : Nat {
+    var n = 0;
+    for (t in s.tasks.values()) { if (isBotTask(t) and freeOne(s, e, t, now)) n += 1 };
+    n;
+  };
+
+  // 4b.5 review M2: na een tool-oproep enkel de geraakte dossiers gelijkzetten (de volledige ronde blijft voor de klok en de
+  // schermen). Een actie die bij een opdracht of vrije taak hoort, krijgt nooit een eigen taak: die volgt via haar opdracht.
+  public func syncSome(s : Types.TaskStore, e : Env, srcs : [Types.TaskSrc], now : Int) : Nat {
+    var n = 0;
+    for (src in srcs.values()) {
+      switch src {
+        case (#oaRead id) switch (e.oaRead.jobs.get(id)) { case (?j) { if (put(s, fromOaRead(j, e.tenders))) n += 1 }; case null {} };
+        case (#aiCheck id) switch (e.aiCheck.jobs.get(id)) { case (?j) { if (put(s, fromAiCheck(j))) n += 1 }; case null {} };
+        case (#invCheck id) switch (e.invCheck.jobs.get(id)) { case (?j) { if (put(s, fromInvCheck(j))) n += 1 }; case null {} };
+        case (#botAction id) switch (e.bots.actions.get(id)) {
+          case (?a) { if (not linkedAction(a) and put(s, fromAction(a))) n += 1 };
+          case null {};
+        };
+        case (#other key) switch (byKey(s, key)) { case (?t) { if (isBotTask(t) and freeOne(s, e, t, now)) n += 1 }; case null {} };
+      };
+    };
+    n;
+  };
+  // Hoort deze actie bij een opdracht (3.8–3.11) of een vrije taak (4b.8)? Zelfde regel als de "actie" in de opdracht (sync).
+  func linkedAction(a : Types.BotAction) : Bool {
+    if (has(a.extra, "controleopdracht") or has(a.extra, "nakijkopdracht")) return true;
+    switch (a.action) { case (#other x) x.data.any(func((k, _) : (Text, Text)) : Bool = k == "opdracht" or k == "taak"); case _ false };
   };
 
   // Eén dossier in het model zetten of gelijkzetten. Geeft true als er iets veranderde.
@@ -562,11 +672,12 @@ module {
       };
     };
     for (a in e.bots.actions.values()) {
-      if (linked.get(a.id) != null) {
+      if (linked.get(a.id) != null or linkedAction(a)) {
         // Hoort bij een opdracht: nooit een eigen taak (een eventuele losse taak van vroeger gaat weg).
         switch (s.byKey.get("bot:" # a.id.toText())) { case (?id) { drop(s, id); n += 1 }; case null {} };
       } else if (put(s, fromAction(a))) n += 1;
     };
+    n += freeAll(s, e, now);
     if (full) {
       let old = List.empty<Nat>();
       for (t in s.tasks.values()) {

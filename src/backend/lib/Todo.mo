@@ -135,13 +135,14 @@ module {
       case "nalezen" "Offerte nalezen";
       case "factuurcontrole" "Factuurcontrole";
       case "documenten" "Documenten koppelen";
+      case "vrije taken" "Vrije taken";
       case _ task;
     };
     t # " (assistent)";
   };
   func botTaskName(task : Text) : Text {
     // De taken van Config.botTasks (3.4) naar de woorden van het scherm.
-    if (Text.contains(task, #text "document")) "documenten" else if (Text.contains(task, #text "factuur")) "factuurcontrole" else if (Text.contains(task, #text "inlees") or Text.contains(task, #text "inlezen")) "inlezen" else task;
+    if (task == "vrije-taak") "vrije taken" else if (Text.contains(task, #text "document")) "documenten" else if (Text.contains(task, #text "factuur")) "factuurcontrole" else if (Text.contains(task, #text "inlees") or Text.contains(task, #text "inlezen")) "inlezen" else task;
   };
 
   // Een begrensde verzameling per bron: telt wat erboven valt (capped).
@@ -676,6 +677,8 @@ module {
       botOf(t);
     };
     for (t in Tasks.ofSource(c.tasks, "bot").values()) botOf(t);
+    // 4b.8: het antwoord van een assistent op een vrije taak (enkel de beheerder gaf die; aanvaarden of weigeren hier).
+    for (t in c.tasks.tasks.values()) { if (Tasks.isBotTask(t) and not Tasks.isFinal(t.state)) botOf(t) };
     // Acties van een bot die op de beheerder wachten (3.4: document koppelen, factuurcontrole; ook het voorstel van een bot op een
     // opdracht): aanvaarden of weigeren hier.
     for ((_, a) in botOpen.toArray().sort(func(x : (Nat, Types.BotAction), y : (Nat, Types.BotAction)) : Order.Order = Nat.compare(x.0, y.0)).values()) {
@@ -684,7 +687,14 @@ module {
         let title = switch (a.action) {
           case (#docLink d) "Bestand koppelen: " # short(d.title, 60);
           case (#invoiceCheck i) { switch (c.oaInvoices.invoices.get(i.invoiceId)) { case (?x) "Controle van factuur " # x.number; case null "Factuurcontrole" } };
-          case (#other o) "Voorstel: " # short(o.tool, 40);
+          case (#other o) {
+            // 4b.8: een vrije taak: haar omschrijving (door BOWACO geschreven) en de uitkomst; het antwoord staat in het detail.
+            let key = switch (o.data.find(func((k, _) : (Text, Text)) : Bool = k == "taak")) { case (?(_, v)) v; case null "" };
+            switch (if (o.tool == "voorstel" and key != "") Tasks.byKey(c.tasks, key) else null) {
+              case (?t) (if (o.data.any(func((k, v) : (Text, Text)) : Bool = k == "uitkomst" and v == "kan niet")) "Kan niet: " else "Klaar: ") # short(Tasks.extraOf(t, "titel"), 60);
+              case null "Voorstel: " # short(o.tool, 40);
+            };
+          };
         };
         let acts = [act("bot-aanvaarden", "Aanvaarden", "", [a.id]), act("bot-weigeren", "Weigeren", "", [a.id])];
         push(s, row(c, "bot:" # a.id.toText(), "voorstel", task, 1, null, ageOf(now, a.at), a.workId, title, short(a.reason, 120), "beheer/ai", acts, ("botactie", a.id), assistantName(task)));

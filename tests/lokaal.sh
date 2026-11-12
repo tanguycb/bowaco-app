@@ -160,6 +160,9 @@ node tests/proef-4b-6.mjs "$cid"
 # 4b.7: assistenten als collega (een taak geven aan een collega, de standen wacht · bezig · klaar · mislukt, de score van de proefbank bij de naam
 # van de assistent, de rechten per rol).
 node tests/proef-4b-7.mjs "$cid"
+# 4b.8: de tools herschikt en uitgebreid (taken + voorstel, te_doen, planning, werf_stand, de assistent van de zaakvoerder, vrije taak aan
+# een assistent, paginering, foutmeldingen met wat wel mag, geen bedragen in de leestools). Na 4b.7 (dezelfde gegevens).
+node tests/proef-4b-8.mjs "$cid"
 # 4b.2: de balk (zoekindex per rol met dezelfde code als de app: geen lek, geen bedragen, alleen wat het menu en de rechten geven; het zoeken).
 node tests/proef-4b-2.mjs "$cid"
 node tests/proef-4b-3.mjs "$cid"

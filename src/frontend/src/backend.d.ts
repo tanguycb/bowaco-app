@@ -932,6 +932,7 @@ export interface BotView {
     tools: Array<string>;
     codePending: boolean;
     effective: Array<[string, BotLevel]>;
+    kind: string;
     name: string;
     createdAt: bigint;
     docKinds: Array<string>;
@@ -2134,6 +2135,12 @@ export interface FrozenPost {
     unitCents?: bigint;
     root: bigint;
     unit: string;
+}
+export interface GiveBotTaskInput {
+    title: string;
+    dueDay?: bigint;
+    botId: bigint;
+    workId?: bigint;
 }
 export interface GiveTaskInput {
     title: string;
@@ -10532,6 +10539,7 @@ export interface backendInterface {
     getReportDay(workId: bigint, day: bigint): Promise<Array<ReportView>>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
+    giveBotTask(i: GiveBotTaskInput): Promise<Result_7>;
     giveTask(i: GiveTaskInput): Promise<Result_7>;
     handleIssue(issueId: bigint, note: string): Promise<Result_1>;
     handoverDoc(id: bigint): Promise<Result_91>;
@@ -10606,6 +10614,7 @@ export interface backendInterface {
     listReports(workId: bigint, offset: bigint, limit: bigint): Promise<Array<ReportSummary>>;
     listRobots(): Promise<Array<RobotView>>;
     listSales(workId: bigint): Promise<Array<SalesBrief>>;
+    listTaskBots(): Promise<Array<Colleague>>;
     listTasks(q: AssistTaskQuery): Promise<AssistTaskPage>;
     listTasksFor(q: AssistTaskForQuery): Promise<AssistTaskSeenPage>;
     listTechSheets(withArchived: boolean): Promise<Array<TechSheetView>>;
@@ -10815,6 +10824,7 @@ export interface backendInterface {
     sendQuoteVersion(versionId: bigint, rev: bigint, expectTotalCents: bigint, reason: string): Promise<Result_10>;
     setAiSettings(gatewayUrl: string | null, usdEurMilli: bigint | null, testMode: boolean | null): Promise<Result_1>;
     setBoardRules(i: BoardRulesInput): Promise<Result_1>;
+    setBotKind(botId: bigint, rev: bigint, owner: boolean): Promise<Result_1>;
     setCapacity(key: string, maxWorks: bigint | null, note: string): Promise<Result_1>;
     setContract(workId: bigint, i: ContractInput, expectedVersion: bigint): Promise<Result_7>;
     setDocKind(k: DocKindInput): Promise<Result_1>;

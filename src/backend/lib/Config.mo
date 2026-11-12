@@ -659,13 +659,27 @@ module {
       // 3.11: de klantofferte nalezen vóór verzending (de opdrachten met het dossier van de versie, de opmerkingen).
       ("naleesopdrachten", "offerte-nalezen"),
       ("opmerkingen_offerte", "offerte-nalezen"),
+      // 4b.8: één ingang voor elk werk (taken + voorstel, het recht per soort blijft de tool van die soort op de fiche) en de
+      // leestools binnen de fiche, zonder bedragen. facturen_wachten enkel op de fiche van de assistent van de zaakvoerder.
+      ("taken", ""),
+      ("voorstel", ""),
+      ("te_doen", ""),
+      ("planning", ""),
+      ("werf_stand", ""),
+      ("facturen_wachten", ""),
     ];
+  };
+  // 4b.8: de tools die enkel op de fiche van de assistent van de zaakvoerder mogen (de bredere leesfiche).
+  public func botOwnerTools() : [Text] { ["facturen_wachten"] };
+  // 4b.8: per soort werk de tool die de soort op de fiche zet (lijst) en de tool van het antwoord; taken/voorstel volgen die.
+  public func botKindTools() : [(Text, Text, Text)] {
+    [("oa-offerte-inlezen", "inleesopdrachten", "voorstel_oa_offerte"), ("offertes-vergelijken", "vergelijkopdrachten", "voorstel_vergelijking"), ("offerte-nalezen", "naleesopdrachten", "opmerkingen_offerte"), ("factuurcontrole", "controleopdrachten", "voorstel_factuurcontrole")];
   };
   // De taken met hun hoogste niveau: document koppelen is intern en terug te draaien (mag Zelf doen); factuurcontrole raakt
   // geld (hoogstens Voorstel, §6). Een nieuwe taak start altijd op Voorstel.
   // 3.8: OA-offerte inlezen mag tot Zelf doen (= de app registreert de offerte zelf, ongedaan te maken door ze in te trekken), maar
   // enkel na een geslaagde proefronde (Proof.gate); een nieuwe taak start op Voorstel.
-  public func botTasks() : [(Text, { #auto; #proposal })] { [("document-koppelen", #auto), ("factuurcontrole", #proposal), ("oa-offerte-inlezen", #auto), ("offertes-vergelijken", #proposal), ("offerte-nalezen", #proposal)] }; // 3.9 + 3.11: hoogstens Voorstel (kiezen, overnemen en versturen doet een mens)
+  public func botTasks() : [(Text, { #auto; #proposal })] { [("document-koppelen", #auto), ("factuurcontrole", #proposal), ("oa-offerte-inlezen", #auto), ("offertes-vergelijken", #proposal), ("offerte-nalezen", #proposal), ("vrije-taak", #proposal)] }; // 4b.8: een vrije taak (zonder stuk) hoogstens Voorstel // 3.9 + 3.11: hoogstens Voorstel (kiezen, overnemen en versturen doet een mens)
   // NOOIT (vast in de code, niet in te stellen; er bestaat ook geen tool voor): betalen of definitief goedkeuren, versturen naar
   // een klant of OA, contracten, verwijderen, vertrouwelijke prijzen. Rights.mayBot weigert deze taken altijd.
   public func botNeverTasks() : [Text] { ["betalen-goedkeuren", "versturen", "contracten", "verwijderen", "vertrouwelijke-prijzen"] };
@@ -732,6 +746,11 @@ module {
   public let botMaxRemarks : Nat = 20;
   public let botMaxRemark : Nat = 500;
   public let botMaxList : Nat = 200; // hoogstens zoveel rijen per lees-tool
+  public let botPageDefault : Nat = 25; // 4b.8: rijen per pagina van een nieuwe leestool (de oude tools: botMaxList)
+  public let botPageMax : Nat = 100; // 4b.8: hoogstens zoveel rijen per pagina (de oude tools: botMaxList)
+  public let botAnswerMax : Nat = 2_000; // 4b.8: het antwoord van een assistent op een vrije taak
+  public let botActionKeepDays : Nat = 400; // 4b.8 (vraag E-2 van 4b.5): besliste acties van bots na 400 dagen weg
+  public let botActionPrunePerRound : Nat = 200;
   public let botActionExpire : Int = 2_592_000_000_000_000; // 30 dagen: een onbeslist voorstel vervalt
   // 4b.5: één model voor taak en voorstel (lib/Tasks.mo). Een taak met een dossier dat weg is, blijft voor de tijdlijn nog 400 dagen.
   public let taskKeep : Int = 34_560_000_000_000_000; // 400 dagen

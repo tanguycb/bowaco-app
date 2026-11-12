@@ -57,6 +57,8 @@ module {
   // ── 4b.7: een taak geven en de assistenten ──
   // Een gewone taak aan een collega: de omschrijving (≤ Config.taskTitleMax), de werf (mag leeg) en de uiterste dag (mag leeg).
   public type GiveTaskInput = { doerId : Nat; workId : ?Nat; title : Text; dueDay : ?Nat };
+  // 4b.8 (vraag E-1 van 4b.7): een vrije taak aan een assistent (enkel de beheerder).
+  public type GiveBotTaskInput = { botId : Nat; workId : ?Nat; title : Text; dueDay : ?Nat };
   // wat de uitvoerder met zijn taak doet: "bezig" · "klaar" · "kan-niet" (met reden); de gever of de beheerder: "annuleren".
   public type TaskStep = { #start; #done; #cannot; #cancel };
   // Een collega die een taak kan krijgen (intern, actief, ziet de werf als die er is).

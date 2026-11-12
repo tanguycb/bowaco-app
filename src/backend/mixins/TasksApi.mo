@@ -31,12 +31,15 @@ mixin (
   quotes : Types.QuotesState,
   proof : Types.ProofState, // 4b.7: de score van de proefbank bij de naam van de assistent
   audit : Types.AuditState,
+  bots : Types.BotState, // 4b.8: een vrije taak aan een assistent (naam, antwoord)
 ) {
 
   func tkName(w : Types.TaskWho, kind : Text) : Text {
     switch w {
       case (#person id) switch (access.persons.get(id)) { case (?p) p.name; case null "" };
-      case (#bot _ or #app _) Todo.assistantName(Tasks.kindWord(kind));
+      // 4b.8: een vrije taak aan een assistent: zijn naam (zoals de beheerder hem noemde) + "(assistent)".
+      case (#bot id) if (kind == "taak") (switch (bots.bots.get(id)) { case (?b) Todo.assistantName(b.name); case null Todo.assistantName("vrije taken") }) else Todo.assistantName(Tasks.kindWord(kind));
+      case (#app _) Todo.assistantName(Tasks.kindWord(kind));
       case (#clock) "BOWACO";
       case (#other _) "";
     };
@@ -79,7 +82,15 @@ mixin (
       events = t.events.map(func(e : Types.TaskEvent) : TK.AssistEventView = { at = e.at; who = Tasks.whoKey(e.who); whoName = tkName(e.who, t.kind); what = e.what });
       title = Tasks.extraOf(t, "titel");
       dueDay = Nat.fromText(Tasks.extraOf(t, "uiterlijk"));
-      reason = Tasks.extraOf(t, "reden");
+      // 4b.8: bij een vrije taak van een assistent: zijn antwoord (tekst van een bot: enkel getoond, nooit uitgevoerd).
+      reason = if (Tasks.isBotTask(t)) botAnswer(t) else Tasks.extraOf(t, "reden");
+    };
+  };
+
+  func botAnswer(t : Types.AssistTask) : Text {
+    switch (Tasks.proposalOf(tasks, t)) {
+      case (?p) switch (p.actionId) { case (?a) switch (bots.actions.get(a)) { case (?x) x.reason; case null "" }; case null "" };
+      case null "";
     };
   };
 
@@ -148,7 +159,9 @@ mixin (
     for (t in pool.values()) {
       if ((q.workId == null or t.workId == q.workId) and (not q.openOnly or not Tasks.isFinal(t.state)) and (q.kind == "" or t.kind == q.kind) and (q.subject == "" or Tasks.refKey(t.subject) == q.subject)) {
         // 4b.7: een gewone taak ziet wie ze gaf of kreeg volledig; anderen zoals bij de andere soorten (de beheerder volledig, de rest kort).
-        let sight = if (Tasks.isManual(t) and (t.doer == #person(p.id) or t.givenBy == #person(p.id))) #full else Rights.taskSight(ctx, p, tkSource(t), t.workId);
+        // 4b.8 (review L6): een vrije taak van een assistent volledig enkel met #manageBots (het antwoord kan tonen wat de assistent leest).
+        let party = Tasks.isManual(t) and (t.doer == #person(p.id) or t.givenBy == #person(p.id)) and (not Tasks.isBotTask(t) or Rights.may(ctx, p, #manageBots, null));
+        let sight = if party #full else Rights.taskSight(ctx, p, tkSource(t), t.workId);
         switch sight {
           case (#full) seen.add((t, true));
           // Op een stuk zoeken kan enkel wie het stuk ziet (anders verraadt de filter het onderwerp).
@@ -192,6 +205,7 @@ mixin (
     if (not Rights.internal(p)) { Runtime.trap("Geen toegang") };
     let ctx = { works; settings };
     let title = switch (Access.cleanText(i.title, Config.taskTitleMax)) { case (?x) x; case null return #err("Schrijf kort wat er moet gebeuren") };
+
     let doer = switch (tkInternal(i.doerId)) { case (?x) x; case null return #err("Kies een collega") };
     switch (i.workId) {
       case (?w) {
@@ -205,8 +219,34 @@ mixin (
     var open = 0;
     for (t in tasks.tasks.values()) { if (Tasks.isManual(t) and t.doer == #person(doer.id) and not Tasks.isFinal(t.state)) { open += 1 } };
     if (open >= Config.taskMaxOpenPerPerson) { return #err("Deze collega heeft al te veel open taken") };
-    let t = Tasks.giveManual(tasks, p.id, doer.id, i.workId, title, i.dueDay, Time.now());
+    let t = Tasks.giveManual(tasks, p.id, #person(doer.id), i.workId, title, i.dueDay, Time.now());
     Access.audit(audit, caller, ?p.id, i.workId, "taak-gegeven", "taak #" # t.id.toText() # " aan persoon #" # doer.id.toText());
+    #ok(t.id);
+  };
+
+  // 4b.8: een vrije taak aan een assistent. Enkel de beheerder: het antwoord kan tonen wat de fiche van de assistent leest, en dat kan
+  // meer zijn dan een andere rol mag zien.
+  public shared ({ caller }) func giveBotTask(i : TK.GiveBotTaskInput) : async Result.Result<Nat, Text> {
+    let p = Access.requireActive(access, caller);
+    let ctx = { works; settings };
+    if (not Rights.may(ctx, p, #manageBots, null)) { Runtime.trap("Geen toegang") };
+    let title = switch (Access.cleanText(i.title, Config.taskTitleMax)) { case (?x) x; case null return #err("Schrijf kort wat er moet gebeuren") };
+    let bid = i.botId;
+    let b = switch (bots.bots.get(bid)) { case (?x) x; case null return #err("Kies een assistent") };
+    if (not taskBotOk(b)) { return #err("Deze assistent kan geen vrije taak krijgen: zet taken en voorstel op zijn fiche (Beheer → Assistenten)") };
+    switch (i.workId) {
+      case (?w) {
+        if (not works.works.containsKey(w)) { return #err("Onbekende werf") };
+        if (not Rights.botSeesWork(ctx, b, w)) { return #err("Deze werf staat niet op de fiche van de assistent") };
+      };
+      case null {};
+    };
+    switch (i.dueDay) { case (?d) { if (d < Config.minDay or d > Config.maxDay) { return #err("Onmogelijke datum") } }; case null {} };
+    var open = 0;
+    for (t in tasks.tasks.values()) { if (Tasks.isManual(t) and t.doer == #bot(bid) and not Tasks.isFinal(t.state)) { open += 1 } };
+    if (open >= Config.taskMaxOpenPerPerson) { return #err("Deze assistent heeft al te veel open taken") };
+    let t = Tasks.giveManual(tasks, p.id, #bot(bid), i.workId, title, i.dueDay, Time.now());
+    Access.audit(audit, caller, ?p.id, i.workId, "taak-gegeven", "taak #" # t.id.toText() # " aan bot #" # bid.toText());
     #ok(t.id);
   };
 
@@ -239,11 +279,33 @@ mixin (
       };
       case (#cancel) {
         if (not isGiver and not Rights.may(ctx, p, #manageBots, null)) { return #err("Enkel wie de taak gaf of de beheerder annuleert") };
-        Tasks.setManual(t, p.id, #cancelled, "", now);
+        if (Tasks.isBotTask(t)) {
+          // 4b.8 (review M3): een open antwoord van de assistent wordt geweigerd en het voorstel ingetrokken.
+          switch (Tasks.proposalOf(tasks, t)) {
+            case (?pr) switch (pr.actionId) {
+              case (?aid) switch (bots.actions.get(aid)) { case (?a) { if (a.state == #proposed) { a.state := #rejected; a.decidedBy := ?p.id; a.decidedAt := ?now; a.note := "Taak geannuleerd" } }; case null {} };
+              case null {};
+            };
+            case null {};
+          };
+          Tasks.closeBotTask(tasks, t, #person(p.id), now);
+        } else Tasks.setManual(t, p.id, #cancelled, "", now);
       };
     };
     Access.audit(audit, caller, ?p.id, t.workId, "taak-stand", "taak #" # id.toText() # " " # Tasks.stateKey(t.state));
     #ok(());
+  };
+
+  // 4b.8: een assistent kan een vrije taak krijgen als hij actief is, taken en voorstel op zijn fiche heeft en vrije taken niet op Nooit.
+  func taskBotOk(b : Types.Bot) : Bool {
+    Rights.botActive(b) and b.tools.any(func(x : Text) : Bool = x == "taken") and b.tools.any(func(x : Text) : Bool = x == "voorstel") and Rights.botLevel(b, "vrije-taak") != #never;
+  };
+
+  // De assistenten die een vrije taak kunnen krijgen (enkel de beheerder: Taak geven → Assistent → Vrije taak).
+  public query ({ caller }) func listTaskBots() : async [TK.Colleague] {
+    let p = Access.requireActive(access, caller);
+    Rights.require({ works; settings }, p, #manageBots, null);
+    bots.bots.values().filter(taskBotOk).map(func(b : Types.Bot) : TK.Colleague = { id = b.id; name = Todo.assistantName(b.name) }).toArray();
   };
 
   // De assistenten in de woorden van het scherm, met de score van de proefbank bij de naam. Interne rollen; geen leverancier, model of
@@ -252,7 +314,8 @@ mixin (
     let p = Access.requireActive(access, caller);
     if (not Rights.internal(p)) { Runtime.trap("Geen toegang") };
     let now = Time.now();
-    Config.botTasks().map<(Text, { #auto; #proposal }), TK.AssistantCard>(func((kind, _)) {
+    // 4b.8: vrije taken hebben geen eigen kaart (ze staan bij de assistent die ze kreeg, in Taken op de werf en in Te doen).
+    Config.botTasks().filter(func((k, _) : (Text, { #auto; #proposal })) : Bool = k != "vrije-taak").map<(Text, { #auto; #proposal }), TK.AssistantCard>(func((kind, _)) {
       var score : ?Nat = null;
       var cases = 0;
       var passed = false;

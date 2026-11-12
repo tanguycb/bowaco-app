@@ -218,7 +218,7 @@ persistent actor Self {
 
   // 3.4 + 3.13: de MCP-server (caffeineai-mcp-server: OAuth 2.1 + Internet Identity, /mcp) met de tools van lib/Bots.mo, en het
   // beheer van de bots (enkel #manageBots). Een bot is geen persoon; elke tool-oproep gaat door Rights.mayBot en de fiche.
-  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, proof, oa, quotes, oaDeals, oaRead, plan, reports, workStarts, surveys, purchases, invCheck, permits, siteAdmin, minMeer, library, quoteForms, aiCheck, audit, ctr, syncTasks);
+  include McpApi(settings, access, org, works, files, dossier, tenders, oaInvoices, robot, bots, proof, oa, quotes, oaDeals, oaRead, plan, reports, workStarts, surveys, purchases, invCheck, permits, siteAdmin, minMeer, library, quoteForms, aiCheck, audit, ctr, syncTasks, tasks);
   // 3.5: de proefbank (enkel #manageBots): testsets, proefrondes voor een bot (proeftools op /mcp) of voor Caffeine AI, score per geval.
   include ProofApi(settings, access, works, files, dossier, org, tenders, oaRead, oaInvoices, quotes, robot, ai, bots, proof, audit, ctr, isAiLive);
   // 3.8: OA-offerte inlezen (PDF of foto via een bot, tekst via Caffeine AI) → een voorstel dat kantoor in het formulier overneemt.
@@ -237,7 +237,7 @@ persistent actor Self {
   // 4b.1: Te doen (één lijst per persoon, de handeling als knop, uitstellen; geen bedragen).
   include TodoApi(settings, access, org, works, plan, board, reports, permits, quotes, quoteDocs, workStarts, minMeer, oaInvoices, purchases, oaDeals, siteAdmin, tenders, oaRead, aiCheck, invCheck, bots, audit, todo, tasks);
   // 4b.5: het model van taak en voorstel lezen (enkel #manageBots in deze stap).
-  include TasksApi(settings, access, works, tasks, tenders, oaInvoices, quotes, proof, audit);
+  include TasksApi(settings, access, works, tasks, tenders, oaInvoices, quotes, proof, audit, bots);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

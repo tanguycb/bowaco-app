@@ -131,7 +131,7 @@ const info = await admin.mcpInfo();
 check("(B3) mcpInfo: de tool maandagbriefing bestaat, zonder taak (enkel lezen)", info.tools.some((t) => t.name === "maandagbriefing" && t.task === "" && t.readOnly));
 const tl = (await rpc(anon, cid, conA.access, "tools/list")).json?.result?.tools ?? [];
 const tb = tl.find((t) => t.name === "maandagbriefing");
-check("(B3) tools/list van bot A: maandagbriefing met readOnlyHint, zonder invoer", !!tb && tb.annotations?.readOnlyHint === true && Object.keys(tb.inputSchema?.properties ?? {}).length === 0, S(tb));
+check("(B3) tools/list van bot A: maandagbriefing met readOnlyHint, zonder verplichte invoer (4b.8: enkel de keuze vorm)", !!tb && tb.annotations?.readOnlyHint === true && Object.keys(tb.inputSchema?.properties ?? {}).join() === "vorm" && (tb.inputSchema?.required ?? []).length === 0, S(tb));
 const tlB = (await rpc(anon, cid, conB.access, "tools/list")).json?.result?.tools ?? [];
 check("(B3) bot B (tool niet op de fiche): de tool staat niet in tools/list", !tlB.some((t) => t.name === "maandagbriefing"));
 const noB = await tool(anon, cid, conB.access, "maandagbriefing");
