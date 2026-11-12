@@ -8,7 +8,7 @@
 export type Punt = { key: string; now: string; after: string; source: string; secret: boolean; adjusted: boolean };
 export type Gebeurtenis = { at: bigint; who: string; whoName: string; what: string };
 export type Voorstel = { id: bigint; by: string; byName: string; at: bigint; auto: boolean; confidence?: bigint; points: Punt[]; actionId?: bigint; state: string; decidedBy: string; decidedByName: string; decidedAt?: bigint; undo: string };
-export type Taak = { id: bigint; key: string; kind: string; name: string; workId?: bigint; workCode: string; subject: string; givenBy: string; givenByName: string; doer: string; doerName: string; createdAt: bigint; state: string; updatedAt: bigint; proposal?: Voorstel; events: Gebeurtenis[] };
+export type Taak = { id: bigint; key: string; kind: string; name: string; workId?: bigint; workCode: string; subject: string; givenBy: string; givenByName: string; doer: string; doerName: string; createdAt: bigint; state: string; updatedAt: bigint; proposal?: Voorstel; events: Gebeurtenis[]; title: string; dueDay?: bigint; reason: string };
 export type Gezien = { task: Taak; full: boolean; subjectLabel: string };
 
 // ── Woorden (nooit "AI"; een bot heet "assistent") ──────────────────────
@@ -19,7 +19,7 @@ export const VOORSTEL_STAND: Record<string, string> = {
 };
 export const SOORT: Record<string, string> = {
   "oa-offerte-inlezen": "OA-offerte inlezen", "offertes-vergelijken": "OA-offertes vergelijken", "offerte-nalezen": "Offerte nalezen",
-  factuurcontrole: "Factuurcontrole", "document-koppelen": "Document koppelen",
+  factuurcontrole: "Factuurcontrole", "document-koppelen": "Document bij een werf zetten",
 };
 const PUNT: Record<string, string> = {
   regels: "Regels", datum: "Datum", "btw-verlegd": "Btw verlegd", totaal: "Totaal", oordeel: "Oordeel", keuzes: "Posten met een keuze",

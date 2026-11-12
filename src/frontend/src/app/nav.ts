@@ -35,7 +35,7 @@ export function pagesFor(caps: Caps): Set<string> {
   if (caps.permits) s.add("vergunningen");
   if (caps.readMunicipalities) s.add("gemeenten");
   if (caps.wadm) s.add("werfadministratie");
-  if (caps.readTeam) s.add("team");
+  if (caps.readTeam) { s.add("team"); s.add("assistenten"); } // 4b.7: de assistenten met hun score (interne rollen)
   if (caps.readTeam || caps.readOa) s.add("adresboek");
   if (beheerTabs(caps).length > 0) s.add("beheer");
   return s;

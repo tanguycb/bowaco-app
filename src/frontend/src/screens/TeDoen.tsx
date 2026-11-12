@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Principal } from "@icp-sdk/core/principal";
 import { useState } from "react";
-import type { TodoAct, TodoItem, TodoPage as TodoPageView } from "../backend";
+import { TaskStep, type TodoAct, type TodoItem, type TodoPage as TodoPageView } from "../backend";
 import { Button, Icon, Sheet, useToast, Werklijst } from "../design";
 import { useBreed, WERKLIJST_VANAF } from "../design/Werklijst";
 import { t } from "../texts/nl";
@@ -12,6 +12,7 @@ import { dayToInput, errText, fmtDayNum, inputToDay, todayDay, unwrap, useBacken
 import { Loading, Page } from "./common";
 import { NotesSheet, noteTarget } from "./Meldingen";
 import { TodoVoorstel } from "./Voorstel";
+import { KanNietSheet, TaakGeven } from "./Assistenten";
 
 const T = t.todo;
 const N = Number;
@@ -40,9 +41,15 @@ function useActs(go: (to: string) => void, home: string) {
   const { actor } = useBackend();
   const qc = useQueryClient();
   const toast = useToast();
+  // 4b.7: "Kan niet" bij een taak van een collega vraagt eerst een reden (geen browservenster).
+  const [kanNiet, setKanNiet] = useState<TodoAct | null>(null);
+  const [reden, setReden] = useState("");
   const run = useMutation({
     mutationFn: async ({ a }: { a: TodoAct; key: string }) => {
       switch (a.kind) {
+        case "taak-start": unwrap(await actor!.stepTask(a.refs[0], TaskStep.start, "")); return t.assistenten.gedaan;
+        case "taak-klaar": unwrap(await actor!.stepTask(a.refs[0], TaskStep.done, "")); return t.assistenten.gedaan;
+        case "taak-kan-niet": unwrap(await actor!.stepTask(a.refs[0], TaskStep.cannot, reden.trim())); return t.assistenten.gedaan;
         case "gelezen": await actor!.markNotificationsRead(a.refs); return T.done;
         case "koppeling-bevestigen": unwrap(await actor!.confirmLink(Principal.fromText(a.refText))); return t.common.saved;
         case "bot-aanvaarden": unwrap(await actor!.decideBotAction(a.refs[0], true, "")); return t.common.saved;
@@ -52,7 +59,10 @@ function useActs(go: (to: string) => void, home: string) {
       }
     },
     onSuccess: (text) => {
+      setKanNiet(null);
+      setReden("");
       if (text) toast.show({ kind: "ok", text });
+      void qc.invalidateQueries({ queryKey: ["taken"] });
       void qc.invalidateQueries({ queryKey: ["todo"] });
       void qc.invalidateQueries({ queryKey: ["notes"] });
       void qc.invalidateQueries({ queryKey: ["notesAll"] });
@@ -62,7 +72,8 @@ function useActs(go: (to: string) => void, home: string) {
   /** Waar een regel heen gaat: een melding volgt de regels van de vroegere bel. */
   const where = (x: TodoItem): string | null => (x.kind === "melding" ? noteTarget({ kind: x.sub, workId: x.workId }, home) : x.to || null);
   const fire = (x: TodoItem, a: TodoAct) => {
-    if (a.kind === "open" || !["gelezen", "koppeling-bevestigen", "bot-aanvaarden", "bot-weigeren", "taak-bevestigen"].includes(a.kind)) {
+    if (a.kind === "taak-kan-niet") { setKanNiet(a); return; }
+    if (a.kind === "open" || !["gelezen", "koppeling-bevestigen", "bot-aanvaarden", "bot-weigeren", "taak-bevestigen", "taak-start", "taak-klaar"].includes(a.kind)) {
       const to = a.to || where(x);
       if (to) go(to);
       return;
@@ -76,7 +87,8 @@ function useActs(go: (to: string) => void, home: string) {
     if (x.kind === "melding") { const g = x.acts.find((a) => a.kind === "gelezen"); if (g) run.mutate({ a: g, key: x.key }); }
     if (to) go(to);
   };
-  return { fire, busy, openRow, where };
+  const dialoog = kanNiet ? <KanNietSheet busy={run.isPending} reden={reden} setReden={setReden} onOk={() => run.mutate({ a: kanNiet, key: "" })} onClose={() => setKanNiet(null)} /> : null;
+  return { fire, busy, openRow, where, dialoog };
 }
 
 /** De volgende maandag na vandaag. */
@@ -128,7 +140,7 @@ function Row({ x, acts, onSnooze }: { x: TodoItem; acts: ReturnType<typeof useAc
     onError: (e) => toast.show({ kind: "error", text: errText(e) }),
   });
   const to = acts.where(x);
-  const meta = [x.detail, x.age > 0 && x.kind !== "melding" ? T.age(N(x.age)) : "", x.snoozedUntil !== undefined ? T.snoozedUntil(fmtDayNum(x.snoozedUntil)) : ""].filter(Boolean).join(" · ");
+  const meta = [x.kind === "taak" && x.sub === "bezig" ? t.assistenten.stand.bezig : "", x.detail, x.age > 0 && x.kind !== "melding" ? T.age(N(x.age)) : "", x.snoozedUntil !== undefined ? T.snoozedUntil(fmtDayNum(x.snoozedUntil)) : ""].filter(Boolean).join(" · ");
   return (
     <li className="a-todo" data-kind={x.kind} data-key={x.key} data-urgency={N(x.urgency)}>
       <button type="button" className="a-list__btn a-todo__main" disabled={!to} onClick={() => acts.openRow(x)}>
@@ -172,7 +184,7 @@ function Groups({ items, acts, onSnooze }: { items: TodoItem[]; acts: ReturnType
 function TodoKaart({ x, acts, onSnooze, onGone, go }: { x?: TodoItem; acts: ReturnType<typeof useActs>; onSnooze: (x: TodoItem) => void; onGone: () => void; go: (to: string) => void }) {
   if (!x) return <div className="a-page--paneel"><p className="a-empty" data-testid="todo-kaart-weg">{T.nothing}</p><Button onClick={onGone}>{T.back}</Button></div>;
   const to = acts.where(x);
-  const meta = [x.detail, x.age > 0 && x.kind !== "melding" ? T.age(N(x.age)) : "", x.snoozedUntil !== undefined ? T.snoozedUntil(fmtDayNum(x.snoozedUntil)) : ""].filter(Boolean).join(" · ");
+  const meta = [x.kind === "taak" && x.sub === "bezig" ? t.assistenten.stand.bezig : "", x.detail, x.age > 0 && x.kind !== "melding" ? T.age(N(x.age)) : "", x.snoozedUntil !== undefined ? T.snoozedUntil(fmtDayNum(x.snoozedUntil)) : ""].filter(Boolean).join(" · ");
   return (
     <div className="a-page--paneel a-stack" data-testid="todo-kaart" data-key={x.key}>
       <span className="bw-label">{T.urgency[N(x.urgency)]} · {T.kinds[x.kind] ?? x.kind}</span>
@@ -193,13 +205,14 @@ function TodoKaart({ x, acts, onSnooze, onGone, go }: { x?: TodoItem; acts: Retu
 }
 
 /** De pagina Te doen (#/te-doen): filter per soort, het uitgestelde apart, alle meldingen (ook gelezen) achter een knop. */
-export function TodoPage({ go, home, selected }: { go: (to: string) => void; home: string; selected?: string }) {
+export function TodoPage({ go, home, selected, intern }: { go: (to: string) => void; home: string; selected?: string; intern?: boolean }) {
   const breed = useBreed(WERKLIJST_VANAF);
   const [snoozed, setSnoozed] = useState(false);
   const [kind, setKind] = useState("");
   const [offset, setOffset] = useState(0);
   const [snooze, setSnooze] = useState<TodoItem | null>(null);
   const [notes, setNotes] = useState(false);
+  const [geef, setGeef] = useState(false);
   const q = useTodo({ snoozed, kind, offset });
   const all = useTodo(FIRST); // de tellers per soort over de hele lijst (dezelfde query als de teller in de kop)
   const acts = useActs(go, home);
@@ -208,7 +221,7 @@ export function TodoPage({ go, home, selected }: { go: (to: string) => void; hom
   const pick = (k: string) => { setKind(k); setSnoozed(false); setOffset(0); };
   const total = N(d?.total ?? 0n);
   return (
-    <Page title={T.title} actions={<Button variant="quiet" icon="bell" onClick={() => setNotes(true)}>{T.notesAll}</Button>}>
+    <Page title={T.title} actions={<><Button variant="quiet" icon="bell" onClick={() => setNotes(true)}>{T.notesAll}</Button>{intern && <Button variant="secondary" onClick={() => setGeef(true)} data-testid="taak-geven">{t.assistenten.geef}</Button>}</>}>
       <div className="a-row a-todo-filter" role="group" aria-label={T.title}>
         {/* 4b.3: filters zijn filterknoppen (zoals in het tabelonderdeel), geen hoofdknoppen. */}
         <button type="button" className="bw-filter" aria-pressed={!snoozed && kind === ""} onClick={() => pick("")}>{T.filterAll}<span className="bw-filter__n">{N(all.data?.total ?? 0n)}</span></button>
@@ -241,6 +254,8 @@ export function TodoPage({ go, home, selected }: { go: (to: string) => void; hom
       {d?.capped && <p className="bw-muted a-note-small">{T.capped}</p>}
       {snoozed && <Button variant="quiet" icon="back" onClick={() => { setSnoozed(false); setOffset(0); }}>{T.back}</Button>}
       {snooze && <SnoozeSheet item={snooze} onClose={() => setSnooze(null)} />}
+      {acts.dialoog}
+      {geef && <TaakGeven onClose={() => setGeef(false)} go={go} />}
       {notes && <NotesSheet go={go} home={home} onClose={() => setNotes(false)} />}
     </Page>
   );
@@ -265,6 +280,7 @@ export function TodoBlock({ go, home, hideEmpty, max = 6, zonder = [] }: { go: (
       {d && total === 0 && <p className="a-empty">{T.nothing}</p>}
       {d && <Groups items={d.items.filter((x) => !x.acts.some((a) => zonder.includes(a.kind))).slice(0, max)} acts={acts} onSnooze={setSnooze} />}
       {snooze && <SnoozeSheet item={snooze} onClose={() => setSnooze(null)} />}
+      {acts.dialoog}
     </section>
   );
 }

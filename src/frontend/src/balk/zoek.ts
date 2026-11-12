@@ -35,6 +35,7 @@ export function lokaleRegels(caps: Caps): Regel[] {
     out.push(mk("scherm", to, titel, sub, to, extra));
   };
   scherm(t.todo.title, "te-doen", B.scherm);
+  if (caps.readTeam) scherm(t.assistenten.title, "assistenten", B.scherm, ["taak", "geven", "score"]);
   for (const g of navFor(caps)) for (const i of g.items) scherm(i.label, i.to, g.label ?? B.scherm);
   for (const key of pagesFor(caps)) for (const tb of hubTabs(key, caps)) scherm(tb.label, tb.to, B.scherm);
   for (const tb of beheerTabs(caps)) scherm(`${t.menu.beheer}: ${tb.label}`, tb.to, B.scherm);

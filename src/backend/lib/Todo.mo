@@ -195,6 +195,8 @@ module {
     flush();
     if (may(#confirmLinks)) { links(c, p, now, s); flush() };
     if (Rights.internal(p)) {
+      myTasks(c, p, today, now, s);
+      flush();
       planning(c, today, perm, s);
       flush();
       if (may(#manageAbsences)) { boardConflicts(c, p, today, s); flush() };
@@ -592,6 +594,19 @@ module {
             case null {};
           };
         };
+      };
+    };
+  };
+
+  // ── 4b.7: taken van collega's (gewone taken, lib/Tasks.mo giveManual): enkel de uitvoerder; geen bedragen ──
+  func myTasks(c : Ctx, p : Types.Person, today : Nat, now : Int, s : Sink) {
+    for (t in c.tasks.tasks.values()) {
+      if (Tasks.isManual(t) and t.doer == #person(p.id) and (t.state == #waiting or t.state == #busy)) {
+        let due = Nat.fromText(Tasks.extraOf(t, "uiterlijk"));
+        let by = switch (t.givenBy) { case (#person(g)) (switch (c.access.persons.get(g)) { case (?x) x.name; case null "" }); case _ "" };
+        let busy = t.state == #busy;
+        let acts = if busy [act("taak-klaar", "Klaar", "", [t.id]), act("taak-kan-niet", "Kan niet", "", [t.id])] else [act("taak-start", "Begin eraan", "", [t.id]), act("taak-klaar", "Klaar", "", [t.id]), act("taak-kan-niet", "Kan niet", "", [t.id])];
+        push(s, row(c, t.key, "taak", if busy "bezig" else "wacht", switch due { case (?d) dueUrg(d, today); case null 2 }, due, ageOf(now, t.createdAt), t.workId, Tasks.extraOf(t, "titel"), (if (by != "") "van " # by else "") # (switch due { case (?d) " · uiterlijk " # dm(d); case null "" }), "", acts, ("taak", t.id), ""));
       };
     };
   };

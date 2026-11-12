@@ -104,6 +104,19 @@ const files = [
   join(root, "src/backend/lib/MailText.mo"),
 ];
 
+// 4b.7: de technische woorden (fiche, koppeling, Internet Identity, server, draft) mogen enkel op de fiche en de koppeling in Beheer →
+// Assistenten (eigenaar 10-11): de blokken bots, proof en ai van texts/nl.ts. Overal elders blijven ze verboden.
+const TECH = [/\bfiche\b/i, /\bkoppel(?:en|ing|ingen|code|vraag)\b/i, /Internet Identity/, /\bdraft\b/i, /\bserver\b/i, /\bprincipal\b/i, /\brobots?\b/i];
+const nlText = readFileSync(join(fe, "texts/nl.ts"), "utf8").split("\n");
+const techLines = new Set();
+{
+  let inBlock = false;
+  nlText.forEach((l, i) => {
+    const m = l.match(/^  ([a-zA-Z]+): \{/);
+    if (m) inBlock = ["bots", "proof", "ai", "mcp", "mcpKoppelen"].includes(m[1]);
+    if (inBlock) techLines.add(i + 1);
+  });
+}
 const bad = [];
 let scanned = 0;
 for (const f of files) {
@@ -121,6 +134,7 @@ for (const f of files) {
     // MailText.mo bevat ook Frans en Engels: enkel de Nederlandse woorden hierboven tellen; "login" e.d. in EN blijft eruit
     if (mo && /\b(log in|your|the|votre|vous)\b/i.test(text)) continue;
     for (const [re, instead] of BANNED) {
+      if (isNl && techLines.has(line) && /fiche|koppel|Internet|draft|server|principal|robots/.test(re.source)) continue;
       if (re.test(t)) bad.push(`${rel}:${line}  «${text.slice(0, 90)}»  →  ${instead}`);
     }
   }

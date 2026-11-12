@@ -663,6 +663,11 @@ const table = {
   // 4b.6: het voorstelscherm en wie deed wat (interne rollen met de rechten van hun scherm, Rights.taskSight; externen geen toegang;
   // wat elke rol ziet bewijst tests/proef-4b-6.mjs per taak en per soort).
   listTasksFor: [INTERNAL, () => [{ workId: [], key: "", subject: "", openOnly: false, kind: "", offset: 0n, limit: 1n }]],
+  // 4b.7: een taak geven aan een collega, de stand van een gewone taak, de collega's en de assistenten met hun score (interne rollen).
+  listColleagues: [INTERNAL, () => [[]]],
+  giveTask: [INTERNAL, () => [{ doerId: 0n, workId: [], title: "", dueDay: [] }]],
+  stepTask: [INTERNAL, () => [999999n, { start: null }, ""]],
+  listAssistants: [INTERNAL, () => []],
   exportIntern: [ADMIN, () => []],
   exportConfidential: [ADMIN, () => []],
   exportChunk: [ADMIN, () => ["persons", 0n, 1n]], // 1.9: export in stukken (O-11)

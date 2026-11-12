@@ -563,6 +563,7 @@ export interface AssistTaskSeenPage {
 export interface AssistTaskView {
     id: bigint;
     key: string;
+    title: string;
     subject: string;
     doer: string;
     kind: string;
@@ -572,11 +573,23 @@ export interface AssistTaskView {
     state: string;
     events: Array<AssistEventView>;
     doerName: string;
+    dueDay?: bigint;
     givenByName: string;
     proposal?: AssistProposalView;
     workId?: bigint;
     givenBy: string;
     workCode: string;
+    reason: string;
+}
+export interface AssistantCard {
+    cases: bigint;
+    kind: string;
+    name: string;
+    open: bigint;
+    word: string;
+    score?: bigint;
+    failed: bigint;
+    passed: boolean;
 }
 export interface Attendance {
     id: bigint;
@@ -1189,6 +1202,10 @@ export type CodeState = {
         by: Principal;
     };
 };
+export interface Colleague {
+    id: bigint;
+    name: string;
+}
 export type Confidential = {
     __kind__: "sealed";
     sealed: Sealed;
@@ -2117,6 +2134,12 @@ export interface FrozenPost {
     unitCents?: bigint;
     root: bigint;
     unit: string;
+}
+export interface GiveTaskInput {
+    title: string;
+    doerId: bigint;
+    dueDay?: bigint;
+    workId?: bigint;
 }
 export interface Handover {
     id: bigint;
@@ -10346,6 +10369,12 @@ export enum TaskStatus {
     blocked = "blocked",
     planned = "planned"
 }
+export enum TaskStep {
+    done = "done",
+    start = "start",
+    cancel = "cancel",
+    cannot = "cannot"
+}
 export enum TenderAddressMode {
     city = "city",
     full = "full"
@@ -10503,6 +10532,7 @@ export interface backendInterface {
     getReportDay(workId: bigint, day: bigint): Promise<Array<ReportView>>;
     getSettings(): Promise<SettingsView>;
     getWork(id: bigint): Promise<WorkView>;
+    giveTask(i: GiveTaskInput): Promise<Result_7>;
     handleIssue(issueId: bigint, note: string): Promise<Result_1>;
     handoverDoc(id: bigint): Promise<Result_91>;
     http_request(req: Request): Promise<Response>;
@@ -10523,8 +10553,10 @@ export interface backendInterface {
     listAiChecks(t: AiCheckTargetIn): Promise<Array<AiCheckBrief>>;
     listAiWorkers(): Promise<Array<AiWorkerView>>;
     listAppointments(workId: bigint): Promise<Array<Appointment>>;
+    listAssistants(): Promise<Array<AssistantCard>>;
     listBots(): Promise<Array<BotView>>;
     listCalendarBlocks(workId: bigint | null): Promise<Array<BlockView>>;
+    listColleagues(workId: bigint | null): Promise<Array<Colleague>>;
     listContractTemplates(): Promise<Array<ContractTemplateView>>;
     listDeals(workId: bigint): Promise<Array<DealStatusView>>;
     listDocKinds(withArchived: boolean): Promise<Array<DocKindView>>;
@@ -10837,6 +10869,7 @@ export interface backendInterface {
     startProofRound(setId: bigint, subject: ProofSubject): Promise<Result_7>;
     startState(): Promise<StartState>;
     startWorkFromQuote(versionId: bigint, i: WorkStartInput, expectedPlanVersion: bigint): Promise<Result_8>;
+    stepTask(id: bigint, step: TaskStep, reason: string): Promise<Result_1>;
     submitProposal(ticketId: bigint, kind: string, content: string): Promise<Result_7>;
     taskHistory(workId: bigint, taskId: bigint | null, from: bigint, limit: bigint): Promise<Array<TaskChangeView>>;
     tenderAccess(inviteId: bigint, validDays: bigint): Promise<Result_6>;

@@ -26,3 +26,9 @@
 .bw-link:focus-visible { outline: 2px solid var(--bw-focus); outline-offset: 2px; }
 .vp-wie > .bw-h2 { text-align: left; }
 .vp-tabel td:nth-child(2), .vp-tabel td:nth-child(4) { font-variant-numeric: tabular-nums; }
+
+/* 4b.7: de naam van een assistent met zijn vierkante icoon en de score erbij */
+.as-naam { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.as-score { font-size: 0.85em; color: var(--bw-ink-2); }
+.as-score--ok { color: var(--bw-st-done); }
+.as-lijst > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

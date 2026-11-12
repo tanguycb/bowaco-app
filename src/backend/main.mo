@@ -237,7 +237,7 @@ persistent actor Self {
   // 4b.1: Te doen (één lijst per persoon, de handeling als knop, uitstellen; geen bedragen).
   include TodoApi(settings, access, org, works, plan, board, reports, permits, quotes, quoteDocs, workStarts, minMeer, oaInvoices, purchases, oaDeals, siteAdmin, tenders, oaRead, aiCheck, invCheck, bots, audit, todo, tasks);
   // 4b.5: het model van taak en voorstel lezen (enkel #manageBots in deze stap).
-  include TasksApi(settings, access, works, tasks, tenders, oaInvoices, quotes);
+  include TasksApi(settings, access, works, tasks, tenders, oaInvoices, quotes, proof, audit);
 
   // Timers overleven geen upgrade; deze regel zet hem bij elke installatie en upgrade opnieuw.
   // Elke 10 min klein werk: verlopen tickets en codes afsluiten, oude opId's van de gsm opruimen (begrensd, T17).

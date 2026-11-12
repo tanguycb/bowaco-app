@@ -12,6 +12,7 @@ import { errText, fmtEuro, fmtTime, parseEuro, unwrap, useBackend } from "../uti
 import { Loading, Page } from "./common";
 import { Field } from "./Werven";
 import { Bots } from "./Bots";
+import { AssistentenOverzicht } from "./Assistenten";
 import { Proefbank } from "./Proefbank";
 
 const A = t.ai;
@@ -44,7 +45,7 @@ export function AiBeheer() {
   const log = useQuery({ queryKey: ["aiLog", String(from)], queryFn: () => actor!.aiLog(from, PAGE), enabled: on, refetchInterval: 30_000 });
   const [edit, setEdit] = useState<AiWorkerView | null>(null);
   // 3.5: drie tabs (fiches van Caffeine, bots, proefbank); de keuze blijft in de adresbalk niet bewaard (lokaal).
-  const [tab, setTab] = useState<"fiches" | "bots" | "proof">("fiches");
+  const [tab, setTab] = useState<"overzicht" | "fiches" | "bots" | "proof">("overzicht");
   const refreshAll = () => { for (const k of ["aiOverview", "aiWorkers", "aiLog"]) void qc.invalidateQueries({ queryKey: [k] }); };
   const fail = (e: unknown) => toast.show({ kind: "error", text: errText(e) });
   const models = useMutation({ mutationFn: async () => unwrap(await actor!.refreshAiModels()), onSuccess: (n) => { toast.show({ kind: "ok", text: A.refreshed(Number(n)) }); refreshAll(); }, onError: fail });
@@ -80,10 +81,11 @@ export function AiBeheer() {
   return (
     <Page title={A.title} label={t.beheer.title}>
       <nav className="a-tabs a-tabs--inline" aria-label={A.title}>
-        {(["fiches", "bots", "proof"] as const).map((k) => (
+        {(["overzicht", "bots", "proof", "fiches"] as const).map((k) => (
           <a key={k} href="#" className="a-tab" aria-current={k === tab ? "page" : undefined} onClick={(e) => { e.preventDefault(); setTab(k); }}>{t.proof.tabs[k]}</a>
         ))}
       </nav>
+      {tab === "overzicht" && <AssistentenOverzicht onTab={setTab} />}
       {tab === "bots" && <Bots />}
       {tab === "proof" && <Proefbank />}
       {tab === "fiches" && <>

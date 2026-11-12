@@ -519,6 +519,7 @@ export interface AssistTaskSeenPage {
 export interface AssistTaskView {
   'id' : bigint,
   'key' : string,
+  'title' : string,
   'subject' : string,
   'doer' : string,
   'kind' : string,
@@ -528,11 +529,23 @@ export interface AssistTaskView {
   'state' : string,
   'events' : Array<AssistEventView>,
   'doerName' : string,
+  'dueDay' : [] | [bigint],
   'givenByName' : string,
   'proposal' : [] | [AssistProposalView],
   'workId' : [] | [bigint],
   'givenBy' : string,
   'workCode' : string,
+  'reason' : string,
+}
+export interface AssistantCard {
+  'cases' : bigint,
+  'kind' : string,
+  'name' : string,
+  'open' : bigint,
+  'word' : string,
+  'score' : [] | [bigint],
+  'failed' : bigint,
+  'passed' : boolean,
 }
 export interface Attendance {
   'id' : bigint,
@@ -1075,6 +1088,7 @@ export type CodeState = { 'revoked' : { 'at' : bigint, 'by' : PersonId } } |
   { 'expired' : { 'at' : bigint } } |
   { 'open' : null } |
   { 'used' : { 'at' : bigint, 'by' : Principal } };
+export interface Colleague { 'id' : bigint, 'name' : string }
 export type Confidential = { 'sealed' : Sealed } |
   { 'plain' : AgreementFrozen };
 export type Confidential_1 = { 'sealed' : Sealed } |
@@ -1810,6 +1824,12 @@ export interface FrozenPost {
   'unitCents' : [] | [bigint],
   'root' : bigint,
   'unit' : string,
+}
+export interface GiveTaskInput {
+  'title' : string,
+  'doerId' : bigint,
+  'dueDay' : [] | [bigint],
+  'workId' : [] | [bigint],
 }
 export type Grant = { 'readReports' : null } |
   { 'confirmHours' : null } |
@@ -7629,6 +7649,10 @@ export type TaskStatus = { 'delayed' : null } |
   { 'done' : null } |
   { 'blocked' : null } |
   { 'planned' : null };
+export type TaskStep = { 'done' : null } |
+  { 'start' : null } |
+  { 'cancel' : null } |
+  { 'cannot' : null };
 export interface TaskView {
   'id' : bigint,
   'end' : Day,
@@ -8785,6 +8809,7 @@ export interface _SERVICE {
   'getReportDay' : ActorMethod<[bigint, bigint], Array<ReportView>>,
   'getSettings' : ActorMethod<[], SettingsView>,
   'getWork' : ActorMethod<[bigint], WorkView>,
+  'giveTask' : ActorMethod<[GiveTaskInput], Result_7>,
   'handleIssue' : ActorMethod<[bigint, string], Result_1>,
   'handoverDoc' : ActorMethod<[bigint], Result_91>,
   'http_request' : ActorMethod<[Request], Response>,
@@ -8811,8 +8836,10 @@ export interface _SERVICE {
   'listAiChecks' : ActorMethod<[AiCheckTargetIn], Array<AiCheckBrief>>,
   'listAiWorkers' : ActorMethod<[], Array<AiWorkerView>>,
   'listAppointments' : ActorMethod<[bigint], Array<Appointment>>,
+  'listAssistants' : ActorMethod<[], Array<AssistantCard>>,
   'listBots' : ActorMethod<[], Array<BotView>>,
   'listCalendarBlocks' : ActorMethod<[[] | [bigint]], Array<BlockView>>,
+  'listColleagues' : ActorMethod<[[] | [bigint]], Array<Colleague>>,
   'listContractTemplates' : ActorMethod<[], Array<ContractTemplateView>>,
   'listDeals' : ActorMethod<[bigint], Array<DealStatusView>>,
   'listDocKinds' : ActorMethod<[boolean], Array<DocKindView>>,
@@ -9192,6 +9219,7 @@ export interface _SERVICE {
     [bigint, WorkStartInput, bigint],
     Result_8
   >,
+  'stepTask' : ActorMethod<[bigint, TaskStep, string], Result_1>,
   'submitProposal' : ActorMethod<[bigint, string, string], Result_7>,
   'taskHistory' : ActorMethod<
     [bigint, [] | [bigint], bigint, bigint],

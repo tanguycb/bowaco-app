@@ -4345,6 +4345,12 @@ export const ReportView = IDL.Record({
   'workDone' : IDL.Vec(WorkDoneView),
   'totalMinutes' : IDL.Nat,
 });
+export const GiveTaskInput = IDL.Record({
+  'title' : IDL.Text,
+  'doerId' : IDL.Nat,
+  'dueDay' : IDL.Opt(IDL.Nat),
+  'workId' : IDL.Opt(IDL.Nat),
+});
 export const DocPoint = IDL.Record({
   'day' : IDL.Nat,
   'who' : IDL.Text,
@@ -4666,6 +4672,16 @@ export const AiWorkerView = IDL.Record({
   'route' : AiRoute,
   'modelAlias' : IDL.Text,
 });
+export const AssistantCard = IDL.Record({
+  'cases' : IDL.Nat,
+  'kind' : IDL.Text,
+  'name' : IDL.Text,
+  'open' : IDL.Nat,
+  'word' : IDL.Text,
+  'score' : IDL.Opt(IDL.Nat),
+  'failed' : IDL.Nat,
+  'passed' : IDL.Bool,
+});
 export const BotLevel = IDL.Variant({
   'auto' : IDL.Null,
   'never' : IDL.Null,
@@ -4706,6 +4722,7 @@ export const BotView = IDL.Record({
   'revokedAt' : IDL.Opt(IDL.Int),
   'callsPerDay' : IDL.Nat,
 });
+export const Colleague = IDL.Record({ 'id' : IDL.Nat, 'name' : IDL.Text });
 export const ContractTemplateView = IDL.Record({
   'id' : IDL.Nat,
   'title' : IDL.Text,
@@ -5350,6 +5367,7 @@ export const AssistProposalView = IDL.Record({
 export const AssistTaskView = IDL.Record({
   'id' : IDL.Nat,
   'key' : IDL.Text,
+  'title' : IDL.Text,
   'subject' : IDL.Text,
   'doer' : IDL.Text,
   'kind' : IDL.Text,
@@ -5359,11 +5377,13 @@ export const AssistTaskView = IDL.Record({
   'state' : IDL.Text,
   'events' : IDL.Vec(AssistEventView),
   'doerName' : IDL.Text,
+  'dueDay' : IDL.Opt(IDL.Nat),
   'givenByName' : IDL.Text,
   'proposal' : IDL.Opt(AssistProposalView),
   'workId' : IDL.Opt(IDL.Nat),
   'givenBy' : IDL.Text,
   'workCode' : IDL.Text,
+  'reason' : IDL.Text,
 });
 export const AssistTaskPage = IDL.Record({
   'total' : IDL.Nat,
@@ -8749,6 +8769,12 @@ export const WorkStartInput = IDL.Record({
   'groupDays' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
   'options' : IDL.Vec(IDL.Nat),
 });
+export const TaskStep = IDL.Variant({
+  'done' : IDL.Null,
+  'start' : IDL.Null,
+  'cancel' : IDL.Null,
+  'cannot' : IDL.Null,
+});
 export const TaskChangeView = IDL.Record({
   'at' : IDL.Int,
   'by' : PersonId,
@@ -9279,6 +9305,7 @@ export const idlService = IDL.Service({
     ),
   'getSettings' : IDL.Func([], [SettingsView], ['query']),
   'getWork' : IDL.Func([IDL.Nat], [WorkView], ['query']),
+  'giveTask' : IDL.Func([GiveTaskInput], [Result_7], []),
   'handleIssue' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
   'handoverDoc' : IDL.Func([IDL.Nat], [Result_91], ['query']),
   'http_request' : IDL.Func([Request], [Response], ['query']),
@@ -9319,10 +9346,16 @@ export const idlService = IDL.Service({
     ),
   'listAiWorkers' : IDL.Func([], [IDL.Vec(AiWorkerView)], ['query']),
   'listAppointments' : IDL.Func([IDL.Nat], [IDL.Vec(Appointment)], ['query']),
+  'listAssistants' : IDL.Func([], [IDL.Vec(AssistantCard)], ['query']),
   'listBots' : IDL.Func([], [IDL.Vec(BotView)], ['query']),
   'listCalendarBlocks' : IDL.Func(
       [IDL.Opt(IDL.Nat)],
       [IDL.Vec(BlockView)],
+      ['query'],
+    ),
+  'listColleagues' : IDL.Func(
+      [IDL.Opt(IDL.Nat)],
+      [IDL.Vec(Colleague)],
       ['query'],
     ),
   'listContractTemplates' : IDL.Func(
@@ -9874,6 +9907,7 @@ export const idlService = IDL.Service({
       [Result_8],
       [],
     ),
+  'stepTask' : IDL.Func([IDL.Nat, TaskStep, IDL.Text], [Result_1], []),
   'submitProposal' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [Result_7], []),
   'taskHistory' : IDL.Func(
       [IDL.Nat, IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],
@@ -14211,6 +14245,12 @@ export const idlFactory = ({ IDL }) => {
     'workDone' : IDL.Vec(WorkDoneView),
     'totalMinutes' : IDL.Nat,
   });
+  const GiveTaskInput = IDL.Record({
+    'title' : IDL.Text,
+    'doerId' : IDL.Nat,
+    'dueDay' : IDL.Opt(IDL.Nat),
+    'workId' : IDL.Opt(IDL.Nat),
+  });
   const DocPoint = IDL.Record({
     'day' : IDL.Nat,
     'who' : IDL.Text,
@@ -14526,6 +14566,16 @@ export const idlFactory = ({ IDL }) => {
     'route' : AiRoute,
     'modelAlias' : IDL.Text,
   });
+  const AssistantCard = IDL.Record({
+    'cases' : IDL.Nat,
+    'kind' : IDL.Text,
+    'name' : IDL.Text,
+    'open' : IDL.Nat,
+    'word' : IDL.Text,
+    'score' : IDL.Opt(IDL.Nat),
+    'failed' : IDL.Nat,
+    'passed' : IDL.Bool,
+  });
   const BotLevel = IDL.Variant({
     'auto' : IDL.Null,
     'never' : IDL.Null,
@@ -14566,6 +14616,7 @@ export const idlFactory = ({ IDL }) => {
     'revokedAt' : IDL.Opt(IDL.Int),
     'callsPerDay' : IDL.Nat,
   });
+  const Colleague = IDL.Record({ 'id' : IDL.Nat, 'name' : IDL.Text });
   const ContractTemplateView = IDL.Record({
     'id' : IDL.Nat,
     'title' : IDL.Text,
@@ -15204,6 +15255,7 @@ export const idlFactory = ({ IDL }) => {
   const AssistTaskView = IDL.Record({
     'id' : IDL.Nat,
     'key' : IDL.Text,
+    'title' : IDL.Text,
     'subject' : IDL.Text,
     'doer' : IDL.Text,
     'kind' : IDL.Text,
@@ -15213,11 +15265,13 @@ export const idlFactory = ({ IDL }) => {
     'state' : IDL.Text,
     'events' : IDL.Vec(AssistEventView),
     'doerName' : IDL.Text,
+    'dueDay' : IDL.Opt(IDL.Nat),
     'givenByName' : IDL.Text,
     'proposal' : IDL.Opt(AssistProposalView),
     'workId' : IDL.Opt(IDL.Nat),
     'givenBy' : IDL.Text,
     'workCode' : IDL.Text,
+    'reason' : IDL.Text,
   });
   const AssistTaskPage = IDL.Record({
     'total' : IDL.Nat,
@@ -18471,6 +18525,12 @@ export const idlFactory = ({ IDL }) => {
     'groupDays' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Nat)),
     'options' : IDL.Vec(IDL.Nat),
   });
+  const TaskStep = IDL.Variant({
+    'done' : IDL.Null,
+    'start' : IDL.Null,
+    'cancel' : IDL.Null,
+    'cannot' : IDL.Null,
+  });
   const TaskChangeView = IDL.Record({
     'at' : IDL.Int,
     'by' : PersonId,
@@ -19006,6 +19066,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getSettings' : IDL.Func([], [SettingsView], ['query']),
     'getWork' : IDL.Func([IDL.Nat], [WorkView], ['query']),
+    'giveTask' : IDL.Func([GiveTaskInput], [Result_7], []),
     'handleIssue' : IDL.Func([IDL.Nat, IDL.Text], [Result_1], []),
     'handoverDoc' : IDL.Func([IDL.Nat], [Result_91], ['query']),
     'http_request' : IDL.Func([Request], [Response], ['query']),
@@ -19050,10 +19111,16 @@ export const idlFactory = ({ IDL }) => {
       ),
     'listAiWorkers' : IDL.Func([], [IDL.Vec(AiWorkerView)], ['query']),
     'listAppointments' : IDL.Func([IDL.Nat], [IDL.Vec(Appointment)], ['query']),
+    'listAssistants' : IDL.Func([], [IDL.Vec(AssistantCard)], ['query']),
     'listBots' : IDL.Func([], [IDL.Vec(BotView)], ['query']),
     'listCalendarBlocks' : IDL.Func(
         [IDL.Opt(IDL.Nat)],
         [IDL.Vec(BlockView)],
+        ['query'],
+      ),
+    'listColleagues' : IDL.Func(
+        [IDL.Opt(IDL.Nat)],
+        [IDL.Vec(Colleague)],
         ['query'],
       ),
     'listContractTemplates' : IDL.Func(
@@ -19641,6 +19708,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_8],
         [],
       ),
+    'stepTask' : IDL.Func([IDL.Nat, TaskStep, IDL.Text], [Result_1], []),
     'submitProposal' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [Result_7], []),
     'taskHistory' : IDL.Func(
         [IDL.Nat, IDL.Opt(IDL.Nat), IDL.Nat, IDL.Nat],

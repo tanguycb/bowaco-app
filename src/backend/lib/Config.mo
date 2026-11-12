@@ -737,6 +737,9 @@ module {
   public let taskKeep : Int = 34_560_000_000_000_000; // 400 dagen
   public let taskMaxEvents : Nat = 30; // regels in de tijdlijn van één taak (de eerste blijft altijd)
   public let taskMaxPoints : Nat = 60; // punten per voorstel (één per gekozen post bij een vergelijking)
+  public let taskTitleMax : Nat = 160; // 4b.7: omschrijving van een gewone taak
+  public let taskReasonMax : Nat = 200; // 4b.7: reden bij 'kan niet'
+  public let taskMaxOpenPerPerson : Nat = 200; // 4b.7: open gewone taken per uitvoerder
   public let taskMaxPage : Nat = 100; // listTasks: hoogstens zoveel per pagina
 
   // ── Proefbank (stap 3.5, bouwplan §6 "Autonomie per taak", eigenaar 08-11) ──

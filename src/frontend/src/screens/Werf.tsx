@@ -39,6 +39,7 @@ import { WorkNacalc } from "./Nacalc";
 import { WorkSales } from "./Facturen";
 import { MySales } from "./FacturenLijst";
 import { WieDeedWat } from "./Voorstel";
+import { TakenBlok } from "./Assistenten";
 
 const F = t.fase;
 
@@ -322,6 +323,7 @@ function Overzicht({ w, caps, go, fase }: { w: WorkView; caps: Caps; go: (to: st
         )}
         {report !== null && <ReportSheet id={report} onClose={() => setReport(null)} />}
         {/* 4b.6: wie deed wat op deze werf (taken en voorstellen van assistenten; rechten van het bronscherm). */}
+        {caps.readTeam && <TakenBlok werf={w.id} go={go} />}
         {caps.readTeam && <WieDeedWat workId={w.id} go={go} verberg />}
         <details className="a-note">
           <summary>{F.rules.title}</summary>

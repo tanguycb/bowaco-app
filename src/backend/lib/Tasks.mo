@@ -418,6 +418,46 @@ module {
     a.size() == b.size() and Array.tabulate<Bool>(a.size(), func(i) = a[i].key == b[i].key and a[i].after == b[i].after and a[i].now == b[i].now and a[i].secret == b[i].secret and isAdjusted(a[i]) == isAdjusted(b[i])).all(func(x : Bool) : Bool = x);
   };
 
+  // ── 4b.7: een taak geven aan een collega (persoon) ──────────────────────
+  // Een gewone taak van een persoon aan een persoon, in hetzelfde model: sleutel "taak:<id>", soort "taak", geen voorstel. De
+  // omschrijving (door een mens geschreven, hoogstens Config.taskTitleMax tekens) staat in extra "titel", de uiterste dag in
+  // "uiterlijk", de reden bij "mislukt" in "reden". Een assistent krijgt zijn taken via de plek waar je werkt (inlezen, vergelijken,
+  // nalezen, factuurcontrole): daar blijft het dossier met zijn rechten en rekenregels, zoals in 3.8–3.11.
+  public func isManual(t : Task) : Bool { t.kind == "taak" };
+  public func extraOf(t : Task, k : Text) : Text { switch (extraGet(t.extra, k)) { case (?v) v; case null "" } };
+  public func giveManual(s : Types.TaskStore, by : Nat, doer : Nat, workId : ?Nat, title : Text, due : ?Nat, now : Int) : Task {
+    let id = newId(s);
+    let key = "taak:" # id.toText();
+    let t : Task = {
+      id;
+      key;
+      kind = "taak";
+      src = #other(key);
+      workId;
+      subject = #none;
+      givenBy = #person(by);
+      doer = #person(doer);
+      createdAt = now;
+      var state = #waiting;
+      var updatedAt = now;
+      var proposalId = null;
+      var events = [{ at = now; who = #person(by); what = "taak:wacht"; extra = [] }];
+      var extra = switch due { case (?d) [("titel", title), ("uiterlijk", d.toText())]; case null [("titel", title)] };
+    };
+    s.tasks.add(id, t);
+    s.byKey.add(key, id);
+    switch workId { case (?w) s.byWork.add(w, (s.byWork.get(w) ?? []).concat([id])); case null {} };
+    t;
+  };
+  // De stand van een gewone taak veranderen (wie mag, beslist de aanroeper). reason = enkel bij mislukt/geannuleerd.
+  public func setManual(t : Task, who : Nat, state : Types.TaskState, reason : Text, now : Int) {
+    t.state := state;
+    t.updatedAt := now;
+    let rest = t.extra.filter(func((k, _) : (Text, Text)) : Bool = k != "reden");
+    t.extra := if (reason == "") rest else rest.concat([("reden", reason)]);
+    addEvent(t, { at = now; who = #person(who); what = "taak:" # stateKey(state); extra = [] });
+  };
+
   // Eén dossier in het model zetten of gelijkzetten. Geeft true als er iets veranderde.
   public func put(s : Types.TaskStore, sh : Shape) : Bool {
     let key = srcKey(sh.src);

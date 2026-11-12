@@ -29,6 +29,7 @@ import { Werfverslag } from "../screens/Werfverslag";
 import { OutboxSheet } from "../screens/Verslagen";
 import { MijnUren } from "../screens/Extern";
 import { TodoPage, TodoTeller } from "../screens/TeDoen";
+import { AssistentenPage } from "../screens/Assistenten";
 import { BalkKnop, useBalkSneltoets, Venster as BalkVenster } from "../balk/Balk";
 import { PlanningHub } from "../screens/PlanningTabs";
 import { IntroCard, StartBanner, useStartState } from "../screens/Start";
@@ -234,7 +235,7 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
   const screen = (() => {
     switch (page) {
       case "overzicht": return <Overzicht go={go} caps={caps} />;
-      case "te-doen": return <TodoPage go={go} home={caps.home} selected={route[1] ? (() => { try { return decodeURIComponent(route[1]); } catch { return undefined; } })() : undefined} />;
+      case "te-doen": return <TodoPage go={go} home={caps.home} intern={caps.readTeam} selected={route[1] ? (() => { try { return decodeURIComponent(route[1]); } catch { return undefined; } })() : undefined} />;
       case "vandaag":
         if (caps.writeReports) return <Vandaag go={go} caps={caps} />;
         return <Home kind={page} go={go} caps={caps} />;
@@ -257,6 +258,9 @@ function Shell({ me, onLogout }: { me: MeView; onLogout: () => void }) {
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "facturen":
         if (caps.sales) return <SalesWorklist caps={caps} go={go} selected={/^\d+$/.test(route[1] ?? "") ? route[1] : undefined} />;
+        return <Home kind={caps.home} go={go} caps={caps} />;
+      case "assistenten":
+        if (caps.readTeam) return <AssistentenPage go={go} beheer={caps.manageAi} />;
         return <Home kind={caps.home} go={go} caps={caps} />;
       case "briefing":
         if (caps.manageSettings) return <BriefingPage go={go} caps={caps} />;

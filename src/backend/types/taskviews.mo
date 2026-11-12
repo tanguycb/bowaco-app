@@ -37,6 +37,10 @@ module {
     updatedAt : Int;
     proposal : ?AssistProposalView;
     events : [AssistEventView];
+    // 4b.7 (gewone taak aan een collega): de omschrijving, de uiterste dag en de reden bij "mislukt" — enkel in het volle zicht.
+    title : Text;
+    dueDay : ?Nat;
+    reason : Text;
   };
   // workId = enkel die werf; openOnly = enkel wacht · bezig · voorstel; kind = enkel die taak ("" = alle); offset/limit: pagina
   // (limit 0 of > Config.taskMaxPage = de grens). Nieuwste eerst.
@@ -49,4 +53,24 @@ module {
   public type AssistTaskForQuery = { workId : ?Nat; key : Text; subject : Text; openOnly : Bool; kind : Text; offset : Nat; limit : Nat };
   public type AssistTaskSeen = { task : AssistTaskView; full : Bool; subjectLabel : Text };
   public type AssistTaskSeenPage = { total : Nat; items : [AssistTaskSeen] };
+
+  // ── 4b.7: een taak geven en de assistenten ──
+  // Een gewone taak aan een collega: de omschrijving (≤ Config.taskTitleMax), de werf (mag leeg) en de uiterste dag (mag leeg).
+  public type GiveTaskInput = { doerId : Nat; workId : ?Nat; title : Text; dueDay : ?Nat };
+  // wat de uitvoerder met zijn taak doet: "bezig" · "klaar" · "kan-niet" (met reden); de gever of de beheerder: "annuleren".
+  public type TaskStep = { #start; #done; #cannot; #cancel };
+  // Een collega die een taak kan krijgen (intern, actief, ziet de werf als die er is).
+  public type Colleague = { id : Nat; name : Text };
+  // Een assistent in de woorden van het scherm: de taak + "assistent"; de score van de proefbank (laatste gesloten ronde, het beste van
+  // alle koppelingen); open = taken in wacht, bezig of voorstel; failed = mislukt de laatste 30 dagen. Geen leverancier, model of fiche.
+  public type AssistantCard = {
+    kind : Text;
+    name : Text;
+    word : Text;
+    score : ?Nat;
+    cases : Nat;
+    passed : Bool;
+    open : Nat;
+    failed : Nat;
+  };
 };
